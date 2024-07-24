@@ -129,7 +129,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * Method returns active session by its unique id or NULL if such session is not found.
 	 */
 	@Nonnull
-	Optional<EvitaSessionContract> getSessionById(@Nonnull String catalogName, @Nonnull UUID uuid);
+	Optional<EvitaSessionContract> getSessionById(@Nonnull UUID uuid);
 
 	/**
 	 * Terminates existing {@link EvitaSessionContract}. When this method is called no additional calls to this EvitaSession

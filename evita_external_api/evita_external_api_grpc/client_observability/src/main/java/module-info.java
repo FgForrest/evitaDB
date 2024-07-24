@@ -42,6 +42,7 @@ module evita.java.driver.observability {
 
 	requires io.opentelemetry.context;
 	requires io.opentelemetry.api;
+	requires evita.common;
 
 	exports io.evitadb.driver.observability.trace;
 }

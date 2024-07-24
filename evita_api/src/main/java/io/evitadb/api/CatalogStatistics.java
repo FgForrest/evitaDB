@@ -27,10 +27,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Aggregates basic data about the catalog and entity types stored in it.
  *
+ * @param catalogId unique identifier of the catalog
  * @param catalogName name of the catalog
  * @param corrupted true if the catalog is corrupted (other data will be not available)
  * @param catalogState current state of the catalog, null for corrupted catalog
@@ -43,6 +45,7 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record CatalogStatistics(
+	@Nullable UUID catalogId,
 	@Nonnull String catalogName,
 	boolean corrupted,
 	@Nullable CatalogState catalogState,

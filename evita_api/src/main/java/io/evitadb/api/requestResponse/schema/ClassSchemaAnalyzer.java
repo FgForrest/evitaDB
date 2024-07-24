@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -226,7 +227,7 @@ public class ClassSchemaAnalyzer {
 				} else if (whichIs instanceof GlobalAttributeSchemaBuilder entityBuilder) {
 					entityBuilder.representative();
 				} else {
-					throw new IllegalArgumentException("Reference attribute cannot be made representative!");
+					throw new GenericEvitaInternalError("Reference attribute cannot be made representative!");
 				}
 			}
 			if (attributeAnnotation.localized()) {

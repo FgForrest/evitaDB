@@ -40,7 +40,8 @@ import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.metric.event.transaction.*;
-import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent;
+import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
+import io.evitadb.externalApi.grpc.metric.event.SessionProcedureCalledEvent;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -122,7 +123,8 @@ public class EvitaJfrEventRegistry {
 		AnteroomWastedEvent.class,
 
 		// api - gRPC
-		ProcedureCalledEvent.class,
+		EvitaProcedureCalledEvent.class,
+		SessionProcedureCalledEvent.class,
 
 		// api - GraphQL
 		io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.class,

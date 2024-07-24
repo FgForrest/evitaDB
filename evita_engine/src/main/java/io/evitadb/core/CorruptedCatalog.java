@@ -133,12 +133,6 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public EntityCollectionContract createCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
-		throw new CatalogCorruptedException(this);
-	}
-
-	@Nonnull
-	@Override
 	public Optional<EntityCollectionContract> getCollectionForEntity(@Nonnull String entityType) {
 		throw new CatalogCorruptedException(this);
 	}
@@ -248,6 +242,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Override
 	public CatalogStatistics getStatistics() {
 		return new CatalogStatistics(
+			null,
 			catalogName,
 			true,
 			null,

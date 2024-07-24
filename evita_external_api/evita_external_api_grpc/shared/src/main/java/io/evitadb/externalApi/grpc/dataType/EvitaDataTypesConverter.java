@@ -1541,6 +1541,7 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static CatalogStatistics toCatalogStatistics(@Nonnull GrpcCatalogStatistics grpcCatalogStatistics) {
 		return new CatalogStatistics(
+			grpcCatalogStatistics.hasCatalogId() ? toUuid(grpcCatalogStatistics.getCatalogId()) : null,
 			grpcCatalogStatistics.getCatalogName(),
 			grpcCatalogStatistics.getCorrupted(),
 			EvitaEnumConverter.toCatalogState(grpcCatalogStatistics.getCatalogState()),

@@ -23,6 +23,7 @@
 
 package io.evitadb.driver.observability.trace;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.opentelemetry.api.OpenTelemetry;
 
 import javax.annotation.Nonnull;
@@ -47,7 +48,10 @@ public class OpenTelemetryClientTracerSetup {
 	@Nonnull
 	public static OpenTelemetry getOpenTelemetry() {
 		if (OPEN_TELEMETRY == null) {
-			throw new IllegalArgumentException("OpenTelemetry instance is not initialized properly! You have to always call `setOpenTelemetry` method to pass your OpenTelemetry instance.");
+			throw new EvitaInvalidUsageException(
+				"OpenTelemetry instance is not initialized properly! " +
+					"You have to always call `setOpenTelemetry` method to pass your OpenTelemetry instance."
+			);
 		}
 		return OPEN_TELEMETRY;
 	}

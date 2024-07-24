@@ -2053,7 +2053,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			)
 		);
 		final EvitaSessionContract serverSession = evitaServer.getEvita()
-			.getSessionById(TEST_CATALOG, clientSession.getId())
+			.getSessionById(clientSession.getId())
 			.orElseThrow(() -> new IllegalStateException("Server doesn't know the session!"));
 
 		serverSession.close();

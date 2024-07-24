@@ -23,13 +23,9 @@
 
 package io.evitadb.externalApi.grpc.metric.event;
 
-import io.evitadb.api.observability.annotation.ExportDurationMetric;
-import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.grpc.MethodDescriptor.MethodType;
-import jdk.jfr.Description;
 import jdk.jfr.Label;
-import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -39,42 +35,35 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractGrpcApiEvent.PACKAGE_NAME + ".GrpcProcedureCalled")
-@Description("Event that is fired when a gRPC procedure is called.")
-@ExportInvocationMetric(label = "gRPC procedure called total")
-@ExportDurationMetric(label = "gRPC procedure called duration")
-@Label("gRPC procedure called")
 @Getter
-public class ProcedureCalledEvent extends AbstractGrpcApiEvent {
+public abstract class AbstractProcedureCalledEvent extends AbstractGrpcApiEvent {
 
 	@Label("Name of the service that was called")
 	@ExportMetricLabel
-	private final String serviceName;
+	final String serviceName;
 
 	@Label("Name of the procedure that was called")
 	@ExportMetricLabel
-	private final String procedureName;
+	final String procedureName;
 
 	@Label("Initiator of the call (client or server)")
 	@ExportMetricLabel
-	private String initiator;
+	String initiator;
 
 	@Label("State of the response (OK, ERROR, CANCELED)")
 	@ExportMetricLabel
-	private String responseState;
+	String responseState;
 
 	/**
 	 * Private field for recognizing the type of the gRPC method.
 	 */
 	private final MethodType methodType;
 
-	public ProcedureCalledEvent(
-		@Nonnull String catalogName,
+	protected AbstractProcedureCalledEvent(
 		@Nonnull String serviceName,
 		@Nonnull String procedureName,
 		@Nonnull MethodType methodType
 	) {
-		super(catalogName);
 		this.serviceName = serviceName;
 		this.procedureName = procedureName;
 		this.methodType = methodType;
@@ -127,7 +116,7 @@ public class ProcedureCalledEvent extends AbstractGrpcApiEvent {
 	 * @return this
 	 */
 	@Nonnull
-	public ProcedureCalledEvent finish() {
+	public AbstractProcedureCalledEvent finish() {
 		this.end();
 		return this;
 	}
@@ -151,5 +140,3 @@ public class ProcedureCalledEvent extends AbstractGrpcApiEvent {
 	}
 
 }
-
-

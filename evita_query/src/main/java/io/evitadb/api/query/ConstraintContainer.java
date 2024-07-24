@@ -215,7 +215,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	protected <C extends Constraint<?>> Optional<C> getAdditionalChild(@Nonnull Class<C> additionalChildType) {
 		if (getType().isAssignableFrom(additionalChildType) ||
 			additionalChildType.isAssignableFrom(getType())) {
-			throw new IllegalArgumentException("Type of additional child must be different from type of children of the main container.");
+			throw new EvitaInvalidUsageException("Type of additional child must be different from type of children of the main container.");
 		}
 		//noinspection unchecked
 		return Arrays.stream(additionalChildren)

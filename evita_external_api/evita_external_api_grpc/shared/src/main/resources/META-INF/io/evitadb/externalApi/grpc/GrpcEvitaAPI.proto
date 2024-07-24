@@ -37,8 +37,6 @@ message GrpcEvitaSessionResponse {
 
 // Request to terminate a session.
 message GrpcEvitaSessionTerminationRequest {
-  // Name of the catalog for which the session is to be terminated.
-  string catalogName = 1;
   // UUID of the session to be terminated.
   string sessionId = 2;
 }

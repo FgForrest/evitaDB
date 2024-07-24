@@ -683,17 +683,6 @@ public final class Catalog
 		}
 	}
 
-	@Nonnull
-	@Override
-	public EntityCollectionContract createCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
-		if (entityCollections.containsKey(entityType)) {
-			return entityCollections.get(entityType);
-		} else {
-			updateSchema(new CreateEntitySchemaMutation(entityType));
-			return Objects.requireNonNull(entityCollections.get(entityType));
-		}
-	}
-
 	@Override
 	@Nonnull
 	public Optional<EntityCollectionContract> getCollectionForEntity(@Nonnull String entityType) {
@@ -957,7 +946,10 @@ public final class Catalog
 			//noinspection unchecked
 			return of((T) entityIndex);
 		} else {
-			throw new IllegalArgumentException("Expected index of type " + expectedType.getName() + " but got " + entityIndex.getClass().getName());
+			throw new GenericEvitaInternalError(
+				"Expected index of type " + expectedType.getName() + " but got " + entityIndex.getClass().getName() + ".",
+				"Expected different type of entity index."
+			);
 		}
 	}
 
@@ -1268,6 +1260,7 @@ public final class Catalog
 			.map(EntityCollection::getStatistics)
 			.toArray(EntityCollectionStatistics[]::new);
 		return new CatalogStatistics(
+			getCatalogId(),
 			getName(),
 			false,
 			getCatalogState(),

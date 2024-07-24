@@ -133,9 +133,16 @@ public final class Evita implements EvitaContract {
 	 */
 	private final Map<String, CatalogContract> catalogs;
 	/**
-	 * Keeps information about currently active sessions.
+	 * Data store shared among all instances of {@link SessionRegistry} that holds information about active sessions.
 	 */
-	private final Map<String, SessionRegistry> activeSessions = CollectionUtils.createConcurrentHashMap(512);
+	private final SessionRegistry.SessionRegistryDataStore sessionRegistryDataStore = SessionRegistry.createDataStore();
+	/**
+	 * Keeps information about session registries for each catalog.
+	 * {@link SessionRegistry} is the primary management service for active sessions, sessions that are stored in
+	 * the {@link #sessionRegistryDataStore} map are present only for quick lookup for the session and are actively
+	 * updated from the session registry (when the session is closed).
+	 */
+	private final Map<String, SessionRegistry> catalogSessionRegistries = CollectionUtils.createConcurrentHashMap(64);
 	/**
 	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified by
 	 * its {@link Formula#getHash()} method and when the supervisor identifies that certain formula
@@ -305,9 +312,8 @@ public final class Evita implements EvitaContract {
 
 	@Override
 	@Nonnull
-	public Optional<EvitaSessionContract> getSessionById(@Nonnull String catalogName, @Nonnull UUID sessionId) {
-		return ofNullable(this.activeSessions.get(catalogName))
-			.map(it -> it.getActiveSessionById(sessionId));
+	public Optional<EvitaSessionContract> getSessionById(@Nonnull UUID sessionId) {
+		return this.sessionRegistryDataStore.getActiveSessionById(sessionId);
 	}
 
 	@Override
@@ -512,7 +518,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	public Stream<EvitaSessionContract> getActiveSessions() {
-		return activeSessions.values().stream().flatMap(SessionRegistry::getActiveSessions);
+		return this.sessionRegistryDataStore.getActiveSessions();
 	}
 
 	/**
@@ -547,7 +553,7 @@ public final class Evita implements EvitaContract {
 	@Nonnull
 	public CatalogContract getCatalogInstanceOrThrowException(@Nonnull String catalog) throws IllegalArgumentException {
 		return getCatalogInstance(catalog)
-			.orElseThrow(() -> new IllegalArgumentException("Catalog " + catalog + " is not known to Evita!"));
+			.orElseThrow(() -> new CatalogNotFoundException(catalog));
 	}
 
 	/**
@@ -822,7 +828,7 @@ public final class Evita implements EvitaContract {
 	 * Closes all active sessions regardless of target catalog.
 	 */
 	private void closeAllSessions() {
-		final Iterator<SessionRegistry> sessionRegistryIt = this.activeSessions.values().iterator();
+		final Iterator<SessionRegistry> sessionRegistryIt = this.catalogSessionRegistries.values().iterator();
 		while (sessionRegistryIt.hasNext()) {
 			final SessionRegistry sessionRegistry = sessionRegistryIt.next();
 			sessionRegistry.closeAllActiveSessions();
@@ -835,7 +841,7 @@ public final class Evita implements EvitaContract {
 	 * `catalogName`.
 	 */
 	private void closeAllActiveSessionsTo(@Nonnull String catalogName) {
-		ofNullable(this.activeSessions.remove(catalogName))
+		ofNullable(this.catalogSessionRegistries.remove(catalogName))
 			.ifPresent(SessionRegistry::closeAllActiveSessions);
 	}
 
@@ -919,9 +925,13 @@ public final class Evita implements EvitaContract {
 			catalog = (Catalog) catalogContract;
 		}
 
-		final SessionRegistry sessionRegistry = activeSessions.computeIfAbsent(
+		final SessionRegistry sessionRegistry = catalogSessionRegistries.computeIfAbsent(
 			sessionTraits.catalogName(),
-			theCatalogName -> new SessionRegistry(tracingContext, () -> (Catalog) this.catalogs.get(sessionTraits.catalogName()))
+			theCatalogName -> new SessionRegistry(
+				this.tracingContext,
+				() -> (Catalog) this.catalogs.get(sessionTraits.catalogName()),
+				this.sessionRegistryDataStore
+			)
 		);
 
 		final NonTransactionalCatalogDescriptor nonTransactionalCatalogDescriptor =

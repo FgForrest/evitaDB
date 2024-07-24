@@ -361,21 +361,23 @@ message GrpcTaskStatus {
 // Aggregates basic data about the catalog and entity types stored in it.
 message GrpcCatalogStatistics {
   // name of the catalog
-  string catalogName = 1;
+  GrpcUuid catalogId = 1;
+  // name of the catalog
+  string catalogName = 2;
   // true if the catalog is corrupted (other data will be not available)
-  bool corrupted = 2;
+  bool corrupted = 3;
   // current state of the catalog, null for corrupted catalog
-  GrpcCatalogState catalogState = 3;
+  GrpcCatalogState catalogState = 4;
   // version of the catalog, -1 for corrupted catalog
-  int64 catalogVersion = 4;
+  int64 catalogVersion = 5;
   // total number of records in the catalog, -1 for corrupted catalog
-  int64 totalRecords = 5;
+  int64 totalRecords = 6;
   // total number of indexes in the catalog, -1 for corrupted catalog
-  int64 indexCount = 6;
+  int64 indexCount = 7;
   // total size of the catalog on disk in bytes
-  int64 sizeOnDiskInBytes = 7;
+  int64 sizeOnDiskInBytes = 8;
   // statistics for each entity collection in the catalog, empty array for corrupted catalog
-  repeated GrpcEntityCollectionStatistics entityCollectionStatistics = 8;
+  repeated GrpcEntityCollectionStatistics entityCollectionStatistics = 9;
 }
 
 // Aggregates basic data about the entity collection.

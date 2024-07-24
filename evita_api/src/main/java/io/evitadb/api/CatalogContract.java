@@ -143,15 +143,6 @@ public interface CatalogContract {
 	void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException;
 
 	/**
-	 * Creates and returns collection maintaining all entities of same type. If collection for the entity type exists
-	 * existing collection is returned.
-	 *
-	 * @param entityType type (name) of the entity
-	 */
-	@Nonnull
-	EntityCollectionContract createCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session);
-
-	/**
 	 * Returns collection maintaining all entities of same type.
 	 *
 	 * @param entityType type (name) of the entity

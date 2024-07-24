@@ -80,43 +80,56 @@ private static final long serialVersionUID = 0L;
             done = true;
             break;
           case 10: {
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder subBuilder = null;
+            if (catalogId_ != null) {
+              subBuilder = catalogId_.toBuilder();
+            }
+            catalogId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(catalogId_);
+              catalogId_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
+          case 18: {
             java.lang.String s = input.readStringRequireUtf8();
 
             catalogName_ = s;
             break;
           }
-          case 16: {
+          case 24: {
 
             corrupted_ = input.readBool();
             break;
           }
-          case 24: {
+          case 32: {
             int rawValue = input.readEnum();
 
             catalogState_ = rawValue;
             break;
           }
-          case 32: {
+          case 40: {
 
             catalogVersion_ = input.readInt64();
             break;
           }
-          case 40: {
+          case 48: {
 
             totalRecords_ = input.readInt64();
             break;
           }
-          case 48: {
+          case 56: {
 
             indexCount_ = input.readInt64();
             break;
           }
-          case 56: {
+          case 64: {
 
             sizeOnDiskInBytes_ = input.readInt64();
             break;
           }
-          case 66: {
+          case 74: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
               entityCollectionStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics>();
               mutable_bitField0_ |= 0x00000001;
@@ -160,14 +173,52 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.class, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder.class);
   }
 
-  public static final int CATALOGNAME_FIELD_NUMBER = 1;
+  public static final int CATALOGID_FIELD_NUMBER = 1;
+  private io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId_;
+  /**
+   * <pre>
+   * name of the catalog
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+   * @return Whether the catalogId field is set.
+   */
+  @java.lang.Override
+  public boolean hasCatalogId() {
+    return catalogId_ != null;
+  }
+  /**
+   * <pre>
+   * name of the catalog
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+   * @return The catalogId.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuid getCatalogId() {
+    return catalogId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : catalogId_;
+  }
+  /**
+   * <pre>
+   * name of the catalog
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getCatalogIdOrBuilder() {
+    return getCatalogId();
+  }
+
+  public static final int CATALOGNAME_FIELD_NUMBER = 2;
   private volatile java.lang.Object catalogName_;
   /**
    * <pre>
    * name of the catalog
    * </pre>
    *
-   * <code>string catalogName = 1;</code>
+   * <code>string catalogName = 2;</code>
    * @return The catalogName.
    */
   @java.lang.Override
@@ -188,7 +239,7 @@ private static final long serialVersionUID = 0L;
    * name of the catalog
    * </pre>
    *
-   * <code>string catalogName = 1;</code>
+   * <code>string catalogName = 2;</code>
    * @return The bytes for catalogName.
    */
   @java.lang.Override
@@ -206,14 +257,14 @@ private static final long serialVersionUID = 0L;
     }
   }
 
-  public static final int CORRUPTED_FIELD_NUMBER = 2;
+  public static final int CORRUPTED_FIELD_NUMBER = 3;
   private boolean corrupted_;
   /**
    * <pre>
    * true if the catalog is corrupted (other data will be not available)
    * </pre>
    *
-   * <code>bool corrupted = 2;</code>
+   * <code>bool corrupted = 3;</code>
    * @return The corrupted.
    */
   @java.lang.Override
@@ -221,14 +272,14 @@ private static final long serialVersionUID = 0L;
     return corrupted_;
   }
 
-  public static final int CATALOGSTATE_FIELD_NUMBER = 3;
+  public static final int CATALOGSTATE_FIELD_NUMBER = 4;
   private int catalogState_;
   /**
    * <pre>
    * current state of the catalog, null for corrupted catalog
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
    * @return The enum numeric value on the wire for catalogState.
    */
   @java.lang.Override public int getCatalogStateValue() {
@@ -239,7 +290,7 @@ private static final long serialVersionUID = 0L;
    * current state of the catalog, null for corrupted catalog
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
    * @return The catalogState.
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCatalogState getCatalogState() {
@@ -248,14 +299,14 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNRECOGNIZED : result;
   }
 
-  public static final int CATALOGVERSION_FIELD_NUMBER = 4;
+  public static final int CATALOGVERSION_FIELD_NUMBER = 5;
   private long catalogVersion_;
   /**
    * <pre>
    * version of the catalog, -1 for corrupted catalog
    * </pre>
    *
-   * <code>int64 catalogVersion = 4;</code>
+   * <code>int64 catalogVersion = 5;</code>
    * @return The catalogVersion.
    */
   @java.lang.Override
@@ -263,14 +314,14 @@ private static final long serialVersionUID = 0L;
     return catalogVersion_;
   }
 
-  public static final int TOTALRECORDS_FIELD_NUMBER = 5;
+  public static final int TOTALRECORDS_FIELD_NUMBER = 6;
   private long totalRecords_;
   /**
    * <pre>
    * total number of records in the catalog, -1 for corrupted catalog
    * </pre>
    *
-   * <code>int64 totalRecords = 5;</code>
+   * <code>int64 totalRecords = 6;</code>
    * @return The totalRecords.
    */
   @java.lang.Override
@@ -278,14 +329,14 @@ private static final long serialVersionUID = 0L;
     return totalRecords_;
   }
 
-  public static final int INDEXCOUNT_FIELD_NUMBER = 6;
+  public static final int INDEXCOUNT_FIELD_NUMBER = 7;
   private long indexCount_;
   /**
    * <pre>
    * total number of indexes in the catalog, -1 for corrupted catalog
    * </pre>
    *
-   * <code>int64 indexCount = 6;</code>
+   * <code>int64 indexCount = 7;</code>
    * @return The indexCount.
    */
   @java.lang.Override
@@ -293,14 +344,14 @@ private static final long serialVersionUID = 0L;
     return indexCount_;
   }
 
-  public static final int SIZEONDISKINBYTES_FIELD_NUMBER = 7;
+  public static final int SIZEONDISKINBYTES_FIELD_NUMBER = 8;
   private long sizeOnDiskInBytes_;
   /**
    * <pre>
    * total size of the catalog on disk in bytes
    * </pre>
    *
-   * <code>int64 sizeOnDiskInBytes = 7;</code>
+   * <code>int64 sizeOnDiskInBytes = 8;</code>
    * @return The sizeOnDiskInBytes.
    */
   @java.lang.Override
@@ -308,14 +359,14 @@ private static final long serialVersionUID = 0L;
     return sizeOnDiskInBytes_;
   }
 
-  public static final int ENTITYCOLLECTIONSTATISTICS_FIELD_NUMBER = 8;
+  public static final int ENTITYCOLLECTIONSTATISTICS_FIELD_NUMBER = 9;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics> entityCollectionStatistics_;
   /**
    * <pre>
    * statistics for each entity collection in the catalog, empty array for corrupted catalog
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics> getEntityCollectionStatisticsList() {
@@ -326,7 +377,7 @@ private static final long serialVersionUID = 0L;
    * statistics for each entity collection in the catalog, empty array for corrupted catalog
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder>
@@ -338,7 +389,7 @@ private static final long serialVersionUID = 0L;
    * statistics for each entity collection in the catalog, empty array for corrupted catalog
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   @java.lang.Override
   public int getEntityCollectionStatisticsCount() {
@@ -349,7 +400,7 @@ private static final long serialVersionUID = 0L;
    * statistics for each entity collection in the catalog, empty array for corrupted catalog
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics getEntityCollectionStatistics(int index) {
@@ -360,7 +411,7 @@ private static final long serialVersionUID = 0L;
    * statistics for each entity collection in the catalog, empty array for corrupted catalog
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder getEntityCollectionStatisticsOrBuilder(
@@ -382,29 +433,32 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    if (catalogId_ != null) {
+      output.writeMessage(1, getCatalogId());
+    }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, catalogName_);
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, catalogName_);
     }
     if (corrupted_ != false) {
-      output.writeBool(2, corrupted_);
+      output.writeBool(3, corrupted_);
     }
     if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
-      output.writeEnum(3, catalogState_);
+      output.writeEnum(4, catalogState_);
     }
     if (catalogVersion_ != 0L) {
-      output.writeInt64(4, catalogVersion_);
+      output.writeInt64(5, catalogVersion_);
     }
     if (totalRecords_ != 0L) {
-      output.writeInt64(5, totalRecords_);
+      output.writeInt64(6, totalRecords_);
     }
     if (indexCount_ != 0L) {
-      output.writeInt64(6, indexCount_);
+      output.writeInt64(7, indexCount_);
     }
     if (sizeOnDiskInBytes_ != 0L) {
-      output.writeInt64(7, sizeOnDiskInBytes_);
+      output.writeInt64(8, sizeOnDiskInBytes_);
     }
     for (int i = 0; i < entityCollectionStatistics_.size(); i++) {
-      output.writeMessage(8, entityCollectionStatistics_.get(i));
+      output.writeMessage(9, entityCollectionStatistics_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -415,36 +469,40 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
+    if (catalogId_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(1, getCatalogId());
+    }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, catalogName_);
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, catalogName_);
     }
     if (corrupted_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(2, corrupted_);
+        .computeBoolSize(3, corrupted_);
     }
     if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(3, catalogState_);
+        .computeEnumSize(4, catalogState_);
     }
     if (catalogVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(4, catalogVersion_);
+        .computeInt64Size(5, catalogVersion_);
     }
     if (totalRecords_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(5, totalRecords_);
+        .computeInt64Size(6, totalRecords_);
     }
     if (indexCount_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(6, indexCount_);
+        .computeInt64Size(7, indexCount_);
     }
     if (sizeOnDiskInBytes_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(7, sizeOnDiskInBytes_);
+        .computeInt64Size(8, sizeOnDiskInBytes_);
     }
     for (int i = 0; i < entityCollectionStatistics_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(8, entityCollectionStatistics_.get(i));
+        .computeMessageSize(9, entityCollectionStatistics_.get(i));
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -461,6 +519,11 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics other = (io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics) obj;
 
+    if (hasCatalogId() != other.hasCatalogId()) return false;
+    if (hasCatalogId()) {
+      if (!getCatalogId()
+          .equals(other.getCatalogId())) return false;
+    }
     if (!getCatalogName()
         .equals(other.getCatalogName())) return false;
     if (getCorrupted()
@@ -487,6 +550,10 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
+    if (hasCatalogId()) {
+      hash = (37 * hash) + CATALOGID_FIELD_NUMBER;
+      hash = (53 * hash) + getCatalogId().hashCode();
+    }
     hash = (37 * hash) + CATALOGNAME_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogName().hashCode();
     hash = (37 * hash) + CORRUPTED_FIELD_NUMBER;
@@ -648,6 +715,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
+      if (catalogIdBuilder_ == null) {
+        catalogId_ = null;
+      } else {
+        catalogId_ = null;
+        catalogIdBuilder_ = null;
+      }
       catalogName_ = "";
 
       corrupted_ = false;
@@ -695,6 +768,11 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics result = new io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics(this);
       int from_bitField0_ = bitField0_;
+      if (catalogIdBuilder_ == null) {
+        result.catalogId_ = catalogId_;
+      } else {
+        result.catalogId_ = catalogIdBuilder_.build();
+      }
       result.catalogName_ = catalogName_;
       result.corrupted_ = corrupted_;
       result.catalogState_ = catalogState_;
@@ -759,6 +837,9 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.getDefaultInstance()) return this;
+      if (other.hasCatalogId()) {
+        mergeCatalogId(other.getCatalogId());
+      }
       if (!other.getCatalogName().isEmpty()) {
         catalogName_ = other.catalogName_;
         onChanged();
@@ -837,13 +918,168 @@ private static final long serialVersionUID = 0L;
     }
     private int bitField0_;
 
+    private io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> catalogIdBuilder_;
+    /**
+     * <pre>
+     * name of the catalog
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+     * @return Whether the catalogId field is set.
+     */
+    public boolean hasCatalogId() {
+      return catalogIdBuilder_ != null || catalogId_ != null;
+    }
+    /**
+     * <pre>
+     * name of the catalog
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+     * @return The catalogId.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid getCatalogId() {
+      if (catalogIdBuilder_ == null) {
+        return catalogId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : catalogId_;
+      } else {
+        return catalogIdBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * name of the catalog
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+     */
+    public Builder setCatalogId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (catalogIdBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        catalogId_ = value;
+        onChanged();
+      } else {
+        catalogIdBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * name of the catalog
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+     */
+    public Builder setCatalogId(
+        io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
+      if (catalogIdBuilder_ == null) {
+        catalogId_ = builderForValue.build();
+        onChanged();
+      } else {
+        catalogIdBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * name of the catalog
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+     */
+    public Builder mergeCatalogId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (catalogIdBuilder_ == null) {
+        if (catalogId_ != null) {
+          catalogId_ =
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(catalogId_).mergeFrom(value).buildPartial();
+        } else {
+          catalogId_ = value;
+        }
+        onChanged();
+      } else {
+        catalogIdBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * name of the catalog
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+     */
+    public Builder clearCatalogId() {
+      if (catalogIdBuilder_ == null) {
+        catalogId_ = null;
+        onChanged();
+      } else {
+        catalogId_ = null;
+        catalogIdBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * name of the catalog
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getCatalogIdBuilder() {
+
+      onChanged();
+      return getCatalogIdFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * name of the catalog
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getCatalogIdOrBuilder() {
+      if (catalogIdBuilder_ != null) {
+        return catalogIdBuilder_.getMessageOrBuilder();
+      } else {
+        return catalogId_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : catalogId_;
+      }
+    }
+    /**
+     * <pre>
+     * name of the catalog
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+        getCatalogIdFieldBuilder() {
+      if (catalogIdBuilder_ == null) {
+        catalogIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>(
+                getCatalogId(),
+                getParentForChildren(),
+                isClean());
+        catalogId_ = null;
+      }
+      return catalogIdBuilder_;
+    }
+
     private java.lang.Object catalogName_ = "";
     /**
      * <pre>
      * name of the catalog
      * </pre>
      *
-     * <code>string catalogName = 1;</code>
+     * <code>string catalogName = 2;</code>
      * @return The catalogName.
      */
     public java.lang.String getCatalogName() {
@@ -863,7 +1099,7 @@ private static final long serialVersionUID = 0L;
      * name of the catalog
      * </pre>
      *
-     * <code>string catalogName = 1;</code>
+     * <code>string catalogName = 2;</code>
      * @return The bytes for catalogName.
      */
     public com.google.protobuf.ByteString
@@ -884,7 +1120,7 @@ private static final long serialVersionUID = 0L;
      * name of the catalog
      * </pre>
      *
-     * <code>string catalogName = 1;</code>
+     * <code>string catalogName = 2;</code>
      * @param value The catalogName to set.
      * @return This builder for chaining.
      */
@@ -903,7 +1139,7 @@ private static final long serialVersionUID = 0L;
      * name of the catalog
      * </pre>
      *
-     * <code>string catalogName = 1;</code>
+     * <code>string catalogName = 2;</code>
      * @return This builder for chaining.
      */
     public Builder clearCatalogName() {
@@ -917,7 +1153,7 @@ private static final long serialVersionUID = 0L;
      * name of the catalog
      * </pre>
      *
-     * <code>string catalogName = 1;</code>
+     * <code>string catalogName = 2;</code>
      * @param value The bytes for catalogName to set.
      * @return This builder for chaining.
      */
@@ -939,7 +1175,7 @@ private static final long serialVersionUID = 0L;
      * true if the catalog is corrupted (other data will be not available)
      * </pre>
      *
-     * <code>bool corrupted = 2;</code>
+     * <code>bool corrupted = 3;</code>
      * @return The corrupted.
      */
     @java.lang.Override
@@ -951,7 +1187,7 @@ private static final long serialVersionUID = 0L;
      * true if the catalog is corrupted (other data will be not available)
      * </pre>
      *
-     * <code>bool corrupted = 2;</code>
+     * <code>bool corrupted = 3;</code>
      * @param value The corrupted to set.
      * @return This builder for chaining.
      */
@@ -966,7 +1202,7 @@ private static final long serialVersionUID = 0L;
      * true if the catalog is corrupted (other data will be not available)
      * </pre>
      *
-     * <code>bool corrupted = 2;</code>
+     * <code>bool corrupted = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearCorrupted() {
@@ -982,7 +1218,7 @@ private static final long serialVersionUID = 0L;
      * current state of the catalog, null for corrupted catalog
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
      * @return The enum numeric value on the wire for catalogState.
      */
     @java.lang.Override public int getCatalogStateValue() {
@@ -993,7 +1229,7 @@ private static final long serialVersionUID = 0L;
      * current state of the catalog, null for corrupted catalog
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
      * @param value The enum numeric value on the wire for catalogState to set.
      * @return This builder for chaining.
      */
@@ -1008,7 +1244,7 @@ private static final long serialVersionUID = 0L;
      * current state of the catalog, null for corrupted catalog
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
      * @return The catalogState.
      */
     @java.lang.Override
@@ -1022,7 +1258,7 @@ private static final long serialVersionUID = 0L;
      * current state of the catalog, null for corrupted catalog
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
      * @param value The catalogState to set.
      * @return This builder for chaining.
      */
@@ -1040,7 +1276,7 @@ private static final long serialVersionUID = 0L;
      * current state of the catalog, null for corrupted catalog
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearCatalogState() {
@@ -1056,7 +1292,7 @@ private static final long serialVersionUID = 0L;
      * version of the catalog, -1 for corrupted catalog
      * </pre>
      *
-     * <code>int64 catalogVersion = 4;</code>
+     * <code>int64 catalogVersion = 5;</code>
      * @return The catalogVersion.
      */
     @java.lang.Override
@@ -1068,7 +1304,7 @@ private static final long serialVersionUID = 0L;
      * version of the catalog, -1 for corrupted catalog
      * </pre>
      *
-     * <code>int64 catalogVersion = 4;</code>
+     * <code>int64 catalogVersion = 5;</code>
      * @param value The catalogVersion to set.
      * @return This builder for chaining.
      */
@@ -1083,7 +1319,7 @@ private static final long serialVersionUID = 0L;
      * version of the catalog, -1 for corrupted catalog
      * </pre>
      *
-     * <code>int64 catalogVersion = 4;</code>
+     * <code>int64 catalogVersion = 5;</code>
      * @return This builder for chaining.
      */
     public Builder clearCatalogVersion() {
@@ -1099,7 +1335,7 @@ private static final long serialVersionUID = 0L;
      * total number of records in the catalog, -1 for corrupted catalog
      * </pre>
      *
-     * <code>int64 totalRecords = 5;</code>
+     * <code>int64 totalRecords = 6;</code>
      * @return The totalRecords.
      */
     @java.lang.Override
@@ -1111,7 +1347,7 @@ private static final long serialVersionUID = 0L;
      * total number of records in the catalog, -1 for corrupted catalog
      * </pre>
      *
-     * <code>int64 totalRecords = 5;</code>
+     * <code>int64 totalRecords = 6;</code>
      * @param value The totalRecords to set.
      * @return This builder for chaining.
      */
@@ -1126,7 +1362,7 @@ private static final long serialVersionUID = 0L;
      * total number of records in the catalog, -1 for corrupted catalog
      * </pre>
      *
-     * <code>int64 totalRecords = 5;</code>
+     * <code>int64 totalRecords = 6;</code>
      * @return This builder for chaining.
      */
     public Builder clearTotalRecords() {
@@ -1142,7 +1378,7 @@ private static final long serialVersionUID = 0L;
      * total number of indexes in the catalog, -1 for corrupted catalog
      * </pre>
      *
-     * <code>int64 indexCount = 6;</code>
+     * <code>int64 indexCount = 7;</code>
      * @return The indexCount.
      */
     @java.lang.Override
@@ -1154,7 +1390,7 @@ private static final long serialVersionUID = 0L;
      * total number of indexes in the catalog, -1 for corrupted catalog
      * </pre>
      *
-     * <code>int64 indexCount = 6;</code>
+     * <code>int64 indexCount = 7;</code>
      * @param value The indexCount to set.
      * @return This builder for chaining.
      */
@@ -1169,7 +1405,7 @@ private static final long serialVersionUID = 0L;
      * total number of indexes in the catalog, -1 for corrupted catalog
      * </pre>
      *
-     * <code>int64 indexCount = 6;</code>
+     * <code>int64 indexCount = 7;</code>
      * @return This builder for chaining.
      */
     public Builder clearIndexCount() {
@@ -1185,7 +1421,7 @@ private static final long serialVersionUID = 0L;
      * total size of the catalog on disk in bytes
      * </pre>
      *
-     * <code>int64 sizeOnDiskInBytes = 7;</code>
+     * <code>int64 sizeOnDiskInBytes = 8;</code>
      * @return The sizeOnDiskInBytes.
      */
     @java.lang.Override
@@ -1197,7 +1433,7 @@ private static final long serialVersionUID = 0L;
      * total size of the catalog on disk in bytes
      * </pre>
      *
-     * <code>int64 sizeOnDiskInBytes = 7;</code>
+     * <code>int64 sizeOnDiskInBytes = 8;</code>
      * @param value The sizeOnDiskInBytes to set.
      * @return This builder for chaining.
      */
@@ -1212,7 +1448,7 @@ private static final long serialVersionUID = 0L;
      * total size of the catalog on disk in bytes
      * </pre>
      *
-     * <code>int64 sizeOnDiskInBytes = 7;</code>
+     * <code>int64 sizeOnDiskInBytes = 8;</code>
      * @return This builder for chaining.
      */
     public Builder clearSizeOnDiskInBytes() {
@@ -1239,7 +1475,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics> getEntityCollectionStatisticsList() {
       if (entityCollectionStatisticsBuilder_ == null) {
@@ -1253,7 +1489,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public int getEntityCollectionStatisticsCount() {
       if (entityCollectionStatisticsBuilder_ == null) {
@@ -1267,7 +1503,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics getEntityCollectionStatistics(int index) {
       if (entityCollectionStatisticsBuilder_ == null) {
@@ -1281,7 +1517,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public Builder setEntityCollectionStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics value) {
@@ -1302,7 +1538,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public Builder setEntityCollectionStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder builderForValue) {
@@ -1320,7 +1556,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public Builder addEntityCollectionStatistics(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics value) {
       if (entityCollectionStatisticsBuilder_ == null) {
@@ -1340,7 +1576,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public Builder addEntityCollectionStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics value) {
@@ -1361,7 +1597,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public Builder addEntityCollectionStatistics(
         io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder builderForValue) {
@@ -1379,7 +1615,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public Builder addEntityCollectionStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder builderForValue) {
@@ -1397,7 +1633,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public Builder addAllEntityCollectionStatistics(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics> values) {
@@ -1416,7 +1652,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public Builder clearEntityCollectionStatistics() {
       if (entityCollectionStatisticsBuilder_ == null) {
@@ -1433,7 +1669,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public Builder removeEntityCollectionStatistics(int index) {
       if (entityCollectionStatisticsBuilder_ == null) {
@@ -1450,7 +1686,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder getEntityCollectionStatisticsBuilder(
         int index) {
@@ -1461,7 +1697,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder getEntityCollectionStatisticsOrBuilder(
         int index) {
@@ -1475,7 +1711,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder>
          getEntityCollectionStatisticsOrBuilderList() {
@@ -1490,7 +1726,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder addEntityCollectionStatisticsBuilder() {
       return getEntityCollectionStatisticsFieldBuilder().addBuilder(
@@ -1501,7 +1737,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder addEntityCollectionStatisticsBuilder(
         int index) {
@@ -1513,7 +1749,7 @@ private static final long serialVersionUID = 0L;
      * statistics for each entity collection in the catalog, empty array for corrupted catalog
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder>
          getEntityCollectionStatisticsBuilderList() {
