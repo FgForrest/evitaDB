@@ -202,6 +202,12 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
+	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
 	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
 		throw new CatalogCorruptedException(this);
 	}

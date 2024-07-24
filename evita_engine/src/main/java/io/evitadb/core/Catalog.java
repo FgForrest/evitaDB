@@ -832,14 +832,20 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 	@Nonnull
 	@Override
-	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
-		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
+	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+		return this.persistenceService.getCatalogVersionAt(moment);
 	}
 
 	@Nonnull
 	@Override
 	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
 		return this.persistenceService.getCatalogVersionDescriptors(catalogVersion);
+	}
+
+	@Nonnull
+	@Override
+	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
 	}
 
 	@Override

@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -111,6 +112,11 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 				entitySchema.getSortableAttributeCompounds()
 			);
 		}
+	}
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

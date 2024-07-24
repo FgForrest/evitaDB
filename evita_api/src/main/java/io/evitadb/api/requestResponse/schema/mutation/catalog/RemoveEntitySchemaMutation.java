@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
@@ -71,6 +72,12 @@ public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 		}
 		// do nothing - we alter only the entity schema
 		return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.REMOVE;
 	}
 
 	@Override

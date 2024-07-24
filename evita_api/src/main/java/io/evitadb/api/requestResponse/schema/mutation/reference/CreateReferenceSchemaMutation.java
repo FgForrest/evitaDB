@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -245,6 +246,12 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		final T newValue = propertyRetriever.apply(createdVersion);
 		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
 			null : mutationCreator.apply(newValue);
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

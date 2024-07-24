@@ -464,6 +464,18 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
 
 	/**
+	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
+	 * specified method returns first version known to the catalog mutation history.
+	 *
+	 * @param moment the moment in time for which the catalog version should be returned
+	 * @return catalog version that was valid at the specified moment in time, or first version known to the catalog
+	 * mutation history if no moment was specified
+	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 */
+	@Nonnull
+	CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+
+	/**
 	 * Returns a stream of {@link CatalogVersionDescriptor} instances for the given catalog versions. Descriptors will
 	 * be ordered the same way as the input catalog versions, but may be missing some versions if they are not known in
 	 * history. Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients

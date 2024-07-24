@@ -1702,6 +1702,23 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
+	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+		final CatalogBootstrap bootstrap;
+		if (moment == null) {
+			bootstrap = DefaultCatalogPersistenceService.getFirstCatalogBootstrap(
+				this.catalogName, this.storageOptions
+			)
+				.orElseThrow(TemporalDataNotAvailableException::new);
+		} else {
+			bootstrap = DefaultCatalogPersistenceService.getCatalogBootstrapForSpecificMoment(
+				this.catalogName, this.storageOptions, moment
+			);
+		}
+		return new CatalogVersion(bootstrap.catalogVersion(), bootstrap.timestamp());
+	}
+
+	@Nonnull
+	@Override
 	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
 		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
@@ -1765,7 +1782,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				Arrays.stream(catalogVersion)
 					.mapToObj(
 						cv -> ofNullable(catalogVersionPreviousVersions.get(cv))
-							.map(it -> this.catalogWal.getCatalogVersionDescriptor(cv, it.version(), it.timestamp()))
+							.map(it -> this.catalogWal.getCatalogVersionDescriptor(cv, it.version(), it.introducedAt()))
 							.orElse(null))
 					.filter(Objects::nonNull);
 		} else {
@@ -2473,7 +2490,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				if (previousVersion != null) {
 					catalogVersionPreviousVersions.put(
 						cv.version(),
-						new CatalogVersion(previousVersion.version(), cv.timestamp())
+						new CatalogVersion(previousVersion.version(), cv.introducedAt())
 					);
 				}
 				previousVersion = cv;

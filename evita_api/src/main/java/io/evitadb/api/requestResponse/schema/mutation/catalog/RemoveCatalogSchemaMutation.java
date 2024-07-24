@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
@@ -37,6 +41,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for removing an existing {@link CatalogSchemaContract} - or more precisely the catalog
@@ -60,6 +65,26 @@ public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 			() -> new InvalidSchemaMutationException("Catalog `" + catalogName + "` doesn't exist!")
 		);
 		return null;
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.REMOVE;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull CaptureContent content) {
+		return Stream.of(
+			ChangeCatalogCapture.schemaCapture(
+				predicate.getContext(),
+				operation(),
+				content == CaptureContent.BODY ? this : null
+			)
+		);
 	}
 
 	@Override

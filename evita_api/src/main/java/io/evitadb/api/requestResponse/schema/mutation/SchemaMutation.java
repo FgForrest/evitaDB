@@ -23,11 +23,17 @@
 
 package io.evitadb.api.requestResponse.schema.mutation;
 
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.util.stream.Stream;
 
 /**
  * Entity {@link Mutation} allows to execute mutation operations on {@link EntitySchemaContract} object itself.
@@ -43,5 +49,22 @@ import javax.annotation.concurrent.ThreadSafe;
 @Immutable
 @ThreadSafe
 public non-sealed interface SchemaMutation extends Mutation {
+
+	@Override
+	@Nonnull
+	default Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull CaptureContent content) {
+		// each schema mutation is separate atomic operation
+		final MutationPredicateContext context = predicate.getContext();
+		context.advance();
+		return Stream.of(
+			ChangeCatalogCapture.schemaCapture(
+				context,
+				operation(),
+				content == CaptureContent.BODY ? this : null
+			)
+		);
+	}
 
 }

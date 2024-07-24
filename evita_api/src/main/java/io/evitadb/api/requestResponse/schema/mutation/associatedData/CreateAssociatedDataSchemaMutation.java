@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -209,6 +210,12 @@ public class CreateAssociatedDataSchemaMutation
 					" has different definition. To alter existing associated data schema you need to use different mutations."
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

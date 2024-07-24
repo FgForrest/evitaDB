@@ -49,6 +49,8 @@ import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -66,6 +68,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
@@ -82,6 +85,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
@@ -997,6 +1001,30 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Nonnull
 	SealedEntity[] deleteSealedEntitiesAndReturnBodies(@Nonnull Query query);
+
+	/**
+	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
+	 * specified method returns first version known to the catalog mutation history.
+	 *
+	 * @param moment the moment in time for which the catalog version should be returned
+	 * @return catalog version that was valid at the specified moment in time, or first version known to the catalog
+	 * mutation history if no moment was specified
+	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 */
+	@Nonnull
+	CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+
+	/**
+	 * Returns stream of change data captures (mutations) that occurred in the catalog that match the specified criteria
+	 * in the request. The method returns the stream of changes in the reversed order - the most recent changes are
+	 * returned first.
+	 *
+	 * @param criteria request that specifies the criteria for the changes to be returned
+	 * @return stream of change data captures that match the specified criteria in reversed order
+	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 */
+	@Nonnull
+	Stream<ChangeCatalogCapture> getMutationsHistory(@Nonnull ChangeCatalogCaptureRequest criteria) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.

@@ -23,6 +23,11 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper;
@@ -43,7 +48,9 @@ import java.io.Serial;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Mutation is a holder for a set of {@link EntitySchemaMutation} that affect a single entity schema within
@@ -116,6 +123,45 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 			alteredSchema = schemaMutation.mutate(catalogSchema, alteredSchema);
 		}
 		return alteredSchema;
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull CaptureContent content) {
+		final MutationPredicateContext context = predicate.getContext();
+		context.setEntityType(entityType);
+
+		final Stream<ChangeCatalogCapture> entitySchemaCapture = Stream.of(
+			ChangeCatalogCapture.schemaCapture(
+				context,
+				operation(),
+				content == CaptureContent.BODY ? this : null
+			)
+		);
+		if (context.getDirection() == StreamDirection.FORWARD) {
+			return Stream.concat(
+				entitySchemaCapture,
+				Arrays.stream(this.schemaMutations)
+					.flatMap(m -> m.toChangeCatalogCapture(predicate, content))
+			);
+		} else {
+			final AtomicInteger index = new AtomicInteger(this.schemaMutations.length);
+			return Stream.concat(
+				Stream.generate(() -> null)
+					.takeWhile(x -> index.get() > 0)
+					.flatMap(x -> this.schemaMutations[index.decrementAndGet()].toChangeCatalogCapture(predicate, content)),
+				entitySchemaCapture
+			);
+
+		}
 	}
 
 	@Override
