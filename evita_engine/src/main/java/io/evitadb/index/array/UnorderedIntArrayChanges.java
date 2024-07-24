@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Data;
@@ -380,7 +381,10 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 			this.removals = ArrayUtils.insertIntIntoOrderedArray(recLookup.existingPosition, this.removals);
 			this.memoizedMergedArray = null;
 		} else {
-			throw new IllegalArgumentException("Record id " + recordId + " is not part of the array!");
+			throw new GenericEvitaInternalError(
+				"Record id " + recordId + " is not part of the array!",
+				"Record id is not part of the array."
+			);
 		}
 	}
 

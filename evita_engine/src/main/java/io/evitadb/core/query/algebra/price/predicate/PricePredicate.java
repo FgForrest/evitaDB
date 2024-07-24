@@ -30,6 +30,7 @@ import io.evitadb.core.query.algebra.price.predicate.PricePredicate.NoPriceContr
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate.NoPriceRecordPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate.PriceContractPredicate;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate.PriceRecordPredicate;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
@@ -97,7 +98,10 @@ public sealed abstract class PricePredicate implements PricePredicateContract
 					this.priceRecordExtractor = PriceRecordContract::priceWithoutTax;
 					break;
 				default:
-					throw new IllegalArgumentException("Unsupported query price mode: " + queryPriceMode);
+					throw new GenericEvitaInternalError(
+						"Unsupported query price mode: " + queryPriceMode,
+						"Unsupported query price mode."
+					);
 			}
 		}
 		this.from = from;
