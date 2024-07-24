@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.grpc.metric.event;
 
 import io.evitadb.api.observability.annotation.EventGroup;
-import io.evitadb.core.metric.event.CatalogRelatedEvent;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import jdk.jfr.Category;
-import jdk.jfr.Label;
-import jdk.jfr.Name;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -43,14 +40,7 @@ import lombok.RequiredArgsConstructor;
 @Category({"evitaDB", "API", "gRPC"})
 @RequiredArgsConstructor
 @Getter
-abstract class AbstractGrpcApiEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
+abstract class AbstractGrpcApiEvent extends CustomMetricsExecutionEvent {
 	protected static final String PACKAGE_NAME = "io.evitadb.api.grpc";
-
-	/**
-	 * The name of the catalog the transaction relates to.
-	 */
-	@Label("Catalog")
-	@Name("catalogName")
-	final String catalogName;
 
 }

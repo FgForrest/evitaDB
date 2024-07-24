@@ -416,9 +416,8 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public Optional<EvitaSessionContract> getSessionById(@Nonnull String catalogName, @Nonnull UUID uuid) {
-		return ofNullable(this.activeSessions.get(uuid))
-			.filter(it -> catalogName.equals(it.getCatalogName()));
+	public Optional<EvitaSessionContract> getSessionById(@Nonnull UUID uuid) {
+		return ofNullable(this.activeSessions.get(uuid));
 	}
 
 	@Override

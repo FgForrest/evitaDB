@@ -64,10 +64,14 @@
 #### API / gRPC
 
 <dl>
-  <dt><code>io_evitadb_api_grpc_procedure_called_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>gRPC procedure called duration<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
-  <dt><code>io_evitadb_api_grpc_procedure_called_total</code> (COUNTER)</dt>
-  <dd>gRPC procedure called total<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
+  <dt><code>io_evitadb_api_grpc_evita_procedure_called_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd>gRPC evitaDB procedure called duration<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
+  <dt><code>io_evitadb_api_grpc_evita_procedure_called_total</code> (COUNTER)</dt>
+  <dd>gRPC evitaDB procedure called total<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
+  <dt><code>io_evitadb_api_grpc_session_procedure_called_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd>gRPC session procedure called duration<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
+  <dt><code>io_evitadb_api_grpc_session_procedure_called_total</code> (COUNTER)</dt>
+  <dd>gRPC session procedure called total<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
 </dl>
 
 #### Cache

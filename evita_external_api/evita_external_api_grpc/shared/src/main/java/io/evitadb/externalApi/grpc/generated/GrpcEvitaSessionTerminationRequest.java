@@ -43,7 +43,6 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcEvitaSessionTerminationRequest() {
-    catalogName_ = "";
     sessionId_ = "";
   }
 
@@ -77,12 +76,6 @@ private static final long serialVersionUID = 0L;
           case 0:
             done = true;
             break;
-          case 10: {
-            java.lang.String s = input.readStringRequireUtf8();
-
-            catalogName_ = s;
-            break;
-          }
           case 18: {
             java.lang.String s = input.readStringRequireUtf8();
 
@@ -119,52 +112,6 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcEvitaAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaSessionTerminationRequest_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
             io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest.class, io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest.Builder.class);
-  }
-
-  public static final int CATALOGNAME_FIELD_NUMBER = 1;
-  private volatile java.lang.Object catalogName_;
-  /**
-   * <pre>
-   * Name of the catalog for which the session is to be terminated.
-   * </pre>
-   *
-   * <code>string catalogName = 1;</code>
-   * @return The catalogName.
-   */
-  @java.lang.Override
-  public java.lang.String getCatalogName() {
-    java.lang.Object ref = catalogName_;
-    if (ref instanceof java.lang.String) {
-      return (java.lang.String) ref;
-    } else {
-      com.google.protobuf.ByteString bs =
-          (com.google.protobuf.ByteString) ref;
-      java.lang.String s = bs.toStringUtf8();
-      catalogName_ = s;
-      return s;
-    }
-  }
-  /**
-   * <pre>
-   * Name of the catalog for which the session is to be terminated.
-   * </pre>
-   *
-   * <code>string catalogName = 1;</code>
-   * @return The bytes for catalogName.
-   */
-  @java.lang.Override
-  public com.google.protobuf.ByteString
-      getCatalogNameBytes() {
-    java.lang.Object ref = catalogName_;
-    if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
-          com.google.protobuf.ByteString.copyFromUtf8(
-              (java.lang.String) ref);
-      catalogName_ = b;
-      return b;
-    } else {
-      return (com.google.protobuf.ByteString) ref;
-    }
   }
 
   public static final int SESSIONID_FIELD_NUMBER = 2;
@@ -227,9 +174,6 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, catalogName_);
-    }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(sessionId_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 2, sessionId_);
     }
@@ -242,9 +186,6 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, catalogName_);
-    }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(sessionId_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, sessionId_);
     }
@@ -263,8 +204,6 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest other = (io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest) obj;
 
-    if (!getCatalogName()
-        .equals(other.getCatalogName())) return false;
     if (!getSessionId()
         .equals(other.getSessionId())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
@@ -278,8 +217,6 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + CATALOGNAME_FIELD_NUMBER;
-    hash = (53 * hash) + getCatalogName().hashCode();
     hash = (37 * hash) + SESSIONID_FIELD_NUMBER;
     hash = (53 * hash) + getSessionId().hashCode();
     hash = (29 * hash) + unknownFields.hashCode();
@@ -419,8 +356,6 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      catalogName_ = "";
-
       sessionId_ = "";
 
       return this;
@@ -449,7 +384,6 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest result = new io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest(this);
-      result.catalogName_ = catalogName_;
       result.sessionId_ = sessionId_;
       onBuilt();
       return result;
@@ -499,10 +433,6 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest.getDefaultInstance()) return this;
-      if (!other.getCatalogName().isEmpty()) {
-        catalogName_ = other.catalogName_;
-        onChanged();
-      }
       if (!other.getSessionId().isEmpty()) {
         sessionId_ = other.sessionId_;
         onChanged();
@@ -533,102 +463,6 @@ private static final long serialVersionUID = 0L;
           mergeFrom(parsedMessage);
         }
       }
-      return this;
-    }
-
-    private java.lang.Object catalogName_ = "";
-    /**
-     * <pre>
-     * Name of the catalog for which the session is to be terminated.
-     * </pre>
-     *
-     * <code>string catalogName = 1;</code>
-     * @return The catalogName.
-     */
-    public java.lang.String getCatalogName() {
-      java.lang.Object ref = catalogName_;
-      if (!(ref instanceof java.lang.String)) {
-        com.google.protobuf.ByteString bs =
-            (com.google.protobuf.ByteString) ref;
-        java.lang.String s = bs.toStringUtf8();
-        catalogName_ = s;
-        return s;
-      } else {
-        return (java.lang.String) ref;
-      }
-    }
-    /**
-     * <pre>
-     * Name of the catalog for which the session is to be terminated.
-     * </pre>
-     *
-     * <code>string catalogName = 1;</code>
-     * @return The bytes for catalogName.
-     */
-    public com.google.protobuf.ByteString
-        getCatalogNameBytes() {
-      java.lang.Object ref = catalogName_;
-      if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
-            com.google.protobuf.ByteString.copyFromUtf8(
-                (java.lang.String) ref);
-        catalogName_ = b;
-        return b;
-      } else {
-        return (com.google.protobuf.ByteString) ref;
-      }
-    }
-    /**
-     * <pre>
-     * Name of the catalog for which the session is to be terminated.
-     * </pre>
-     *
-     * <code>string catalogName = 1;</code>
-     * @param value The catalogName to set.
-     * @return This builder for chaining.
-     */
-    public Builder setCatalogName(
-        java.lang.String value) {
-      if (value == null) {
-    throw new NullPointerException();
-  }
-
-      catalogName_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Name of the catalog for which the session is to be terminated.
-     * </pre>
-     *
-     * <code>string catalogName = 1;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearCatalogName() {
-
-      catalogName_ = getDefaultInstance().getCatalogName();
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Name of the catalog for which the session is to be terminated.
-     * </pre>
-     *
-     * <code>string catalogName = 1;</code>
-     * @param value The bytes for catalogName to set.
-     * @return This builder for chaining.
-     */
-    public Builder setCatalogNameBytes(
-        com.google.protobuf.ByteString value) {
-      if (value == null) {
-    throw new NullPointerException();
-  }
-  checkByteStringIsUtf8(value);
-
-      catalogName_ = value;
-      onChanged();
       return this;
     }
 

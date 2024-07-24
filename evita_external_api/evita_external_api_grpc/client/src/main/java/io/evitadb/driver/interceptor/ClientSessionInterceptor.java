@@ -36,7 +36,6 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Objects;
 
 /**
  * This class is used to intercept client calls prior their sending to the server. If client did set sessionId and sessionType
@@ -73,7 +72,6 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 				final String sessionId = SessionIdHolder.getSessionId();
 				if (sessionId != null) {
 					metadata.put(Metadata.Key.of(GrpcHeaders.SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), SessionIdHolder.getSessionId());
-					metadata.put(Metadata.Key.of(GrpcHeaders.CATALOG_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER), Objects.requireNonNull(SessionIdHolder.getCatalogName()));
 				}
 				if (configuration != null) {
 					metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), configuration.clientId());

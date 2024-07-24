@@ -23,9 +23,12 @@
 
 package io.evitadb.externalApi.grpc.services.interceptors;
 
-import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent;
-import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent.InitiatorType;
-import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent.ResponseState;
+import io.evitadb.core.EvitaInternalSessionContract;
+import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent;
+import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent.InitiatorType;
+import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent.ResponseState;
+import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
+import io.evitadb.externalApi.grpc.metric.event.SessionProcedureCalledEvent;
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
@@ -38,6 +41,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 
 /**
  * Logs access log messages to Slf4J logger marked with `ACCESS_LOG` and `GRPC_ACCESS_LOG`.
@@ -71,13 +75,23 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 	                                                  Metadata headers,
 	                                                  ServerCallHandler<ReqT, RespT> next) {
 		final MethodDescriptor<ReqT, RespT> methodDescriptor = call.getMethodDescriptor();
-		final String catalogName = ServerSessionInterceptor.CATALOG_NAME.get();
-		final ProcedureCalledEvent event = new ProcedureCalledEvent(
-			catalogName,
-			methodDescriptor.getServiceName(),
-			methodDescriptor.getBareMethodName(),
-			methodDescriptor.getType()
-		);
+		final Optional<EvitaInternalSessionContract> session = Optional.ofNullable(ServerSessionInterceptor.SESSION.get());
+		final AbstractProcedureCalledEvent event = session
+			.map(
+				it -> (AbstractProcedureCalledEvent) new SessionProcedureCalledEvent(
+					it.getCatalogName(),
+					methodDescriptor.getServiceName(),
+					methodDescriptor.getBareMethodName(),
+					methodDescriptor.getType()
+				)
+			)
+			.orElseGet(
+				() -> new EvitaProcedureCalledEvent(
+					methodDescriptor.getServiceName(),
+					methodDescriptor.getBareMethodName(),
+					methodDescriptor.getType()
+				)
+			);
 		final ObservabilityServerCall<ReqT, RespT> loggingServerCall = new ObservabilityServerCall<>(call, event);
 		return new ObservabilityListener<>(
 			next.startCall(loggingServerCall, headers), event
@@ -86,25 +100,17 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 
 	/**
 	 * Observability server call that logs access log messages and fires gRPC procedure called event.
-	 * @param <M>
-	 * @param <R>
 	 */
 	private static class ObservabilityServerCall<M, R> extends ServerCall<M, R> {
 		private final ServerCall<M, R> serverCall;
-		private final ProcedureCalledEvent event;
+		private final AbstractProcedureCalledEvent event;
 
 		protected ObservabilityServerCall(
 			@Nonnull ServerCall<M, R> serverCall,
-			@Nonnull ProcedureCalledEvent event
+			@Nonnull AbstractProcedureCalledEvent event
 		) {
 			this.serverCall = serverCall;
 			this.event = event;
-		}
-
-		@Override
-		public void close(Status status, Metadata trailers) {
-			this.event.finish().commit();
-			this.serverCall.close(status, trailers);
 		}
 
 		@Override
@@ -126,6 +132,12 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 		}
 
 		@Override
+		public void close(Status status, Metadata trailers) {
+			this.event.finish().commit();
+			this.serverCall.close(status, trailers);
+		}
+
+		@Override
 		public boolean isCancelled() {
 			return serverCall.isCancelled();
 		}
@@ -139,23 +151,17 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 
 	/**
 	 * Observability listener that changes the properties of the gRPC procedure called event.
-	 * @param <R>
 	 */
 	private static class ObservabilityListener<R> extends ForwardingServerCallListener<R> {
 		private final ServerCall.Listener<R> delegate;
-		private final ProcedureCalledEvent event;
+		private final AbstractProcedureCalledEvent event;
 
 		ObservabilityListener(
 			@Nonnull ServerCall.Listener<R> delegate,
-			@Nonnull ProcedureCalledEvent event
+			@Nonnull AbstractProcedureCalledEvent event
 		) {
 			this.delegate = delegate;
 			this.event = event;
-		}
-
-		@Override
-		protected ServerCall.Listener<R> delegate() {
-			return this.delegate;
 		}
 
 		@Override
@@ -172,6 +178,11 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 		public void onCancel() {
 			event.setResponseState(ResponseState.CANCELED);
 			super.onCancel();
+		}
+
+		@Override
+		protected ServerCall.Listener<R> delegate() {
+			return this.delegate;
 		}
 
 		@Override

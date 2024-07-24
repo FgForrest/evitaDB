@@ -156,7 +156,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	@Override
 	public void terminateSession(GrpcEvitaSessionTerminationRequest request, StreamObserver<GrpcEvitaSessionTerminationResponse> responseObserver) {
 		executeWithClientContext(() -> {
-			final boolean terminated = evita.getSessionById(request.getCatalogName(), UUIDUtil.uuid(request.getSessionId()))
+			final boolean terminated = evita.getSessionById(UUIDUtil.uuid(request.getSessionId()))
 				.map(session -> {
 					evita.terminateSession(session);
 					return true;
@@ -277,9 +277,12 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param sessionType          type of the session
 	 * @param rollbackTransactions if true, all transaction will be rolled back on session close
 	 */
-	private void createSessionAndBuildResponse
-	(@Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver, @Nonnull String
-		catalogName, @Nonnull GrpcSessionType sessionType, boolean rollbackTransactions) {
+	private void createSessionAndBuildResponse(
+		@Nonnull StreamObserver<GrpcEvitaSessionResponse> responseObserver,
+		@Nonnull String catalogName,
+		@Nonnull GrpcSessionType sessionType,
+		boolean rollbackTransactions
+	) {
 		executeWithClientContext(() -> {
 			final SessionFlags[] flags = getSessionFlags(sessionType, rollbackTransactions);
 			final EvitaSessionContract session = evita.createSession(new SessionTraits(catalogName, flags));

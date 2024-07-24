@@ -35,10 +35,6 @@ import javax.annotation.Nonnull;
  */
 public interface GrpcHeaders {
 	/**
-	 * Constant string representing catalog name that is used to fetch session from context.
-	 */
-	String CATALOG_NAME_HEADER = "catalogName";
-	/**
 	 * Constant string representing sessionId that is used to fetch session from the context.
 	 */
 	String SESSION_ID_HEADER = "sessionId";
