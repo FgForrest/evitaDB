@@ -245,6 +245,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Override
 	public CatalogStatistics getStatistics() {
 		return new CatalogStatistics(
+			null,
 			catalogName,
 			true,
 			null,

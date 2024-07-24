@@ -35,7 +35,34 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * name of the catalog
    * </pre>
    *
-   * <code>string catalogName = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+   * @return Whether the catalogId field is set.
+   */
+  boolean hasCatalogId();
+  /**
+   * <pre>
+   * name of the catalog
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+   * @return The catalogId.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getCatalogId();
+  /**
+   * <pre>
+   * name of the catalog
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getCatalogIdOrBuilder();
+
+  /**
+   * <pre>
+   * name of the catalog
+   * </pre>
+   *
+   * <code>string catalogName = 2;</code>
    * @return The catalogName.
    */
   java.lang.String getCatalogName();
@@ -44,7 +71,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * name of the catalog
    * </pre>
    *
-   * <code>string catalogName = 1;</code>
+   * <code>string catalogName = 2;</code>
    * @return The bytes for catalogName.
    */
   com.google.protobuf.ByteString
@@ -55,7 +82,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * true if the catalog is corrupted (other data will be not available)
    * </pre>
    *
-   * <code>bool corrupted = 2;</code>
+   * <code>bool corrupted = 3;</code>
    * @return The corrupted.
    */
   boolean getCorrupted();
@@ -65,7 +92,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * current state of the catalog, null for corrupted catalog
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
    * @return The enum numeric value on the wire for catalogState.
    */
   int getCatalogStateValue();
@@ -74,7 +101,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * current state of the catalog, null for corrupted catalog
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
    * @return The catalogState.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCatalogState getCatalogState();
@@ -84,7 +111,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * version of the catalog, -1 for corrupted catalog
    * </pre>
    *
-   * <code>int64 catalogVersion = 4;</code>
+   * <code>int64 catalogVersion = 5;</code>
    * @return The catalogVersion.
    */
   long getCatalogVersion();
@@ -94,7 +121,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * total number of records in the catalog, -1 for corrupted catalog
    * </pre>
    *
-   * <code>int64 totalRecords = 5;</code>
+   * <code>int64 totalRecords = 6;</code>
    * @return The totalRecords.
    */
   long getTotalRecords();
@@ -104,7 +131,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * total number of indexes in the catalog, -1 for corrupted catalog
    * </pre>
    *
-   * <code>int64 indexCount = 6;</code>
+   * <code>int64 indexCount = 7;</code>
    * @return The indexCount.
    */
   long getIndexCount();
@@ -114,7 +141,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * total size of the catalog on disk in bytes
    * </pre>
    *
-   * <code>int64 sizeOnDiskInBytes = 7;</code>
+   * <code>int64 sizeOnDiskInBytes = 8;</code>
    * @return The sizeOnDiskInBytes.
    */
   long getSizeOnDiskInBytes();
@@ -124,7 +151,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * statistics for each entity collection in the catalog, empty array for corrupted catalog
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics>
       getEntityCollectionStatisticsList();
@@ -133,7 +160,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * statistics for each entity collection in the catalog, empty array for corrupted catalog
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics getEntityCollectionStatistics(int index);
   /**
@@ -141,7 +168,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * statistics for each entity collection in the catalog, empty array for corrupted catalog
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   int getEntityCollectionStatisticsCount();
   /**
@@ -149,7 +176,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * statistics for each entity collection in the catalog, empty array for corrupted catalog
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder>
       getEntityCollectionStatisticsOrBuilderList();
@@ -158,7 +185,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * statistics for each entity collection in the catalog, empty array for corrupted catalog
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder getEntityCollectionStatisticsOrBuilder(
       int index);

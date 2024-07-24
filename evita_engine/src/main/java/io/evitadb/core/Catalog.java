@@ -1248,6 +1248,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			.map(EntityCollection::getStatistics)
 			.toArray(EntityCollectionStatistics[]::new);
 		return new CatalogStatistics(
+			getCatalogId(),
 			getName(),
 			false,
 			getCatalogState(),

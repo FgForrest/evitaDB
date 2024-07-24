@@ -84,6 +84,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.PortManager;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.UUIDUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -1447,21 +1448,21 @@ class EvitaTest implements EvitaTestSupport {
 			assertEquals(
 				Arrays.stream(catalogStatistics).filter(it -> TEST_CATALOG.equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1, 490, new EntityCollectionStatistics[0]
+					UUIDUtil.randomUUID(), TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1, 490, new EntityCollectionStatistics[0]
 				)
 			);
 
 			assertEquals(
 				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					TEST_CATALOG + "_1", true, null, -1L, -1, -1, 922, new EntityCollectionStatistics[0]
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, 922, new EntityCollectionStatistics[0]
 				)
 			);
 
 			assertEquals(
 				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1381,
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1381,
 					new EntityCollectionStatistics[] {
 						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 475)
 					}
