@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@
  */
 
 package io.evitadb.api.query;
+
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 
@@ -45,9 +47,9 @@ public interface AttributeConstraint<T extends TypeDefiningConstraint<T>> extend
 	default String getAttributeName() throws IllegalArgumentException {
 		final String[] attributeNames = getAttributeNames();
 		if (attributeNames.length == 0) {
-			throw new IllegalArgumentException("Constraint does not define any attribute name!");
+			throw new EvitaInvalidUsageException("Constraint does not define any attribute name!");
 		} else if (attributeNames.length > 1) {
-			throw new IllegalArgumentException("Constraint defines more than one attribute name!");
+			throw new EvitaInvalidUsageException("Constraint defines more than one attribute name!");
 		} else {
 			return attributeNames[0];
 		}

@@ -24,6 +24,7 @@
 package io.evitadb.driver.observability.trace;
 
 import io.evitadb.driver.trace.ClientTracingContext;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.opentelemetry.api.OpenTelemetry;
 
 import javax.annotation.Nonnull;
@@ -41,7 +42,9 @@ public class DriverTracingContext implements ClientTracingContext {
 			OpenTelemetryClientTracerSetup.setOpenTelemetry(openTelemetry);
 		}
 		else {
-			throw new IllegalArgumentException("The provided parameter is not an instance of a type `OpenTelemetry`.");
+			throw new EvitaInvalidUsageException(
+				"The provided parameter is not an instance of a type `OpenTelemetry`."
+			);
 		}
 	}
 }

@@ -712,7 +712,7 @@ public final class Evita implements EvitaContract {
 	@Nonnull
 	public CatalogContract getCatalogInstanceOrThrowException(@Nonnull String catalog) throws IllegalArgumentException {
 		return getCatalogInstance(catalog)
-			.orElseThrow(() -> new IllegalArgumentException("Catalog " + catalog + " is not known to Evita!"));
+			.orElseThrow(() -> new CatalogNotFoundException(catalog));
 	}
 
 	/**

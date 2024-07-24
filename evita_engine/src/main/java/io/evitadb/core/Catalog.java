@@ -935,7 +935,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			//noinspection unchecked
 			return of((T) entityIndex);
 		} else {
-			throw new IllegalArgumentException("Expected index of type " + expectedType.getName() + " but got " + entityIndex.getClass().getName());
+			throw new GenericEvitaInternalError(
+				"Expected index of type " + expectedType.getName() + " but got " + entityIndex.getClass().getName() + ".",
+				"Expected different type of entity index."
+			);
 		}
 	}
 

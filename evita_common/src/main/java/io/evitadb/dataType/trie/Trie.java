@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.dataType.trie;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
 
@@ -548,7 +549,7 @@ public class Trie<T extends Serializable> implements Serializable {
 		if (it.length == 1) {
 			return it[0];
 		} else {
-			throw new IllegalArgumentException("There are " + it.length + " values connected with word: " + word);
+			throw new GenericEvitaInternalError("There are " + it.length + " values connected with word: " + word);
 		}
 	}
 
