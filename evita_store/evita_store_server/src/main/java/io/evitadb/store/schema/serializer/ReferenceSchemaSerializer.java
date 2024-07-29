@@ -131,7 +131,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 		}
 		final Cardinality cardinality = kryo.readObject(input, Cardinality.class);
 		final String groupType = input.readString();
-		final boolean groupTypeRelatesToEntity = input.readBoolean();
+		final boolean referencedGroupTypeManaged = input.readBoolean();
 		final int groupTypeNameVariantCount = input.readVarInt(true);
 		final Map<NamingConvention, String> groupTypeNameVariants = CollectionUtils.createLinkedHashMap(groupTypeNameVariantCount);
 		for(int i = 0; i < groupTypeNameVariantCount; i++) {
@@ -160,7 +160,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			name, nameVariants, description, deprecationNotice,
 			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
 			cardinality,
-			groupType, groupTypeNameVariants, groupTypeRelatesToEntity,
+			groupType, groupTypeNameVariants, referencedGroupTypeManaged,
 			indexed, faceted, attributes, sortableAttributeCompounds
 		);
 	}

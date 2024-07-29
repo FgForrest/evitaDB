@@ -174,7 +174,7 @@ public final class GrpcEntitySchemaOuterClass {
       "pe.GrpcEvitaDataType\022\021\n\tlocalized\030\005 \001(\010\022" +
       "\020\n\010nullable\030\006 \001(\010\022K\n\013nameVariant\030\007 \003(\01326" +
       ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcNameVariant\"\212\t\n\023GrpcReferenceSchema\022\014" +
+      "rpcNameVariant\"\262\t\n\023GrpcReferenceSchema\022\014" +
       "\n\004name\030\001 \001(\t\0221\n\013description\030\002 \001(\0132\034.goog" +
       "le.protobuf.StringValue\0227\n\021deprecationNo" +
       "tice\030\003 \001(\0132\034.google.protobuf.StringValue" +
@@ -182,21 +182,22 @@ public final class GrpcEntitySchemaOuterClass {
       "nalApi.grpc.generated.GrpcCardinality\022\022\n" +
       "\nentityType\030\005 \001(\t\022%\n\031entityTypeRelatesTo" +
       "Entity\030\006 \001(\010B\002\030\001\022/\n\tgroupType\030\007 \001(\0132\034.go" +
-      "ogle.protobuf.StringValue\022 \n\030groupTypeRe" +
-      "latesToEntity\030\010 \001(\010\022\017\n\007indexed\030\t \001(\010\022\017\n\007" +
-      "faceted\030\n \001(\010\022^\n\nattributes\030\013 \003(\0132J.io.e" +
-      "vitadb.externalApi.grpc.generated.GrpcRe" +
-      "ferenceSchema.AttributesEntry\022~\n\032sortabl" +
-      "eAttributeCompounds\030\014 \003(\0132Z.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcReferenceS" +
-      "chema.SortableAttributeCompoundsEntry\022K\n" +
-      "\013nameVariant\030\r \003(\01326.io.evitadb.external" +
-      "Api.grpc.generated.GrpcNameVariant\022U\n\025en" +
-      "tityTypeNameVariant\030\016 \003(\01326.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcNameVarian" +
-      "t\022T\n\024groupTypeNameVariant\030\017 \003(\01326.io.evi" +
-      "tadb.externalApi.grpc.generated.GrpcName" +
-      "Variant\022#\n\033referencedEntityTypeManaged\030\020" +
+      "ogle.protobuf.StringValue\022$\n\030groupTypeRe" +
+      "latesToEntity\030\010 \001(\010B\002\030\001\022\017\n\007indexed\030\t \001(\010" +
+      "\022\017\n\007faceted\030\n \001(\010\022^\n\nattributes\030\013 \003(\0132J." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcReferenceSchema.AttributesEntry\022~\n\032sor" +
+      "tableAttributeCompounds\030\014 \003(\0132Z.io.evita" +
+      "db.externalApi.grpc.generated.GrpcRefere" +
+      "nceSchema.SortableAttributeCompoundsEntr" +
+      "y\022K\n\013nameVariant\030\r \003(\01326.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GrpcNameVariant\022U" +
+      "\n\025entityTypeNameVariant\030\016 \003(\01326.io.evita" +
+      "db.externalApi.grpc.generated.GrpcNameVa" +
+      "riant\022T\n\024groupTypeNameVariant\030\017 \003(\01326.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "NameVariant\022#\n\033referencedEntityTypeManag" +
+      "ed\030\020 \001(\010\022\"\n\032referencedGroupTypeManaged\030\021" +
       " \001(\010\032m\n\017AttributesEntry\022\013\n\003key\030\001 \001(\t\022I\n\005" +
       "value\030\002 \001(\0132:.io.evitadb.externalApi.grp" +
       "c.generated.GrpcAttributeSchema:\0028\001\032\215\001\n\037" +
@@ -273,7 +274,7 @@ public final class GrpcEntitySchemaOuterClass {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_descriptor,
-        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Cardinality", "EntityType", "EntityTypeRelatesToEntity", "GroupType", "GroupTypeRelatesToEntity", "Indexed", "Faceted", "Attributes", "SortableAttributeCompounds", "NameVariant", "EntityTypeNameVariant", "GroupTypeNameVariant", "ReferencedEntityTypeManaged", });
+        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Cardinality", "EntityType", "EntityTypeRelatesToEntity", "GroupType", "GroupTypeRelatesToEntity", "Indexed", "Faceted", "Attributes", "SortableAttributeCompounds", "NameVariant", "EntityTypeNameVariant", "GroupTypeNameVariant", "ReferencedEntityTypeManaged", "ReferencedGroupTypeManaged", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_AttributesEntry_descriptor =
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_descriptor.getNestedTypes().get(0);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_AttributesEntry_fieldAccessorTable = new

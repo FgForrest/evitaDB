@@ -404,6 +404,7 @@ public class EntitySchemaConverter {
 			.setEntityTypeRelatesToEntity(referenceSchema.isReferencedEntityTypeManaged())
 			.setReferencedEntityTypeManaged(referenceSchema.isReferencedEntityTypeManaged())
 			.setGroupTypeRelatesToEntity(referenceSchema.isReferencedGroupTypeManaged())
+			.setReferencedGroupTypeManaged(referenceSchema.isReferencedGroupTypeManaged())
 			.setIndexed(referenceSchema.isIndexed())
 			.setFaceted(referenceSchema.isFaceted())
 			.putAllAttributes(toGrpcAttributeSchemas(referenceSchema.getAttributes(), includeNameVariants))
@@ -554,10 +555,10 @@ public class EntitySchemaConverter {
 			referenceSchema.getReferencedEntityTypeManaged(),
 			toCardinality(referenceSchema.getCardinality()),
 			referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
-			referenceSchema.getGroupTypeRelatesToEntity()
+			referenceSchema.getReferencedGroupTypeManaged()
 				? Collections.emptyMap()
 				: NamingConvention.generate(referenceSchema.getGroupType().getValue()),
-			referenceSchema.getGroupTypeRelatesToEntity(),
+			referenceSchema.getReferencedEntityTypeManaged(),
 			referenceSchema.getIndexed(),
 			referenceSchema.getFaceted(),
 			referenceSchema.getAttributesMap()

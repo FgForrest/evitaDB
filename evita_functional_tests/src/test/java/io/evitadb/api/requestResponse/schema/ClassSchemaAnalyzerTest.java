@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -931,9 +931,9 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		@Nullable String description,
 		@Nullable String deprecation,
 		@Nonnull Cardinality cardinality,
-		boolean entityTypeRelatesToEntity,
+		boolean referencedEntityTypeManaged,
 		@Nonnull String entityType,
-		boolean groupTypeRelatesToEntity,
+		boolean referencedGroupTypeManaged,
 		@Nonnull String groupEntityType,
 		boolean faceted,
 		boolean indexed
@@ -951,9 +951,9 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		}
 		assertEquals(cardinality, referenceSchema.getCardinality());
 		assertEquals(entityType, referenceSchema.getReferencedEntityType());
-		assertEquals(entityTypeRelatesToEntity, referenceSchema.isReferencedEntityTypeManaged());
+		assertEquals(referencedEntityTypeManaged, referenceSchema.isReferencedEntityTypeManaged());
 		assertEquals(groupEntityType, referenceSchema.getReferencedGroupType());
-		assertEquals(groupTypeRelatesToEntity, referenceSchema.isReferencedGroupTypeManaged());
+		assertEquals(referencedGroupTypeManaged, referenceSchema.isReferencedGroupTypeManaged());
 		assertEquals(faceted, referenceSchema.isFaceted(), "Attribute `" + name + "` is expected to be " +  (faceted ? "" : "not") + " faceted, but it " + (faceted ? "is not" : "is") + ".");
 		assertEquals(indexed, referenceSchema.isIndexed(), "Attribute `" + name + "` is expected to be " +  (indexed ? "" : "not") + " indexed, but it " + (indexed ? "is not" : "is") + ".");
 	}

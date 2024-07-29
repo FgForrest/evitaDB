@@ -125,7 +125,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 		boolean referencedEntityTypeManaged,
 		@Nonnull Cardinality cardinality,
 		@Nullable String groupType,
-		boolean groupTypeRelatesToEntity,
+		boolean referencedGroupTypeManaged,
 		boolean indexed,
 		boolean faceted
 	) {
@@ -144,9 +144,9 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(entityType),
 			referencedEntityTypeManaged,
 			groupType,
-			groupType != null && groupType.isBlank() && !groupTypeRelatesToEntity ?
+			groupType != null && groupType.isBlank() && !referencedGroupTypeManaged ?
 				NamingConvention.generate(groupType) : Collections.emptyMap(),
-			groupTypeRelatesToEntity,
+			referencedGroupTypeManaged,
 			indexed,
 			faceted,
 			Collections.emptyMap(),
@@ -169,7 +169,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 		boolean referencedEntityTypeManaged,
 		@Nonnull Cardinality cardinality,
 		@Nullable String groupType,
-		boolean groupTypeRelatesToEntity,
+		boolean referencedGroupTypeManaged,
 		boolean indexed,
 		boolean faceted,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
@@ -190,9 +190,9 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(entityType),
 			referencedEntityTypeManaged,
 			groupType,
-			groupType != null && groupType.isBlank() && !groupTypeRelatesToEntity ?
+			groupType != null && groupType.isBlank() && !referencedGroupTypeManaged ?
 				NamingConvention.generate(groupType) : Collections.emptyMap(),
-			groupTypeRelatesToEntity,
+			referencedGroupTypeManaged,
 			indexed,
 			faceted,
 			attributes,
@@ -218,7 +218,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 		@Nonnull Cardinality cardinality,
 		@Nullable String groupType,
 		@Nullable Map<NamingConvention, String> groupTypeNameVariants,
-		boolean groupTypeRelatesToEntity,
+		boolean referencedGroupTypeManaged,
 		boolean indexed,
 		boolean faceted,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
@@ -240,7 +240,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			referencedEntityTypeManaged,
 			groupType,
 			ofNullable(groupTypeNameVariants).orElse(Collections.emptyMap()),
-			groupTypeRelatesToEntity,
+			referencedGroupTypeManaged,
 			indexed,
 			faceted,
 			attributes,

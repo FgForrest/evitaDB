@@ -277,7 +277,8 @@ message GrpcReferenceSchema {
   // resource not maintained by Evita.
   google.protobuf.StringValue groupType = 7;
   // Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
-  bool groupTypeRelatesToEntity = 8;
+  // DEPRECATED!!! use referencedGroupTypeManaged instead
+  bool groupTypeRelatesToEntity = 8 [deprecated = true];
   // Contains `true` if the index for this reference should be created and maintained allowing to filter by
   // `reference_{reference name}_having` filtering constraints. Index is also required when reference is
   // `faceted`.
@@ -317,6 +318,8 @@ message GrpcReferenceSchema {
   repeated GrpcNameVariant groupTypeNameVariant = 15;
   // Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
   bool referencedEntityTypeManaged = 16;
+  // Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+  bool referencedGroupTypeManaged = 17;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB

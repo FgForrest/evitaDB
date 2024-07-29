@@ -209,12 +209,14 @@ public interface GrpcReferenceSchemaOrBuilder extends
   /**
    * <pre>
    * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+   * DEPRECATED!!! use referencedGroupTypeManaged instead
    * </pre>
    *
-   * <code>bool groupTypeRelatesToEntity = 8;</code>
+   * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
+   * @deprecated
    * @return The groupTypeRelatesToEntity.
    */
-  boolean getGroupTypeRelatesToEntity();
+  @java.lang.Deprecated boolean getGroupTypeRelatesToEntity();
 
   /**
    * <pre>
@@ -531,4 +533,14 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * @return The referencedEntityTypeManaged.
    */
   boolean getReferencedEntityTypeManaged();
+
+  /**
+   * <pre>
+   * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+   * </pre>
+   *
+   * <code>bool referencedGroupTypeManaged = 17;</code>
+   * @return The referencedGroupTypeManaged.
+   */
+  boolean getReferencedGroupTypeManaged();
 }

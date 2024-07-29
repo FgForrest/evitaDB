@@ -230,6 +230,11 @@ private static final long serialVersionUID = 0L;
             referencedEntityTypeManaged_ = input.readBool();
             break;
           }
+          case 136: {
+
+            referencedGroupTypeManaged_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -564,13 +569,15 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+   * DEPRECATED!!! use referencedGroupTypeManaged instead
    * </pre>
    *
-   * <code>bool groupTypeRelatesToEntity = 8;</code>
+   * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
+   * @deprecated
    * @return The groupTypeRelatesToEntity.
    */
   @java.lang.Override
-  public boolean getGroupTypeRelatesToEntity() {
+  @java.lang.Deprecated public boolean getGroupTypeRelatesToEntity() {
     return groupTypeRelatesToEntity_;
   }
 
@@ -1032,6 +1039,21 @@ private static final long serialVersionUID = 0L;
     return referencedEntityTypeManaged_;
   }
 
+  public static final int REFERENCEDGROUPTYPEMANAGED_FIELD_NUMBER = 17;
+  private boolean referencedGroupTypeManaged_;
+  /**
+   * <pre>
+   * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+   * </pre>
+   *
+   * <code>bool referencedGroupTypeManaged = 17;</code>
+   * @return The referencedGroupTypeManaged.
+   */
+  @java.lang.Override
+  public boolean getReferencedGroupTypeManaged() {
+    return referencedGroupTypeManaged_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1099,6 +1121,9 @@ private static final long serialVersionUID = 0L;
     }
     if (referencedEntityTypeManaged_ != false) {
       output.writeBool(16, referencedEntityTypeManaged_);
+    }
+    if (referencedGroupTypeManaged_ != false) {
+      output.writeBool(17, referencedGroupTypeManaged_);
     }
     unknownFields.writeTo(output);
   }
@@ -1183,6 +1208,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(16, referencedEntityTypeManaged_);
     }
+    if (referencedGroupTypeManaged_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(17, referencedGroupTypeManaged_);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1238,6 +1267,8 @@ private static final long serialVersionUID = 0L;
         .equals(other.getGroupTypeNameVariantList())) return false;
     if (getReferencedEntityTypeManaged()
         != other.getReferencedEntityTypeManaged()) return false;
+    if (getReferencedGroupTypeManaged()
+        != other.getReferencedGroupTypeManaged()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -1302,6 +1333,9 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + REFERENCEDENTITYTYPEMANAGED_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getReferencedEntityTypeManaged());
+    hash = (37 * hash) + REFERENCEDGROUPTYPEMANAGED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getReferencedGroupTypeManaged());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1535,6 +1569,8 @@ private static final long serialVersionUID = 0L;
       }
       referencedEntityTypeManaged_ = false;
 
+      referencedGroupTypeManaged_ = false;
+
       return this;
     }
 
@@ -1616,6 +1652,7 @@ private static final long serialVersionUID = 0L;
         result.groupTypeNameVariant_ = groupTypeNameVariantBuilder_.build();
       }
       result.referencedEntityTypeManaged_ = referencedEntityTypeManaged_;
+      result.referencedGroupTypeManaged_ = referencedGroupTypeManaged_;
       onBuilt();
       return result;
     }
@@ -1780,6 +1817,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getReferencedEntityTypeManaged() != false) {
         setReferencedEntityTypeManaged(other.getReferencedEntityTypeManaged());
+      }
+      if (other.getReferencedGroupTypeManaged() != false) {
+        setReferencedGroupTypeManaged(other.getReferencedGroupTypeManaged());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -2661,25 +2701,29 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * DEPRECATED!!! use referencedGroupTypeManaged instead
      * </pre>
      *
-     * <code>bool groupTypeRelatesToEntity = 8;</code>
+     * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
+     * @deprecated
      * @return The groupTypeRelatesToEntity.
      */
     @java.lang.Override
-    public boolean getGroupTypeRelatesToEntity() {
+    @java.lang.Deprecated public boolean getGroupTypeRelatesToEntity() {
       return groupTypeRelatesToEntity_;
     }
     /**
      * <pre>
      * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * DEPRECATED!!! use referencedGroupTypeManaged instead
      * </pre>
      *
-     * <code>bool groupTypeRelatesToEntity = 8;</code>
+     * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
+     * @deprecated
      * @param value The groupTypeRelatesToEntity to set.
      * @return This builder for chaining.
      */
-    public Builder setGroupTypeRelatesToEntity(boolean value) {
+    @java.lang.Deprecated public Builder setGroupTypeRelatesToEntity(boolean value) {
 
       groupTypeRelatesToEntity_ = value;
       onChanged();
@@ -2688,12 +2732,14 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * DEPRECATED!!! use referencedGroupTypeManaged instead
      * </pre>
      *
-     * <code>bool groupTypeRelatesToEntity = 8;</code>
+     * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearGroupTypeRelatesToEntity() {
+    @java.lang.Deprecated public Builder clearGroupTypeRelatesToEntity() {
 
       groupTypeRelatesToEntity_ = false;
       onChanged();
@@ -4161,6 +4207,49 @@ private static final long serialVersionUID = 0L;
     public Builder clearReferencedEntityTypeManaged() {
 
       referencedEntityTypeManaged_ = false;
+      onChanged();
+      return this;
+    }
+
+    private boolean referencedGroupTypeManaged_ ;
+    /**
+     * <pre>
+     * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
+     * <code>bool referencedGroupTypeManaged = 17;</code>
+     * @return The referencedGroupTypeManaged.
+     */
+    @java.lang.Override
+    public boolean getReferencedGroupTypeManaged() {
+      return referencedGroupTypeManaged_;
+    }
+    /**
+     * <pre>
+     * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
+     * <code>bool referencedGroupTypeManaged = 17;</code>
+     * @param value The referencedGroupTypeManaged to set.
+     * @return This builder for chaining.
+     */
+    public Builder setReferencedGroupTypeManaged(boolean value) {
+
+      referencedGroupTypeManaged_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
+     * <code>bool referencedGroupTypeManaged = 17;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearReferencedGroupTypeManaged() {
+
+      referencedGroupTypeManaged_ = false;
       onChanged();
       return this;
     }
