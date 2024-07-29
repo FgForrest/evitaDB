@@ -90,7 +90,7 @@ public final class ReferenceSchemaBuilder
 		@Nullable ReferenceSchemaContract existingSchema,
 		@Nonnull String name,
 		@Nonnull String entityType,
-		boolean entityTypeRelatesToEntity,
+		boolean referencedEntityTypeManaged,
 		@Nonnull Cardinality cardinality,
 		@Nonnull List<EntitySchemaMutation> mutations,
 		boolean createNew
@@ -99,7 +99,7 @@ public final class ReferenceSchemaBuilder
 		this.entitySchema = entitySchema;
 		this.baseSchema = existingSchema == null ?
 			ReferenceSchema._internalBuild(
-				name, entityType, entityTypeRelatesToEntity, cardinality, null, false, false, false
+				name, entityType, referencedEntityTypeManaged, cardinality, null, false, false, false
 			) :
 			existingSchema;
 		if (createNew) {
@@ -110,7 +110,7 @@ public final class ReferenceSchemaBuilder
 					baseSchema.getDeprecationNotice(),
 					cardinality,
 					entityType,
-					entityTypeRelatesToEntity,
+					referencedEntityTypeManaged,
 					baseSchema.getReferencedGroupType(),
 					baseSchema.isReferencedGroupTypeManaged(),
 					baseSchema.isIndexed(),

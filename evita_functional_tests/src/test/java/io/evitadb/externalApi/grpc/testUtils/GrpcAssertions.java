@@ -219,7 +219,7 @@ public class GrpcAssertions {
 			}
 			assertEquals(expectedReferenceSchema.getCardinality(), Cardinality.valueOf(actualReferenceSchema.getCardinality().name()));
 			assertEquals(expectedReferenceSchema.getReferencedEntityType(), actualReferenceSchema.getEntityType());
-			assertEquals(expectedReferenceSchema.isReferencedEntityTypeManaged(), actualReferenceSchema.getEntityTypeRelatesToEntity());
+			assertEquals(expectedReferenceSchema.isReferencedEntityTypeManaged(), actualReferenceSchema.getReferencedEntityTypeManaged());
 			if (expectedReferenceSchema.getReferencedGroupType() == null) {
 				assertEquals(actualReferenceSchema.getGroupType().getDefaultInstanceForType(), actualReferenceSchema.getGroupType());
 			} else {

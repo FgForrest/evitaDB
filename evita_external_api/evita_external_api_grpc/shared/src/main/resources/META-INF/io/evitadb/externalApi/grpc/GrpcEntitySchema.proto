@@ -271,7 +271,8 @@ message GrpcReferenceSchema {
   // that identifies type some external resource not maintained by Evita.
   string entityType = 5;
   // Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
-  bool entityTypeRelatesToEntity = 6;
+  // DEPRECATED!!! use referencedEntityTypeManaged instead
+  bool entityTypeRelatesToEntity = 6 [deprecated = true];
   // Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
   // resource not maintained by Evita.
   google.protobuf.StringValue groupType = 7;
@@ -310,6 +311,12 @@ message GrpcReferenceSchema {
   map<string, GrpcSortableAttributeCompoundSchema> sortableAttributeCompounds = 12;
   // Contains reference name converted to different naming conventions.
   repeated GrpcNameVariant nameVariant = 13;
+  // Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+  repeated GrpcNameVariant entityTypeNameVariant = 14;
+  // Contains referenced group name converted to different naming conventions (only for non-managed entities).
+  repeated GrpcNameVariant groupTypeNameVariant = 15;
+  // Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+  bool referencedEntityTypeManaged = 16;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB

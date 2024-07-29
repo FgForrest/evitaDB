@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -122,7 +122,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 	public static ReferenceSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull String entityType,
-		boolean entityTypeRelatesToEntity,
+		boolean referencedEntityTypeManaged,
 		@Nonnull Cardinality cardinality,
 		@Nullable String groupType,
 		boolean groupTypeRelatesToEntity,
@@ -141,8 +141,8 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			name, NamingConvention.generate(name),
 			null, null, cardinality,
 			entityType,
-			entityTypeRelatesToEntity ? Collections.emptyMap() : NamingConvention.generate(entityType),
-			entityTypeRelatesToEntity,
+			referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(entityType),
+			referencedEntityTypeManaged,
 			groupType,
 			groupType != null && groupType.isBlank() && !groupTypeRelatesToEntity ?
 				NamingConvention.generate(groupType) : Collections.emptyMap(),
@@ -166,7 +166,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 		@Nullable String description,
 		@Nullable String deprecationNotice,
 		@Nonnull String entityType,
-		boolean entityTypeRelatesToEntity,
+		boolean referencedEntityTypeManaged,
 		@Nonnull Cardinality cardinality,
 		@Nullable String groupType,
 		boolean groupTypeRelatesToEntity,
@@ -187,8 +187,8 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			name, NamingConvention.generate(name),
 			description, deprecationNotice, cardinality,
 			entityType,
-			entityTypeRelatesToEntity ? Collections.emptyMap() : NamingConvention.generate(entityType),
-			entityTypeRelatesToEntity,
+			referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(entityType),
+			referencedEntityTypeManaged,
 			groupType,
 			groupType != null && groupType.isBlank() && !groupTypeRelatesToEntity ?
 				NamingConvention.generate(groupType) : Collections.emptyMap(),
@@ -214,7 +214,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 		@Nullable String deprecationNotice,
 		@Nonnull String entityType,
 		@Nonnull Map<NamingConvention, String> entityTypeNameVariants,
-		boolean entityTypeRelatesToEntity,
+		boolean referencedEntityTypeManaged,
 		@Nonnull Cardinality cardinality,
 		@Nullable String groupType,
 		@Nullable Map<NamingConvention, String> groupTypeNameVariants,
@@ -237,7 +237,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 			description, deprecationNotice, cardinality,
 			entityType,
 			entityTypeNameVariants,
-			entityTypeRelatesToEntity,
+			referencedEntityTypeManaged,
 			groupType,
 			ofNullable(groupTypeNameVariants).orElse(Collections.emptyMap()),
 			groupTypeRelatesToEntity,

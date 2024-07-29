@@ -120,7 +120,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			);
 		}
 		final String entityType = input.readString();
-		final boolean entityTypeRelatesToEntity = input.readBoolean();
+		final boolean referencedEntityTypeManaged = input.readBoolean();
 		final int entityTypeNameVariantCount = input.readVarInt(true);
 		final Map<NamingConvention, String> entityTypeNameVariants = CollectionUtils.createLinkedHashMap(entityTypeNameVariantCount);
 		for(int i = 0; i < entityTypeNameVariantCount; i++) {
@@ -158,7 +158,7 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 
 		return ReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			entityType, entityTypeNameVariants, entityTypeRelatesToEntity,
+			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
 			cardinality,
 			groupType, groupTypeNameVariants, groupTypeRelatesToEntity,
 			indexed, faceted, attributes, sortableAttributeCompounds
