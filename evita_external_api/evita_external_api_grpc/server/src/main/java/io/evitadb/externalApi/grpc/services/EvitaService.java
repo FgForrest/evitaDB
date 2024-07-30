@@ -33,7 +33,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
-import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.UUIDUtil;
@@ -55,9 +54,6 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toG
  */
 @Slf4j
 public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
-
-	private static final SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
-		new DelegatingTopLevelCatalogSchemaMutationConverter();
 
 	/**
 	 * Instance of Evita upon which will be executed service calls
@@ -260,7 +256,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		executeWithClientContext(() -> {
 			final TopLevelCatalogSchemaMutation[] schemaMutations = request.getSchemaMutationsList()
 				.stream()
-				.map(CATALOG_SCHEMA_MUTATION_CONVERTER::convert)
+				.map(DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE::convert)
 				.toArray(TopLevelCatalogSchemaMutation[]::new);
 
 			evita.update(schemaMutations);

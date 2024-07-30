@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
+
+import "google/protobuf/wrappers.proto";
+import "GrpcEntityMutation.proto";
+import "GrpcLocalMutation.proto";
+import "GrpcEntitySchemaMutation.proto";
+
+// Record describing the location and form of the CDC schema event in the evitaDB that should be captured.
+message GrpcSchemaSite {
+  // The name of intercepted entity
+  google.protobuf.StringValue entityType = 1;
+  // The intercepted type of operation
+  repeated GrpcOperation operation = 2;
+}
+
+// Record describing the location and form of the CDC data event in the evitaDB that should be captured.
+message GrpcDataSite {
+  // the name of the intercepted entity type
+  google.protobuf.StringValue entityType = 1;
+  // the primary key of the intercepted entity
+  google.protobuf.Int32Value entityPrimaryKey = 2;
+  // the intercepted type of operation
+  repeated GrpcOperation operation = 3;
+  // the name of the intercepted container type
+  repeated GrpcContainerType containerType = 4;
+  // the name of the container (e.g. attribute name, associated data name, reference name)
+  repeated string classifierName = 5;
+}
+
+// Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
+message GrpcChangeCatalogCapture {
+  // the version of the catalog where the operation was performed
+  int64 version = 1;
+  // the index of the event within the enclosed transaction, index 0 is the transaction lead event
+  int32 index = 2;
+  // the area of the operation
+  GrpcCaptureArea area = 3;
+  // the name of the entity type or its schema that was affected by the operation
+  // (if the operation is executed on catalog schema this field is null)
+  google.protobuf.StringValue entityType = 4;
+  // the operation that was performed
+  GrpcOperation operation = 5;
+  // optional body of the operation when it is requested by the GrpcContent
+  oneof body {
+    GrpcEntitySchemaMutation schemaMutation = 6;
+    GrpcEntityMutation entityMutation = 7;
+    GrpcLocalMutation localMutation = 8;
+  }
+}
+
+// The enum defines what catalog area is covered by the capture.
+enum GrpcCaptureArea {
+  // Changes in the schema are captured.
+  SCHEMA = 0;
+  // Changes in the data are captured.
+  DATA = 1;
+}
+
+// Enumeration of possible mutation types handled by evitaDB.
+enum GrpcOperation {
+  // Create or update operation - i.e. there was data with such identity before, and it was updated.
+  UPSERT = 0;
+  // Remove operation - i.e. there was data with such identity before, and it was removed.
+  REMOVE = 1;
+  // Delimiting operation signaling the beginning of a transaction.
+  TRANSACTION = 2;
+}
+
+// The container type describes internal evitaDB data structures.
+enum GrpcContainerType {
+  // Catalog - similar to relational database schema.
+  CONTAINER_CATALOG = 0;
+  // Entity - similar to relational database table (or better - set of inter-related tables).
+  CONTAINER_ENTITY = 1;
+  // Attribute - similar to relational database column.
+  CONTAINER_ATTRIBUTE = 2;
+  // Reference - similar to an unstructured JSON document in relational database column.
+  CONTAINER_ASSOCIATED_DATA = 3;
+  // Price - fixed structure data type, could be represented as row in a specialized table in relational database.
+  CONTAINER_PRICE = 4;
+  // Reference - similar to a foreign key in relational database or a binding table in many-to-many relationship.
+  CONTAINER_REFERENCE = 5;
+}
+
+// Enum to specify the depth of details sent in the CDC event.
+enum GrpcCaptureContent {
+  // Only the header of the event is sent.
+  HEADER = 0;
+  // Entire mutation triggering the event is sent. In case of mutations with the large content (associated data
+  // update), the size of the event can be significant. Consider whether you need the entire mutation or just the
+  // header.
+  BODY = 1;
+}

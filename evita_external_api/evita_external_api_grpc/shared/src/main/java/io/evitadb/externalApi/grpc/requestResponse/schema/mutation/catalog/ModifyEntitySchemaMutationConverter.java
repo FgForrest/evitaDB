@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -39,15 +41,15 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ModifyEntitySchemaMutationConverter implements SchemaMutationConverter<ModifyEntitySchemaMutation, GrpcModifyEntitySchemaMutation> {
-
-	private static final DelegatingEntitySchemaMutationConverter ENTITY_SCHEMA_MUTATION_CONVERTER = new DelegatingEntitySchemaMutationConverter();
+	public static final ModifyEntitySchemaMutationConverter INSTANCE = new ModifyEntitySchemaMutationConverter();
 
 	@Nonnull
 	public ModifyEntitySchemaMutation convert(@Nonnull GrpcModifyEntitySchemaMutation mutation) {
 		final EntitySchemaMutation[] entitySchemaMutations = mutation.getEntitySchemaMutationsList()
 			.stream()
-			.map(ENTITY_SCHEMA_MUTATION_CONVERTER::convert)
+			.map(DelegatingEntitySchemaMutationConverter.INSTANCE::convert)
 			.toArray(EntitySchemaMutation[]::new);
 
 		return new ModifyEntitySchemaMutation(
@@ -59,7 +61,7 @@ public class ModifyEntitySchemaMutationConverter implements SchemaMutationConver
 	@Nonnull
 	public GrpcModifyEntitySchemaMutation convert(@Nonnull ModifyEntitySchemaMutation mutation) {
 		final List<GrpcEntitySchemaMutation> entitySchemaMutations = Arrays.stream(mutation.getSchemaMutations())
-			.map(ENTITY_SCHEMA_MUTATION_CONVERTER::convert)
+			.map(DelegatingEntitySchemaMutationConverter.INSTANCE::convert)
 			.toList();
 
 		return GrpcModifyEntitySchemaMutation.newBuilder()

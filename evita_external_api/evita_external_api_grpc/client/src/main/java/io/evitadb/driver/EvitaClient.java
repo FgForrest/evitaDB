@@ -58,7 +58,6 @@ import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceStub;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
-import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
@@ -116,9 +115,6 @@ import static java.util.Optional.ofNullable;
 public class EvitaClient implements EvitaContract {
 
 	static final Pattern ERROR_MESSAGE_PATTERN = Pattern.compile("(\\w+:\\w+:\\w+): (.*)");
-
-	private static final SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
-		new DelegatingTopLevelCatalogSchemaMutationConverter();
 
 	/**
 	 * The configuration of the evitaDB client.
@@ -537,7 +533,7 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 
 		final List<GrpcTopLevelCatalogSchemaMutation> grpcSchemaMutations = Arrays.stream(catalogMutations)
-			.map(CATALOG_SCHEMA_MUTATION_CONVERTER::convert)
+			.map(DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE::convert)
 			.toList();
 
 		final GrpcUpdateEvitaRequest request = GrpcUpdateEvitaRequest.newBuilder()

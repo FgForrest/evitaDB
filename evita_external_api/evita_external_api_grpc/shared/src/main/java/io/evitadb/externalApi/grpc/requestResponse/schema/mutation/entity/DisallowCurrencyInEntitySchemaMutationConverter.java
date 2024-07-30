@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInE
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Currency;
@@ -36,7 +38,9 @@ import java.util.Currency;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DisallowCurrencyInEntitySchemaMutationConverter implements SchemaMutationConverter<DisallowCurrencyInEntitySchemaMutation, GrpcDisallowCurrencyInEntitySchemaMutation> {
+	public static final DisallowCurrencyInEntitySchemaMutationConverter INSTANCE = new DisallowCurrencyInEntitySchemaMutationConverter();
 
 	@Nonnull
 	public DisallowCurrencyInEntitySchemaMutation convert(@Nonnull GrpcDisallowCurrencyInEntitySchemaMutation mutation) {

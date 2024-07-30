@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -46,6 +47,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
@@ -58,13 +60,12 @@ import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
-import io.evitadb.externalApi.grpc.requestResponse.data.mutation.EntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
-import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
@@ -84,9 +85,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcTaskStatus;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toOffsetDateTime;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCommitBehavior;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 import static io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter.convert;
@@ -102,12 +106,6 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 @RequiredArgsConstructor
 public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionServiceImplBase {
-	private static final SchemaMutationConverter<LocalCatalogSchemaMutation, GrpcLocalCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
-		new DelegatingLocalCatalogSchemaMutationConverter();
-	private static final SchemaMutationConverter<ModifyEntitySchemaMutation, GrpcModifyEntitySchemaMutation> ENTITY_SCHEMA_MUTATION_CONVERTER =
-		new ModifyEntitySchemaMutationConverter();
-	private static final EntityMutationConverter<EntityMutation, GrpcEntityMutation> ENTITY_MUTATION_CONVERTER =
-		new DelegatingEntityMutationConverter();
 
 	/**
 	 * Instance of Evita upon which will be executed service calls
@@ -334,6 +332,75 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				GrpcCatalogStateResponse.newBuilder()
 					.setState(toGrpcCatalogState(catalogState))
 					.build()
+			);
+			responseObserver.onCompleted();
+		});
+	}
+
+	/**
+	 * Method returns valid catalog version and the introduction date for the given moment in time.
+	 *
+	 * @param request          request containing the moment in time
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	/* TODO JNO - dopsat testy na tyto nové metody */
+	@Override
+	public void getCatalogVersionAt(GrpcCatalogVersionAtRequest request, StreamObserver<GrpcCatalogVersionAtResponse> responseObserver) {
+		executeWithClientContext(session -> {
+			final CatalogVersion catalogVersionAt = session.getCatalogVersionAt(
+				toOffsetDateTime(request.getTheMoment())
+			);
+			responseObserver.onNext(
+				GrpcCatalogVersionAtResponse.newBuilder()
+					.setVersion(catalogVersionAt.version())
+					.setIntroducedAt(toGrpcOffsetDateTime(catalogVersionAt.introducedAt()))
+					.build()
+			);
+			responseObserver.onCompleted();
+		});
+	}
+
+	/**
+	 * Method returns page of historical mutations in the form of change capture events that match given criteria and
+	 * pagination settings.
+	 *
+	 * @param request          request containing the criteria and pagination settings
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void getMutationsHistoryPage(GetMutationsHistoryPageRequest request, StreamObserver<GetMutationsHistoryPageResponse> responseObserver) {
+		executeWithClientContext(session -> {
+			final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
+				ChangeCaptureConverter.toChangeCaptureRequest(request)
+			);
+			final GetMutationsHistoryPageResponse.Builder builder = GetMutationsHistoryPageResponse.newBuilder();
+			mutationsHistoryStream
+				.skip(PaginatedList.getFirstItemNumberForPage(request.getPage(), request.getPageSize()))
+				.limit(request.getPageSize())
+				.forEach(cdcEvent -> builder.addChangeCapture(ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent)));
+			responseObserver.onNext(builder.build());
+			responseObserver.onCompleted();
+		});
+	}
+
+	/**
+	 * Method returns all historical mutations in the form of change capture events that match given criteria.
+	 *
+	 * @param request          request containing the criteria
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void getMutationsHistory(GetMutationsHistoryRequest request, StreamObserver<GetMutationsHistoryResponse> responseObserver) {
+		executeWithClientContext(session -> {
+			final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
+				ChangeCaptureConverter.toChangeCaptureRequest(request)
+			);
+			mutationsHistoryStream.forEach(
+				cdcEvent -> {
+					final GetMutationsHistoryResponse.Builder builder = GetMutationsHistoryResponse.newBuilder();
+					builder.addChangeCapture(ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent));
+					responseObserver.onNext(builder.build());
+				}
 			);
 			responseObserver.onCompleted();
 		});
@@ -600,7 +667,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		executeWithClientContext(session -> {
 			final LocalCatalogSchemaMutation[] schemaMutations = request.getSchemaMutationsList()
 				.stream()
-				.map(CATALOG_SCHEMA_MUTATION_CONVERTER::convert)
+				.map(DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
 				.toArray(LocalCatalogSchemaMutation[]::new);
 			final int newSchemaVersion = session.updateCatalogSchema(schemaMutations);
 
@@ -617,7 +684,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		executeWithClientContext(session -> {
 			final LocalCatalogSchemaMutation[] schemaMutations = request.getSchemaMutationsList()
 				.stream()
-				.map(CATALOG_SCHEMA_MUTATION_CONVERTER::convert)
+				.map(DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
 				.toArray(LocalCatalogSchemaMutation[]::new);
 			final SealedCatalogSchema newCatalogSchema = session.updateAndFetchCatalogSchema(schemaMutations);
 
@@ -645,7 +712,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void updateEntitySchema(GrpcUpdateEntitySchemaRequest request, StreamObserver<GrpcUpdateEntitySchemaResponse> responseObserver) {
 		executeWithClientContext(session -> {
-			final ModifyEntitySchemaMutation schemaMutation = ENTITY_SCHEMA_MUTATION_CONVERTER.convert(request.getSchemaMutation());
+			final ModifyEntitySchemaMutation schemaMutation = ModifyEntitySchemaMutationConverter.INSTANCE.convert(request.getSchemaMutation());
 			final int newSchemaVersion = session.updateEntitySchema(schemaMutation);
 
 			final GrpcUpdateEntitySchemaResponse response = GrpcUpdateEntitySchemaResponse.newBuilder()
@@ -659,7 +726,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void updateAndFetchEntitySchema(GrpcUpdateEntitySchemaRequest request, StreamObserver<GrpcUpdateAndFetchEntitySchemaResponse> responseObserver) {
 		executeWithClientContext(session -> {
-			final ModifyEntitySchemaMutation schemaMutation = ENTITY_SCHEMA_MUTATION_CONVERTER.convert(request.getSchemaMutation());
+			final ModifyEntitySchemaMutation schemaMutation = ModifyEntitySchemaMutationConverter.INSTANCE.convert(request.getSchemaMutation());
 			final SealedEntitySchema newEntitySchema = session.updateAndFetchEntitySchema(schemaMutation);
 
 			final GrpcUpdateAndFetchEntitySchemaResponse response = GrpcUpdateAndFetchEntitySchemaResponse.newBuilder()
@@ -755,7 +822,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void upsertEntity(GrpcUpsertEntityRequest request, StreamObserver<GrpcUpsertEntityResponse> responseObserver) {
 		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
 		final GrpcUpsertEntityResponse.Builder builder = GrpcUpsertEntityResponse.newBuilder();
-		final EntityMutation entityMutation = ENTITY_MUTATION_CONVERTER.convert(request.getEntityMutation());
+		final EntityMutation entityMutation = DelegatingEntityMutationConverter.INSTANCE.convert(request.getEntityMutation());
 
 		final String require = request.getRequire();
 		final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
@@ -923,6 +990,13 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		});
 	}
 
+	/**
+	 * Method returns current transaction id if any is opened.
+	 *
+	 * @param request          empty request
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
 	public void getTransactionId(Empty request, StreamObserver<GrpcTransactionResponse> responseObserver) {
 		final GrpcTransactionResponse.Builder builder = GrpcTransactionResponse
 			.newBuilder();
@@ -937,4 +1011,5 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		);
 		responseObserver.onCompleted();
 	}
+
 }

@@ -44,4 +44,5 @@ public record SchemaSite(
 	public SchemaSite(@Nullable Operation... operation) {
 		this(null, operation);
 	}
+
 }

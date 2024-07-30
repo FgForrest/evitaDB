@@ -99,11 +99,9 @@ import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.ResponseConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
-import io.evitadb.externalApi.grpc.requestResponse.data.mutation.EntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
-import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -159,13 +157,6 @@ import static java.util.Optional.ofNullable;
 @EqualsAndHashCode(of = "sessionId")
 @ToString(of = "sessionId")
 public class EvitaClientSession implements EvitaSessionContract {
-
-	private static final SchemaMutationConverter<LocalCatalogSchemaMutation, GrpcLocalCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
-		new DelegatingLocalCatalogSchemaMutationConverter();
-	private static final SchemaMutationConverter<ModifyEntitySchemaMutation, GrpcModifyEntitySchemaMutation> MODIFY_ENTITY_SCHEMA_MUTATION_CONVERTER =
-		new ModifyEntitySchemaMutationConverter();
-	private static final EntityMutationConverter<EntityMutation, GrpcEntityMutation> ENTITY_MUTATION_CONVERTER =
-		new DelegatingEntityMutationConverter();
 
 	/**
 	 * Evita instance this session is connected to.
@@ -749,7 +740,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final List<GrpcLocalCatalogSchemaMutation> grpcSchemaMutations = Arrays.stream(schemaMutation)
-				.map(CATALOG_SCHEMA_MUTATION_CONVERTER::convert)
+				.map(DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
 				.toList();
 
 			final GrpcUpdateCatalogSchemaRequest request = GrpcUpdateCatalogSchemaRequest.newBuilder()
@@ -772,7 +763,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final List<GrpcLocalCatalogSchemaMutation> grpcSchemaMutations = Arrays.stream(schemaMutation)
-				.map(CATALOG_SCHEMA_MUTATION_CONVERTER::convert)
+				.map(DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
 				.toList();
 
 			final GrpcUpdateCatalogSchemaRequest request = GrpcUpdateCatalogSchemaRequest.newBuilder()
@@ -797,7 +788,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public int updateEntitySchema(@Nonnull ModifyEntitySchemaMutation schemaMutation) throws SchemaAlteringException {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final GrpcModifyEntitySchemaMutation grpcSchemaMutation = MODIFY_ENTITY_SCHEMA_MUTATION_CONVERTER.convert(schemaMutation);
+			final GrpcModifyEntitySchemaMutation grpcSchemaMutation = ModifyEntitySchemaMutationConverter.INSTANCE.convert(schemaMutation);
 			final GrpcUpdateEntitySchemaRequest request = GrpcUpdateEntitySchemaRequest.newBuilder()
 				.setSchemaMutation(grpcSchemaMutation)
 				.build();
@@ -814,7 +805,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public SealedEntitySchema updateAndFetchEntitySchema(@Nonnull ModifyEntitySchemaMutation schemaMutation) throws SchemaAlteringException {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final GrpcModifyEntitySchemaMutation grpcSchemaMutation = MODIFY_ENTITY_SCHEMA_MUTATION_CONVERTER.convert(schemaMutation);
+			final GrpcModifyEntitySchemaMutation grpcSchemaMutation = ModifyEntitySchemaMutationConverter.INSTANCE.convert(schemaMutation);
 			final GrpcUpdateEntitySchemaRequest request = GrpcUpdateEntitySchemaRequest.newBuilder()
 				.setSchemaMutation(grpcSchemaMutation)
 				.build();
@@ -1071,7 +1062,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final GrpcEntityMutation grpcEntityMutation = ENTITY_MUTATION_CONVERTER.convert(entityMutation);
+			final GrpcEntityMutation grpcEntityMutation = DelegatingEntityMutationConverter.INSTANCE.convert(entityMutation);
 			final GrpcUpsertEntityResponse grpcResult = executeWithBlockingEvitaSessionService(
 				evitaSessionService ->
 					evitaSessionService.upsertEntity(
@@ -1103,7 +1094,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public SealedEntity upsertAndFetchEntity(@Nonnull EntityMutation entityMutation, EntityContentRequire... require) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final GrpcEntityMutation grpcEntityMutation = ENTITY_MUTATION_CONVERTER.convert(entityMutation);
+			final GrpcEntityMutation grpcEntityMutation = DelegatingEntityMutationConverter.INSTANCE.convert(entityMutation);
 			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
 			final GrpcUpsertEntityResponse grpcResponse = executeWithBlockingEvitaSessionService(
 				evitaSessionService ->
