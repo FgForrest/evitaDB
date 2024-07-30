@@ -83,8 +83,9 @@ request processing to a point when the request body is available, and chain the 
 Another problem we had to solve was dynamic routing. We have a lot of endpoints that are not known at compile time, 
 but are dynamically set up at runtime according to database schemas. We assume this could be handled by 
 the [Server#reconfigure](https://github.com/line/armeria/blob/main/core/src/main/java/com/linecorp/armeria/server/Server.java) 
-method, but in the first release we ported the Undertow PathHandler logic and used our existing logic to handle dynamic 
-routing in Armeria. It was not ideal, but it worked.
+method, but in the first release we ported the Undertow PathHandler implementation and used our existing logic to handle 
+dynamic routing in Armeria. It was not ideal, but it worked. There is an [open issue](https://github.com/line/armeria/issues/5758)
+which might help us get rid of remnants of the old implementation in the future.
 
 ## Jigsaw is still a problem in 2024
 
