@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
@@ -58,6 +59,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -200,17 +202,36 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 			new ChangeCatalogCaptureRequest(CaptureArea.DATA, DataSite.ALL, CaptureContent.BODY, 0, null)
 		);
 
-		/* TODO JNO - this is how the mutations are iterated over the reversed stream, but the index gets broken */
 		/* we need somehow to initialize mutation count eagerly?! */
-		final List<Mutation> reversedMutations = new ArrayList<>(this.mutations);
-		Collections.reverse(reversedMutations);
-		final List<ChangeCatalogCapture> reversedCdc = reversedMutations.stream()
+		final Mutation[] reversedMutations = new Mutation[this.mutations.size()];
+		int reverseIndex = this.mutations.size() - 1;
+		for (int i = 0; i < mutations.size(); i++) {
+			final Mutation mutation = mutations.get(i);
+			assertInstanceOf(TransactionMutation.class, mutation, "Mutation should be of type TransactionMutation");
+			final TransactionMutation transactionMutation = (TransactionMutation) mutation;
+			for (int j = i + 1; j <= i + transactionMutation.getMutationCount(); j++) {
+				reversedMutations[reverseIndex--] = this.mutations.get(j);
+			}
+			reversedMutations[reverseIndex--] = transactionMutation;
+			i += transactionMutation.getMutationCount();
+		}
+		final List<ChangeCatalogCapture> reversedCdc = Arrays.stream(reversedMutations)
 			.flatMap(it -> it.toChangeCatalogCapture(reverseCatchAllPredicate, CaptureContent.BODY))
 			.toList();
 
 		assertEquals(cdc.size(), reversedCdc.size());
+		// compare mutations ignoring the transaction mutations
+		int expectedIndex = cdc.size() - 1;
 		for (int i = 0; i < cdc.size(); i++) {
-			assertEquals(cdc.get(cdc.size() - i - 1), reversedCdc.get(i));
+			ChangeCatalogCapture expected = null;
+			while (expectedIndex >= 0 && (expected = cdc.get(expectedIndex--)).operation() == Operation.TRANSACTION) {
+
+			}
+			ChangeCatalogCapture actual = null;
+			while (i < reversedCdc.size() && (actual = reversedCdc.get(i)).operation() == Operation.TRANSACTION) {
+				i++;
+			}
+			assertEquals(expected, actual);
 		}
 	}
 }

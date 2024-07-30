@@ -47,6 +47,7 @@ public class MutationPredicateContext {
 	@Getter private String entityType;
 	private boolean primaryKeyIdentified;
 	private int primaryKey = Integer.MIN_VALUE;
+	private int mutationCount = 0;
 
 	/**
 	 * Returns the last known primary key of the entity. Might reflect current mutation entity or when the mutation is
@@ -120,7 +121,8 @@ public class MutationPredicateContext {
 		this.version = version;
 		this.primaryKeyIdentified = false;
 		this.entityType = null;
-		this.index = direction == StreamDirection.FORWARD ? 0 : mutationCount;
+		this.mutationCount = mutationCount;
+		this.index = 0;
 	}
 
 	/**
@@ -129,6 +131,8 @@ public class MutationPredicateContext {
 	public void advance() {
 		if (direction == StreamDirection.FORWARD) {
 			this.index++;
+		} else if (this.index == 0) {
+			this.index = this.mutationCount;
 		} else {
 			this.index--;
 		}
