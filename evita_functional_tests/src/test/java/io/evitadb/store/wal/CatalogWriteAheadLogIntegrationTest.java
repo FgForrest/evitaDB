@@ -84,10 +84,7 @@ import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.store.spi.CatalogPersistenceService.getIndexFromWalFileName;
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test verifying the behaviour of {@link CatalogWriteAheadLog}.
@@ -434,17 +431,18 @@ class CatalogWriteAheadLogIntegrationTest {
 		while (mutationIterator.hasNext()) {
 			txRead++;
 			final List<Mutation> mutationsInTx = txInMutations.get(catalogVersion);
-			for (int i = mutationsInTx.size() - 1; i > 0; i--) {
+			TransactionMutation transactionMutation = null;
+			for (int i = mutationsInTx.size(); i > 1; i--) {
 				final Mutation mutationInTx = mutationIterator.next();
-				assertEquals(mutationsInTx.get(i), mutationInTx);
+				if (mutationInTx instanceof TransactionMutation txMut) {
+					transactionMutation = txMut;
+					assertEquals(mutationsInTx.get(i - transactionMutation.getMutationCount() - 1), mutationInTx);
+				} else {
+					assertEquals(mutationsInTx.get(i), mutationInTx);
+				}
 			}
 
-			final Mutation mutation = mutationIterator.next();
-			assertInstanceOf(TransactionMutation.class, mutation);
-
-			final TransactionMutation transactionMutation = (TransactionMutation) mutation;
-			assertEquals(mutationsInTx.get(0), transactionMutation);
-
+			assertNotNull(transactionMutation);
 			if (firstCatalogVersion == -1L) {
 				firstCatalogVersion = transactionMutation.getCatalogVersion();
 			}

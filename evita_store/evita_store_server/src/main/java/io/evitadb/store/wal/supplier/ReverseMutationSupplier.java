@@ -67,19 +67,21 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 			return null;
 		} else {
 			final FileLocation[] mappedPositions = getMappedPositions();
-			if (this.mutationIndex > 0) {
+			if (this.mutationIndex == this.transactionMutation.getMutationCount()) {
+				this.mutationIndex--;
+				return this.transactionMutation;
+			} else if (this.mutationIndex > 0) {
 				// transaction is fully mapped - we could read it backwards
-				final FileLocation currentLocation = mappedPositions[--this.mutationIndex];
+				final FileLocation currentLocation = mappedPositions[this.mutationIndex--];
 				final StorageRecord<Mutation> storageRecord = StorageRecord.read(
 					this.observableInput, currentLocation, (stream, length) -> (Mutation) kryo.readClassAndObject(stream)
 				);
 				return storageRecord.payload();
 			} else {
-				final TransactionMutationWithLocation currentTxMutation = this.transactionMutation;
-				this.transactionMutation = findPreviousTransactionMutation(currentTxMutation);
+				this.transactionMutation = findPreviousTransactionMutation(this.transactionMutation);
 				this.mappedPositions = null;
 				this.mutationIndex = this.transactionMutation == null ? 0 : this.transactionMutation.getMutationCount();
-				return currentTxMutation;
+				return get();
 			}
 		}
 	}
