@@ -115,7 +115,7 @@
 		<grpc.version>1.63.0</grpc.version>
 		<bouncyCastle.version>1.78</bouncyCastle.version>
 		<swagger.version>2.2.15</swagger.version>
-		<armeria.version>1.28.4</armeria.version>
+		<armeria.version>1.29.3</armeria.version>
 		<prometheus.version>1.3.1</prometheus.version>
 		<byteBuddy.version>1.14.17</byteBuddy.version>
 	</properties>
