@@ -558,7 +558,7 @@ public class EntitySchemaConverter {
 			referenceSchema.getReferencedGroupTypeManaged()
 				? Collections.emptyMap()
 				: NamingConvention.generate(referenceSchema.getGroupType().getValue()),
-			referenceSchema.getReferencedEntityTypeManaged(),
+			referenceSchema.getReferencedGroupTypeManaged(),
 			referenceSchema.getIndexed(),
 			referenceSchema.getFaceted(),
 			referenceSchema.getAttributesMap()
