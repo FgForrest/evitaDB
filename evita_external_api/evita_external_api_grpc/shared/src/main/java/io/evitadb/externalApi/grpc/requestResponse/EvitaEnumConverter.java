@@ -908,6 +908,23 @@ public class EvitaEnumConverter {
 	}
 
 	/**
+	 * Converts a {@link ContainerType} to a {@link GrpcContainerType}.
+	 * @param containerType The ContainerType to convert.
+	 * @return The converted GrpcContainerType.
+	 */
+	@Nonnull
+	public static GrpcContainerType toGrpcContainerType(@Nonnull ContainerType containerType) {
+		return switch (containerType) {
+			case CATALOG -> GrpcContainerType.CONTAINER_CATALOG;
+			case ENTITY -> GrpcContainerType.CONTAINER_ENTITY;
+			case ATTRIBUTE -> GrpcContainerType.CONTAINER_ATTRIBUTE;
+			case ASSOCIATED_DATA -> GrpcContainerType.CONTAINER_ASSOCIATED_DATA;
+			case REFERENCE -> GrpcContainerType.CONTAINER_REFERENCE;
+			case PRICE -> GrpcContainerType.CONTAINER_PRICE;
+		};
+	}
+
+	/**
 	 * Converts a {@link GrpcCaptureContent} to a {@link CaptureContent}.
 	 *
 	 * @param content The {@link GrpcCaptureContent} to convert.
@@ -921,4 +938,18 @@ public class EvitaEnumConverter {
 			default -> throw new GenericEvitaInternalError("Unrecognized capture content: " + content);
 		};
 	}
+
+	/**
+	 * Converts a {@link CaptureContent} to a {@link GrpcCaptureContent}.
+	 * @param content The CaptureContent to convert.
+	 * @return The converted GrpcCaptureContent.
+	 */
+	@Nonnull
+	public static GrpcCaptureContent toGrpcCaptureContent(@Nonnull CaptureContent content) {
+		return switch (content) {
+			case HEADER -> GrpcCaptureContent.HEADER;
+			case BODY -> GrpcCaptureContent.BODY;
+		};
+	}
+
 }

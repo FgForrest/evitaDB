@@ -97,6 +97,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest.Builder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.ResponseConverter;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter;
@@ -116,14 +117,18 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.Closeable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -131,14 +136,18 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.extractEntityTypeFromClass;
 import static io.evitadb.driver.EvitaClient.ERROR_MESSAGE_PATTERN;
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toTaskStatus;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
+import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter.toGrpcChangeCaptureRequest;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -228,6 +237,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private final ClientEntitySchemaAccessor clientEntitySchemaAccessor = new ClientEntitySchemaAccessor();
 	/**
+	 * Current timeout for the session.
+	 */
+	private final LinkedList<Timeout> callTimeout = new LinkedList<>();
+	/**
 	 * Future that is instantiated when the session is closed. When initialized, subsequent calls of the close method
 	 * will return the same future. When the future is non-null any calls after {@link #close()} method has been called.
 	 */
@@ -236,10 +249,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Timestamp of the last session activity (call).
 	 */
 	private long lastCall;
-	/**
-	 * Current timeout for the session.
-	 */
-	private final LinkedList<Timeout> callTimeout = new LinkedList<>();
 
 	private static <S extends Serializable> Query assertRequestMakesSenseAndEntityTypeIsPresent(@Nonnull Query query, @Nonnull Class<S> expectedType, @Nonnull ReflectionLookup reflectionLookup) {
 		if (EntityContract.class.isAssignableFrom(expectedType) &&
@@ -281,7 +290,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull SessionTraits sessionTraits,
 		@Nonnull Consumer<EvitaClientSession> onTerminationCallback,
 		@Nonnull Timeout timeout
-		) {
+	) {
 		this.evita = evita;
 		this.management = management;
 		this.reflectionLookup = evita.getReflectionLookup();
@@ -1282,15 +1291,48 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
-		/* TODO JNO - Implement me */
-		return null;
+		assertActive();
+		final GrpcCatalogVersionAtResponse grpcResponse = executeWithBlockingEvitaSessionService(
+			session -> {
+				final GrpcCatalogVersionAtRequest.Builder builder = GrpcCatalogVersionAtRequest.newBuilder();
+				if (moment != null) {
+					builder.setTheMoment(toGrpcOffsetDateTime(moment));
+				}
+				return session.getCatalogVersionAt(
+					builder.build()
+				);
+			}
+		);
+		return new CatalogVersion(
+			grpcResponse.getVersion(),
+			toOffsetDateTime(grpcResponse.getIntroducedAt())
+		);
 	}
 
 	@Nonnull
 	@Override
 	public Stream<ChangeCatalogCapture> getMutationsHistory(@Nonnull ChangeCatalogCaptureRequest request) {
-		/* TODO JNO - Implement me */
-		return Stream.empty();
+		assertActive();
+
+		// Error reference
+		final AtomicReference<MutationsStreamObserver> observerRef = new AtomicReference<>();
+
+		executeWithAsyncEvitaSessionService(
+			session -> {
+				observerRef.set(new MutationsStreamObserver());
+				session.getMutationsHistory(
+					toGrpcChangeCaptureRequest(request),
+					observerRef.get()
+				);
+				return null;
+			}
+		);
+
+		final MutationsStreamObserver mutationsStreamObserver = observerRef.get();
+		return StreamSupport.stream(
+			new ChangeCatalogCaptureSpliterator(mutationsStreamObserver),
+			false
+		);
 	}
 
 	@Nonnull
@@ -1416,9 +1458,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Method executes lambda using specified timeout for the call ignoring the defaults specified
 	 * in {@link EvitaClientConfiguration#timeout()}.
 	 *
-	 * @param lambda logic to be executed
+	 * @param lambda  logic to be executed
 	 * @param timeout timeout value
-	 * @param unit   time unit of the timeout
+	 * @param unit    time unit of the timeout
 	 */
 	@SuppressWarnings("unused")
 	public void executeWithExtendedTimeout(@Nonnull Runnable lambda, long timeout, @Nonnull TimeUnit unit) {
@@ -1434,11 +1476,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Method executes lambda using specified timeout for the call ignoring the defaults specified
 	 * in {@link EvitaClientConfiguration#timeout()}.
 	 *
-	 * @param lambda logic to be executed
+	 * @param lambda  logic to be executed
 	 * @param timeout timeout value
-	 * @param unit   time unit of the timeout
+	 * @param unit    time unit of the timeout
+	 * @param <T>     type of the result
 	 * @return result of the lambda
-	 * @param <T> type of the result
 	 */
 	@SuppressWarnings("unused")
 	public <T> T executeWithExtendedTimeout(@Nonnull Supplier<T> lambda, long timeout, @Nonnull TimeUnit unit) {
@@ -1969,6 +2011,100 @@ public class EvitaClientSession implements EvitaSessionContract {
 				throw ex;
 			}
 		}
+	}
+
+	/* TODO JNO - test and document */
+	private static class MutationsStreamObserver implements StreamObserver<GetMutationsHistoryResponse> {
+		// BlockingQueue to store the responses
+		private final BlockingQueue<ChangeCatalogCapture> queue = new LinkedBlockingQueue<>();
+		// Flag to indicate the end of the stream
+		private final AtomicBoolean completed = new AtomicBoolean(false);
+		// Error reference
+		private final AtomicReference<Throwable> error = new AtomicReference<>();
+
+		@Override
+		public void onNext(GetMutationsHistoryResponse getMutationsHistoryResponse) {
+			if (completed.get()) {
+				throw new CancellationException("Stream has been already cancelled!");
+			}
+			// Convert the response and add to the queue
+			getMutationsHistoryResponse.getChangeCaptureList()
+				.stream()
+				.map(ChangeCaptureConverter::toChangeCatalogCapture)
+				.forEach(queue::add);
+		}
+
+		@Override
+		public void onError(Throwable throwable) {
+			if (completed.get()) {
+				throw new CancellationException("Stream has been already cancelled!");
+			}
+			// Handle error
+			completed.set(true);
+			error.set(throwable);
+		}
+
+		@Override
+		public void onCompleted() {
+			// Indicate the end of the stream
+			completed.set(true);
+		}
+
+		@Nonnull
+		public BlockingQueue<ChangeCatalogCapture> getQueue() {
+			return queue;
+		}
+
+		public boolean isCompleted() {
+			return completed.get();
+		}
+
+		@Nonnull
+		public Optional<Throwable> getError() {
+			return ofNullable(error.get());
+		}
+
+		public void cancel() {
+			this.completed.set(true);
+		}
+	}
+
+	/* TODO JNO - test and document */
+	private static class ChangeCatalogCaptureSpliterator
+		extends Spliterators.AbstractSpliterator<ChangeCatalogCapture>
+		implements Closeable {
+		private final MutationsStreamObserver mutationsStreamObserver;
+
+		public ChangeCatalogCaptureSpliterator(MutationsStreamObserver mutationsStreamObserver) {
+			super(Long.MAX_VALUE, Spliterator.ORDERED);
+			this.mutationsStreamObserver = mutationsStreamObserver;
+		}
+
+		@Override
+		public boolean tryAdvance(Consumer<? super ChangeCatalogCapture> action) {
+			ChangeCatalogCapture capture = mutationsStreamObserver.getQueue().poll();
+			if (capture != null) {
+				action.accept(capture);
+				return true;
+			} else if (mutationsStreamObserver.isCompleted()) {
+				if (mutationsStreamObserver.getError().isPresent()) {
+					throw new GenericEvitaInternalError(
+						"Error occurred while fetching mutations history!",
+						mutationsStreamObserver.getError().get()
+					);
+				} else {
+					return false;
+				}
+			} else {
+				throw new GenericEvitaInternalError("Stream contains NULL capture!");
+			}
+		}
+
+		@Override
+		public void close() {
+			mutationsStreamObserver.cancel();
+		}
+
 	}
 
 	private class ClientEntitySchemaAccessor implements EntitySchemaProvider {

@@ -343,12 +343,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * @param request          request containing the moment in time
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
-	/* TODO JNO - dopsat testy na tyto nové metody */
 	@Override
 	public void getCatalogVersionAt(GrpcCatalogVersionAtRequest request, StreamObserver<GrpcCatalogVersionAtResponse> responseObserver) {
 		executeWithClientContext(session -> {
 			final CatalogVersion catalogVersionAt = session.getCatalogVersionAt(
-				toOffsetDateTime(request.getTheMoment())
+				request.hasTheMoment() ? toOffsetDateTime(request.getTheMoment()) : null
 			);
 			responseObserver.onNext(
 				GrpcCatalogVersionAtResponse.newBuilder()

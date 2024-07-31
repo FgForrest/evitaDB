@@ -46,5 +46,51 @@ public record DataSite(
 	@Nullable ContainerType[] containerType,
 	@Nullable String[] classifierName
 ) implements CaptureSite {
+
 	public static final CaptureSite ALL = new DataSite(null, null, null, null, null);
+
+	public static Builder builder() {
+		return new Builder();
+	}
+
+	/**
+	 * TODO JNO - document, add similar builder for SchemaSite
+	 */
+	public static class Builder {
+		private String entityType;
+		private Integer entityPrimaryKey;
+		private Operation[] operation;
+		private ContainerType[] containerType;
+		private String[] classifierName;
+
+		public Builder entityType(String entityType) {
+			this.entityType = entityType;
+			return this;
+		}
+
+		public Builder entityPrimaryKey(Integer entityPrimaryKey) {
+			this.entityPrimaryKey = entityPrimaryKey;
+			return this;
+		}
+
+		public Builder operation(Operation... operation) {
+			this.operation = operation;
+			return this;
+		}
+
+		public Builder containerType(ContainerType... containerType) {
+			this.containerType = containerType;
+			return this;
+		}
+
+		public Builder classifierName(String... classifierName) {
+			this.classifierName = classifierName;
+			return this;
+		}
+
+		public DataSite build() {
+			return new DataSite(entityType, entityPrimaryKey, operation, containerType, classifierName);
+		}
+	}
+
 }
