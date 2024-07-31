@@ -79,7 +79,6 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 	void shouldTryAddingInDifferentOrders(int[] order) {
 		for (int pk : order) {
 			final Predecessor predecessor = PREDECESSOR_MAP.get(pk);
-			System.out.println("Adding " + pk + " with predecessor " + predecessor + ".");
 			index.upsertPredecessor(predecessor, pk);
 		}
 
@@ -99,7 +98,6 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 		for (int i = 0; i < order.length; i++) {
 			int pk = order[i];
 			final Predecessor predecessor = i == 0 ? new Predecessor() : new Predecessor(order[i - 1]);
-			System.out.println("Adding " + pk + " with predecessor " + predecessor + ".");
 			index.upsertPredecessor(predecessor, pk);
 		}
 
@@ -118,12 +116,10 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 		for (int count = 1; count <= order.length; count++) {
 			// remove the first count elements
 			for (int i = 0; i < count; i++) {
-				System.out.println("Removing " + order[i] + ".");
 				index.removePredecessor(order[i]);
 			}
 			// now return them back in
 			for (int i = 0; i < count; i++) {
-				System.out.println("Adding " + order[i] + " with predecessor " + PREDECESSOR_MAP.get(order[i]) + ".");
 				index.upsertPredecessor(PREDECESSOR_MAP.get(order[i]), order[i]);
 			}
 
