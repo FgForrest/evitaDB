@@ -169,6 +169,12 @@ public class InitialPricesBuilder implements PricesBuilder {
 
 	@Nonnull
 	@Override
+	public Optional<PriceForSaleContext> getPriceForSaleContext() {
+		return empty();
+	}
+
+	@Nonnull
+	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
 		throw new ContextMissingException();
 	}

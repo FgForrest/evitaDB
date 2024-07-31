@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleContext;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate;
@@ -46,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -95,7 +97,14 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 * is invoked on the entity.
 	 */
 	@Nullable @Getter private final PriceContractSerializablePredicate underlyingPredicate;
+	/**
+	 * Contains information about the context availability for price for sale calculation.
+	 */
 	private final boolean contextAvailable;
+	/**
+	 * Contains information about the context for price for sale calculation. Computed lazily.
+	 */
+	private PriceForSaleContext priceForSaleContext;
 
 	public PriceContractSerializablePredicate() {
 		this.priceContentMode = PriceContentMode.ALL;
@@ -179,7 +188,23 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 * Returns true if the context for price for sale calculation is available.
 	 */
 	public boolean isContextAvailable() {
-		return contextAvailable;
+		return this.contextAvailable;
+	}
+
+	/**
+	 * Returns the context for price for sale calculation.
+	 * @return the context for price for sale calculation
+	 */
+	@Nonnull
+	public Optional<PriceForSaleContext> getPriceForSaleContext() {
+		if (this.contextAvailable) {
+			if (this.priceForSaleContext == null) {
+				this.priceForSaleContext = new PriceForSaleContext(this.priceLists, this.currency, this.validIn);
+			}
+			return Optional.of(this.priceForSaleContext);
+		} else {
+			return Optional.empty();
+		}
 	}
 
 	/**
