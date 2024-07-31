@@ -515,6 +515,16 @@ public interface PricesContract extends Versioned, Serializable {
 	boolean isPriceForSaleContextAvailable();
 
 	/**
+	 * Returns context used for calculation of the {@link #getPriceForSale()} method. The context is available only
+	 * when the entity is related to a {@link Query} with price related constraints so that `currency` and `priceList`
+	 * priority can be extracted from the query.
+	 *
+	 * @return context used for calculation of the {@link #getPriceForSale()} method
+	 */
+	@Nonnull
+	Optional<PriceForSaleContext> getPriceForSaleContext();
+
+	/**
 	 * Returns a price for which the entity should be sold. This method can be used only in context of a {@link Query}
 	 * with price related constraints so that `currency` and `priceList` priority can be extracted from the query.
 	 * The moment is either extracted from the query as well (if present) or current date and time is used.
@@ -783,5 +793,18 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull Map<String, Optional<PriceContract>> accompanyingPrices
 	) {
 	}
+
+	/**
+	 * Describes context for computation of price for sale.
+	 *
+	 * @param priceListPriority list of price lists sorted by priority
+	 * @param currency currency used for price for sale calculation
+	 * @param atTheMoment moment used for price for sale calculation
+	 */
+	record PriceForSaleContext(
+		@Nonnull String[] priceListPriority,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment
+	) {}
 
 }

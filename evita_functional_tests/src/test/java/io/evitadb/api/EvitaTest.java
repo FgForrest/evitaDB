@@ -52,6 +52,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
@@ -1075,6 +1076,58 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals(1, secondProductLocales.size());
 				assertTrue(secondProductLocales.contains(Locale.ENGLISH));
 				assertEquals(Locale.ENGLISH, ((EntityDecorator) secondProduct).getImplicitLocale());
+			}
+		);
+	}
+
+	@Test
+	void shouldUpdateExistingPriceInReducedPriceIndexes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withPrice(2)
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, ReferenceSchemaEditor::indexed)
+					.updateVia(session);
+
+				session.createNewEntity(Entities.CATEGORY, 1).upsertVia(session);
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setReference(Entities.CATEGORY, 1)
+					.setPrice(1, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 2)
+					.setReference(Entities.CATEGORY, 1)
+					.setPrice(2, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+					.upsertVia(session);
+
+				session.goLiveAndClose();
+			}
+		);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(Entities.PRODUCT, 1, priceContentAll())
+					.orElseThrow()
+					.openForWrite()
+					.setPrice(1, "basic", CURRENCY_CZK, null, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, false)
+					.upsertVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity sealedEntity = session.getEntity(Entities.PRODUCT, 1, priceContentAll())
+					.orElseThrow();
+
+				assertEquals(BigDecimal.TEN, sealedEntity.getPrice(1, "basic", CURRENCY_CZK).orElseThrow().priceWithTax());
 			}
 		);
 	}
