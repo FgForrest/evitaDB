@@ -225,7 +225,13 @@ public class ExistingPricesBuilder implements PricesBuilder {
 
 	@Override
 	public boolean isPriceForSaleContextAvailable() {
-		return pricePredicate.getCurrency() != null && !ArrayUtils.isEmpty(pricePredicate.getPriceLists());
+		return pricePredicate.isContextAvailable();
+	}
+
+	@Nonnull
+	@Override
+	public Optional<PriceForSaleContext> getPriceForSaleContext() {
+		return pricePredicate.getPriceForSaleContext();
 	}
 
 	@Override
