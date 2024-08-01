@@ -1019,6 +1019,8 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * in the request. The method returns the stream of changes in the reversed order - the most recent changes are
 	 * returned first.
 	 *
+	 * !!! Important: remember to close the stream after you are done with it to release the resources
+	 *
 	 * @param criteria request that specifies the criteria for the changes to be returned
 	 * @return stream of change data captures that match the specified criteria in reversed order
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore

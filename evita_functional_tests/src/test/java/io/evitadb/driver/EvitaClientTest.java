@@ -2324,6 +2324,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				final DeletedHierarchy<CategoryInterface> deletedHierarchy = session.deleteEntityAndItsHierarchy(
 					CategoryInterface.class, 50, entityFetchAllContent()
 				);
+				assertNotNull(deletedHierarchy);
 			}
 		);
 
@@ -2341,8 +2342,9 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 						null
 					)
 				);
+
 				final List<ChangeCatalogCapture> mutations = mutationsHistory.toList();
-				assertTrue(mutations.size() > 0);
+				assertTrue(mutations.size() > 20);
 			}
 		);
 	}

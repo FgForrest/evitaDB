@@ -58,7 +58,8 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
 			false, onClose
 		);
-		this.mutationIndex = this.transactionMutation.getMutationCount();
+		this.mutationIndex = this.transactionMutation == null ?
+			0: this.transactionMutation.getMutationCount();
 	}
 
 	@Override

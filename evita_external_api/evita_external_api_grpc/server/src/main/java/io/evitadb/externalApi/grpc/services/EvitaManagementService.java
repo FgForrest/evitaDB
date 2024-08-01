@@ -59,6 +59,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
@@ -83,14 +84,20 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 
 	/**
 	 * Executes entire lambda function within the scope of a tracing context.
+	 *
+	 * @param lambda   lambda function to be executed
+	 * @param executor executor service to be used as a carrier for a lambda function
 	 */
-	private static void executeWithClientContext(@Nonnull Runnable lambda) {
+	private static void executeWithClientContext(
+		@Nonnull Runnable lambda,
+		@Nonnull ExecutorService executor
+	) {
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
 		ExternalApiTracingContextProvider.getContext()
 			.executeWithinBlock(
 				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
 				metadata,
-				lambda
+				() -> executor.execute(lambda)
 			);
 	}
 
@@ -122,21 +129,24 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void serverStatus(Empty request, StreamObserver<GrpcEvitaServerStatusResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			final SystemStatus systemStatus = management.getSystemStatus();
-			responseObserver.onNext(
-				GrpcEvitaServerStatusResponse
-					.newBuilder()
-					.setVersion(systemStatus.version())
-					.setStartedAt(toGrpcOffsetDateTime(systemStatus.startedAt()))
-					.setUptime(systemStatus.uptime().toSeconds())
-					.setInstanceId(systemStatus.instanceId())
-					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
-					.setCatalogsOk(systemStatus.catalogsOk())
-					.build()
-			);
-			responseObserver.onCompleted();
-		});
+		executeWithClientContext(
+			() -> {
+				final SystemStatus systemStatus = management.getSystemStatus();
+				responseObserver.onNext(
+					GrpcEvitaServerStatusResponse
+						.newBuilder()
+						.setVersion(systemStatus.version())
+						.setStartedAt(toGrpcOffsetDateTime(systemStatus.startedAt()))
+						.setUptime(systemStatus.uptime().toSeconds())
+						.setInstanceId(systemStatus.instanceId())
+						.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
+						.setCatalogsOk(systemStatus.catalogsOk())
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -147,14 +157,17 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void getConfiguration(Empty request, StreamObserver<GrpcEvitaConfigurationResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			responseObserver.onNext(
-				GrpcEvitaConfigurationResponse.newBuilder()
-					.setConfiguration(management.getConfiguration())
-					.build()
-			);
-			responseObserver.onCompleted();
-		});
+		executeWithClientContext(
+			() -> {
+				responseObserver.onNext(
+					GrpcEvitaConfigurationResponse.newBuilder()
+						.setConfiguration(management.getConfiguration())
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -165,19 +178,22 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void getCatalogStatistics(Empty request, StreamObserver<GrpcEvitaCatalogStatisticsResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			final CatalogStatistics[] catalogStatistics = management.getCatalogStatistics();
-			responseObserver.onNext(
-				GrpcEvitaCatalogStatisticsResponse.newBuilder()
-					.addAllCatalogStatistics(
-						Arrays.stream(catalogStatistics)
-							.map(EvitaDataTypesConverter::toGrpcCatalogStatistics)
-							.toList()
-					)
-					.build()
-			);
-			responseObserver.onCompleted();
-		});
+		executeWithClientContext(
+			() -> {
+				final CatalogStatistics[] catalogStatistics = management.getCatalogStatistics();
+				responseObserver.onNext(
+					GrpcEvitaCatalogStatisticsResponse.newBuilder()
+						.addAllCatalogStatistics(
+							Arrays.stream(catalogStatistics)
+								.map(EvitaDataTypesConverter::toGrpcCatalogStatistics)
+								.toList()
+						)
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -274,15 +290,20 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void restoreCatalogFromServerFile(GrpcRestoreCatalogFromServerFileRequest request, StreamObserver<GrpcRestoreCatalogResponse> responseObserver) {
-		final Task<?, Void> restorationTask = management.restoreCatalog(
-			request.getCatalogName(), toUuid(request.getFileId())
+		executeWithClientContext(
+			() -> {
+				final Task<?, Void> restorationTask = management.restoreCatalog(
+					request.getCatalogName(), toUuid(request.getFileId())
+				);
+				responseObserver.onNext(
+					GrpcRestoreCatalogResponse.newBuilder()
+						.setTask(toGrpcTaskStatus(restorationTask.getStatus()))
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
 		);
-		responseObserver.onNext(
-			GrpcRestoreCatalogResponse.newBuilder()
-				.setTask(toGrpcTaskStatus(restorationTask.getStatus()))
-				.build()
-		);
-		responseObserver.onCompleted();
 	}
 
 	/**
@@ -290,22 +311,27 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void listTaskStatuses(GrpcTaskStatusesRequest request, StreamObserver<GrpcTaskStatusesResponse> responseObserver) {
-		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(
-			request.getPageNumber(),
-			request.getPageSize()
+		executeWithClientContext(
+			() -> {
+				final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(
+					request.getPageNumber(),
+					request.getPageSize()
+				);
+				final Builder builder = GrpcTaskStatusesResponse.newBuilder();
+				taskStatuses.getData()
+					.stream()
+					.map(EvitaDataTypesConverter::toGrpcTaskStatus)
+					.forEach(builder::addTaskStatus);
+				responseObserver.onNext(
+					builder.setPageNumber(taskStatuses.getPageNumber())
+						.setPageSize(taskStatuses.getPageSize())
+						.setTotalNumberOfRecords(taskStatuses.getTotalRecordCount())
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
 		);
-		final Builder builder = GrpcTaskStatusesResponse.newBuilder();
-		taskStatuses.getData()
-			.stream()
-			.map(EvitaDataTypesConverter::toGrpcTaskStatus)
-			.forEach(builder::addTaskStatus);
-		responseObserver.onNext(
-			builder.setPageNumber(taskStatuses.getPageNumber())
-				.setPageSize(taskStatuses.getPageSize())
-				.setTotalNumberOfRecords(taskStatuses.getTotalRecordCount())
-				.build()
-		);
-		responseObserver.onCompleted();
 	}
 
 	/**
@@ -313,15 +339,19 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void getTaskStatus(GrpcTaskStatusRequest request, StreamObserver<GrpcTaskStatusResponse> responseObserver) {
-		management.getTaskStatus(toUuid(request.getTaskId()))
-			.ifPresent(
-				it -> responseObserver.onNext(GrpcTaskStatusResponse.newBuilder()
-					.setTaskStatus(toGrpcTaskStatus(it))
-					.build()
-				)
-			);
-
-		responseObserver.onCompleted();
+		executeWithClientContext(
+			() -> {
+				management.getTaskStatus(toUuid(request.getTaskId()))
+					.ifPresent(
+						it -> responseObserver.onNext(GrpcTaskStatusResponse.newBuilder()
+							.setTaskStatus(toGrpcTaskStatus(it))
+							.build()
+						)
+					);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -329,11 +359,16 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void getTaskStatuses(GrpcSpecifiedTaskStatusesRequest request, StreamObserver<GrpcSpecifiedTaskStatusesResponse> responseObserver) {
-		final GrpcSpecifiedTaskStatusesResponse.Builder builder = GrpcSpecifiedTaskStatusesResponse.newBuilder();
-		management.getTaskStatuses(request.getTaskIdsList().stream().map(EvitaDataTypesConverter::toUuid).toArray(UUID[]::new))
-			.forEach(status -> builder.addTaskStatus(toGrpcTaskStatus(status)));
-		responseObserver.onNext(builder.build());
-		responseObserver.onCompleted();
+		executeWithClientContext(
+			() -> {
+				final GrpcSpecifiedTaskStatusesResponse.Builder builder = GrpcSpecifiedTaskStatusesResponse.newBuilder();
+				management.getTaskStatuses(request.getTaskIdsList().stream().map(EvitaDataTypesConverter::toUuid).toArray(UUID[]::new))
+					.forEach(status -> builder.addTaskStatus(toGrpcTaskStatus(status)));
+				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -342,15 +377,20 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void cancelTask(GrpcCancelTaskRequest request, StreamObserver<GrpcCancelTaskResponse> responseObserver) {
-		final boolean canceled = management.cancelTask(
-			toUuid(request.getTaskId())
+		executeWithClientContext(
+			() -> {
+				final boolean canceled = management.cancelTask(
+					toUuid(request.getTaskId())
+				);
+				responseObserver.onNext(
+					GrpcCancelTaskResponse.newBuilder()
+						.setSuccess(canceled)
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
 		);
-		responseObserver.onNext(
-			GrpcCancelTaskResponse.newBuilder()
-				.setSuccess(canceled)
-				.build()
-		);
-		responseObserver.onCompleted();
 	}
 
 	/**
@@ -358,25 +398,30 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void listFilesToFetch(GrpcFilesToFetchRequest request, StreamObserver<GrpcFilesToFetchResponse> responseObserver) {
-		final PaginatedList<FileForFetch> filesToFetch = management.listFilesToFetch(
-			request.getPageNumber(),
-			request.getPageSize(),
-			request.hasOrigin() ? request.getOrigin().getValue() : null
-		);
+		executeWithClientContext(
+			() -> {
+				final PaginatedList<FileForFetch> filesToFetch = management.listFilesToFetch(
+					request.getPageNumber(),
+					request.getPageSize(),
+					request.hasOrigin() ? request.getOrigin().getValue() : null
+				);
 
-		final GrpcFilesToFetchResponse.Builder builder = GrpcFilesToFetchResponse.newBuilder();
-		filesToFetch.stream()
-			.map(EvitaDataTypesConverter::toGrpcFile)
-			.forEach(builder::addFilesToFetch);
-		responseObserver.onNext(
-			builder
-				.setPageNumber(filesToFetch.getPageNumber())
-				.setPageSize(filesToFetch.getPageSize())
-				.setTotalNumberOfRecords(filesToFetch.getTotalRecordCount())
-				.build()
-		);
+				final GrpcFilesToFetchResponse.Builder builder = GrpcFilesToFetchResponse.newBuilder();
+				filesToFetch.stream()
+					.map(EvitaDataTypesConverter::toGrpcFile)
+					.forEach(builder::addFilesToFetch);
+				responseObserver.onNext(
+					builder
+						.setPageNumber(filesToFetch.getPageNumber())
+						.setPageSize(filesToFetch.getPageSize())
+						.setTotalNumberOfRecords(filesToFetch.getTotalRecordCount())
+						.build()
+				);
 
-		responseObserver.onCompleted();
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -387,19 +432,23 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void getFileToFetch(GrpcFileToFetchRequest request, StreamObserver<GrpcFileToFetchResponse> responseObserver) {
-		management.getFileToFetch(toUuid(request.getFileId()))
-			.ifPresentOrElse(
-				file -> responseObserver.onNext(
-					GrpcFileToFetchResponse.newBuilder()
-						.setFileToFetch(EvitaDataTypesConverter.toGrpcFile(file))
-						.build()
-				),
-				() -> responseObserver.onError(
-					new FileForFetchNotFoundException(toUuid(request.getFileId()))
-				)
-			);
-
-		responseObserver.onCompleted();
+		executeWithClientContext(
+			() -> {
+				management.getFileToFetch(toUuid(request.getFileId()))
+					.ifPresentOrElse(
+						file -> responseObserver.onNext(
+							GrpcFileToFetchResponse.newBuilder()
+								.setFileToFetch(EvitaDataTypesConverter.toGrpcFile(file))
+								.build()
+						),
+						() -> responseObserver.onError(
+							new FileForFetchNotFoundException(toUuid(request.getFileId()))
+						)
+					);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -407,35 +456,40 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void fetchFile(GrpcFetchFileRequest request, StreamObserver<GrpcFetchFileResponse> responseObserver) {
-		final UUID fileId = toUuid(request.getFileId());
-		final Optional<FileForFetch> fileToFetch = management.getFileToFetch(fileId);
-		if (fileToFetch.isEmpty()) {
-			responseObserver.onError(new FileForFetchNotFoundException(fileId));
-		} else {
-			try (
-				final InputStream inputStream = management.fetchFile(
-					fileId
-				)
-			) {
-				//noinspection CheckForOutOfMemoryOnLargeArrayAllocation
-				byte[] buffer = new byte[65_536];
-				int bytesRead;
-				while ((bytesRead = inputStream.read(buffer)) != -1) {
-					GrpcFetchFileResponse response = GrpcFetchFileResponse.newBuilder()
-						.setFileContents(ByteString.copyFrom(buffer, 0, bytesRead))
-						.setTotalSizeInBytes(fileToFetch.get().totalSizeInBytes())
-						.build();
-					responseObserver.onNext(response);
+		executeWithClientContext(
+			() -> {
+				final UUID fileId = toUuid(request.getFileId());
+				final Optional<FileForFetch> fileToFetch = management.getFileToFetch(fileId);
+				if (fileToFetch.isEmpty()) {
+					responseObserver.onError(new FileForFetchNotFoundException(fileId));
+				} else {
+					try (
+						final InputStream inputStream = management.fetchFile(
+							fileId
+						)
+					) {
+						//noinspection CheckForOutOfMemoryOnLargeArrayAllocation
+						byte[] buffer = new byte[65_536];
+						int bytesRead;
+						while ((bytesRead = inputStream.read(buffer)) != -1) {
+							GrpcFetchFileResponse response = GrpcFetchFileResponse.newBuilder()
+								.setFileContents(ByteString.copyFrom(buffer, 0, bytesRead))
+								.setTotalSizeInBytes(fileToFetch.get().totalSizeInBytes())
+								.build();
+							responseObserver.onNext(response);
+						}
+					} catch (IOException e) {
+						throw new UnexpectedIOException(
+							"Failed to fetch the designated file: " + e.getMessage(),
+							"Failed to fetch the designated file.",
+							e
+						);
+					}
+					responseObserver.onCompleted();
 				}
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Failed to fetch the designated file: " + e.getMessage(),
-					"Failed to fetch the designated file.",
-					e
-				);
-			}
-			responseObserver.onCompleted();
-		}
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -446,14 +500,19 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Override
 	public void deleteFile(GrpcDeleteFileToFetchRequest request, StreamObserver<GrpcDeleteFileToFetchResponse> responseObserver) {
-		final UUID fileId = toUuid(request.getFileId());
-		try {
-			management.deleteFile(fileId);
-			responseObserver.onNext(GrpcDeleteFileToFetchResponse.newBuilder().setSuccess(true).build());
-		} catch (FileForFetchNotFoundException ex) {
-			responseObserver.onNext(GrpcDeleteFileToFetchResponse.newBuilder().setSuccess(false).build());
-		}
-		responseObserver.onCompleted();
+		executeWithClientContext(
+			() -> {
+				final UUID fileId = toUuid(request.getFileId());
+				try {
+					management.deleteFile(fileId);
+					responseObserver.onNext(GrpcDeleteFileToFetchResponse.newBuilder().setSuccess(true).build());
+				} catch (FileForFetchNotFoundException ex) {
+					responseObserver.onNext(GrpcDeleteFileToFetchResponse.newBuilder().setSuccess(false).build());
+				}
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**

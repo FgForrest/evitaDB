@@ -44,6 +44,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 
@@ -84,14 +85,20 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 
 	/**
 	 * Executes entire lambda function within the scope of a tracing context.
+	 *
+	 * @param lambda   lambda function to be executed
+	 * @param executor executor service to be used as a carrier for a lambda function
 	 */
-	private static void executeWithClientContext(@Nonnull Runnable lambda) {
+	private static void executeWithClientContext(
+		@Nonnull Runnable lambda,
+		@Nonnull ExecutorService executor
+	) {
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
 		ExternalApiTracingContextProvider.getContext()
 			.executeWithinBlock(
 				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
 				metadata,
-				lambda
+				() -> executor.execute(lambda)
 			);
 	}
 
@@ -151,19 +158,22 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void terminateSession(GrpcEvitaSessionTerminationRequest request, StreamObserver<GrpcEvitaSessionTerminationResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			final boolean terminated = evita.getSessionById(UUIDUtil.uuid(request.getSessionId()))
-				.map(session -> {
-					evita.terminateSession(session);
-					return true;
-				})
-				.orElse(false);
+		executeWithClientContext(
+			() -> {
+				final boolean terminated = evita.getSessionById(UUIDUtil.uuid(request.getSessionId()))
+					.map(session -> {
+						evita.terminateSession(session);
+						return true;
+					})
+					.orElse(false);
 
-			responseObserver.onNext(GrpcEvitaSessionTerminationResponse.newBuilder()
-				.setTerminated(terminated)
-				.build());
-			responseObserver.onCompleted();
-		});
+				responseObserver.onNext(GrpcEvitaSessionTerminationResponse.newBuilder()
+					.setTerminated(terminated)
+					.build());
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -175,12 +185,15 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void getCatalogNames(Empty request, StreamObserver<GrpcCatalogNamesResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			responseObserver.onNext(GrpcCatalogNamesResponse.newBuilder()
-				.addAllCatalogNames(evita.getCatalogNames())
-				.build());
-			responseObserver.onCompleted();
-		});
+		executeWithClientContext(
+			() -> {
+				responseObserver.onNext(GrpcCatalogNamesResponse.newBuilder()
+					.addAllCatalogNames(evita.getCatalogNames())
+					.build());
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -192,43 +205,14 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void defineCatalog(GrpcDefineCatalogRequest request, StreamObserver<GrpcDefineCatalogResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			evita.defineCatalog(request.getCatalogName());
-			responseObserver.onNext(GrpcDefineCatalogResponse.newBuilder().setSuccess(true).build());
-			responseObserver.onCompleted();
-		});
-	}
-
-	/**
-	 * Renames existing catalog to a name specified in a request.
-	 *
-	 * @param request          containing names of the catalogs involved
-	 * @param responseObserver observer on which errors might be thrown and result returned
-	 * @see EvitaContract#renameCatalog(String, String)
-	 */
-	@Override
-	public void renameCatalog(GrpcRenameCatalogRequest request, StreamObserver<GrpcRenameCatalogResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			evita.renameCatalog(request.getCatalogName(), request.getNewCatalogName());
-			responseObserver.onNext(GrpcRenameCatalogResponse.newBuilder().setSuccess(true).build());
-			responseObserver.onCompleted();
-		});
-	}
-
-	/**
-	 * Replaces existing catalog with a different existing catalog and its contents.
-	 *
-	 * @param request          containing names of the catalogs involved
-	 * @param responseObserver observer on which errors might be thrown and result returned
-	 * @see EvitaContract#replaceCatalog(String, String)
-	 */
-	@Override
-	public void replaceCatalog(GrpcReplaceCatalogRequest request, StreamObserver<GrpcReplaceCatalogResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			evita.replaceCatalog(request.getCatalogNameToBeReplacedWith(), request.getCatalogNameToBeReplaced());
-			responseObserver.onNext(GrpcReplaceCatalogResponse.newBuilder().setSuccess(true).build());
-			responseObserver.onCompleted();
-		});
+		executeWithClientContext(
+			() -> {
+				evita.defineCatalog(request.getCatalogName());
+				responseObserver.onNext(GrpcDefineCatalogResponse.newBuilder().setSuccess(true).build());
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -241,11 +225,14 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	@Override
 	public void deleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest
 		                                  request, StreamObserver<GrpcDeleteCatalogIfExistsResponse> responseObserver) {
-		executeWithClientContext(() -> {
-			boolean success = evita.deleteCatalogIfExists(request.getCatalogName());
-			responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(success).build());
-			responseObserver.onCompleted();
-		});
+		executeWithClientContext(
+			() -> {
+				boolean success = evita.deleteCatalogIfExists(request.getCatalogName());
+				responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(success).build());
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -253,16 +240,57 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void update(GrpcUpdateEvitaRequest request, StreamObserver<Empty> responseObserver) {
-		executeWithClientContext(() -> {
-			final TopLevelCatalogSchemaMutation[] schemaMutations = request.getSchemaMutationsList()
-				.stream()
-				.map(DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE::convert)
-				.toArray(TopLevelCatalogSchemaMutation[]::new);
+		executeWithClientContext(
+			() -> {
+				final TopLevelCatalogSchemaMutation[] schemaMutations = request.getSchemaMutationsList()
+					.stream()
+					.map(DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE::convert)
+					.toArray(TopLevelCatalogSchemaMutation[]::new);
 
-			evita.update(schemaMutations);
-			responseObserver.onNext(Empty.getDefaultInstance());
-			responseObserver.onCompleted();
-		});
+				evita.update(schemaMutations);
+				responseObserver.onNext(Empty.getDefaultInstance());
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
+	}
+
+	/**
+	 * Renames existing catalog to a name specified in a request.
+	 *
+	 * @param request          containing names of the catalogs involved
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#renameCatalog(String, String)
+	 */
+	@Override
+	public void renameCatalog(GrpcRenameCatalogRequest request, StreamObserver<GrpcRenameCatalogResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				evita.renameCatalog(request.getCatalogName(), request.getNewCatalogName());
+				responseObserver.onNext(GrpcRenameCatalogResponse.newBuilder().setSuccess(true).build());
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
+	}
+
+	/**
+	 * Replaces existing catalog with a different existing catalog and its contents.
+	 *
+	 * @param request          containing names of the catalogs involved
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#replaceCatalog(String, String)
+	 */
+	@Override
+	public void replaceCatalog(GrpcReplaceCatalogRequest request, StreamObserver<GrpcReplaceCatalogResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				evita.replaceCatalog(request.getCatalogNameToBeReplacedWith(), request.getCatalogNameToBeReplaced());
+				responseObserver.onNext(GrpcReplaceCatalogResponse.newBuilder().setSuccess(true).build());
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -279,17 +307,20 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		@Nonnull GrpcSessionType sessionType,
 		boolean rollbackTransactions
 	) {
-		executeWithClientContext(() -> {
-			final SessionFlags[] flags = getSessionFlags(sessionType, rollbackTransactions);
-			final EvitaSessionContract session = evita.createSession(new SessionTraits(catalogName, flags));
-			responseObserver.onNext(GrpcEvitaSessionResponse.newBuilder()
-				.setCatalogId(session.getCatalogId().toString())
-				.setSessionId(session.getId().toString())
-				.setCatalogState(toGrpcCatalogState(session.getCatalogState()))
-				.setSessionType(sessionType)
-				.build());
-			responseObserver.onCompleted();
-		});
+		executeWithClientContext(
+			() -> {
+				final SessionFlags[] flags = getSessionFlags(sessionType, rollbackTransactions);
+				final EvitaSessionContract session = evita.createSession(new SessionTraits(catalogName, flags));
+				responseObserver.onNext(GrpcEvitaSessionResponse.newBuilder()
+					.setCatalogId(session.getCatalogId().toString())
+					.setSessionId(session.getId().toString())
+					.setCatalogState(toGrpcCatalogState(session.getCatalogState()))
+					.setSessionType(sessionType)
+					.build());
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor()
+		);
 	}
 
 }

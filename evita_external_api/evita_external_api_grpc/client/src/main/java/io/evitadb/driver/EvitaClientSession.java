@@ -90,9 +90,9 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
+import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceStub;
-import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest.Builder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -106,8 +106,10 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLoc
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
+import io.grpc.ClientCall;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.ClientCalls;
 import io.grpc.stub.StreamObserver;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -117,7 +119,6 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import java.io.Closeable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -1309,30 +1310,54 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * If the stream is closed prematurely the server stream is cancelled and the server is notified about it.
+	 *
+	 * @param request request that specifies the criteria for the changes to be returned
+	 * @return
+	 */
 	@Nonnull
 	@Override
 	public Stream<ChangeCatalogCapture> getMutationsHistory(@Nonnull ChangeCatalogCaptureRequest request) {
 		assertActive();
 
-		// Error reference
-		final AtomicReference<MutationsStreamObserver> observerRef = new AtomicReference<>();
+		// Observer reference that needs to be used for closing the stream
+		final MutationsStreamObserver streamObserver = new MutationsStreamObserver();
+		// Call reference is needed for cancelling stream on the server side
+		final AtomicReference<ClientCall<?,?>> callRef = new AtomicReference<>();
 
 		executeWithAsyncEvitaSessionService(
 			session -> {
-				observerRef.set(new MutationsStreamObserver());
-				session.getMutationsHistory(
+				final ClientCall<GetMutationsHistoryRequest, GetMutationsHistoryResponse> call = session.getChannel().newCall(
+					EvitaSessionServiceGrpc.getGetMutationsHistoryMethod(),
+					session.getCallOptions()
+				);
+				callRef.set(call);
+
+				ClientCalls.asyncServerStreamingCall(
+					call,
 					toGrpcChangeCaptureRequest(request),
-					observerRef.get()
+					streamObserver
 				);
 				return null;
 			}
 		);
 
-		final MutationsStreamObserver mutationsStreamObserver = observerRef.get();
+		// now we wrap the observer to a blocking split iterator that will read from it
 		return StreamSupport.stream(
-			new ChangeCatalogCaptureSpliterator(mutationsStreamObserver),
-			false
-		);
+				new ChangeCatalogCaptureSpliterator(streamObserver),
+				false
+			)
+			.onClose(() -> {
+				// when stream is closed and the observer is not completed (hasn't received the end of the stream)
+				// cancel the stream on the server side, and complete it locally
+				if (!streamObserver.isCompleted()) {
+					callRef.get().cancel("Stream closed by the client", null);
+					streamObserver.onCompleted();
+				}
+			});
 	}
 
 	@Nonnull
@@ -2013,100 +2038,140 @@ public class EvitaClientSession implements EvitaSessionContract {
 		}
 	}
 
-	/* TODO JNO - test and document */
+	/**
+	 * Stream observer that stores the values returned by the server into the underlying queue. The observer cancels
+	 * the transmission when closed.
+	 */
 	private static class MutationsStreamObserver implements StreamObserver<GetMutationsHistoryResponse> {
-		// BlockingQueue to store the responses
-		private final BlockingQueue<ChangeCatalogCapture> queue = new LinkedBlockingQueue<>();
-		// Flag to indicate the end of the stream
+		/**
+		 * Queue that holds the values returned by the server.
+		 */
+		private final BlockingQueue<StreamValueWrapper<ChangeCatalogCapture>> queue = new LinkedBlockingQueue<>();
+		/**
+		 * Flag that signals the stream has been cancelled or completed.
+		 */
 		private final AtomicBoolean completed = new AtomicBoolean(false);
-		// Error reference
-		private final AtomicReference<Throwable> error = new AtomicReference<>();
 
 		@Override
 		public void onNext(GetMutationsHistoryResponse getMutationsHistoryResponse) {
+			// if we were canceled signalize it to the server side
 			if (completed.get()) {
-				throw new CancellationException("Stream has been already cancelled!");
+				throw new CancellationException("Stream has been completed!");
 			}
 			// Convert the response and add to the queue
 			getMutationsHistoryResponse.getChangeCaptureList()
 				.stream()
 				.map(ChangeCaptureConverter::toChangeCatalogCapture)
-				.forEach(queue::add);
+				.forEach(it -> this.queue.add(new StreamValueWrapper<>(it)));
 		}
 
 		@Override
 		public void onError(Throwable throwable) {
-			if (completed.get()) {
-				throw new CancellationException("Stream has been already cancelled!");
-			}
-			// Handle error
-			completed.set(true);
-			error.set(throwable);
+			this.queue.add(new StreamValueWrapper<>(throwable));
 		}
 
 		@Override
 		public void onCompleted() {
-			// Indicate the end of the stream
-			completed.set(true);
+			this.queue.add(StreamValueWrapper.streamCompleted());
+			this.completed.set(true);
 		}
 
+		/**
+		 * Blocks the current thread until the next mutation is available.
+		 * @return next mutation or empty if the stream has been completed
+		 */
 		@Nonnull
-		public BlockingQueue<ChangeCatalogCapture> getQueue() {
-			return queue;
+		public Optional<ChangeCatalogCapture> take() {
+			try {
+				final StreamValueWrapper<ChangeCatalogCapture> valueWrapper = this.queue.take();
+				if (valueWrapper.completed()) {
+					if (valueWrapper.error() != null) {
+						throw new GenericEvitaInternalError(
+							"Error while retrieving a mutation stream.",
+							valueWrapper.error()
+						);
+					}
+					return Optional.empty();
+				} else {
+					return Optional.of(valueWrapper.value());
+				}
+			} catch (InterruptedException e) {
+				// finalize stream
+				return Optional.empty();
+			}
 		}
 
+		/**
+		 * Returns true if the stream has been completed.
+		 * @return true if the stream has been completed
+		 */
 		public boolean isCompleted() {
 			return completed.get();
 		}
-
-		@Nonnull
-		public Optional<Throwable> getError() {
-			return ofNullable(error.get());
-		}
-
-		public void cancel() {
-			this.completed.set(true);
-		}
 	}
 
-	/* TODO JNO - test and document */
+	/**
+	 * Spliterator that captures the {@link ChangeCatalogCapture} instances from the {@link MutationsStreamObserver}
+	 * in a blocking fashion.
+	 */
 	private static class ChangeCatalogCaptureSpliterator
-		extends Spliterators.AbstractSpliterator<ChangeCatalogCapture>
-		implements Closeable {
+		extends Spliterators.AbstractSpliterator<ChangeCatalogCapture> {
+		/**
+		 * Observer that receives the data from the server.
+		 */
 		private final MutationsStreamObserver mutationsStreamObserver;
 
-		public ChangeCatalogCaptureSpliterator(MutationsStreamObserver mutationsStreamObserver) {
+		public ChangeCatalogCaptureSpliterator(@Nonnull MutationsStreamObserver mutationsStreamObserver) {
 			super(Long.MAX_VALUE, Spliterator.ORDERED);
 			this.mutationsStreamObserver = mutationsStreamObserver;
 		}
 
 		@Override
 		public boolean tryAdvance(Consumer<? super ChangeCatalogCapture> action) {
-			ChangeCatalogCapture capture = mutationsStreamObserver.getQueue().poll();
-			if (capture != null) {
-				action.accept(capture);
-				return true;
-			} else if (mutationsStreamObserver.isCompleted()) {
-				if (mutationsStreamObserver.getError().isPresent()) {
-					throw new GenericEvitaInternalError(
-						"Error occurred while fetching mutations history!",
-						mutationsStreamObserver.getError().get()
-					);
-				} else {
-					return false;
-				}
+			// this will block until next mutation is available
+			final Optional<ChangeCatalogCapture> capture = this.mutationsStreamObserver.take();
+			if (capture.isEmpty()) {
+				// if the capture is empty, the stream has been depleted or closed
+				return false;
 			} else {
-				throw new GenericEvitaInternalError("Stream contains NULL capture!");
+				// otherwise, pass the capture to the action
+				action.accept(capture.get());
+				return true;
 			}
-		}
-
-		@Override
-		public void close() {
-			mutationsStreamObserver.cancel();
 		}
 
 	}
 
+	/**
+	 * Simple wrapper class that allows to pass capture value, or signalize end of stream with possible error returned
+	 * byt the server.
+	 * @param value value returned by the server
+	 * @param error error returned by the server
+	 * @param completed flag that signals the end of the stream
+	 * @param <T>
+	 */
+	public record StreamValueWrapper<T>(
+		@Nullable T value,
+		@Nullable Throwable error,
+		boolean completed
+	) {
+		public static <T> StreamValueWrapper<T> streamCompleted() {
+			return new StreamValueWrapper<>(null, null, true);
+		}
+
+		public StreamValueWrapper(@Nullable T value) {
+			this(value, null, false);
+		}
+
+		public StreamValueWrapper(@Nullable Throwable error) {
+			this(null, error, true);
+		}
+
+	}
+
+	/**
+	 * Internal class that provides access to the {@link EntitySchemaContract} instances for the client session.
+	 */
 	private class ClientEntitySchemaAccessor implements EntitySchemaProvider {
 		@Nonnull
 		@Override

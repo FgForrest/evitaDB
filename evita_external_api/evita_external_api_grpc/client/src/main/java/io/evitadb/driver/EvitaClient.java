@@ -200,10 +200,10 @@ public class EvitaClient implements EvitaContract {
 			.build();
 
 		final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
-			.useHttp1Pipelining(true)
+			.workerGroup(Runtime.getRuntime().availableProcessors())
 			.idleTimeoutMillis(10000, true)
 			.maxNumRequestsPerConnection(1000)
-			.maxNumEventLoopsPerEndpoint(10);
+			.maxNumEventLoopsPerEndpoint(1);
 
 		final String uriScheme;
 		if (configuration.tlsEnabled()) {

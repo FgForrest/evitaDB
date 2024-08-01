@@ -1077,6 +1077,10 @@ public class CatalogWriteAheadLog implements Closeable {
 	 *                                         is found to be invalid or inconsistent.
 	 */
 	private int findWalIndexFor(long catalogVersion) {
+		if (catalogVersion < this.firstCatalogVersionOfCurrentWalFile.get() && this.lastWrittenCatalogVersion.get() > catalogVersion) {
+			return this.walFileIndex;
+		}
+
 		final int[] walIndexesToSearch = Arrays.stream(
 				this.catalogStoragePath.toFile().listFiles(
 					(dir, name) -> name.endsWith(WAL_FILE_SUFFIX)
