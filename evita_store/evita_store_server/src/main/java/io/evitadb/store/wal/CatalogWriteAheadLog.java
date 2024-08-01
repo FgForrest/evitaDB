@@ -1077,7 +1077,10 @@ public class CatalogWriteAheadLog implements Closeable {
 	 *                                         is found to be invalid or inconsistent.
 	 */
 	private int findWalIndexFor(long catalogVersion) {
-		if (catalogVersion >= this.firstCatalogVersionOfCurrentWalFile.get() && catalogVersion <= this.lastWrittenCatalogVersion.get()) {
+		// if the particular version is within current file, return it
+		if ((catalogVersion >= this.firstCatalogVersionOfCurrentWalFile.get() && catalogVersion <= this.lastWrittenCatalogVersion.get()) ||
+			// of if the version is lower than the start version of current WAL and the WAL is the first one
+			(catalogVersion < this.firstCatalogVersionOfCurrentWalFile.get() && this.walFileIndex == 0)) {
 			return this.walFileIndex;
 		}
 
@@ -1131,7 +1134,11 @@ public class CatalogWriteAheadLog implements Closeable {
 						)
 					);
 
-					if (catalogVersion >= firstCatalogVersion && catalogVersion <= lastCatalogVersion) {
+					// if the version looks for is lower than the first version ever, return the first file
+					if (catalogVersion < firstCatalogVersion && indexToSearch == 0) {
+						foundWalIndex = indexToSearch;
+						break;
+					} else if (catalogVersion >= firstCatalogVersion && catalogVersion <= lastCatalogVersion) {
 						foundWalIndex = indexToSearch;
 						break;
 					}
