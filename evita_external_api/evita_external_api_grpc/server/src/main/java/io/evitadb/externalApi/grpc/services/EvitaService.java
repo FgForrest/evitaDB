@@ -33,6 +33,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
+import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.UUIDUtil;
@@ -91,14 +92,22 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	private static void executeWithClientContext(
 		@Nonnull Runnable lambda,
-		@Nonnull ExecutorService executor
+		@Nonnull ExecutorService executor,
+		@Nonnull StreamObserver<?> responseObserver
 	) {
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
 		ExternalApiTracingContextProvider.getContext()
 			.executeWithinBlock(
 				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
 				metadata,
-				() -> executor.execute(lambda)
+				() -> {
+					try {
+						executor.execute(lambda);
+					} catch (RuntimeException exception) {
+						// Delegate exception handling to GlobalExceptionHandlerInterceptor
+						GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
+					}
+				}
 			);
 	}
 
@@ -172,7 +181,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
+			evita.getRequestExecutor(),
+			responseObserver
 		);
 	}
 
@@ -192,8 +202,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -211,8 +221,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				responseObserver.onNext(GrpcDefineCatalogResponse.newBuilder().setSuccess(true).build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -231,8 +241,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(success).build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -251,8 +261,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				responseObserver.onNext(Empty.getDefaultInstance());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -270,8 +280,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				responseObserver.onNext(GrpcRenameCatalogResponse.newBuilder().setSuccess(true).build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -289,8 +299,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				responseObserver.onNext(GrpcReplaceCatalogResponse.newBuilder().setSuccess(true).build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -319,8 +329,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 }

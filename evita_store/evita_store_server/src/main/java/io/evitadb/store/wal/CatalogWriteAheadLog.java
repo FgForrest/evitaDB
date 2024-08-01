@@ -1077,7 +1077,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	 *                                         is found to be invalid or inconsistent.
 	 */
 	private int findWalIndexFor(long catalogVersion) {
-		if (catalogVersion < this.firstCatalogVersionOfCurrentWalFile.get() && this.lastWrittenCatalogVersion.get() > catalogVersion) {
+		if (catalogVersion >= this.firstCatalogVersionOfCurrentWalFile.get() && catalogVersion <= this.lastWrittenCatalogVersion.get()) {
 			return this.walFileIndex;
 		}
 

@@ -67,6 +67,7 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocal
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
+import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
@@ -123,7 +124,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	private static void executeWithClientContext(
 		@Nonnull Consumer<EvitaInternalSessionContract> lambda,
-		@Nonnull ExecutorService executor
+		@Nonnull ExecutorService executor,
+		@Nonnull StreamObserver<?> responseObserver
 	) {
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
 		ExternalApiTracingContextProvider.getContext()
@@ -132,7 +134,16 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				metadata,
 				() -> {
 					final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
-					executor.execute(() -> lambda.accept(session));
+					executor.execute(
+						() -> {
+							try {
+								lambda.accept(session);
+							} catch (RuntimeException exception) {
+								// Delegate exception handling to GlobalExceptionHandlerInterceptor
+								GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
+							}
+						}
+					);
 				}
 			);
 	}
@@ -329,7 +340,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
+			evita.getRequestExecutor(),
+			responseObserver
 		);
 	}
 
@@ -348,8 +360,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -373,8 +385,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -399,8 +411,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -438,8 +450,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 
 	}
 
@@ -459,8 +471,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -480,8 +492,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -507,8 +519,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -536,8 +548,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -565,8 +577,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					responseObserver.onCompleted();
 				}
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -588,8 +600,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 				queryOneInternal(responseObserver, session, query);
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -611,8 +623,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 				queryListInternal(responseObserver, session, query);
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -634,8 +646,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 				queryInternal(responseObserver, session, query);
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -656,8 +668,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 				queryOneInternal(responseObserver, session, query);
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -678,8 +690,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 				queryListInternal(responseObserver, session, query);
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -700,8 +712,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 				queryInternal(responseObserver, session, query);
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -731,8 +743,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onNext(evitaEntityResponseBuilder.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	@Override
@@ -751,8 +763,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	@Override
@@ -771,8 +783,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	@Override
@@ -787,8 +799,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	@Override
@@ -804,8 +816,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	@Override
@@ -821,8 +833,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -842,8 +854,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -865,8 +877,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -888,8 +900,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onNext(response);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -909,8 +921,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -950,8 +962,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -1002,8 +1014,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -1052,8 +1064,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -1100,8 +1112,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				}
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -1126,8 +1138,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 }

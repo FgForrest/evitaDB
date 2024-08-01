@@ -41,6 +41,7 @@ import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder;
+import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.Assert;
@@ -90,14 +91,22 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	private static void executeWithClientContext(
 		@Nonnull Runnable lambda,
-		@Nonnull ExecutorService executor
+		@Nonnull ExecutorService executor,
+		@Nonnull StreamObserver<?> responseObserver
 	) {
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
 		ExternalApiTracingContextProvider.getContext()
 			.executeWithinBlock(
 				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
 				metadata,
-				() -> executor.execute(lambda)
+				() -> {
+					try {
+						executor.execute(lambda);
+					} catch (RuntimeException exception) {
+						// Delegate exception handling to GlobalExceptionHandlerInterceptor
+						GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
+					}
+				}
 			);
 	}
 
@@ -145,7 +154,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
+			evita.getRequestExecutor(),
+			responseObserver
 		);
 	}
 
@@ -166,8 +176,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -192,8 +202,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -302,8 +312,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -330,8 +340,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -350,8 +360,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -367,8 +377,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -389,8 +399,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -420,8 +430,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -447,8 +457,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -488,8 +498,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					responseObserver.onCompleted();
 				}
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
@@ -511,8 +521,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				}
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor()
-		);
+			evita.getRequestExecutor(),
+			responseObserver);
 	}
 
 	/**
