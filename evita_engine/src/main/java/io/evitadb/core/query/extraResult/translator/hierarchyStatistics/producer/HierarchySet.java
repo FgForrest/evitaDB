@@ -40,6 +40,7 @@ import org.roaringbitmap.RoaringBitmapWriter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -103,7 +104,9 @@ public class HierarchySet {
 				)
 			);
 		} else {
-			return result;
+			return Collections.singletonList(
+				levelInfoToSort[0]
+			);
 		}
 	}
 
