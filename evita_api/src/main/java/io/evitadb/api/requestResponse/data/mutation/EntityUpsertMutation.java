@@ -212,14 +212,20 @@ public class EntityUpsertMutation implements EntityMutation {
 		context.setPrimaryKey(this.entityPrimaryKey);
 		context.advance();
 
-		if (context.getDirection() == StreamDirection.FORWARD) {
-			final Stream<ChangeCatalogCapture> entityMutation = Stream.of(
+		final Stream<ChangeCatalogCapture> entityMutation;
+		if (predicate.test(this)) {
+			entityMutation = Stream.of(
 				ChangeCatalogCapture.dataCapture(
 					context,
 					operation(),
 					content == CaptureContent.BODY ? this : null
 				)
 			);
+		} else {
+			entityMutation = Stream.empty();
+		}
+
+		if (context.getDirection() == StreamDirection.FORWARD) {
 			return Stream.concat(
 				entityMutation,
 				this.localMutations.stream()
@@ -227,13 +233,6 @@ public class EntityUpsertMutation implements EntityMutation {
 					.flatMap(it -> it.toChangeCatalogCapture(predicate, content))
 			);
 		} else {
-			final Stream<ChangeCatalogCapture> entityMutation = Stream.of(
-				ChangeCatalogCapture.dataCapture(
-					context,
-					operation(),
-					content == CaptureContent.BODY ? this : null
-				)
-			);
 			final ListIterator<? extends LocalMutation<?, ?>> iterator = this.localMutations.listIterator(this.localMutations.size());
 			return Stream.concat(
 				Stream.generate(() -> null)

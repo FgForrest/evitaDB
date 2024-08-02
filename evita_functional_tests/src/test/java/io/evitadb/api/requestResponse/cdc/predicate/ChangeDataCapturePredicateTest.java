@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
@@ -174,6 +175,13 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 					ChangeCatalogCaptureCriteria.builder()
 						.area(CaptureArea.DATA)
 						.site(DataSite.ALL)
+						.build(),
+					ChangeCatalogCaptureCriteria.builder()
+						.area(CaptureArea.SCHEMA)
+						.site(SchemaSite.ALL)
+						.build(),
+					ChangeCatalogCaptureCriteria.builder()
+						.area(CaptureArea.INFRASTRUCTURE)
 						.build()
 				)
 				.content(CaptureContent.BODY)
@@ -213,6 +221,13 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 					ChangeCatalogCaptureCriteria.builder()
 						.area(CaptureArea.DATA)
 						.site(DataSite.ALL)
+						.build(),
+					ChangeCatalogCaptureCriteria.builder()
+						.area(CaptureArea.SCHEMA)
+						.site(SchemaSite.ALL)
+						.build(),
+					ChangeCatalogCaptureCriteria.builder()
+						.area(CaptureArea.INFRASTRUCTURE)
 						.build()
 				)
 				.content(CaptureContent.BODY)

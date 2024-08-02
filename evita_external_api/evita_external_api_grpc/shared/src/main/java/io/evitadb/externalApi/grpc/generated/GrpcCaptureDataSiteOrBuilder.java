@@ -187,39 +187,39 @@ public interface GrpcCaptureDataSiteOrBuilder extends
    * the name of the container (e.g. attribute name, associated data name, reference name)
    * </pre>
    *
-   * <code>repeated string classifierName = 5;</code>
-   * @return A list containing the classifierName.
+   * <code>repeated string containerName = 5;</code>
+   * @return A list containing the containerName.
    */
   java.util.List<java.lang.String>
-      getClassifierNameList();
+      getContainerNameList();
   /**
    * <pre>
    * the name of the container (e.g. attribute name, associated data name, reference name)
    * </pre>
    *
-   * <code>repeated string classifierName = 5;</code>
-   * @return The count of classifierName.
+   * <code>repeated string containerName = 5;</code>
+   * @return The count of containerName.
    */
-  int getClassifierNameCount();
+  int getContainerNameCount();
   /**
    * <pre>
    * the name of the container (e.g. attribute name, associated data name, reference name)
    * </pre>
    *
-   * <code>repeated string classifierName = 5;</code>
+   * <code>repeated string containerName = 5;</code>
    * @param index The index of the element to return.
-   * @return The classifierName at the given index.
+   * @return The containerName at the given index.
    */
-  java.lang.String getClassifierName(int index);
+  java.lang.String getContainerName(int index);
   /**
    * <pre>
    * the name of the container (e.g. attribute name, associated data name, reference name)
    * </pre>
    *
-   * <code>repeated string classifierName = 5;</code>
+   * <code>repeated string containerName = 5;</code>
    * @param index The index of the value to return.
-   * @return The bytes of the classifierName at the given index.
+   * @return The bytes of the containerName at the given index.
    */
   com.google.protobuf.ByteString
-      getClassifierNameBytes(int index);
+      getContainerNameBytes(int index);
 }

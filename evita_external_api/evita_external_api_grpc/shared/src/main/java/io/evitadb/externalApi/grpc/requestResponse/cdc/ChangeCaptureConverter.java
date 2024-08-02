@@ -226,7 +226,7 @@ public class ChangeCaptureConverter {
 			dataSite.hasEntityPrimaryKey() ? dataSite.getEntityPrimaryKey().getValue() : null,
 			dataSite.getOperationList().stream().map(EvitaEnumConverter::toOperation).toArray(Operation[]::new),
 			dataSite.getContainerTypeList().stream().map(EvitaEnumConverter::toContainerType).toArray(ContainerType[]::new),
-			dataSite.getClassifierNameList().toArray(new String[0])
+			dataSite.getContainerNameList().toArray(new String[0])
 		);
 	}
 
@@ -251,8 +251,8 @@ public class ChangeCaptureConverter {
 		if (dataSite.containerType() != null) {
 			Arrays.stream(dataSite.containerType()).map(EvitaEnumConverter::toGrpcCaptureContainerType).forEach(builder::addContainerType);
 		}
-		if (dataSite.classifierName() != null) {
-			builder.addAllClassifierName(Arrays.asList(dataSite.classifierName()));
+		if (dataSite.containerName() != null) {
+			builder.addAllContainerName(Arrays.asList(dataSite.containerName()));
 		}
 		return builder.build();
 	}

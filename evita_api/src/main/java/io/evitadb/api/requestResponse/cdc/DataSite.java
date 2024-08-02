@@ -37,7 +37,7 @@ import javax.annotation.Nullable;
  * @param entityPrimaryKey the {@link EntityContract#getPrimaryKey()} of the intercepted entity
  * @param operation        the intercepted type of {@link Operation}
  * @param containerType    the intercepted {@link ContainerType} of the entity data
- * @param classifierName   the intercepted name of the classifier
+ * @param containerName   the intercepted name of the classifier
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record DataSite(
@@ -45,7 +45,7 @@ public record DataSite(
 	@Nullable Integer entityPrimaryKey,
 	@Nullable Operation[] operation,
 	@Nullable ContainerType[] containerType,
-	@Nullable String[] classifierName
+	@Nullable String[] containerName
 ) implements CaptureSite {
 
 	public static final CaptureSite ALL = new DataSite(null, null, null, null, null);
@@ -67,7 +67,7 @@ public record DataSite(
 		private Integer entityPrimaryKey;
 		private Operation[] operation;
 		private ContainerType[] containerType;
-		private String[] classifierName;
+		private String[] containerName;
 
 		/**
 		 * Sets the entity type.
@@ -115,12 +115,12 @@ public record DataSite(
 
 		/**
 		 * Sets the classifier name.
-		 * @param classifierName the classifier name
+		 * @param containerName the classifier name
 		 * @return this builder
 		 */
 		@Nonnull
-		public Builder classifierName(@Nullable String... classifierName) {
-			this.classifierName = classifierName;
+		public Builder containerName(@Nullable String... containerName) {
+			this.containerName = containerName;
 			return this;
 		}
 
@@ -130,7 +130,7 @@ public record DataSite(
 		 */
 		@Nonnull
 		public DataSite build() {
-			return new DataSite(entityType, entityPrimaryKey, operation, containerType, classifierName);
+			return new DataSite(entityType, entityPrimaryKey, operation, containerType, containerName);
 		}
 
 	}

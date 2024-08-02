@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
+import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
@@ -46,13 +48,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.util.Currency;
 import java.util.List;
 
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -64,6 +68,9 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
 	public static final String DIR_EVITA_TEST = "evitaCdcTest";
+	public static final String PRICE_LIST_BASIC = "basic";
+	public static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
+	public static final Currency CURRENCY_USD = Currency.getInstance("USD");
 	private Evita evita;
 
 	private static void createSchema(@Nonnull EvitaSessionContract session) {
@@ -127,14 +134,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 
 	@Test
 	void shouldCaptureSchemaMutationsInAliveStage() {
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
-			session.goLiveAndClose();
-		}
-
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
-			createSchema(session);
-			createDataInSchema(session);
-		}
+		goLiveAndCreateMutationSet();
 
 		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
@@ -163,14 +163,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 
 	@Test
 	void shouldCaptureDataMutationsInAliveStage() {
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
-			session.goLiveAndClose();
-		}
-
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
-			createSchema(session);
-			createDataInSchema(session);
-		}
+		goLiveAndCreateMutationSet();
 
 		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
@@ -199,14 +192,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 
 	@Test
 	void shouldCaptureDataAndInfrastructureMutationsInAliveStage() {
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
-			session.goLiveAndClose();
-		}
-
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
-			createSchema(session);
-			createDataInSchema(session);
-		}
+		goLiveAndCreateMutationSet();
 
 		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
@@ -241,14 +227,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 
 	@Test
 	void shouldCombineBothDataAndSchemaMutations() {
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
-			session.goLiveAndClose();
-		}
-
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
-			createSchema(session);
-			createDataInSchema(session);
-		}
+		goLiveAndCreateMutationSet();
 
 		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
@@ -274,14 +253,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFocusOnReplicableMutations() {
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
-			session.goLiveAndClose();
-		}
-
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
-			createSchema(session);
-			createDataInSchema(session);
-		}
+		goLiveAndCreateMutationSet();
 
 		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
@@ -328,27 +300,252 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFocusOnLocalMutationsOfExactAttribute() {
-		fail("Not implemented yet");
+		goLiveAndCreateMutationSet();
+
+		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.DATA)
+							.site(
+								DataSite.builder()
+									.containerType(ContainerType.ATTRIBUTE)
+									.containerName(ATTRIBUTE_NAME)
+									.build()
+							)
+							.build()
+					)
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+
+			assertEquals(2, reverseCaptures.size());
+
+			assertEquals(Entities.PRODUCT, reverseCaptures.get(0).entityType());
+			assertEquals(Entities.BRAND, reverseCaptures.get(1).entityType());
+		}
 	}
 
 	@Test
 	void shouldFocusOnLocalMutationsOfPrices() {
-		fail("Not implemented yet");
+		goLiveAndCreateMutationSet();
+		setPricesToTheProduct();
+
+		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.DATA)
+							.site(
+								DataSite.builder()
+									.containerType(ContainerType.PRICE)
+									.build()
+							)
+							.build()
+					)
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+
+			assertEquals(2, reverseCaptures.size());
+
+			assertEquals(Entities.PRODUCT, reverseCaptures.get(0).entityType());
+			assertEquals(CURRENCY_USD, ((UpsertPriceMutation)reverseCaptures.get(0).body()).getPriceKey().currency());
+			assertEquals(Entities.PRODUCT, reverseCaptures.get(1).entityType());
+			assertEquals(CURRENCY_CZK, ((UpsertPriceMutation)reverseCaptures.get(1).body()).getPriceKey().currency());
+		}
 	}
 
 	@Test
 	void shouldFocusOnAllMutationsOfSingleEntity() {
-		fail("Not implemented yet");
+		goLiveAndCreateMutationSet();
+		setPricesToTheProduct();
+
+		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.DATA)
+							.site(
+								DataSite.builder()
+									.entityType(Entities.PRODUCT)
+									.entityPrimaryKey(1)
+									.build()
+							)
+							.build()
+					)
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+
+			assertEquals(8, reverseCaptures.size());
+
+			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
+				assertEquals(Entities.PRODUCT, reverseCapture.entityType());
+			}
+		}
 	}
 
 	@Test
 	void shouldFocusOnSchemaChangesOfSingleEntityType() {
-		fail("Not implemented yet");
+		goLiveAndCreateMutationSet();
+
+		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.DATA)
+							.site(
+								DataSite.builder()
+									.entityType(Entities.BRAND)
+									.build()
+							)
+							.build()
+					)
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+
+			assertEquals(3, reverseCaptures.size());
+
+			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
+				assertEquals(Entities.BRAND, reverseCapture.entityType());
+			}
+		}
 	}
 
 	@Test
 	void shouldCorrectlyHandleEntitySchemaRenaming() {
-		fail("Not implemented yet");
+		goLiveAndCreateMutationSet();
+
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			assertTrue(session.renameCollection(Entities.BRAND, "brand_renamed"));
+			session.defineEntitySchema("brand_renamed")
+				.withAttribute(ATTRIBUTE_URL, String.class, AttributeSchemaEditor::nullable)
+				.updateVia(session);
+
+			session.getEntity("brand_renamed", 1, entityFetchAllContent())
+				.orElseThrow()
+				.openForWrite()
+				.setAttribute(ATTRIBUTE_NAME, "Different brand")
+				.upsertVia(session);
+		}
+
+		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+			final List<ChangeCatalogCapture> brandDataReverseCaptures = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.DATA)
+							.site(
+								DataSite.builder()
+									.entityType(Entities.BRAND)
+									.build()
+							)
+							.build()
+					)
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+
+			assertEquals(3, brandDataReverseCaptures.size());
+
+			for (ChangeCatalogCapture reverseCapture : brandDataReverseCaptures) {
+				assertEquals(Entities.BRAND, reverseCapture.entityType());
+			}
+
+			final List<ChangeCatalogCapture> brandSchemaReverseCaptures = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.SCHEMA)
+							.site(
+								SchemaSite.builder()
+									.entityType(Entities.BRAND)
+									.build()
+							)
+							.build()
+					)
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+
+			assertEquals(4, brandSchemaReverseCaptures.size());
+
+			for (ChangeCatalogCapture reverseCapture : brandSchemaReverseCaptures) {
+				assertEquals(Entities.BRAND, reverseCapture.entityType());
+			}
+
+			final List<ChangeCatalogCapture> reverseDataCapturesAfterRename = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.DATA)
+							.site(
+								DataSite.builder()
+									.entityType("brand_renamed")
+									.build()
+							)
+							.build()
+					)
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+
+			assertEquals(2, reverseDataCapturesAfterRename.size());
+
+			for (ChangeCatalogCapture reverseCapture : reverseDataCapturesAfterRename) {
+				assertEquals("brand_renamed", reverseCapture.entityType());
+			}
+
+			final List<ChangeCatalogCapture> reverseSchemaCapturesAfterRename = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.SCHEMA)
+							.site(
+								SchemaSite.builder()
+									.entityType("brand_renamed")
+									.build()
+							)
+							.build()
+					)
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+
+			assertEquals(1, reverseSchemaCapturesAfterRename.size());
+
+			for (ChangeCatalogCapture reverseCapture : reverseSchemaCapturesAfterRename) {
+				assertEquals("brand_renamed", reverseCapture.entityType());
+			}
+		}
+	}
+
+	private void goLiveAndCreateMutationSet() {
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			session.goLiveAndClose();
+		}
+
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			createSchema(session);
+			createDataInSchema(session);
+		}
+	}
+
+	private void setPricesToTheProduct() {
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+				.orElseThrow()
+				.openForWrite()
+				.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+				.setPrice(2, PRICE_LIST_BASIC, CURRENCY_USD, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
+				.upsertVia(session);
+		}
 	}
 
 	@Nonnull

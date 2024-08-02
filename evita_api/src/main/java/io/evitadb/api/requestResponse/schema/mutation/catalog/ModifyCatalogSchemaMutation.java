@@ -93,12 +93,18 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		@Nonnull CaptureContent content) {
 		final MutationPredicateContext context = predicate.getContext();
 		context.advance();
-		final Stream<ChangeCatalogCapture> catalogMutation = Stream.of(ChangeCatalogCapture.schemaCapture(
-			context,
-				operation(),
-				content == CaptureContent.BODY ? this : null
-			)
-		);
+
+		final Stream<ChangeCatalogCapture> catalogMutation;
+		if (predicate.test(this)) {
+			catalogMutation = Stream.of(ChangeCatalogCapture.schemaCapture(
+					context,
+					operation(),
+					content == CaptureContent.BODY ? this : null
+				)
+			);
+		} else {
+			catalogMutation = Stream.empty();
+		}
 		if (context.getDirection() == StreamDirection.FORWARD) {
 			return Stream.concat(
 				catalogMutation,

@@ -98,16 +98,22 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content) {
+		@Nonnull CaptureContent content
+	) {
 		final MutationPredicateContext context = predicate.getContext();
 		context.advance();
-		return Stream.of(
-			ChangeCatalogCapture.schemaCapture(
-				context,
-				operation(),
-				content == CaptureContent.BODY ? this : null
-			)
-		);
+
+		if (predicate.test(this)) {
+			return Stream.of(
+				ChangeCatalogCapture.schemaCapture(
+					context,
+					operation(),
+					content == CaptureContent.BODY ? this : null
+				)
+			);
+		} else {
+			return Stream.empty();
+		}
 	}
 
 	@Override

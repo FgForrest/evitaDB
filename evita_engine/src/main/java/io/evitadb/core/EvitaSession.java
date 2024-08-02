@@ -1191,7 +1191,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final MutationPredicate mutationPredicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(criteria);
 		return getCatalog()
 			.getReversedCommittedMutationStream(criteria.sinceVersion())
-			.filter(mutationPredicate)
 			.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()));
 	}
 

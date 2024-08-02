@@ -92,13 +92,18 @@ public non-sealed class TransactionMutation implements Mutation {
 	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content) {
-		final MutationPredicateContext context = predicate.getContext();
-		context.setVersion(this.catalogVersion, this.mutationCount);
+		@Nonnull CaptureContent content
+	) {
+		if (predicate.test(this)) {
+			final MutationPredicateContext context = predicate.getContext();
+			context.setVersion(this.catalogVersion, this.mutationCount);
 
-		return Stream.of(
-			ChangeCatalogCapture.infrastructureCapture(context, operation(), content == CaptureContent.BODY ? this : null)
-		);
+			return Stream.of(
+				ChangeCatalogCapture.infrastructureCapture(context, operation(), content == CaptureContent.BODY ? this : null)
+			);
+		} else {
+			return Stream.empty();
+		}
 	}
 
 	@Override

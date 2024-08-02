@@ -94,16 +94,21 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content) {
-		final MutationPredicateContext context = predicate.getContext();
-		context.advance();
-		return Stream.of(
-			ChangeCatalogCapture.schemaCapture(
-				context,
-				operation(),
-				content == CaptureContent.BODY ? this : null
-			)
-		);
+		@Nonnull CaptureContent content
+	) {
+		if (predicate.test(this)) {
+			final MutationPredicateContext context = predicate.getContext();
+			context.advance();
+			return Stream.of(
+				ChangeCatalogCapture.schemaCapture(
+					context,
+					operation(),
+					content == CaptureContent.BODY ? this : null
+				)
+			);
+		} else {
+			return Stream.empty();
+		}
 	}
 
 	@Override

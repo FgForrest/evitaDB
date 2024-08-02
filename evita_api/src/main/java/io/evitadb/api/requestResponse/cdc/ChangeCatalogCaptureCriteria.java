@@ -23,6 +23,9 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Assert;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -39,6 +42,16 @@ public record ChangeCatalogCaptureCriteria(
 	@Nullable CaptureArea area,
 	@Nullable CaptureSite site
 ) {
+
+	public ChangeCatalogCaptureCriteria {
+		if (site != null) {
+			switch (area) {
+				case SCHEMA -> Assert.isTrue(site instanceof SchemaSite, "Schema site must be provided for schema area");
+				case DATA -> Assert.isTrue(site instanceof DataSite, "Data site must be provided for data area");
+				case INFRASTRUCTURE -> throw new EvitaInvalidUsageException("Infrastructure area is not supported");
+			}
+		}
+	}
 
 	/**
 	 * Creates builder object that helps you create criteria record using builder pattern.

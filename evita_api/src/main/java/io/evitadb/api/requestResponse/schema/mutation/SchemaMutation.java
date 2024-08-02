@@ -57,13 +57,17 @@ public non-sealed interface SchemaMutation extends Mutation {
 		@Nonnull CaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
-		return Stream.of(
-			ChangeCatalogCapture.schemaCapture(
-				context,
-				operation(),
-				content == CaptureContent.BODY ? this : null
-			)
-		);
+		if (predicate.test(this)) {
+			return Stream.of(
+				ChangeCatalogCapture.schemaCapture(
+					context,
+					operation(),
+					content == CaptureContent.BODY ? this : null
+				)
+			);
+		} else {
+			return Stream.empty();
+		}
 	}
 
 }

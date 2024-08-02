@@ -136,18 +136,25 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content) {
+		@Nonnull CaptureContent content
+	) {
 		final MutationPredicateContext context = predicate.getContext();
 		context.advance();
 		context.setEntityType(entityType);
 
-		final Stream<ChangeCatalogCapture> entitySchemaCapture = Stream.of(
-			ChangeCatalogCapture.schemaCapture(
-				context,
-				operation(),
-				content == CaptureContent.BODY ? this : null
-			)
-		);
+		final Stream<ChangeCatalogCapture> entitySchemaCapture;
+		if (predicate.test(this)) {
+			entitySchemaCapture = Stream.of(
+				ChangeCatalogCapture.schemaCapture(
+					context,
+					operation(),
+					content == CaptureContent.BODY ? this : null
+				)
+			);
+		} else {
+			entitySchemaCapture = Stream.empty();
+		}
+
 		if (context.getDirection() == StreamDirection.FORWARD) {
 			return Stream.concat(
 				entitySchemaCapture,

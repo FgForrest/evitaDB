@@ -45,7 +45,7 @@ private static final long serialVersionUID = 0L;
   private GrpcCaptureDataSite() {
     operation_ = java.util.Collections.emptyList();
     containerType_ = java.util.Collections.emptyList();
-    classifierName_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    containerName_ = com.google.protobuf.LazyStringArrayList.EMPTY;
   }
 
   @java.lang.Override
@@ -154,10 +154,10 @@ private static final long serialVersionUID = 0L;
           case 42: {
             java.lang.String s = input.readStringRequireUtf8();
             if (!((mutable_bitField0_ & 0x00000004) != 0)) {
-              classifierName_ = new com.google.protobuf.LazyStringArrayList();
+              containerName_ = new com.google.protobuf.LazyStringArrayList();
               mutable_bitField0_ |= 0x00000004;
             }
-            classifierName_.add(s);
+            containerName_.add(s);
             break;
           }
           default: {
@@ -182,7 +182,7 @@ private static final long serialVersionUID = 0L;
         containerType_ = java.util.Collections.unmodifiableList(containerType_);
       }
       if (((mutable_bitField0_ & 0x00000004) != 0)) {
-        classifierName_ = classifierName_.getUnmodifiableView();
+        containerName_ = containerName_.getUnmodifiableView();
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -433,55 +433,55 @@ private static final long serialVersionUID = 0L;
   }
   private int containerTypeMemoizedSerializedSize;
 
-  public static final int CLASSIFIERNAME_FIELD_NUMBER = 5;
-  private com.google.protobuf.LazyStringList classifierName_;
+  public static final int CONTAINERNAME_FIELD_NUMBER = 5;
+  private com.google.protobuf.LazyStringList containerName_;
   /**
    * <pre>
    * the name of the container (e.g. attribute name, associated data name, reference name)
    * </pre>
    *
-   * <code>repeated string classifierName = 5;</code>
-   * @return A list containing the classifierName.
+   * <code>repeated string containerName = 5;</code>
+   * @return A list containing the containerName.
    */
   public com.google.protobuf.ProtocolStringList
-      getClassifierNameList() {
-    return classifierName_;
+      getContainerNameList() {
+    return containerName_;
   }
   /**
    * <pre>
    * the name of the container (e.g. attribute name, associated data name, reference name)
    * </pre>
    *
-   * <code>repeated string classifierName = 5;</code>
-   * @return The count of classifierName.
+   * <code>repeated string containerName = 5;</code>
+   * @return The count of containerName.
    */
-  public int getClassifierNameCount() {
-    return classifierName_.size();
+  public int getContainerNameCount() {
+    return containerName_.size();
   }
   /**
    * <pre>
    * the name of the container (e.g. attribute name, associated data name, reference name)
    * </pre>
    *
-   * <code>repeated string classifierName = 5;</code>
+   * <code>repeated string containerName = 5;</code>
    * @param index The index of the element to return.
-   * @return The classifierName at the given index.
+   * @return The containerName at the given index.
    */
-  public java.lang.String getClassifierName(int index) {
-    return classifierName_.get(index);
+  public java.lang.String getContainerName(int index) {
+    return containerName_.get(index);
   }
   /**
    * <pre>
    * the name of the container (e.g. attribute name, associated data name, reference name)
    * </pre>
    *
-   * <code>repeated string classifierName = 5;</code>
+   * <code>repeated string containerName = 5;</code>
    * @param index The index of the value to return.
-   * @return The bytes of the classifierName at the given index.
+   * @return The bytes of the containerName at the given index.
    */
   public com.google.protobuf.ByteString
-      getClassifierNameBytes(int index) {
-    return classifierName_.getByteString(index);
+      getContainerNameBytes(int index) {
+    return containerName_.getByteString(index);
   }
 
   private byte memoizedIsInitialized = -1;
@@ -519,8 +519,8 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < containerType_.size(); i++) {
       output.writeEnumNoTag(containerType_.get(i));
     }
-    for (int i = 0; i < classifierName_.size(); i++) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 5, classifierName_.getRaw(i));
+    for (int i = 0; i < containerName_.size(); i++) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 5, containerName_.getRaw(i));
     }
     unknownFields.writeTo(output);
   }
@@ -565,11 +565,11 @@ private static final long serialVersionUID = 0L;
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < classifierName_.size(); i++) {
-        dataSize += computeStringSizeNoTag(classifierName_.getRaw(i));
+      for (int i = 0; i < containerName_.size(); i++) {
+        dataSize += computeStringSizeNoTag(containerName_.getRaw(i));
       }
       size += dataSize;
-      size += 1 * getClassifierNameList().size();
+      size += 1 * getContainerNameList().size();
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -598,8 +598,8 @@ private static final long serialVersionUID = 0L;
     }
     if (!operation_.equals(other.operation_)) return false;
     if (!containerType_.equals(other.containerType_)) return false;
-    if (!getClassifierNameList()
-        .equals(other.getClassifierNameList())) return false;
+    if (!getContainerNameList()
+        .equals(other.getContainerNameList())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -627,9 +627,9 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CONTAINERTYPE_FIELD_NUMBER;
       hash = (53 * hash) + containerType_.hashCode();
     }
-    if (getClassifierNameCount() > 0) {
-      hash = (37 * hash) + CLASSIFIERNAME_FIELD_NUMBER;
-      hash = (53 * hash) + getClassifierNameList().hashCode();
+    if (getContainerNameCount() > 0) {
+      hash = (37 * hash) + CONTAINERNAME_FIELD_NUMBER;
+      hash = (53 * hash) + getContainerNameList().hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -784,7 +784,7 @@ private static final long serialVersionUID = 0L;
       bitField0_ = (bitField0_ & ~0x00000001);
       containerType_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00000002);
-      classifierName_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      containerName_ = com.google.protobuf.LazyStringArrayList.EMPTY;
       bitField0_ = (bitField0_ & ~0x00000004);
       return this;
     }
@@ -834,10 +834,10 @@ private static final long serialVersionUID = 0L;
       }
       result.containerType_ = containerType_;
       if (((bitField0_ & 0x00000004) != 0)) {
-        classifierName_ = classifierName_.getUnmodifiableView();
+        containerName_ = containerName_.getUnmodifiableView();
         bitField0_ = (bitField0_ & ~0x00000004);
       }
-      result.classifierName_ = classifierName_;
+      result.containerName_ = containerName_;
       onBuilt();
       return result;
     }
@@ -912,13 +912,13 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       }
-      if (!other.classifierName_.isEmpty()) {
-        if (classifierName_.isEmpty()) {
-          classifierName_ = other.classifierName_;
+      if (!other.containerName_.isEmpty()) {
+        if (containerName_.isEmpty()) {
+          containerName_ = other.containerName_;
           bitField0_ = (bitField0_ & ~0x00000004);
         } else {
-          ensureClassifierNameIsMutable();
-          classifierName_.addAll(other.classifierName_);
+          ensureContainerNameIsMutable();
+          containerName_.addAll(other.containerName_);
         }
         onChanged();
       }
@@ -1638,10 +1638,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private com.google.protobuf.LazyStringList classifierName_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-    private void ensureClassifierNameIsMutable() {
+    private com.google.protobuf.LazyStringList containerName_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    private void ensureContainerNameIsMutable() {
       if (!((bitField0_ & 0x00000004) != 0)) {
-        classifierName_ = new com.google.protobuf.LazyStringArrayList(classifierName_);
+        containerName_ = new com.google.protobuf.LazyStringArrayList(containerName_);
         bitField0_ |= 0x00000004;
        }
     }
@@ -1650,66 +1650,66 @@ private static final long serialVersionUID = 0L;
      * the name of the container (e.g. attribute name, associated data name, reference name)
      * </pre>
      *
-     * <code>repeated string classifierName = 5;</code>
-     * @return A list containing the classifierName.
+     * <code>repeated string containerName = 5;</code>
+     * @return A list containing the containerName.
      */
     public com.google.protobuf.ProtocolStringList
-        getClassifierNameList() {
-      return classifierName_.getUnmodifiableView();
+        getContainerNameList() {
+      return containerName_.getUnmodifiableView();
     }
     /**
      * <pre>
      * the name of the container (e.g. attribute name, associated data name, reference name)
      * </pre>
      *
-     * <code>repeated string classifierName = 5;</code>
-     * @return The count of classifierName.
+     * <code>repeated string containerName = 5;</code>
+     * @return The count of containerName.
      */
-    public int getClassifierNameCount() {
-      return classifierName_.size();
+    public int getContainerNameCount() {
+      return containerName_.size();
     }
     /**
      * <pre>
      * the name of the container (e.g. attribute name, associated data name, reference name)
      * </pre>
      *
-     * <code>repeated string classifierName = 5;</code>
+     * <code>repeated string containerName = 5;</code>
      * @param index The index of the element to return.
-     * @return The classifierName at the given index.
+     * @return The containerName at the given index.
      */
-    public java.lang.String getClassifierName(int index) {
-      return classifierName_.get(index);
+    public java.lang.String getContainerName(int index) {
+      return containerName_.get(index);
     }
     /**
      * <pre>
      * the name of the container (e.g. attribute name, associated data name, reference name)
      * </pre>
      *
-     * <code>repeated string classifierName = 5;</code>
+     * <code>repeated string containerName = 5;</code>
      * @param index The index of the value to return.
-     * @return The bytes of the classifierName at the given index.
+     * @return The bytes of the containerName at the given index.
      */
     public com.google.protobuf.ByteString
-        getClassifierNameBytes(int index) {
-      return classifierName_.getByteString(index);
+        getContainerNameBytes(int index) {
+      return containerName_.getByteString(index);
     }
     /**
      * <pre>
      * the name of the container (e.g. attribute name, associated data name, reference name)
      * </pre>
      *
-     * <code>repeated string classifierName = 5;</code>
+     * <code>repeated string containerName = 5;</code>
      * @param index The index to set the value at.
-     * @param value The classifierName to set.
+     * @param value The containerName to set.
      * @return This builder for chaining.
      */
-    public Builder setClassifierName(
+    public Builder setContainerName(
         int index, java.lang.String value) {
       if (value == null) {
     throw new NullPointerException();
   }
-  ensureClassifierNameIsMutable();
-      classifierName_.set(index, value);
+  ensureContainerNameIsMutable();
+      containerName_.set(index, value);
       onChanged();
       return this;
     }
@@ -1718,17 +1718,17 @@ private static final long serialVersionUID = 0L;
      * the name of the container (e.g. attribute name, associated data name, reference name)
      * </pre>
      *
-     * <code>repeated string classifierName = 5;</code>
-     * @param value The classifierName to add.
+     * <code>repeated string containerName = 5;</code>
+     * @param value The containerName to add.
      * @return This builder for chaining.
      */
-    public Builder addClassifierName(
+    public Builder addContainerName(
         java.lang.String value) {
       if (value == null) {
     throw new NullPointerException();
   }
-  ensureClassifierNameIsMutable();
-      classifierName_.add(value);
+  ensureContainerNameIsMutable();
+      containerName_.add(value);
       onChanged();
       return this;
     }
@@ -1737,15 +1737,15 @@ private static final long serialVersionUID = 0L;
      * the name of the container (e.g. attribute name, associated data name, reference name)
      * </pre>
      *
-     * <code>repeated string classifierName = 5;</code>
-     * @param values The classifierName to add.
+     * <code>repeated string containerName = 5;</code>
+     * @param values The containerName to add.
      * @return This builder for chaining.
      */
-    public Builder addAllClassifierName(
+    public Builder addAllContainerName(
         java.lang.Iterable<java.lang.String> values) {
-      ensureClassifierNameIsMutable();
+      ensureContainerNameIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, classifierName_);
+          values, containerName_);
       onChanged();
       return this;
     }
@@ -1754,11 +1754,11 @@ private static final long serialVersionUID = 0L;
      * the name of the container (e.g. attribute name, associated data name, reference name)
      * </pre>
      *
-     * <code>repeated string classifierName = 5;</code>
+     * <code>repeated string containerName = 5;</code>
      * @return This builder for chaining.
      */
-    public Builder clearClassifierName() {
-      classifierName_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    public Builder clearContainerName() {
+      containerName_ = com.google.protobuf.LazyStringArrayList.EMPTY;
       bitField0_ = (bitField0_ & ~0x00000004);
       onChanged();
       return this;
@@ -1768,18 +1768,18 @@ private static final long serialVersionUID = 0L;
      * the name of the container (e.g. attribute name, associated data name, reference name)
      * </pre>
      *
-     * <code>repeated string classifierName = 5;</code>
-     * @param value The bytes of the classifierName to add.
+     * <code>repeated string containerName = 5;</code>
+     * @param value The bytes of the containerName to add.
      * @return This builder for chaining.
      */
-    public Builder addClassifierNameBytes(
+    public Builder addContainerNameBytes(
         com.google.protobuf.ByteString value) {
       if (value == null) {
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      ensureClassifierNameIsMutable();
-      classifierName_.add(value);
+      ensureContainerNameIsMutable();
+      containerName_.add(value);
       onChanged();
       return this;
     }

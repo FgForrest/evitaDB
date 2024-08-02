@@ -82,10 +82,10 @@ public final class DataAreaPredicate extends AreaPredicate {
 				classifierTypePredicate :
 				dataPredicate.and(classifierTypePredicate);
 		}
-		if (!ArrayUtils.isEmpty(dataSite.classifierName())) {
-			final MutationPredicate classifierNamePredicate = dataSite.classifierName().length == 1 ?
-				new SingleContainerNamePredicate(this.context, dataSite.classifierName()[0]) :
-				new ContainerNamePredicate(this.context, dataSite.classifierName());
+		if (!ArrayUtils.isEmpty(dataSite.containerName())) {
+			final MutationPredicate classifierNamePredicate = dataSite.containerName().length == 1 ?
+				new SingleContainerNamePredicate(this.context, dataSite.containerName()[0]) :
+				new ContainerNamePredicate(this.context, dataSite.containerName());
 			dataPredicate = dataPredicate == null ? classifierNamePredicate : dataPredicate.and(classifierNamePredicate);
 		}
 		return ofNullable(dataPredicate);

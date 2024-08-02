@@ -44,7 +44,7 @@ message GrpcCaptureDataSite {
   // the name of the intercepted container type
   repeated GrpcCaptureContainerType containerType = 4;
   // the name of the container (e.g. attribute name, associated data name, reference name)
-  repeated string classifierName = 5;
+  repeated string containerName = 5;
 }
 
 // Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
