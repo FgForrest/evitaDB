@@ -23,10 +23,14 @@
 
 package io.evitadb.core.cdc.predicate;
 
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.ContainerType;
 
 import javax.annotation.Nonnull;
@@ -39,17 +43,24 @@ import java.util.EnumSet;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class ClassifierTypePredicate extends MutationPredicate {
+public class ContainerTypePredicate extends MutationPredicate {
 	private final EnumSet<ContainerType> classifierType;
 
-	public ClassifierTypePredicate(@Nonnull MutationPredicateContext context, @Nonnull ContainerType... containerType) {
+	public ContainerTypePredicate(@Nonnull MutationPredicateContext context, @Nonnull ContainerType... containerType) {
 		super(context);
 		this.classifierType = EnumSet.copyOf(Arrays.asList(containerType));
 	}
 
 	@Override
 	public boolean test(Mutation mutation) {
-		return mutation instanceof LocalMutation<?, ?> localMutation &&
-			this.classifierType.contains(localMutation.containerType());
+		if (mutation instanceof LocalMutation<?, ?> localMutation) {
+			return this.classifierType.contains(localMutation.containerType());
+		} else if (mutation instanceof EntityMutation || (mutation instanceof EntitySchemaMutation && !(mutation instanceof LocalEntitySchemaMutation))) {
+			return this.classifierType.contains(ContainerType.ENTITY);
+		} else if (mutation instanceof CatalogSchemaMutation) {
+			return this.classifierType.contains(ContainerType.CATALOG);
+		} else {
+			return false;
+		}
 	}
 }

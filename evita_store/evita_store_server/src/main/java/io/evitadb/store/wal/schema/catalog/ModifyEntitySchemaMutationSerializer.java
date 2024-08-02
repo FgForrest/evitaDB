@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 
 /**
@@ -51,9 +52,9 @@ public class ModifyEntitySchemaMutationSerializer extends Serializer<ModifyEntit
 	public ModifyEntitySchemaMutation read(Kryo kryo, Input input, Class<? extends ModifyEntitySchemaMutation> type) {
 		final String entityType = input.readString();
 		final int length = input.readVarInt(true);
-		final EntitySchemaMutation[] schemaMutations = new EntitySchemaMutation[length];
+		final LocalEntitySchemaMutation[] schemaMutations = new LocalEntitySchemaMutation[length];
 		for (int i = 0; i < length; i++) {
-			schemaMutations[i] = (EntitySchemaMutation) kryo.readClassAndObject(input);
+			schemaMutations[i] = (LocalEntitySchemaMutation) kryo.readClassAndObject(input);
 		}
 		return new ModifyEntitySchemaMutation(entityType, schemaMutations);
 	}

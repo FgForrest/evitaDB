@@ -30,8 +30,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
  * Mutation is responsible for removing an existing {@link AssociatedDataSchemaContract} in the
  * {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link AssociatedDataSchemaContract} alone.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with
  * {@link CreateAssociatedDataSchemaMutation} mutation (if such is found in mutation pipeline).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -61,7 +61,7 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode
 @AllArgsConstructor
 public class RemoveAssociatedDataSchemaMutation
-	implements AssociatedDataSchemaMutation, CombinableEntitySchemaMutation {
+	implements AssociatedDataSchemaMutation, CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 5455262123304001612L;
 	@Getter @Nonnull private final String name;
 
@@ -74,7 +74,11 @@ public class RemoveAssociatedDataSchemaMutation
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
 		if (existingMutation instanceof AssociatedDataSchemaMutation associatedDataSchemaMutation && Objects.equals(name, associatedDataSchemaMutation.getName())) {
 			return new MutationCombinationResult<>(true, null, this);
 		} else {

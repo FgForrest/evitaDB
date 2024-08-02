@@ -55,18 +55,26 @@ public final class SchemaAreaPredicate extends AreaPredicate {
 	@Override
 	public Optional<MutationPredicate> createSitePredicate(@Nonnull CaptureSite site) {
 		final SchemaSite schemaSite = (SchemaSite) site;
-		MutationPredicate sitePredicate = null;
+		MutationPredicate schemaPredicate = null;
 		if (!ArrayUtils.isEmpty(schemaSite.operation())) {
-			sitePredicate = schemaSite.operation().length == 1 ?
+			schemaPredicate = schemaSite.operation().length == 1 ?
 				new SingleOperationPredicate(this.context, schemaSite.operation()[0]) :
 				new OperationPredicate(this.context, schemaSite.operation());
 		}
 		if (schemaSite.entityType() != null) {
-			sitePredicate = sitePredicate == null ?
+			schemaPredicate = schemaPredicate == null ?
 				new EntitySchemaTypePredicate(this.context, schemaSite.entityType()) :
-				sitePredicate.and(new EntitySchemaTypePredicate(this.context, schemaSite.entityType()));
+				schemaPredicate.and(new EntitySchemaTypePredicate(this.context, schemaSite.entityType()));
 		}
-		return Optional.ofNullable(sitePredicate);
+		if (!ArrayUtils.isEmpty(schemaSite.containerType())) {
+			final MutationPredicate classifierTypePredicate = schemaSite.containerType().length == 1 ?
+				new SingleContainerTypePredicate(this.context, schemaSite.containerType()[0]) :
+				new ContainerTypePredicate(this.context, schemaSite.containerType());
+			schemaPredicate = schemaPredicate == null ?
+				classifierTypePredicate :
+				schemaPredicate.and(classifierTypePredicate);
+		}
+		return Optional.ofNullable(schemaPredicate);
 	}
 
 }

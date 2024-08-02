@@ -28,8 +28,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -44,7 +44,7 @@ import java.io.Serial;
 /**
  * Mutation is responsible for setting a {@link EntitySchemaContract#isWithHierarchy()}
  * in {@link EntitySchemaContract}.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if it's present in the mutation pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -53,13 +53,17 @@ import java.io.Serial;
 @Immutable
 @EqualsAndHashCode
 @RequiredArgsConstructor
-public class SetEntitySchemaWithHierarchyMutation implements CombinableEntitySchemaMutation {
+public class SetEntitySchemaWithHierarchyMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 5706690342982246498L;
 	@Getter private final boolean withHierarchy;
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
 		if (existingMutation instanceof SetEntitySchemaWithHierarchyMutation) {
 			return new MutationCombinationResult<>(null, this);
 		} else {

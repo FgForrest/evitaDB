@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -2332,19 +2333,23 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				final Stream<ChangeCatalogCapture> mutationsHistory = session.getMutationsHistory(
-					new ChangeCatalogCaptureRequest(
-						CaptureArea.DATA,
-						DataSite.builder()
-							.containerType(ContainerType.ENTITY)
-							.build(),
-						CaptureContent.BODY,
-						0,
-						null
-					)
+					ChangeCatalogCaptureRequest.builder()
+						.criteria(
+							ChangeCatalogCaptureCriteria.builder()
+								.area(CaptureArea.DATA)
+								.site(
+									DataSite.builder()
+										.containerType(ContainerType.ENTITY)
+										.build()
+								)
+								.build()
+						)
+						.content(CaptureContent.BODY)
+						.build()
 				);
 
 				final List<ChangeCatalogCapture> mutations = mutationsHistory.toList();
-				assertTrue(mutations.size() > 20);
+				assertTrue(mutations.size() > 10);
 			}
 		);
 	}

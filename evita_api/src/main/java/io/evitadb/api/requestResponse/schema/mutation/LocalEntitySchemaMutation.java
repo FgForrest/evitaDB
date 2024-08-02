@@ -21,31 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.cdc.predicate;
-
-import io.evitadb.api.requestResponse.data.mutation.NamedLocalMutation;
-import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.mutation.MutationPredicate;
-import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
-
-import javax.annotation.Nonnull;
+package io.evitadb.api.requestResponse.schema.mutation;
 
 /**
- * Predicate filters out only mutations that are related to local mutations that target classifier with a particular name.
+ * This interface distingushes local entity schema mutations from top level entity schema mutations.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class SingleClassifierNamePredicate extends MutationPredicate {
-	private final String classifierName;
-
-	public SingleClassifierNamePredicate(@Nonnull MutationPredicateContext context, @Nonnull String classifierName) {
-		super(context);
-		this.classifierName = classifierName;
-	}
-
-	@Override
-	public boolean test(Mutation mutation) {
-		return !(mutation instanceof NamedLocalMutation<?, ?> localMutation) ||
-			this.classifierName.equals(localMutation.classifierName());
-	}
+public interface LocalEntitySchemaMutation extends EntitySchemaMutation {
 }

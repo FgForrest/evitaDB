@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GetMutationsHistoryPageRequest() {
-    area_ = 0;
+    criteria_ = java.util.Collections.emptyList();
     content_ = 0;
   }
 
@@ -67,6 +67,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -88,53 +89,28 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 24: {
-            int rawValue = input.readEnum();
 
-            area_ = rawValue;
+            sinceVersion_ = input.readInt64();
             break;
           }
-          case 34: {
-            io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.Builder subBuilder = null;
-            if (siteCase_ == 4) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSchemaSite) site_).toBuilder();
-            }
-            site_ =
-                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.parser(), extensionRegistry);
-            if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSchemaSite) site_);
-              site_ = subBuilder.buildPartial();
-            }
-            siteCase_ = 4;
+          case 32: {
+
+            sinceIndex_ = input.readInt32();
             break;
           }
           case 42: {
-            io.evitadb.externalApi.grpc.generated.GrpcDataSite.Builder subBuilder = null;
-            if (siteCase_ == 5) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcDataSite) site_).toBuilder();
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              criteria_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria>();
+              mutable_bitField0_ |= 0x00000001;
             }
-            site_ =
-                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcDataSite.parser(), extensionRegistry);
-            if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcDataSite) site_);
-              site_ = subBuilder.buildPartial();
-            }
-            siteCase_ = 5;
+            criteria_.add(
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.parser(), extensionRegistry));
             break;
           }
           case 48: {
             int rawValue = input.readEnum();
 
             content_ = rawValue;
-            break;
-          }
-          case 56: {
-
-            sinceVersion_ = input.readInt64();
-            break;
-          }
-          case 64: {
-
-            sinceIndex_ = input.readInt32();
             break;
           }
           default: {
@@ -152,6 +128,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        criteria_ = java.util.Collections.unmodifiableList(criteria_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -167,47 +146,6 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GetMutationsHistoryPageRequest_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
             io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest.class, io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest.Builder.class);
-  }
-
-  private int siteCase_ = 0;
-  private java.lang.Object site_;
-  public enum SiteCase
-      implements com.google.protobuf.Internal.EnumLite,
-          com.google.protobuf.AbstractMessage.InternalOneOfEnum {
-    SCHEMASITE(4),
-    DATASITE(5),
-    SITE_NOT_SET(0);
-    private final int value;
-    private SiteCase(int value) {
-      this.value = value;
-    }
-    /**
-     * @param value The number of the enum to look for.
-     * @return The enum associated with the given number.
-     * @deprecated Use {@link #forNumber(int)} instead.
-     */
-    @java.lang.Deprecated
-    public static SiteCase valueOf(int value) {
-      return forNumber(value);
-    }
-
-    public static SiteCase forNumber(int value) {
-      switch (value) {
-        case 4: return SCHEMASITE;
-        case 5: return DATASITE;
-        case 0: return SITE_NOT_SET;
-        default: return null;
-      }
-    }
-    public int getNumber() {
-      return this.value;
-    }
-  };
-
-  public SiteCase
-  getSiteCase() {
-    return SiteCase.forNumber(
-        siteCase_);
   }
 
   public static final int PAGE_FIELD_NUMBER = 1;
@@ -240,117 +178,94 @@ private static final long serialVersionUID = 0L;
     return pageSize_;
   }
 
-  public static final int AREA_FIELD_NUMBER = 3;
-  private int area_;
+  public static final int SINCEVERSION_FIELD_NUMBER = 3;
+  private long sinceVersion_;
   /**
    * <pre>
-   * The area of capture - either schema or data (correlates with the site)
+   * Starting point for the search (catalog version)
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
-   * @return The enum numeric value on the wire for area.
+   * <code>int64 sinceVersion = 3;</code>
+   * @return The sinceVersion.
    */
-  @java.lang.Override public int getAreaValue() {
-    return area_;
-  }
-  /**
-   * <pre>
-   * The area of capture - either schema or data (correlates with the site)
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
-   * @return The area.
-   */
-  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCaptureArea getArea() {
-    @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcCaptureArea result = io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.valueOf(area_);
-    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.UNRECOGNIZED : result;
+  @java.lang.Override
+  public long getSinceVersion() {
+    return sinceVersion_;
   }
 
-  public static final int SCHEMASITE_FIELD_NUMBER = 4;
+  public static final int SINCEINDEX_FIELD_NUMBER = 4;
+  private int sinceIndex_;
   /**
    * <pre>
-   * Criteria for schema capture
+   * Starting point for the search (index of the mutation within catalog version)
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
-   * @return Whether the schemaSite field is set.
+   * <code>int32 sinceIndex = 4;</code>
+   * @return The sinceIndex.
    */
   @java.lang.Override
-  public boolean hasSchemaSite() {
-    return siteCase_ == 4;
-  }
-  /**
-   * <pre>
-   * Criteria for schema capture
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
-   * @return The schemaSite.
-   */
-  @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcSchemaSite getSchemaSite() {
-    if (siteCase_ == 4) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcSchemaSite) site_;
-    }
-    return io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.getDefaultInstance();
-  }
-  /**
-   * <pre>
-   * Criteria for schema capture
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
-   */
-  @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcSchemaSiteOrBuilder getSchemaSiteOrBuilder() {
-    if (siteCase_ == 4) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcSchemaSite) site_;
-    }
-    return io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.getDefaultInstance();
+  public int getSinceIndex() {
+    return sinceIndex_;
   }
 
-  public static final int DATASITE_FIELD_NUMBER = 5;
+  public static final int CRITERIA_FIELD_NUMBER = 5;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria> criteria_;
   /**
    * <pre>
-   * Criteria for data capture
+   * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
-   * @return Whether the dataSite field is set.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
    */
   @java.lang.Override
-  public boolean hasDataSite() {
-    return siteCase_ == 5;
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria> getCriteriaList() {
+    return criteria_;
   }
   /**
    * <pre>
-   * Criteria for data capture
+   * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
-   * @return The dataSite.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcDataSite getDataSite() {
-    if (siteCase_ == 5) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcDataSite) site_;
-    }
-    return io.evitadb.externalApi.grpc.generated.GrpcDataSite.getDefaultInstance();
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder>
+      getCriteriaOrBuilderList() {
+    return criteria_;
   }
   /**
    * <pre>
-   * Criteria for data capture
+   * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcDataSiteOrBuilder getDataSiteOrBuilder() {
-    if (siteCase_ == 5) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcDataSite) site_;
-    }
-    return io.evitadb.externalApi.grpc.generated.GrpcDataSite.getDefaultInstance();
+  public int getCriteriaCount() {
+    return criteria_.size();
+  }
+  /**
+   * <pre>
+   * The criteria of the capture, allows to define constraints on the returned mutations
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria getCriteria(int index) {
+    return criteria_.get(index);
+  }
+  /**
+   * <pre>
+   * The criteria of the capture, allows to define constraints on the returned mutations
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder getCriteriaOrBuilder(
+      int index) {
+    return criteria_.get(index);
   }
 
   public static final int CONTENT_FIELD_NUMBER = 6;
@@ -380,36 +295,6 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.UNRECOGNIZED : result;
   }
 
-  public static final int SINCEVERSION_FIELD_NUMBER = 7;
-  private long sinceVersion_;
-  /**
-   * <pre>
-   * Starting point for the search (catalog version)
-   * </pre>
-   *
-   * <code>int64 sinceVersion = 7;</code>
-   * @return The sinceVersion.
-   */
-  @java.lang.Override
-  public long getSinceVersion() {
-    return sinceVersion_;
-  }
-
-  public static final int SINCEINDEX_FIELD_NUMBER = 8;
-  private int sinceIndex_;
-  /**
-   * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
-   * </pre>
-   *
-   * <code>int32 sinceIndex = 8;</code>
-   * @return The sinceIndex.
-   */
-  @java.lang.Override
-  public int getSinceIndex() {
-    return sinceIndex_;
-  }
-
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -430,23 +315,17 @@ private static final long serialVersionUID = 0L;
     if (pageSize_ != 0) {
       output.writeInt32(2, pageSize_);
     }
-    if (area_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.SCHEMA.getNumber()) {
-      output.writeEnum(3, area_);
+    if (sinceVersion_ != 0L) {
+      output.writeInt64(3, sinceVersion_);
     }
-    if (siteCase_ == 4) {
-      output.writeMessage(4, (io.evitadb.externalApi.grpc.generated.GrpcSchemaSite) site_);
+    if (sinceIndex_ != 0) {
+      output.writeInt32(4, sinceIndex_);
     }
-    if (siteCase_ == 5) {
-      output.writeMessage(5, (io.evitadb.externalApi.grpc.generated.GrpcDataSite) site_);
+    for (int i = 0; i < criteria_.size(); i++) {
+      output.writeMessage(5, criteria_.get(i));
     }
     if (content_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.HEADER.getNumber()) {
       output.writeEnum(6, content_);
-    }
-    if (sinceVersion_ != 0L) {
-      output.writeInt64(7, sinceVersion_);
-    }
-    if (sinceIndex_ != 0) {
-      output.writeInt32(8, sinceIndex_);
     }
     unknownFields.writeTo(output);
   }
@@ -465,29 +344,21 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(2, pageSize_);
     }
-    if (area_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.SCHEMA.getNumber()) {
+    if (sinceVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(3, area_);
+        .computeInt64Size(3, sinceVersion_);
     }
-    if (siteCase_ == 4) {
+    if (sinceIndex_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(4, (io.evitadb.externalApi.grpc.generated.GrpcSchemaSite) site_);
+        .computeInt32Size(4, sinceIndex_);
     }
-    if (siteCase_ == 5) {
+    for (int i = 0; i < criteria_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(5, (io.evitadb.externalApi.grpc.generated.GrpcDataSite) site_);
+        .computeMessageSize(5, criteria_.get(i));
     }
     if (content_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.HEADER.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(6, content_);
-    }
-    if (sinceVersion_ != 0L) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(7, sinceVersion_);
-    }
-    if (sinceIndex_ != 0) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(8, sinceIndex_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -508,25 +379,13 @@ private static final long serialVersionUID = 0L;
         != other.getPage()) return false;
     if (getPageSize()
         != other.getPageSize()) return false;
-    if (area_ != other.area_) return false;
-    if (content_ != other.content_) return false;
     if (getSinceVersion()
         != other.getSinceVersion()) return false;
     if (getSinceIndex()
         != other.getSinceIndex()) return false;
-    if (!getSiteCase().equals(other.getSiteCase())) return false;
-    switch (siteCase_) {
-      case 4:
-        if (!getSchemaSite()
-            .equals(other.getSchemaSite())) return false;
-        break;
-      case 5:
-        if (!getDataSite()
-            .equals(other.getDataSite())) return false;
-        break;
-      case 0:
-      default:
-    }
+    if (!getCriteriaList()
+        .equals(other.getCriteriaList())) return false;
+    if (content_ != other.content_) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -542,27 +401,17 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getPage();
     hash = (37 * hash) + PAGESIZE_FIELD_NUMBER;
     hash = (53 * hash) + getPageSize();
-    hash = (37 * hash) + AREA_FIELD_NUMBER;
-    hash = (53 * hash) + area_;
-    hash = (37 * hash) + CONTENT_FIELD_NUMBER;
-    hash = (53 * hash) + content_;
     hash = (37 * hash) + SINCEVERSION_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getSinceVersion());
     hash = (37 * hash) + SINCEINDEX_FIELD_NUMBER;
     hash = (53 * hash) + getSinceIndex();
-    switch (siteCase_) {
-      case 4:
-        hash = (37 * hash) + SCHEMASITE_FIELD_NUMBER;
-        hash = (53 * hash) + getSchemaSite().hashCode();
-        break;
-      case 5:
-        hash = (37 * hash) + DATASITE_FIELD_NUMBER;
-        hash = (53 * hash) + getDataSite().hashCode();
-        break;
-      case 0:
-      default:
+    if (getCriteriaCount() > 0) {
+      hash = (37 * hash) + CRITERIA_FIELD_NUMBER;
+      hash = (53 * hash) + getCriteriaList().hashCode();
     }
+    hash = (37 * hash) + CONTENT_FIELD_NUMBER;
+    hash = (53 * hash) + content_;
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -695,6 +544,7 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
+        getCriteriaFieldBuilder();
       }
     }
     @java.lang.Override
@@ -704,16 +554,18 @@ private static final long serialVersionUID = 0L;
 
       pageSize_ = 0;
 
-      area_ = 0;
-
-      content_ = 0;
-
       sinceVersion_ = 0L;
 
       sinceIndex_ = 0;
 
-      siteCase_ = 0;
-      site_ = null;
+      if (criteriaBuilder_ == null) {
+        criteria_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
+      } else {
+        criteriaBuilder_.clear();
+      }
+      content_ = 0;
+
       return this;
     }
 
@@ -740,27 +592,21 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest result = new io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest(this);
+      int from_bitField0_ = bitField0_;
       result.page_ = page_;
       result.pageSize_ = pageSize_;
-      result.area_ = area_;
-      if (siteCase_ == 4) {
-        if (schemaSiteBuilder_ == null) {
-          result.site_ = site_;
-        } else {
-          result.site_ = schemaSiteBuilder_.build();
-        }
-      }
-      if (siteCase_ == 5) {
-        if (dataSiteBuilder_ == null) {
-          result.site_ = site_;
-        } else {
-          result.site_ = dataSiteBuilder_.build();
-        }
-      }
-      result.content_ = content_;
       result.sinceVersion_ = sinceVersion_;
       result.sinceIndex_ = sinceIndex_;
-      result.siteCase_ = siteCase_;
+      if (criteriaBuilder_ == null) {
+        if (((bitField0_ & 0x00000001) != 0)) {
+          criteria_ = java.util.Collections.unmodifiableList(criteria_);
+          bitField0_ = (bitField0_ & ~0x00000001);
+        }
+        result.criteria_ = criteria_;
+      } else {
+        result.criteria_ = criteriaBuilder_.build();
+      }
+      result.content_ = content_;
       onBuilt();
       return result;
     }
@@ -815,30 +661,40 @@ private static final long serialVersionUID = 0L;
       if (other.getPageSize() != 0) {
         setPageSize(other.getPageSize());
       }
-      if (other.area_ != 0) {
-        setAreaValue(other.getAreaValue());
-      }
-      if (other.content_ != 0) {
-        setContentValue(other.getContentValue());
-      }
       if (other.getSinceVersion() != 0L) {
         setSinceVersion(other.getSinceVersion());
       }
       if (other.getSinceIndex() != 0) {
         setSinceIndex(other.getSinceIndex());
       }
-      switch (other.getSiteCase()) {
-        case SCHEMASITE: {
-          mergeSchemaSite(other.getSchemaSite());
-          break;
+      if (criteriaBuilder_ == null) {
+        if (!other.criteria_.isEmpty()) {
+          if (criteria_.isEmpty()) {
+            criteria_ = other.criteria_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+          } else {
+            ensureCriteriaIsMutable();
+            criteria_.addAll(other.criteria_);
+          }
+          onChanged();
         }
-        case DATASITE: {
-          mergeDataSite(other.getDataSite());
-          break;
+      } else {
+        if (!other.criteria_.isEmpty()) {
+          if (criteriaBuilder_.isEmpty()) {
+            criteriaBuilder_.dispose();
+            criteriaBuilder_ = null;
+            criteria_ = other.criteria_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+            criteriaBuilder_ =
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getCriteriaFieldBuilder() : null;
+          } else {
+            criteriaBuilder_.addAllMessages(other.criteria_);
+          }
         }
-        case SITE_NOT_SET: {
-          break;
-        }
+      }
+      if (other.content_ != 0) {
+        setContentValue(other.getContentValue());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -868,21 +724,7 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
-    private int siteCase_ = 0;
-    private java.lang.Object site_;
-    public SiteCase
-        getSiteCase() {
-      return SiteCase.forNumber(
-          siteCase_);
-    }
-
-    public Builder clearSite() {
-      siteCase_ = 0;
-      site_ = null;
-      onChanged();
-      return this;
-    }
-
+    private int bitField0_;
 
     private int page_ ;
     /**
@@ -970,432 +812,402 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private int area_ = 0;
+    private long sinceVersion_ ;
     /**
      * <pre>
-     * The area of capture - either schema or data (correlates with the site)
+     * Starting point for the search (catalog version)
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
-     * @return The enum numeric value on the wire for area.
+     * <code>int64 sinceVersion = 3;</code>
+     * @return The sinceVersion.
      */
-    @java.lang.Override public int getAreaValue() {
-      return area_;
+    @java.lang.Override
+    public long getSinceVersion() {
+      return sinceVersion_;
     }
     /**
      * <pre>
-     * The area of capture - either schema or data (correlates with the site)
+     * Starting point for the search (catalog version)
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
-     * @param value The enum numeric value on the wire for area to set.
+     * <code>int64 sinceVersion = 3;</code>
+     * @param value The sinceVersion to set.
      * @return This builder for chaining.
      */
-    public Builder setAreaValue(int value) {
+    public Builder setSinceVersion(long value) {
 
-      area_ = value;
+      sinceVersion_ = value;
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * The area of capture - either schema or data (correlates with the site)
+     * Starting point for the search (catalog version)
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
-     * @return The area.
+     * <code>int64 sinceVersion = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearSinceVersion() {
+
+      sinceVersion_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private int sinceIndex_ ;
+    /**
+     * <pre>
+     * Starting point for the search (index of the mutation within catalog version)
+     * </pre>
+     *
+     * <code>int32 sinceIndex = 4;</code>
+     * @return The sinceIndex.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcCaptureArea getArea() {
-      @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcCaptureArea result = io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.valueOf(area_);
-      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.UNRECOGNIZED : result;
+    public int getSinceIndex() {
+      return sinceIndex_;
     }
     /**
      * <pre>
-     * The area of capture - either schema or data (correlates with the site)
+     * Starting point for the search (index of the mutation within catalog version)
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
-     * @param value The area to set.
+     * <code>int32 sinceIndex = 4;</code>
+     * @param value The sinceIndex to set.
      * @return This builder for chaining.
      */
-    public Builder setArea(io.evitadb.externalApi.grpc.generated.GrpcCaptureArea value) {
-      if (value == null) {
-        throw new NullPointerException();
-      }
+    public Builder setSinceIndex(int value) {
 
-      area_ = value.getNumber();
+      sinceIndex_ = value;
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * The area of capture - either schema or data (correlates with the site)
+     * Starting point for the search (index of the mutation within catalog version)
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
+     * <code>int32 sinceIndex = 4;</code>
      * @return This builder for chaining.
      */
-    public Builder clearArea() {
+    public Builder clearSinceIndex() {
 
-      area_ = 0;
+      sinceIndex_ = 0;
       onChanged();
       return this;
     }
 
-    private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSchemaSite, io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcSchemaSiteOrBuilder> schemaSiteBuilder_;
-    /**
-     * <pre>
-     * Criteria for schema capture
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
-     * @return Whether the schemaSite field is set.
-     */
-    @java.lang.Override
-    public boolean hasSchemaSite() {
-      return siteCase_ == 4;
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria> criteria_ =
+      java.util.Collections.emptyList();
+    private void ensureCriteriaIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        criteria_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria>(criteria_);
+        bitField0_ |= 0x00000001;
+       }
     }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder> criteriaBuilder_;
+
     /**
      * <pre>
-     * Criteria for schema capture
+     * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
-     * @return The schemaSite.
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
      */
-    @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcSchemaSite getSchemaSite() {
-      if (schemaSiteBuilder_ == null) {
-        if (siteCase_ == 4) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcSchemaSite) site_;
-        }
-        return io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.getDefaultInstance();
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria> getCriteriaList() {
+      if (criteriaBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(criteria_);
       } else {
-        if (siteCase_ == 4) {
-          return schemaSiteBuilder_.getMessage();
-        }
-        return io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.getDefaultInstance();
+        return criteriaBuilder_.getMessageList();
       }
     }
     /**
      * <pre>
-     * Criteria for schema capture
+     * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
      */
-    public Builder setSchemaSite(io.evitadb.externalApi.grpc.generated.GrpcSchemaSite value) {
-      if (schemaSiteBuilder_ == null) {
+    public int getCriteriaCount() {
+      if (criteriaBuilder_ == null) {
+        return criteria_.size();
+      } else {
+        return criteriaBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * The criteria of the capture, allows to define constraints on the returned mutations
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria getCriteria(int index) {
+      if (criteriaBuilder_ == null) {
+        return criteria_.get(index);
+      } else {
+        return criteriaBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * The criteria of the capture, allows to define constraints on the returned mutations
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+     */
+    public Builder setCriteria(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria value) {
+      if (criteriaBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        site_ = value;
+        ensureCriteriaIsMutable();
+        criteria_.set(index, value);
         onChanged();
       } else {
-        schemaSiteBuilder_.setMessage(value);
+        criteriaBuilder_.setMessage(index, value);
       }
-      siteCase_ = 4;
       return this;
     }
     /**
      * <pre>
-     * Criteria for schema capture
+     * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
      */
-    public Builder setSchemaSite(
-        io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.Builder builderForValue) {
-      if (schemaSiteBuilder_ == null) {
-        site_ = builderForValue.build();
+    public Builder setCriteria(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder builderForValue) {
+      if (criteriaBuilder_ == null) {
+        ensureCriteriaIsMutable();
+        criteria_.set(index, builderForValue.build());
         onChanged();
       } else {
-        schemaSiteBuilder_.setMessage(builderForValue.build());
-      }
-      siteCase_ = 4;
-      return this;
-    }
-    /**
-     * <pre>
-     * Criteria for schema capture
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
-     */
-    public Builder mergeSchemaSite(io.evitadb.externalApi.grpc.generated.GrpcSchemaSite value) {
-      if (schemaSiteBuilder_ == null) {
-        if (siteCase_ == 4 &&
-            site_ != io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.getDefaultInstance()) {
-          site_ = io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSchemaSite) site_)
-              .mergeFrom(value).buildPartial();
-        } else {
-          site_ = value;
-        }
-        onChanged();
-      } else {
-        if (siteCase_ == 4) {
-          schemaSiteBuilder_.mergeFrom(value);
-        }
-        schemaSiteBuilder_.setMessage(value);
-      }
-      siteCase_ = 4;
-      return this;
-    }
-    /**
-     * <pre>
-     * Criteria for schema capture
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
-     */
-    public Builder clearSchemaSite() {
-      if (schemaSiteBuilder_ == null) {
-        if (siteCase_ == 4) {
-          siteCase_ = 0;
-          site_ = null;
-          onChanged();
-        }
-      } else {
-        if (siteCase_ == 4) {
-          siteCase_ = 0;
-          site_ = null;
-        }
-        schemaSiteBuilder_.clear();
+        criteriaBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
     /**
      * <pre>
-     * Criteria for schema capture
+     * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.Builder getSchemaSiteBuilder() {
-      return getSchemaSiteFieldBuilder().getBuilder();
-    }
-    /**
-     * <pre>
-     * Criteria for schema capture
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
-     */
-    @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcSchemaSiteOrBuilder getSchemaSiteOrBuilder() {
-      if ((siteCase_ == 4) && (schemaSiteBuilder_ != null)) {
-        return schemaSiteBuilder_.getMessageOrBuilder();
-      } else {
-        if (siteCase_ == 4) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcSchemaSite) site_;
-        }
-        return io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.getDefaultInstance();
-      }
-    }
-    /**
-     * <pre>
-     * Criteria for schema capture
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 4;</code>
-     */
-    private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSchemaSite, io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcSchemaSiteOrBuilder>
-        getSchemaSiteFieldBuilder() {
-      if (schemaSiteBuilder_ == null) {
-        if (!(siteCase_ == 4)) {
-          site_ = io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.getDefaultInstance();
-        }
-        schemaSiteBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcSchemaSite, io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcSchemaSiteOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcSchemaSite) site_,
-                getParentForChildren(),
-                isClean());
-        site_ = null;
-      }
-      siteCase_ = 4;
-      onChanged();;
-      return schemaSiteBuilder_;
-    }
-
-    private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDataSite, io.evitadb.externalApi.grpc.generated.GrpcDataSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataSiteOrBuilder> dataSiteBuilder_;
-    /**
-     * <pre>
-     * Criteria for data capture
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
-     * @return Whether the dataSite field is set.
-     */
-    @java.lang.Override
-    public boolean hasDataSite() {
-      return siteCase_ == 5;
-    }
-    /**
-     * <pre>
-     * Criteria for data capture
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
-     * @return The dataSite.
-     */
-    @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcDataSite getDataSite() {
-      if (dataSiteBuilder_ == null) {
-        if (siteCase_ == 5) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcDataSite) site_;
-        }
-        return io.evitadb.externalApi.grpc.generated.GrpcDataSite.getDefaultInstance();
-      } else {
-        if (siteCase_ == 5) {
-          return dataSiteBuilder_.getMessage();
-        }
-        return io.evitadb.externalApi.grpc.generated.GrpcDataSite.getDefaultInstance();
-      }
-    }
-    /**
-     * <pre>
-     * Criteria for data capture
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
-     */
-    public Builder setDataSite(io.evitadb.externalApi.grpc.generated.GrpcDataSite value) {
-      if (dataSiteBuilder_ == null) {
+    public Builder addCriteria(io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria value) {
+      if (criteriaBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        site_ = value;
+        ensureCriteriaIsMutable();
+        criteria_.add(value);
         onChanged();
       } else {
-        dataSiteBuilder_.setMessage(value);
+        criteriaBuilder_.addMessage(value);
       }
-      siteCase_ = 5;
       return this;
     }
     /**
      * <pre>
-     * Criteria for data capture
+     * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
      */
-    public Builder setDataSite(
-        io.evitadb.externalApi.grpc.generated.GrpcDataSite.Builder builderForValue) {
-      if (dataSiteBuilder_ == null) {
-        site_ = builderForValue.build();
+    public Builder addCriteria(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria value) {
+      if (criteriaBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureCriteriaIsMutable();
+        criteria_.add(index, value);
         onChanged();
       } else {
-        dataSiteBuilder_.setMessage(builderForValue.build());
+        criteriaBuilder_.addMessage(index, value);
       }
-      siteCase_ = 5;
       return this;
     }
     /**
      * <pre>
-     * Criteria for data capture
+     * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
      */
-    public Builder mergeDataSite(io.evitadb.externalApi.grpc.generated.GrpcDataSite value) {
-      if (dataSiteBuilder_ == null) {
-        if (siteCase_ == 5 &&
-            site_ != io.evitadb.externalApi.grpc.generated.GrpcDataSite.getDefaultInstance()) {
-          site_ = io.evitadb.externalApi.grpc.generated.GrpcDataSite.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcDataSite) site_)
-              .mergeFrom(value).buildPartial();
-        } else {
-          site_ = value;
-        }
+    public Builder addCriteria(
+        io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder builderForValue) {
+      if (criteriaBuilder_ == null) {
+        ensureCriteriaIsMutable();
+        criteria_.add(builderForValue.build());
         onChanged();
       } else {
-        if (siteCase_ == 5) {
-          dataSiteBuilder_.mergeFrom(value);
-        }
-        dataSiteBuilder_.setMessage(value);
-      }
-      siteCase_ = 5;
-      return this;
-    }
-    /**
-     * <pre>
-     * Criteria for data capture
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
-     */
-    public Builder clearDataSite() {
-      if (dataSiteBuilder_ == null) {
-        if (siteCase_ == 5) {
-          siteCase_ = 0;
-          site_ = null;
-          onChanged();
-        }
-      } else {
-        if (siteCase_ == 5) {
-          siteCase_ = 0;
-          site_ = null;
-        }
-        dataSiteBuilder_.clear();
+        criteriaBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
     /**
      * <pre>
-     * Criteria for data capture
+     * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcDataSite.Builder getDataSiteBuilder() {
-      return getDataSiteFieldBuilder().getBuilder();
+    public Builder addCriteria(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder builderForValue) {
+      if (criteriaBuilder_ == null) {
+        ensureCriteriaIsMutable();
+        criteria_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        criteriaBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
     }
     /**
      * <pre>
-     * Criteria for data capture
+     * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
      */
-    @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcDataSiteOrBuilder getDataSiteOrBuilder() {
-      if ((siteCase_ == 5) && (dataSiteBuilder_ != null)) {
-        return dataSiteBuilder_.getMessageOrBuilder();
+    public Builder addAllCriteria(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria> values) {
+      if (criteriaBuilder_ == null) {
+        ensureCriteriaIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, criteria_);
+        onChanged();
       } else {
-        if (siteCase_ == 5) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcDataSite) site_;
-        }
-        return io.evitadb.externalApi.grpc.generated.GrpcDataSite.getDefaultInstance();
+        criteriaBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The criteria of the capture, allows to define constraints on the returned mutations
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+     */
+    public Builder clearCriteria() {
+      if (criteriaBuilder_ == null) {
+        criteria_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
+        onChanged();
+      } else {
+        criteriaBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The criteria of the capture, allows to define constraints on the returned mutations
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+     */
+    public Builder removeCriteria(int index) {
+      if (criteriaBuilder_ == null) {
+        ensureCriteriaIsMutable();
+        criteria_.remove(index);
+        onChanged();
+      } else {
+        criteriaBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The criteria of the capture, allows to define constraints on the returned mutations
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder getCriteriaBuilder(
+        int index) {
+      return getCriteriaFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * The criteria of the capture, allows to define constraints on the returned mutations
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder getCriteriaOrBuilder(
+        int index) {
+      if (criteriaBuilder_ == null) {
+        return criteria_.get(index);  } else {
+        return criteriaBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
      * <pre>
-     * Criteria for data capture
+     * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
      */
-    private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDataSite, io.evitadb.externalApi.grpc.generated.GrpcDataSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataSiteOrBuilder>
-        getDataSiteFieldBuilder() {
-      if (dataSiteBuilder_ == null) {
-        if (!(siteCase_ == 5)) {
-          site_ = io.evitadb.externalApi.grpc.generated.GrpcDataSite.getDefaultInstance();
-        }
-        dataSiteBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcDataSite, io.evitadb.externalApi.grpc.generated.GrpcDataSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataSiteOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcDataSite) site_,
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder>
+         getCriteriaOrBuilderList() {
+      if (criteriaBuilder_ != null) {
+        return criteriaBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(criteria_);
+      }
+    }
+    /**
+     * <pre>
+     * The criteria of the capture, allows to define constraints on the returned mutations
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder addCriteriaBuilder() {
+      return getCriteriaFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * The criteria of the capture, allows to define constraints on the returned mutations
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder addCriteriaBuilder(
+        int index) {
+      return getCriteriaFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * The criteria of the capture, allows to define constraints on the returned mutations
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder>
+         getCriteriaBuilderList() {
+      return getCriteriaFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder>
+        getCriteriaFieldBuilder() {
+      if (criteriaBuilder_ == null) {
+        criteriaBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder>(
+                criteria_,
+                ((bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        site_ = null;
+        criteria_ = null;
       }
-      siteCase_ = 5;
-      onChanged();;
-      return dataSiteBuilder_;
+      return criteriaBuilder_;
     }
 
     private int content_ = 0;
@@ -1468,92 +1280,6 @@ private static final long serialVersionUID = 0L;
     public Builder clearContent() {
 
       content_ = 0;
-      onChanged();
-      return this;
-    }
-
-    private long sinceVersion_ ;
-    /**
-     * <pre>
-     * Starting point for the search (catalog version)
-     * </pre>
-     *
-     * <code>int64 sinceVersion = 7;</code>
-     * @return The sinceVersion.
-     */
-    @java.lang.Override
-    public long getSinceVersion() {
-      return sinceVersion_;
-    }
-    /**
-     * <pre>
-     * Starting point for the search (catalog version)
-     * </pre>
-     *
-     * <code>int64 sinceVersion = 7;</code>
-     * @param value The sinceVersion to set.
-     * @return This builder for chaining.
-     */
-    public Builder setSinceVersion(long value) {
-
-      sinceVersion_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Starting point for the search (catalog version)
-     * </pre>
-     *
-     * <code>int64 sinceVersion = 7;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearSinceVersion() {
-
-      sinceVersion_ = 0L;
-      onChanged();
-      return this;
-    }
-
-    private int sinceIndex_ ;
-    /**
-     * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
-     * </pre>
-     *
-     * <code>int32 sinceIndex = 8;</code>
-     * @return The sinceIndex.
-     */
-    @java.lang.Override
-    public int getSinceIndex() {
-      return sinceIndex_;
-    }
-    /**
-     * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
-     * </pre>
-     *
-     * <code>int32 sinceIndex = 8;</code>
-     * @param value The sinceIndex to set.
-     * @return This builder for chaining.
-     */
-    public Builder setSinceIndex(int value) {
-
-      sinceIndex_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
-     * </pre>
-     *
-     * <code>int32 sinceIndex = 8;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearSinceIndex() {
-
-      sinceIndex_ = 0;
       onChanged();
       return this;
     }

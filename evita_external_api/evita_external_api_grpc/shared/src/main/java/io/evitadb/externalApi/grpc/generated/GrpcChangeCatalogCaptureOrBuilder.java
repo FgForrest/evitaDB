@@ -104,7 +104,7 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
    * @return The enum numeric value on the wire for operation.
    */
   int getOperationValue();
@@ -113,10 +113,10 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
    * @return The operation.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcOperation getOperation();
+  io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation getOperation();
 
   /**
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 6;</code>

@@ -416,11 +416,12 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * the catalog to the given version. The stream goes through all the mutations in this transaction from last to
 	 * first one and continues backward with previous transaction after that until the beginning of the WAL.
 	 *
-	 * @param catalogVersion version of the catalog to start the stream with
+	 * @param catalogVersion version of the catalog to start the stream with, if null is provided then the stream will
+	 *                       start with the last transaction in the WAL
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion);
+	Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition

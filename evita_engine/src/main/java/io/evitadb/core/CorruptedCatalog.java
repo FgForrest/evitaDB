@@ -226,7 +226,7 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion) {
+	public Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
 		throw new CatalogCorruptedException(this);
 	}
 

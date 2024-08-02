@@ -52,6 +52,25 @@ public abstract class MutationPredicate implements Predicate<Mutation> {
 
 	/**
 	 * Returns a composed predicate that represents a short-circuiting logical
+	 * OR of one predicate with another. When evaluating the composed
+	 * predicate, if this predicate is {@code true}, then the {@code other}
+	 * predicate is not evaluated.
+	 *
+	 * <p>Any exceptions thrown during evaluation of either predicate are relayed
+	 * to the caller; if evaluation of this predicate throws an exception, the
+	 * {@code other} predicate will not be evaluated.
+	 *
+	 * @param predicates a predicates that will be logically-ORed with
+	 * @return a composed predicate that represents the short-circuiting logical OR of one predicate and others
+	 * @throws NullPointerException if other is null
+	 */
+	@Nonnull
+	public static MutationPredicate or(@Nonnull MutationPredicate... predicates) {
+		return new OrMutationPredicate(predicates);
+	}
+
+	/**
+	 * Returns a composed predicate that represents a short-circuiting logical
 	 * AND of this predicate and another.  When evaluating the composed
 	 * predicate, if this predicate is {@code false}, then the {@code other}
 	 * predicate is not evaluated.
@@ -92,6 +111,34 @@ public abstract class MutationPredicate implements Predicate<Mutation> {
 		@Override
 		public boolean test(Mutation mutation) {
 			return former.test(mutation) && other.test(mutation);
+		}
+	}
+
+	/**
+	 * Returns a composed predicate that represents a short-circuiting logical OR of this predicate and another.
+	 */
+	private static class OrMutationPredicate extends MutationPredicate {
+		private final MutationPredicate[] predicates;
+
+		public OrMutationPredicate(@Nonnull MutationPredicate... predicates) {
+			super(predicates[0].getContext());
+			this.predicates = predicates;
+			for (int i = 1; i < predicates.length; i++) {
+				Assert.isPremiseValid(
+					predicates[i].getContext().equals(predicates[0].getContext()),
+					"Contexts of the predicates must be the same"
+				);
+			}
+		}
+
+		@Override
+		public boolean test(Mutation mutation) {
+			for (MutationPredicate predicate : this.predicates) {
+				if (predicate.test(mutation)) {
+					return true;
+				}
+			}
+			return false;
 		}
 	}
 }

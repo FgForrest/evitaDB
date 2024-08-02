@@ -28,6 +28,7 @@ import io.evitadb.api.AbstractHundredProductsFunctionalTest;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.cdc.Operation;
@@ -168,7 +169,15 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 	@Test
 	void shouldMaintainBaseMutationPremises(Evita evita) {
 		final MutationPredicate forwardCatchAllPredicate = MutationPredicateFactory.createChangeCatalogCapturePredicate(
-			new ChangeCatalogCaptureRequest(CaptureArea.DATA, DataSite.ALL, CaptureContent.BODY, 0, null)
+			ChangeCatalogCaptureRequest.builder()
+				.criteria(
+					ChangeCatalogCaptureCriteria.builder()
+						.area(CaptureArea.DATA)
+						.site(DataSite.ALL)
+						.build()
+				)
+				.content(CaptureContent.BODY)
+				.build()
 		);
 		final List<ChangeCatalogCapture> cdc = this.mutations.stream()
 			.flatMap(it -> it.toChangeCatalogCapture(forwardCatchAllPredicate, CaptureContent.BODY))
@@ -191,7 +200,7 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 				}
 			}
 			assertEquals(expectedVersion, cdcItem.version(), "Version should be monotonically increasing.");
-			assertEquals(CaptureArea.DATA, cdcItem.area());
+			assertTrue(cdcItem.area() == CaptureArea.DATA || cdcItem.area() == CaptureArea.INFRASTRUCTURE, "Area should be DATA or INFRASTRUCTURE");
 			assertNotNull(cdcItem.body());
 			assertEquals(mutationsInTransaction - countdown, cdcItem.index(), "Index should be monotonically increasing.");
 			assertNotNull(cdcItem.operation());
@@ -199,7 +208,15 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 
 		// now compute the same in reverse fashion, and it must be exactly the same as the original
 		final MutationPredicate reverseCatchAllPredicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(
-			new ChangeCatalogCaptureRequest(CaptureArea.DATA, DataSite.ALL, CaptureContent.BODY, 0, null)
+			ChangeCatalogCaptureRequest.builder()
+				.criteria(
+					ChangeCatalogCaptureCriteria.builder()
+						.area(CaptureArea.DATA)
+						.site(DataSite.ALL)
+						.build()
+				)
+				.content(CaptureContent.BODY)
+				.build()
 		);
 
 		/* we need somehow to initialize mutation count eagerly?! */

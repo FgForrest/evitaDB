@@ -432,7 +432,7 @@ class CatalogWriteAheadLogIntegrationTest {
 			txRead++;
 			final List<Mutation> mutationsInTx = txInMutations.get(catalogVersion);
 			TransactionMutation transactionMutation = null;
-			for (int i = mutationsInTx.size(); i > 1; i--) {
+			for (int i = mutationsInTx.size(); i > 0; i--) {
 				final Mutation mutationInTx = mutationIterator.next();
 				if (mutationInTx instanceof TransactionMutation txMut) {
 					transactionMutation = txMut;

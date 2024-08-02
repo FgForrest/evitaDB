@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationAggregateConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
@@ -59,11 +60,11 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class EntitySchemaMutationAggregateConverter extends MutationAggregateConverter<EntitySchemaMutation, SchemaMutationConverter<? extends EntitySchemaMutation>> {
+public class EntitySchemaMutationAggregateConverter extends MutationAggregateConverter<LocalEntitySchemaMutation, SchemaMutationConverter<? extends LocalEntitySchemaMutation>> {
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final Map<String, SchemaMutationConverter<? extends EntitySchemaMutation>> resolvers = createHashMap(55);
+	private final Map<String, SchemaMutationConverter<? extends LocalEntitySchemaMutation>> resolvers = createHashMap(55);
 
 	public EntitySchemaMutationAggregateConverter(@Nonnull MutationObjectParser objectParser,
 	                                              @Nonnull MutationResolvingExceptionFactory exceptionFactory) {

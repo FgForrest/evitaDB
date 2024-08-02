@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
 import lombok.experimental.Delegate;
@@ -52,7 +52,7 @@ public final class EntityAttributeSchemaBuilder
 	extends AbstractAttributeSchemaBuilder<EntityAttributeSchemaEditor.EntityAttributeSchemaBuilder, EntityAttributeSchemaContract>
 	implements EntityAttributeSchemaEditor.EntityAttributeSchemaBuilder {
 	@Serial private static final long serialVersionUID = 3063509427974161687L;
-	private final List<EntitySchemaMutation> mutations = new LinkedList<>();
+	private final List<LocalEntitySchemaMutation> mutations = new LinkedList<>();
 
 	EntityAttributeSchemaBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -123,12 +123,12 @@ public final class EntityAttributeSchemaBuilder
 	@Override
 	protected MutationImpact addMutations(@Nonnull AttributeSchemaMutation mutation) {
 		return addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations, (EntitySchemaMutation) mutation
+			this.catalogSchema, this.entitySchema, this.mutations, (LocalEntitySchemaMutation) mutation
 		);
 	}
 
 	@Nonnull
-	public Collection<EntitySchemaMutation> toMutation() {
+	public Collection<LocalEntitySchemaMutation> toMutation() {
 		return this.mutations;
 	}
 

@@ -43,21 +43,14 @@ message GetMutationsHistoryPageRequest {
   int32 page = 1;
   // The size of the page to return
   int32 pageSize = 2;
-  // The area of capture - either schema or data (correlates with the site)
-  GrpcCaptureArea area = 3;
-  // The specific requirements for the designated area
-  oneof site {
-    // Criteria for schema capture
-    GrpcSchemaSite schemaSite = 4;
-    // Criteria for data capture
-    GrpcDataSite dataSite = 5;
-  }
+  // Starting point for the search (catalog version)
+  int64 sinceVersion = 3;
+  // Starting point for the search (index of the mutation within catalog version)
+  int32 sinceIndex = 4;
+  // The criteria of the capture, allows to define constraints on the returned mutations
+  repeated GrpcCaptureCriteria criteria = 5;
   // The scope of the returned data - either header of the mutation, or the whole mutation
   GrpcCaptureContent content = 6;
-  // Starting point for the search (catalog version)
-  int64 sinceVersion = 7;
-  // Starting point for the search (index of the mutation within catalog version)
-  int32 sinceIndex = 8;
 }
 
 // Response to GetMutationsHistoryPage request.
@@ -68,21 +61,14 @@ message GetMutationsHistoryPageResponse {
 
 // Request to GetMutationsHistoryPage request.
 message GetMutationsHistoryRequest {
-  // The area of capture - either schema or data (correlates with the site)
-  GrpcCaptureArea area = 1;
-  // The specific requirements for the designated area
-  oneof site {
-    // Criteria for schema capture
-    GrpcSchemaSite schemaSite = 2;
-    // Criteria for data capture
-    GrpcDataSite dataSite = 3;
-  }
+  // Starting point for the search (catalog version)
+  google.protobuf.Int64Value sinceVersion = 1;
+  // Starting point for the search (index of the mutation within catalog version)
+  google.protobuf.Int32Value sinceIndex = 2;
+  // The criteria of the capture, allows to define constraints on the returned mutations
+  repeated GrpcCaptureCriteria criteria = 3;
   // The scope of the returned data - either header of the mutation, or the whole mutation
   GrpcCaptureContent content = 4;
-  // Starting point for the search (catalog version)
-  int64 sinceVersion = 5;
-  // Starting point for the search (index of the mutation within catalog version)
-  int32 sinceIndex = 6;
 }
 
 // Response to GetMutationsHistory request.

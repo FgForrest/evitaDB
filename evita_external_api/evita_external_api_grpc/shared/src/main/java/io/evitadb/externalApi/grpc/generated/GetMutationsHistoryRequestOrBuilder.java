@@ -32,76 +32,101 @@ public interface GetMutationsHistoryRequestOrBuilder extends
 
   /**
    * <pre>
-   * The area of capture - either schema or data (correlates with the site)
+   * Starting point for the search (catalog version)
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 1;</code>
-   * @return The enum numeric value on the wire for area.
+   * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+   * @return Whether the sinceVersion field is set.
    */
-  int getAreaValue();
+  boolean hasSinceVersion();
   /**
    * <pre>
-   * The area of capture - either schema or data (correlates with the site)
+   * Starting point for the search (catalog version)
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 1;</code>
-   * @return The area.
+   * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+   * @return The sinceVersion.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCaptureArea getArea();
+  com.google.protobuf.Int64Value getSinceVersion();
+  /**
+   * <pre>
+   * Starting point for the search (catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+   */
+  com.google.protobuf.Int64ValueOrBuilder getSinceVersionOrBuilder();
 
   /**
    * <pre>
-   * Criteria for schema capture
+   * Starting point for the search (index of the mutation within catalog version)
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 2;</code>
-   * @return Whether the schemaSite field is set.
+   * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+   * @return Whether the sinceIndex field is set.
    */
-  boolean hasSchemaSite();
+  boolean hasSinceIndex();
   /**
    * <pre>
-   * Criteria for schema capture
+   * Starting point for the search (index of the mutation within catalog version)
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 2;</code>
-   * @return The schemaSite.
+   * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+   * @return The sinceIndex.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcSchemaSite getSchemaSite();
+  com.google.protobuf.Int32Value getSinceIndex();
   /**
    * <pre>
-   * Criteria for schema capture
+   * Starting point for the search (index of the mutation within catalog version)
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSchemaSite schemaSite = 2;</code>
+   * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcSchemaSiteOrBuilder getSchemaSiteOrBuilder();
+  com.google.protobuf.Int32ValueOrBuilder getSinceIndexOrBuilder();
 
   /**
    * <pre>
-   * Criteria for data capture
+   * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 3;</code>
-   * @return Whether the dataSite field is set.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
    */
-  boolean hasDataSite();
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria>
+      getCriteriaList();
   /**
    * <pre>
-   * Criteria for data capture
+   * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 3;</code>
-   * @return The dataSite.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcDataSite getDataSite();
+  io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria getCriteria(int index);
   /**
    * <pre>
-   * Criteria for data capture
+   * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataSite dataSite = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcDataSiteOrBuilder getDataSiteOrBuilder();
+  int getCriteriaCount();
+  /**
+   * <pre>
+   * The criteria of the capture, allows to define constraints on the returned mutations
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder>
+      getCriteriaOrBuilderList();
+  /**
+   * <pre>
+   * The criteria of the capture, allows to define constraints on the returned mutations
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder getCriteriaOrBuilder(
+      int index);
 
   /**
    * <pre>
@@ -121,26 +146,4 @@ public interface GetMutationsHistoryRequestOrBuilder extends
    * @return The content.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCaptureContent getContent();
-
-  /**
-   * <pre>
-   * Starting point for the search (catalog version)
-   * </pre>
-   *
-   * <code>int64 sinceVersion = 5;</code>
-   * @return The sinceVersion.
-   */
-  long getSinceVersion();
-
-  /**
-   * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
-   * </pre>
-   *
-   * <code>int32 sinceIndex = 6;</code>
-   * @return The sinceIndex.
-   */
-  int getSinceIndex();
-
-  public io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest.SiteCase getSiteCase();
 }

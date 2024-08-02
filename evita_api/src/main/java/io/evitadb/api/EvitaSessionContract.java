@@ -1021,12 +1021,15 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 *
 	 * !!! Important: remember to close the stream after you are done with it to release the resources
 	 *
-	 * @param criteria request that specifies the criteria for the changes to be returned
+	 * @param request request that specifies the criteria for the changes to be returned, multiple criteria definitions
+	 *                 are combined with logical OR
 	 * @return stream of change data captures that match the specified criteria in reversed order
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
 	 */
 	@Nonnull
-	Stream<ChangeCatalogCapture> getMutationsHistory(@Nonnull ChangeCatalogCaptureRequest criteria) throws TemporalDataNotAvailableException;
+	Stream<ChangeCatalogCapture> getMutationsHistory(
+		@Nonnull ChangeCatalogCaptureRequest request
+	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.

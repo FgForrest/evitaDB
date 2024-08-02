@@ -23,10 +23,14 @@
 
 package io.evitadb.core.cdc.predicate;
 
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.ContainerType;
 
 import javax.annotation.Nonnull;
@@ -36,17 +40,24 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class SingleClassifierTypePredicate extends MutationPredicate {
+public class SingleContainerTypePredicate extends MutationPredicate {
 	private final ContainerType containerType;
 
-	public SingleClassifierTypePredicate(@Nonnull MutationPredicateContext context, @Nonnull ContainerType containerType) {
+	public SingleContainerTypePredicate(@Nonnull MutationPredicateContext context, @Nonnull ContainerType containerType) {
 		super(context);
 		this.containerType = containerType;
 	}
 
 	@Override
 	public boolean test(Mutation mutation) {
-		return mutation instanceof LocalMutation<?, ?> localMutation &&
-			this.containerType == localMutation.containerType();
+		if (mutation instanceof LocalMutation<?, ?> localMutation) {
+			return this.containerType == localMutation.containerType();
+		} else if (mutation instanceof EntityMutation || (mutation instanceof EntitySchemaMutation && !(mutation instanceof LocalEntitySchemaMutation))) {
+			return this.containerType == ContainerType.ENTITY;
+		} else if (mutation instanceof CatalogSchemaMutation) {
+			return this.containerType == ContainerType.CATALOG;
+		} else {
+			return false;
+		}
 	}
 }

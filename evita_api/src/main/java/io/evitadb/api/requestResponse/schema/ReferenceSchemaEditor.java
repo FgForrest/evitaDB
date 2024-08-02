@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
@@ -116,7 +117,7 @@ public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>> exten
 		 * conditions based on "optimistic locking" mechanism in very granular way.
 		 */
 		@Nonnull
-		Collection<EntitySchemaMutation> toMutation();
+		Collection<LocalEntitySchemaMutation> toMutation();
 
 	}
 }

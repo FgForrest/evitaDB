@@ -26,7 +26,7 @@ package io.evitadb.core.transaction.stage.mutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -50,7 +50,7 @@ public class VerifiedEntityRemoveMutation extends EntityRemoveMutation {
 
 	@Nonnull
 	@Override
-	public Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
+	public Optional<LocalEntitySchemaMutation[]> verifyOrEvolveSchema(
 		@Nonnull SealedCatalogSchema catalogSchema,
 		@Nonnull SealedEntitySchema entitySchema,
 		boolean entityCollectionEmpty

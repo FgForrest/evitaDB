@@ -861,13 +861,13 @@ public class EvitaEnumConverter {
 	}
 
 	/**
-	 * Converts a {@link GrpcOperation} to an {@link Operation}.
+	 * Converts a {@link GrpcCaptureOperation} to an {@link Operation}.
 	 *
-	 * @param grpcOperation The {@link GrpcOperation} to convert.
+	 * @param grpcOperation The {@link GrpcCaptureOperation} to convert.
 	 * @return The converted {@link Operation}.
 	 */
 	@Nonnull
-	public static Operation toOperation(@Nonnull GrpcOperation grpcOperation) {
+	public static Operation toOperation(@Nonnull GrpcCaptureOperation grpcOperation) {
 		return switch (grpcOperation) {
 			case UPSERT -> Operation.UPSERT;
 			case REMOVE -> Operation.REMOVE;
@@ -877,52 +877,52 @@ public class EvitaEnumConverter {
 	}
 
 	/**
-	 * Converts an {@link Operation} to a {@link GrpcOperation}.
+	 * Converts an {@link Operation} to a {@link GrpcCaptureOperation}.
 	 * @param operation The Operation to convert.
 	 * @return The converted GrpcOperation.
 	 */
 	@Nonnull
-	public static GrpcOperation toGrpcOperation(@Nonnull Operation operation) {
+	public static GrpcCaptureOperation toGrpcOperation(@Nonnull Operation operation) {
 		return switch (operation) {
-			case UPSERT -> GrpcOperation.UPSERT;
-			case REMOVE -> GrpcOperation.REMOVE;
-			case TRANSACTION -> GrpcOperation.TRANSACTION;
+			case UPSERT -> GrpcCaptureOperation.UPSERT;
+			case REMOVE -> GrpcCaptureOperation.REMOVE;
+			case TRANSACTION -> GrpcCaptureOperation.TRANSACTION;
 		};
 	}
 
 	/**
-	 * Converts a {@link GrpcContainerType} to a {@link ContainerType}.
+	 * Converts a {@link GrpcCaptureContainerType} to a {@link ContainerType}.
 	 *
-	 * @param grpcContainerType The {@link GrpcContainerType} to convert.
+	 * @param GrpcCaptureContainerType The {@link GrpcCaptureContainerType} to convert.
 	 * @return The converted {@link ContainerType}.
 	 */
 	@Nonnull
-	public static ContainerType toContainerType(@Nonnull GrpcContainerType grpcContainerType) {
-		return switch (grpcContainerType) {
+	public static ContainerType toContainerType(@Nonnull GrpcCaptureContainerType GrpcCaptureContainerType) {
+		return switch (GrpcCaptureContainerType) {
 			case CONTAINER_CATALOG -> ContainerType.CATALOG;
 			case CONTAINER_ENTITY -> ContainerType.ENTITY;
 			case CONTAINER_ATTRIBUTE -> ContainerType.ATTRIBUTE;
 			case CONTAINER_ASSOCIATED_DATA -> ContainerType.ASSOCIATED_DATA;
 			case CONTAINER_REFERENCE -> ContainerType.REFERENCE;
 			case CONTAINER_PRICE -> ContainerType.PRICE;
-			default -> throw new GenericEvitaInternalError("Unrecognized container type: " + grpcContainerType);
+			default -> throw new GenericEvitaInternalError("Unrecognized container type: " + GrpcCaptureContainerType);
 		};
 	}
 
 	/**
-	 * Converts a {@link ContainerType} to a {@link GrpcContainerType}.
+	 * Converts a {@link ContainerType} to a {@link GrpcCaptureContainerType}.
 	 * @param containerType The ContainerType to convert.
-	 * @return The converted GrpcContainerType.
+	 * @return The converted GrpcCaptureContainerType.
 	 */
 	@Nonnull
-	public static GrpcContainerType toGrpcContainerType(@Nonnull ContainerType containerType) {
+	public static GrpcCaptureContainerType toGrpcCaptureContainerType(@Nonnull ContainerType containerType) {
 		return switch (containerType) {
-			case CATALOG -> GrpcContainerType.CONTAINER_CATALOG;
-			case ENTITY -> GrpcContainerType.CONTAINER_ENTITY;
-			case ATTRIBUTE -> GrpcContainerType.CONTAINER_ATTRIBUTE;
-			case ASSOCIATED_DATA -> GrpcContainerType.CONTAINER_ASSOCIATED_DATA;
-			case REFERENCE -> GrpcContainerType.CONTAINER_REFERENCE;
-			case PRICE -> GrpcContainerType.CONTAINER_PRICE;
+			case CATALOG -> GrpcCaptureContainerType.CONTAINER_CATALOG;
+			case ENTITY -> GrpcCaptureContainerType.CONTAINER_ENTITY;
+			case ATTRIBUTE -> GrpcCaptureContainerType.CONTAINER_ATTRIBUTE;
+			case ASSOCIATED_DATA -> GrpcCaptureContainerType.CONTAINER_ASSOCIATED_DATA;
+			case REFERENCE -> GrpcCaptureContainerType.CONTAINER_REFERENCE;
+			case PRICE -> GrpcCaptureContainerType.CONTAINER_PRICE;
 		};
 	}
 

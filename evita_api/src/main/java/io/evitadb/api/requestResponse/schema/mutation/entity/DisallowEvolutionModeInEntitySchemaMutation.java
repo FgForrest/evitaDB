@@ -29,8 +29,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -49,7 +49,7 @@ import java.util.stream.Stream;
 /**
  * Mutation is responsible for removing one or more evolution modes to a {@link EntitySchemaContract#getEvolutionMode()}
  * in {@link EntitySchemaContract}.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * or negative mutation {@link DisallowEvolutionModeInEntitySchemaMutation} if those mutation are present in the mutation pipeline
  * multiple times.
  *
@@ -58,7 +58,7 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableEntitySchemaMutation {
+public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 1246857825698363659L;
 	@Getter private final Set<EvolutionMode> evolutionModes;
 
@@ -74,7 +74,11 @@ public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableEn
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
 		if (existingMutation instanceof DisallowEvolutionModeInEntitySchemaMutation disallowEvolutionModeInEntitySchema) {
 			return new MutationCombinationResult<>(
 				null,

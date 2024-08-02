@@ -29,27 +29,23 @@ import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
- * Predicate filters out only mutations that are related to local mutations that target classifier with particular name
- * in provided set.
+ * Predicate filters out only mutations that are related to local mutations that target classifier with a particular name.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class ClassifierNamePredicate extends MutationPredicate {
-	private final Set<String> classifierName;
+public class SingleContainerNamePredicate extends MutationPredicate {
+	private final String classifierName;
 
-	public ClassifierNamePredicate(@Nonnull MutationPredicateContext context, @Nonnull String... classifierName) {
+	public SingleContainerNamePredicate(@Nonnull MutationPredicateContext context, @Nonnull String classifierName) {
 		super(context);
-		this.classifierName = new HashSet<>(Arrays.asList(classifierName));
+		this.classifierName = classifierName;
 	}
 
 	@Override
 	public boolean test(Mutation mutation) {
 		return !(mutation instanceof NamedLocalMutation<?, ?> localMutation) ||
-			this.classifierName.contains(localMutation.classifierName());
+			this.classifierName.equals(localMutation.classifierName());
 	}
 }

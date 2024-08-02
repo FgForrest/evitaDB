@@ -23,12 +23,13 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog;
 
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -47,10 +48,12 @@ public class ModifyEntitySchemaMutationConverter implements SchemaMutationConver
 
 	@Nonnull
 	public ModifyEntitySchemaMutation convert(@Nonnull GrpcModifyEntitySchemaMutation mutation) {
-		final EntitySchemaMutation[] entitySchemaMutations = mutation.getEntitySchemaMutationsList()
+		final LocalEntitySchemaMutation[] entitySchemaMutations = mutation.getEntitySchemaMutationsList()
 			.stream()
 			.map(DelegatingEntitySchemaMutationConverter.INSTANCE::convert)
-			.toArray(EntitySchemaMutation[]::new);
+			.peek(m -> Assert.isTrue(m instanceof LocalEntitySchemaMutation, "Expected LocalEntitySchemaMutation"))
+			.map(LocalEntitySchemaMutation.class::cast)
+			.toArray(LocalEntitySchemaMutation[]::new);
 
 		return new ModifyEntitySchemaMutation(
 			mutation.getEntityType(),

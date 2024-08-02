@@ -26,8 +26,8 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcSchemaSiteOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcSchemaSite)
+public interface GrpcCaptureSchemaSiteOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcCaptureSchemaSite)
     com.google.protobuf.MessageOrBuilder {
 
   /**
@@ -62,16 +62,16 @@ public interface GrpcSchemaSiteOrBuilder extends
    * The intercepted type of operation
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 2;</code>
    * @return A list containing the operation.
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcOperation> getOperationList();
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation> getOperationList();
   /**
    * <pre>
    * The intercepted type of operation
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 2;</code>
    * @return The count of operation.
    */
   int getOperationCount();
@@ -80,17 +80,17 @@ public interface GrpcSchemaSiteOrBuilder extends
    * The intercepted type of operation
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 2;</code>
    * @param index The index of the element to return.
    * @return The operation at the given index.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcOperation getOperation(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation getOperation(int index);
   /**
    * <pre>
    * The intercepted type of operation
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 2;</code>
    * @return A list containing the enum numeric values on the wire for operation.
    */
   java.util.List<java.lang.Integer>
@@ -100,9 +100,58 @@ public interface GrpcSchemaSiteOrBuilder extends
    * The intercepted type of operation
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 2;</code>
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of operation at the given index.
    */
   int getOperationValue(int index);
+
+  /**
+   * <pre>
+   * the name of the intercepted container type
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 3;</code>
+   * @return A list containing the containerType.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType> getContainerTypeList();
+  /**
+   * <pre>
+   * the name of the intercepted container type
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 3;</code>
+   * @return The count of containerType.
+   */
+  int getContainerTypeCount();
+  /**
+   * <pre>
+   * the name of the intercepted container type
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 3;</code>
+   * @param index The index of the element to return.
+   * @return The containerType at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType getContainerType(int index);
+  /**
+   * <pre>
+   * the name of the intercepted container type
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 3;</code>
+   * @return A list containing the enum numeric values on the wire for containerType.
+   */
+  java.util.List<java.lang.Integer>
+  getContainerTypeValueList();
+  /**
+   * <pre>
+   * the name of the intercepted container type
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 3;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of containerType at the given index.
+   */
+  int getContainerTypeValue(int index);
 }

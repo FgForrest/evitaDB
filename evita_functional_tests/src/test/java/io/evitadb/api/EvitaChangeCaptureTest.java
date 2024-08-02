@@ -30,9 +30,14 @@ import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.DataSite;
+import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.ContainerType;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +50,9 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -61,7 +68,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 
 	private static void createSchema(@Nonnull EvitaSessionContract session) {
 		session.defineEntitySchema(Entities.BRAND)
-			.withGeneratedPrimaryKey()
+			.withoutGeneratedPrimaryKey()
 			.withAttribute(ATTRIBUTE_NAME, String.class)
 			.updateVia(session);
 
@@ -132,7 +139,11 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
-					.area(CaptureArea.SCHEMA)
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.SCHEMA)
+							.build()
+					)
 					.content(CaptureContent.BODY)
 					.build()
 			).toList();
@@ -144,6 +155,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					reverseCapture.index() <= index,
 					"Index " + reverseCapture.index() + " is not greater than " + index + " for " + reverseCapture
 				);
+				assertEquals(CaptureArea.SCHEMA, reverseCapture.area());
 				index = reverseCapture.index();
 			}
 		}
@@ -151,42 +163,192 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 
 	@Test
 	void shouldCaptureDataMutationsInAliveStage() {
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			session.goLiveAndClose();
+		}
 
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			createSchema(session);
+			createDataInSchema(session);
+		}
+
+		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.DATA)
+							.build()
+					)
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+			assertEquals(8, reverseCaptures.size());
+
+			int index = Integer.MAX_VALUE;
+			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
+				assertTrue(
+					reverseCapture.index() <= index,
+					"Index " + reverseCapture.index() + " is not greater than " + index + " for " + reverseCapture
+				);
+				assertEquals(CaptureArea.DATA, reverseCapture.area());
+				index = reverseCapture.index();
+			}
+		}
+	}
+
+	@Test
+	void shouldCaptureDataAndInfrastructureMutationsInAliveStage() {
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			session.goLiveAndClose();
+		}
+
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			createSchema(session);
+			createDataInSchema(session);
+		}
+
+		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.DATA)
+							.build(),
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.INFRASTRUCTURE)
+							.build()
+					)
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+			assertEquals(9, reverseCaptures.size());
+
+			// first mutation is transaction boundary mutation
+			assertInstanceOf(TransactionMutation.class, reverseCaptures.get(0).body());
+
+			int index = Integer.MAX_VALUE;
+			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
+				assertTrue(
+					index == 0 || reverseCapture.index() <= index,
+					"Index " + reverseCapture.index() + " is not greater than " + index + " for " + reverseCapture
+				);
+				assertTrue(reverseCapture.area() == CaptureArea.DATA || reverseCapture.area() == CaptureArea.INFRASTRUCTURE);
+				index = reverseCapture.index();
+			}
+		}
 	}
 
 	@Test
 	void shouldCombineBothDataAndSchemaMutations() {
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			session.goLiveAndClose();
+		}
 
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			createSchema(session);
+			createDataInSchema(session);
+		}
+
+		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+			assertEquals(19, reverseCaptures.size());
+
+			// first mutation is transaction boundary mutation
+			assertInstanceOf(TransactionMutation.class, reverseCaptures.get(0).body());
+
+			int index = Integer.MAX_VALUE;
+			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
+				assertTrue(
+					index == 0 || reverseCapture.index() <= index,
+					"Index " + reverseCapture.index() + " is not greater than " + index + " for " + reverseCapture
+				);
+				index = reverseCapture.index();
+			}
+		}
 	}
 
 	@Test
 	void shouldFocusOnReplicableMutations() {
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			session.goLiveAndClose();
+		}
 
+		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+			createSchema(session);
+			createDataInSchema(session);
+		}
+
+		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
+				ChangeCatalogCaptureRequest.builder()
+					.criteria(
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.DATA)
+							.site(
+								DataSite.builder()
+									.containerType(ContainerType.ENTITY)
+									.build()
+							)
+							.build(),
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.SCHEMA)
+							.site(
+								SchemaSite.builder()
+									.containerType(ContainerType.ENTITY)
+									.build()
+							)
+							.build(),
+						ChangeCatalogCaptureCriteria.builder()
+							.area(CaptureArea.INFRASTRUCTURE)
+							.build()
+					)
+					.content(CaptureContent.BODY)
+					.build()
+			).toList();
+			assertEquals(7, reverseCaptures.size());
+
+			// first mutation is transaction boundary mutation
+			assertInstanceOf(TransactionMutation.class, reverseCaptures.get(0).body());
+
+			int index = Integer.MAX_VALUE;
+			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
+				assertTrue(
+					index == 0 || reverseCapture.index() <= index,
+					"Index " + reverseCapture.index() + " is not greater than " + index + " for " + reverseCapture
+				);
+				index = reverseCapture.index();
+			}
+		}
 	}
 
 	@Test
 	void shouldFocusOnLocalMutationsOfExactAttribute() {
-
+		fail("Not implemented yet");
 	}
 
 	@Test
 	void shouldFocusOnLocalMutationsOfPrices() {
-
+		fail("Not implemented yet");
 	}
 
 	@Test
 	void shouldFocusOnAllMutationsOfSingleEntity() {
-
+		fail("Not implemented yet");
 	}
 
 	@Test
 	void shouldFocusOnSchemaChangesOfSingleEntityType() {
-
+		fail("Not implemented yet");
 	}
 
 	@Test
 	void shouldCorrectlyHandleEntitySchemaRenaming() {
-
+		fail("Not implemented yet");
 	}
 
 	@Nonnull

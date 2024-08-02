@@ -312,11 +312,12 @@ public interface CatalogContract {
 	 *
 	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
 	 *
-	 * @param catalogVersion version of the catalog to start the stream with
+	 * @param catalogVersion version of the catalog to start the stream with, if null is provided the stream will start
+	 *                       with the last committed transaction
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion);
+	Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
 
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.

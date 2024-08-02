@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -64,9 +65,9 @@ import java.util.stream.Stream;
 public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutation, EntitySchemaMutation, InternalSchemaBuilderHelper, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 7843689721519035513L;
 	@Getter @Nonnull private final String entityType;
-	@Nonnull @Getter private final EntitySchemaMutation[] schemaMutations;
+	@Nonnull @Getter private final LocalEntitySchemaMutation[] schemaMutations;
 
-	public ModifyEntitySchemaMutation(@Nonnull String entityType, @Nonnull EntitySchemaMutation... schemaMutations) {
+	public ModifyEntitySchemaMutation(@Nonnull String entityType, @Nonnull LocalEntitySchemaMutation... schemaMutations) {
 		this.entityType = entityType;
 		this.schemaMutations = schemaMutations;
 	}
@@ -75,7 +76,7 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
 		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation && entityType.equals(modifyEntitySchemaMutation.getEntityType())) {
-			final List<EntitySchemaMutation> mutations = new ArrayList<>(schemaMutations.length);
+			final List<LocalEntitySchemaMutation> mutations = new ArrayList<>(schemaMutations.length);
 			mutations.addAll(Arrays.asList(schemaMutations));
 			final MutationImpact updated = addMutations(
 				currentCatalogSchema,
@@ -85,7 +86,7 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 			);
 			if (updated != MutationImpact.NO_IMPACT) {
 				final ModifyEntitySchemaMutation combinedMutation = new ModifyEntitySchemaMutation(
-					entityType, mutations.toArray(EntitySchemaMutation[]::new)
+					entityType, mutations.toArray(LocalEntitySchemaMutation[]::new)
 				);
 				return new MutationCombinationResult<>(null, combinedMutation);
 			} else {

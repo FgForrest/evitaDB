@@ -35,7 +35,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithGeneratedPrimaryKeyMutation;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -130,12 +130,12 @@ public class EntityUpsertMutation implements EntityMutation {
 
 	@Nonnull
 	@Override
-	public Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
+	public Optional<LocalEntitySchemaMutation[]> verifyOrEvolveSchema(
 		@Nonnull SealedCatalogSchema catalogSchema,
 		@Nonnull SealedEntitySchema entitySchema,
 		boolean entityCollectionEmpty
 	) {
-		final Optional<EntitySchemaMutation> pkMutation;
+		final Optional<LocalEntitySchemaMutation> pkMutation;
 		// when the collection is empty - we may redefine primary key behaviour in schema (this is the only moment to do so)
 		if (entityCollectionEmpty) {
 			if (entityPrimaryKey == null && !entitySchema.isWithGeneratedPrimaryKey()) {
@@ -168,16 +168,16 @@ public class EntityUpsertMutation implements EntityMutation {
 			pkMutation = empty();
 		}
 		// collect schema mutations from the local entity mutations
-		final Optional<EntitySchemaMutation[]> additionalMutations = EntityMutation.verifyOrEvolveSchema(catalogSchema, entitySchema, localMutations);
+		final Optional<LocalEntitySchemaMutation[]> additionalMutations = EntityMutation.verifyOrEvolveSchema(catalogSchema, entitySchema, localMutations);
 		// combine mutation local mutations with the entity primary key mutation is provided
 		return additionalMutations
 			.map(
 				mutations -> pkMutation
 					.map(it -> Stream.concat(Stream.of(it), Arrays.stream(mutations)))
 					.orElseGet(() -> Arrays.stream(mutations))
-					.toArray(EntitySchemaMutation[]::new)
+					.toArray(LocalEntitySchemaMutation[]::new)
 			)
-			.or(() -> pkMutation.map(x -> new EntitySchemaMutation[]{x}));
+			.or(() -> pkMutation.map(x -> new LocalEntitySchemaMutation[]{x}));
 	}
 
 	@Nonnull

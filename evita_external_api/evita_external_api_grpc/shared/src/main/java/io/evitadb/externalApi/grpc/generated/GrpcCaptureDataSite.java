@@ -31,18 +31,18 @@ package io.evitadb.externalApi.grpc.generated;
  * Record describing the location and form of the CDC data event in the evitaDB that should be captured.
  * </pre>
  *
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDataSite}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite}
  */
-public final class GrpcDataSite extends
+public final class GrpcCaptureDataSite extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcDataSite)
-    GrpcDataSiteOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite)
+    GrpcCaptureDataSiteOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcDataSite.newBuilder() to construct.
-  private GrpcDataSite(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcCaptureDataSite.newBuilder() to construct.
+  private GrpcCaptureDataSite(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcDataSite() {
+  private GrpcCaptureDataSite() {
     operation_ = java.util.Collections.emptyList();
     containerType_ = java.util.Collections.emptyList();
     classifierName_ = com.google.protobuf.LazyStringArrayList.EMPTY;
@@ -52,7 +52,7 @@ private static final long serialVersionUID = 0L;
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcDataSite();
+    return new GrpcCaptureDataSite();
   }
 
   @java.lang.Override
@@ -60,7 +60,7 @@ private static final long serialVersionUID = 0L;
   getUnknownFields() {
     return this.unknownFields;
   }
-  private GrpcDataSite(
+  private GrpcCaptureDataSite(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
@@ -190,15 +190,15 @@ private static final long serialVersionUID = 0L;
   }
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataSite_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCaptureDataSite_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataSite_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCaptureDataSite_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcDataSite.class, io.evitadb.externalApi.grpc.generated.GrpcDataSite.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite.class, io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite.Builder.class);
   }
 
   public static final int ENTITYTYPE_FIELD_NUMBER = 1;
@@ -280,13 +280,13 @@ private static final long serialVersionUID = 0L;
   public static final int OPERATION_FIELD_NUMBER = 3;
   private java.util.List<java.lang.Integer> operation_;
   private static final com.google.protobuf.Internal.ListAdapter.Converter<
-      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation> operation_converter_ =
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation> operation_converter_ =
           new com.google.protobuf.Internal.ListAdapter.Converter<
-              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation>() {
-            public io.evitadb.externalApi.grpc.generated.GrpcOperation convert(java.lang.Integer from) {
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation convert(java.lang.Integer from) {
               @SuppressWarnings("deprecation")
-              io.evitadb.externalApi.grpc.generated.GrpcOperation result = io.evitadb.externalApi.grpc.generated.GrpcOperation.valueOf(from);
-              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcOperation.UNRECOGNIZED : result;
+              io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation result = io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation.UNRECOGNIZED : result;
             }
           };
   /**
@@ -294,20 +294,20 @@ private static final long serialVersionUID = 0L;
    * the intercepted type of operation
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
    * @return A list containing the operation.
    */
   @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcOperation> getOperationList() {
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation> getOperationList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation>(operation_, operation_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation>(operation_, operation_converter_);
   }
   /**
    * <pre>
    * the intercepted type of operation
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
    * @return The count of operation.
    */
   @java.lang.Override
@@ -319,12 +319,12 @@ private static final long serialVersionUID = 0L;
    * the intercepted type of operation
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
    * @param index The index of the element to return.
    * @return The operation at the given index.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcOperation getOperation(int index) {
+  public io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation getOperation(int index) {
     return operation_converter_.convert(operation_.get(index));
   }
   /**
@@ -332,7 +332,7 @@ private static final long serialVersionUID = 0L;
    * the intercepted type of operation
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
    * @return A list containing the enum numeric values on the wire for operation.
    */
   @java.lang.Override
@@ -345,7 +345,7 @@ private static final long serialVersionUID = 0L;
    * the intercepted type of operation
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of operation at the given index.
    */
@@ -358,13 +358,13 @@ private static final long serialVersionUID = 0L;
   public static final int CONTAINERTYPE_FIELD_NUMBER = 4;
   private java.util.List<java.lang.Integer> containerType_;
   private static final com.google.protobuf.Internal.ListAdapter.Converter<
-      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcContainerType> containerType_converter_ =
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType> containerType_converter_ =
           new com.google.protobuf.Internal.ListAdapter.Converter<
-              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcContainerType>() {
-            public io.evitadb.externalApi.grpc.generated.GrpcContainerType convert(java.lang.Integer from) {
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType convert(java.lang.Integer from) {
               @SuppressWarnings("deprecation")
-              io.evitadb.externalApi.grpc.generated.GrpcContainerType result = io.evitadb.externalApi.grpc.generated.GrpcContainerType.valueOf(from);
-              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcContainerType.UNRECOGNIZED : result;
+              io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType result = io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType.UNRECOGNIZED : result;
             }
           };
   /**
@@ -372,20 +372,20 @@ private static final long serialVersionUID = 0L;
    * the name of the intercepted container type
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
    * @return A list containing the containerType.
    */
   @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcContainerType> getContainerTypeList() {
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType> getContainerTypeList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcContainerType>(containerType_, containerType_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType>(containerType_, containerType_converter_);
   }
   /**
    * <pre>
    * the name of the intercepted container type
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
    * @return The count of containerType.
    */
   @java.lang.Override
@@ -397,12 +397,12 @@ private static final long serialVersionUID = 0L;
    * the name of the intercepted container type
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
    * @param index The index of the element to return.
    * @return The containerType at the given index.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcContainerType getContainerType(int index) {
+  public io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType getContainerType(int index) {
     return containerType_converter_.convert(containerType_.get(index));
   }
   /**
@@ -410,7 +410,7 @@ private static final long serialVersionUID = 0L;
    * the name of the intercepted container type
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
    * @return A list containing the enum numeric values on the wire for containerType.
    */
   @java.lang.Override
@@ -423,7 +423,7 @@ private static final long serialVersionUID = 0L;
    * the name of the intercepted container type
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of containerType at the given index.
    */
@@ -581,10 +581,10 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcDataSite)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcDataSite other = (io.evitadb.externalApi.grpc.generated.GrpcDataSite) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite other = (io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite) obj;
 
     if (hasEntityType() != other.hasEntityType()) return false;
     if (hasEntityType()) {
@@ -636,69 +636,69 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -711,7 +711,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcDataSite prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -731,26 +731,26 @@ private static final long serialVersionUID = 0L;
    * Record describing the location and form of the CDC data event in the evitaDB that should be captured.
    * </pre>
    *
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDataSite}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcDataSite)
-      io.evitadb.externalApi.grpc.generated.GrpcDataSiteOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite)
+      io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSiteOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataSite_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCaptureDataSite_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataSite_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCaptureDataSite_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcDataSite.class, io.evitadb.externalApi.grpc.generated.GrpcDataSite.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite.class, io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcDataSite.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -792,17 +792,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataSite_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCaptureDataSite_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcDataSite getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcDataSite.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcDataSite build() {
-      io.evitadb.externalApi.grpc.generated.GrpcDataSite result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite build() {
+      io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -810,8 +810,8 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcDataSite buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcDataSite result = new io.evitadb.externalApi.grpc.generated.GrpcDataSite(this);
+    public io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite result = new io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite(this);
       int from_bitField0_ = bitField0_;
       if (entityTypeBuilder_ == null) {
         result.entityType_ = entityType_;
@@ -876,16 +876,16 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcDataSite) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcDataSite)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcDataSite other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcDataSite.getDefaultInstance()) return this;
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite.getDefaultInstance()) return this;
       if (other.hasEntityType()) {
         mergeEntityType(other.getEntityType());
       }
@@ -937,11 +937,11 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      io.evitadb.externalApi.grpc.generated.GrpcDataSite parsedMessage = null;
+      io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite parsedMessage = null;
       try {
         parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcDataSite) e.getUnfinishedMessage();
+        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
         if (parsedMessage != null) {
@@ -1275,19 +1275,19 @@ private static final long serialVersionUID = 0L;
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @return A list containing the operation.
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcOperation> getOperationList() {
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation> getOperationList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation>(operation_, operation_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation>(operation_, operation_converter_);
     }
     /**
      * <pre>
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @return The count of operation.
      */
     public int getOperationCount() {
@@ -1298,11 +1298,11 @@ private static final long serialVersionUID = 0L;
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @param index The index of the element to return.
      * @return The operation at the given index.
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcOperation getOperation(int index) {
+    public io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation getOperation(int index) {
       return operation_converter_.convert(operation_.get(index));
     }
     /**
@@ -1310,13 +1310,13 @@ private static final long serialVersionUID = 0L;
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @param index The index to set the value at.
      * @param value The operation to set.
      * @return This builder for chaining.
      */
     public Builder setOperation(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcOperation value) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation value) {
       if (value == null) {
         throw new NullPointerException();
       }
@@ -1330,11 +1330,11 @@ private static final long serialVersionUID = 0L;
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @param value The operation to add.
      * @return This builder for chaining.
      */
-    public Builder addOperation(io.evitadb.externalApi.grpc.generated.GrpcOperation value) {
+    public Builder addOperation(io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation value) {
       if (value == null) {
         throw new NullPointerException();
       }
@@ -1348,14 +1348,14 @@ private static final long serialVersionUID = 0L;
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @param values The operation to add.
      * @return This builder for chaining.
      */
     public Builder addAllOperation(
-        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcOperation> values) {
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation> values) {
       ensureOperationIsMutable();
-      for (io.evitadb.externalApi.grpc.generated.GrpcOperation value : values) {
+      for (io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation value : values) {
         operation_.add(value.getNumber());
       }
       onChanged();
@@ -1366,7 +1366,7 @@ private static final long serialVersionUID = 0L;
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearOperation() {
@@ -1380,7 +1380,7 @@ private static final long serialVersionUID = 0L;
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @return A list containing the enum numeric values on the wire for operation.
      */
     public java.util.List<java.lang.Integer>
@@ -1392,7 +1392,7 @@ private static final long serialVersionUID = 0L;
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of operation at the given index.
      */
@@ -1404,7 +1404,7 @@ private static final long serialVersionUID = 0L;
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of operation at the given index.
      * @return This builder for chaining.
@@ -1421,7 +1421,7 @@ private static final long serialVersionUID = 0L;
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @param value The enum numeric value on the wire for operation to add.
      * @return This builder for chaining.
      */
@@ -1436,7 +1436,7 @@ private static final long serialVersionUID = 0L;
      * the intercepted type of operation
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operation = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 3;</code>
      * @param values The enum numeric values on the wire for operation to add.
      * @return This builder for chaining.
      */
@@ -1463,19 +1463,19 @@ private static final long serialVersionUID = 0L;
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @return A list containing the containerType.
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcContainerType> getContainerTypeList() {
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType> getContainerTypeList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcContainerType>(containerType_, containerType_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType>(containerType_, containerType_converter_);
     }
     /**
      * <pre>
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @return The count of containerType.
      */
     public int getContainerTypeCount() {
@@ -1486,11 +1486,11 @@ private static final long serialVersionUID = 0L;
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @param index The index of the element to return.
      * @return The containerType at the given index.
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcContainerType getContainerType(int index) {
+    public io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType getContainerType(int index) {
       return containerType_converter_.convert(containerType_.get(index));
     }
     /**
@@ -1498,13 +1498,13 @@ private static final long serialVersionUID = 0L;
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @param index The index to set the value at.
      * @param value The containerType to set.
      * @return This builder for chaining.
      */
     public Builder setContainerType(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcContainerType value) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType value) {
       if (value == null) {
         throw new NullPointerException();
       }
@@ -1518,11 +1518,11 @@ private static final long serialVersionUID = 0L;
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @param value The containerType to add.
      * @return This builder for chaining.
      */
-    public Builder addContainerType(io.evitadb.externalApi.grpc.generated.GrpcContainerType value) {
+    public Builder addContainerType(io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType value) {
       if (value == null) {
         throw new NullPointerException();
       }
@@ -1536,14 +1536,14 @@ private static final long serialVersionUID = 0L;
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @param values The containerType to add.
      * @return This builder for chaining.
      */
     public Builder addAllContainerType(
-        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcContainerType> values) {
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType> values) {
       ensureContainerTypeIsMutable();
-      for (io.evitadb.externalApi.grpc.generated.GrpcContainerType value : values) {
+      for (io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType value : values) {
         containerType_.add(value.getNumber());
       }
       onChanged();
@@ -1554,7 +1554,7 @@ private static final long serialVersionUID = 0L;
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearContainerType() {
@@ -1568,7 +1568,7 @@ private static final long serialVersionUID = 0L;
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @return A list containing the enum numeric values on the wire for containerType.
      */
     public java.util.List<java.lang.Integer>
@@ -1580,7 +1580,7 @@ private static final long serialVersionUID = 0L;
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of containerType at the given index.
      */
@@ -1592,7 +1592,7 @@ private static final long serialVersionUID = 0L;
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of containerType at the given index.
      * @return This builder for chaining.
@@ -1609,7 +1609,7 @@ private static final long serialVersionUID = 0L;
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @param value The enum numeric value on the wire for containerType to add.
      * @return This builder for chaining.
      */
@@ -1624,7 +1624,7 @@ private static final long serialVersionUID = 0L;
      * the name of the intercepted container type
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcContainerType containerType = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType containerType = 4;</code>
      * @param values The enum numeric values on the wire for containerType to add.
      * @return This builder for chaining.
      */
@@ -1796,41 +1796,41 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcDataSite)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcDataSite)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcDataSite DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcDataSite();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcDataSite getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcDataSite>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcDataSite>() {
+  private static final com.google.protobuf.Parser<GrpcCaptureDataSite>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcCaptureDataSite>() {
     @java.lang.Override
-    public GrpcDataSite parsePartialFrom(
+    public GrpcCaptureDataSite parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-      return new GrpcDataSite(input, extensionRegistry);
+      return new GrpcCaptureDataSite(input, extensionRegistry);
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcDataSite> parser() {
+  public static com.google.protobuf.Parser<GrpcCaptureDataSite> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcDataSite> getParserForType() {
+  public com.google.protobuf.Parser<GrpcCaptureDataSite> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcDataSite getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

@@ -76,16 +76,16 @@ public final class DataAreaPredicate extends AreaPredicate {
 		}
 		if (!ArrayUtils.isEmpty(dataSite.containerType())) {
 			final MutationPredicate classifierTypePredicate = dataSite.containerType().length == 1 ?
-				new SingleClassifierTypePredicate(this.context, dataSite.containerType()[0]) :
-				new ClassifierTypePredicate(this.context, dataSite.containerType());
+				new SingleContainerTypePredicate(this.context, dataSite.containerType()[0]) :
+				new ContainerTypePredicate(this.context, dataSite.containerType());
 			dataPredicate = dataPredicate == null ?
 				classifierTypePredicate :
 				dataPredicate.and(classifierTypePredicate);
 		}
 		if (!ArrayUtils.isEmpty(dataSite.classifierName())) {
 			final MutationPredicate classifierNamePredicate = dataSite.classifierName().length == 1 ?
-				new SingleClassifierNamePredicate(this.context, dataSite.classifierName()[0]) :
-				new ClassifierNamePredicate(this.context, dataSite.classifierName());
+				new SingleContainerNamePredicate(this.context, dataSite.classifierName()[0]) :
+				new ContainerNamePredicate(this.context, dataSite.classifierName());
 			dataPredicate = dataPredicate == null ? classifierNamePredicate : dataPredicate.and(classifierNamePredicate);
 		}
 		return ofNullable(dataPredicate);

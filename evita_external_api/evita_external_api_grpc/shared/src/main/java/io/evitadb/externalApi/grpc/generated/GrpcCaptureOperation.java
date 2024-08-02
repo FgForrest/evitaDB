@@ -31,9 +31,9 @@ package io.evitadb.externalApi.grpc.generated;
  * Enumeration of possible mutation types handled by evitaDB.
  * </pre>
  *
- * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcOperation}
+ * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation}
  */
-public enum GrpcOperation
+public enum GrpcCaptureOperation
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
@@ -102,7 +102,7 @@ public enum GrpcOperation
    * @deprecated Use {@link #forNumber(int)} instead.
    */
   @java.lang.Deprecated
-  public static GrpcOperation valueOf(int value) {
+  public static GrpcCaptureOperation valueOf(int value) {
     return forNumber(value);
   }
 
@@ -110,7 +110,7 @@ public enum GrpcOperation
    * @param value The numeric wire value of the corresponding enum entry.
    * @return The enum associated with the given numeric wire value.
    */
-  public static GrpcOperation forNumber(int value) {
+  public static GrpcCaptureOperation forNumber(int value) {
     switch (value) {
       case 0: return UPSERT;
       case 1: return REMOVE;
@@ -119,15 +119,15 @@ public enum GrpcOperation
     }
   }
 
-  public static com.google.protobuf.Internal.EnumLiteMap<GrpcOperation>
+  public static com.google.protobuf.Internal.EnumLiteMap<GrpcCaptureOperation>
       internalGetValueMap() {
     return internalValueMap;
   }
   private static final com.google.protobuf.Internal.EnumLiteMap<
-      GrpcOperation> internalValueMap =
-        new com.google.protobuf.Internal.EnumLiteMap<GrpcOperation>() {
-          public GrpcOperation findValueByNumber(int number) {
-            return GrpcOperation.forNumber(number);
+      GrpcCaptureOperation> internalValueMap =
+        new com.google.protobuf.Internal.EnumLiteMap<GrpcCaptureOperation>() {
+          public GrpcCaptureOperation findValueByNumber(int number) {
+            return GrpcCaptureOperation.forNumber(number);
           }
         };
 
@@ -148,9 +148,9 @@ public enum GrpcOperation
     return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.getDescriptor().getEnumTypes().get(1);
   }
 
-  private static final GrpcOperation[] VALUES = values();
+  private static final GrpcCaptureOperation[] VALUES = values();
 
-  public static GrpcOperation valueOf(
+  public static GrpcCaptureOperation valueOf(
       com.google.protobuf.Descriptors.EnumValueDescriptor desc) {
     if (desc.getType() != getDescriptor()) {
       throw new java.lang.IllegalArgumentException(
@@ -164,10 +164,10 @@ public enum GrpcOperation
 
   private final int value;
 
-  private GrpcOperation(int value) {
+  private GrpcCaptureOperation(int value) {
     this.value = value;
   }
 
-  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcOperation)
+  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation)
 }
 

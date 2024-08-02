@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -50,7 +49,7 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-abstract class AbstractModifyReferenceDataSchemaMutation implements EntitySchemaMutation, ReferenceSchemaMutation {
+abstract class AbstractModifyReferenceDataSchemaMutation implements ReferenceSchemaMutation {
 	@Serial private static final long serialVersionUID = 3160594356938000407L;
 	@Getter @Nonnull protected final String name;
 

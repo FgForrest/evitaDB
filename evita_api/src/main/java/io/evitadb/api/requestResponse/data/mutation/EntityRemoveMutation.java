@@ -44,7 +44,7 @@ import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 
@@ -107,7 +107,7 @@ public class EntityRemoveMutation implements EntityMutation {
 
 	@Nonnull
 	@Override
-	public Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
+	public Optional<LocalEntitySchemaMutation[]> verifyOrEvolveSchema(
 		@Nonnull SealedCatalogSchema catalogSchema,
 		@Nonnull SealedEntitySchema entitySchema,
 		boolean entityCollectionEmpty

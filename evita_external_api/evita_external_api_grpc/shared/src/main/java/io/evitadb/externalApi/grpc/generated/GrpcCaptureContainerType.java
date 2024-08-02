@@ -31,9 +31,9 @@ package io.evitadb.externalApi.grpc.generated;
  * The container type describes internal evitaDB data structures.
  * </pre>
  *
- * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcContainerType}
+ * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType}
  */
-public enum GrpcContainerType
+public enum GrpcCaptureContainerType
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
@@ -150,7 +150,7 @@ public enum GrpcContainerType
    * @deprecated Use {@link #forNumber(int)} instead.
    */
   @java.lang.Deprecated
-  public static GrpcContainerType valueOf(int value) {
+  public static GrpcCaptureContainerType valueOf(int value) {
     return forNumber(value);
   }
 
@@ -158,7 +158,7 @@ public enum GrpcContainerType
    * @param value The numeric wire value of the corresponding enum entry.
    * @return The enum associated with the given numeric wire value.
    */
-  public static GrpcContainerType forNumber(int value) {
+  public static GrpcCaptureContainerType forNumber(int value) {
     switch (value) {
       case 0: return CONTAINER_CATALOG;
       case 1: return CONTAINER_ENTITY;
@@ -170,15 +170,15 @@ public enum GrpcContainerType
     }
   }
 
-  public static com.google.protobuf.Internal.EnumLiteMap<GrpcContainerType>
+  public static com.google.protobuf.Internal.EnumLiteMap<GrpcCaptureContainerType>
       internalGetValueMap() {
     return internalValueMap;
   }
   private static final com.google.protobuf.Internal.EnumLiteMap<
-      GrpcContainerType> internalValueMap =
-        new com.google.protobuf.Internal.EnumLiteMap<GrpcContainerType>() {
-          public GrpcContainerType findValueByNumber(int number) {
-            return GrpcContainerType.forNumber(number);
+      GrpcCaptureContainerType> internalValueMap =
+        new com.google.protobuf.Internal.EnumLiteMap<GrpcCaptureContainerType>() {
+          public GrpcCaptureContainerType findValueByNumber(int number) {
+            return GrpcCaptureContainerType.forNumber(number);
           }
         };
 
@@ -199,9 +199,9 @@ public enum GrpcContainerType
     return io.evitadb.externalApi.grpc.generated.GrpcChangeCapture.getDescriptor().getEnumTypes().get(2);
   }
 
-  private static final GrpcContainerType[] VALUES = values();
+  private static final GrpcCaptureContainerType[] VALUES = values();
 
-  public static GrpcContainerType valueOf(
+  public static GrpcCaptureContainerType valueOf(
       com.google.protobuf.Descriptors.EnumValueDescriptor desc) {
     if (desc.getType() != getDescriptor()) {
       throw new java.lang.IllegalArgumentException(
@@ -215,10 +215,10 @@ public enum GrpcContainerType
 
   private final int value;
 
-  private GrpcContainerType(int value) {
+  private GrpcCaptureContainerType(int value) {
     this.value = value;
   }
 
-  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcContainerType)
+  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcCaptureContainerType)
 }
 

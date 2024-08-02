@@ -35,8 +35,8 @@ import javax.annotation.Nullable;
  *
  * @param entityType       the {@link EntitySchema#getName()} of the intercepted entity type
  * @param entityPrimaryKey the {@link EntityContract#getPrimaryKey()} of the intercepted entity
- * @param containerType    the intercepted {@link ContainerType} of the entity data
  * @param operation        the intercepted type of {@link Operation}
+ * @param containerType    the intercepted {@link ContainerType} of the entity data
  * @param classifierName   the intercepted name of the classifier
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

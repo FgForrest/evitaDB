@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.cdc;
 
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.ContainerType;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -31,23 +32,21 @@ import javax.annotation.Nullable;
 /**
  * Record describing the location and form of the CDC event in the evitaDB that should be captured.
  *
- * @param entityType the {@link EntitySchema#getName()} of the intercepted entity type
- * @param operation the intercepted type of {@link Operation}
- *
+ * @param entityType    the {@link EntitySchema#getName()} of the intercepted entity type
+ * @param operation     the intercepted type of {@link Operation}
+ * @param containerType the intercepted {@link ContainerType} of the entity data
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record SchemaSite(
 	@Nullable String entityType,
-	@Nullable Operation[] operation
+	@Nullable Operation[] operation,
+	@Nullable ContainerType[] containerType
 ) implements CaptureSite {
-	public static final SchemaSite ALL = new SchemaSite(null, Operation.values());
-
-	public SchemaSite(@Nullable Operation... operation) {
-		this(null, operation);
-	}
+	public static final SchemaSite ALL = new SchemaSite(null, null, null);
 
 	/**
 	 * Creates builder object that helps you create DataSite record using builder pattern.
+	 *
 	 * @return new instance of {@link DataSite.Builder}
 	 */
 	@Nonnull
@@ -61,9 +60,11 @@ public record SchemaSite(
 	public static class Builder {
 		private String entityType;
 		private Operation[] operation;
+		private ContainerType[] containerType;
 
 		/**
 		 * Sets the entity type.
+		 *
 		 * @param entityType the entity type
 		 * @return this builder
 		 */
@@ -75,6 +76,7 @@ public record SchemaSite(
 
 		/**
 		 * Sets the operation.
+		 *
 		 * @param operation the operation
 		 * @return this builder
 		 */
@@ -85,12 +87,25 @@ public record SchemaSite(
 		}
 
 		/**
+		 * Sets the container type.
+		 *
+		 * @param containerType the container type
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder containerType(@Nullable ContainerType... containerType) {
+			this.containerType = containerType;
+			return this;
+		}
+
+		/**
 		 * Builds the {@link DataSite} record.
+		 *
 		 * @return the {@link DataSite} record
 		 */
 		@Nonnull
 		public SchemaSite build() {
-			return new SchemaSite(entityType, operation);
+			return new SchemaSite(entityType, operation, containerType);
 		}
 	}
 
