@@ -223,6 +223,7 @@ public class EntityUpsertMutation implements EntityMutation {
 			return Stream.concat(
 				entityMutation,
 				this.localMutations.stream()
+					.filter(predicate)
 					.flatMap(it -> it.toChangeCatalogCapture(predicate, content))
 			);
 		} else {
@@ -237,7 +238,9 @@ public class EntityUpsertMutation implements EntityMutation {
 			return Stream.concat(
 				Stream.generate(() -> null)
 					.takeWhile(x -> iterator.hasPrevious())
-					.flatMap(x -> iterator.previous().toChangeCatalogCapture(predicate, content)),
+					.map(x -> iterator.previous())
+					.filter(predicate)
+					.flatMap(x -> x.toChangeCatalogCapture(predicate, content)),
 				entityMutation
 			);
 		}

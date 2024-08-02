@@ -48,4 +48,89 @@ public record ChangeCatalogCaptureRequest(
 	long sinceVersion,
 	@Nullable Integer sinceIndex
 ) implements ChangeCaptureRequest {
+
+	/**
+	 * Creates builder object that helps you create DataSite record using builder pattern.
+	 * @return new instance of {@link DataSite.Builder}
+	 */
+	@Nonnull
+	public static ChangeCatalogCaptureRequest.Builder builder() {
+		return new ChangeCatalogCaptureRequest.Builder();
+	}
+
+	/**
+	 * Builder class for {@link ChangeCatalogCaptureRequest}.
+	 */
+	public static class Builder {
+		private CaptureArea area;
+		private CaptureSite site;
+		private CaptureContent content = CaptureContent.HEADER;
+		private long sinceVersion;
+		private Integer sinceIndex;
+
+		/**
+		 * Sets the area of the capture.
+		 * @param area the area of the capture
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder area(@Nullable CaptureArea area) {
+			this.area = area;
+			return this;
+		}
+
+		/**
+		 * Sets the site of the capture.
+		 * @param site the site of the capture
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder site(@Nullable CaptureSite site) {
+			this.site = site;
+			return this;
+		}
+
+		/**
+		 * Sets the content of the capture.
+		 * @param content the content of the capture
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder content(@Nonnull CaptureContent content) {
+			this.content = content;
+			return this;
+		}
+
+		/**
+		 * Sets the sinceVersion of the capture.
+		 * @param sinceVersion the sinceVersion of the capture
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder sinceVersion(long sinceVersion) {
+			this.sinceVersion = sinceVersion;
+			return this;
+		}
+
+		/**
+		 * Sets the sinceIndex of the capture.
+		 * @param sinceIndex the sinceIndex of the capture
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder sinceIndex(int sinceIndex) {
+			this.sinceIndex = sinceIndex;
+			return this;
+		}
+
+		/**
+		 * Builds the {@link ChangeCatalogCaptureRequest} object.
+		 * @return the built object
+		 */
+		@Nonnull
+		public ChangeCatalogCaptureRequest build() {
+			return new ChangeCatalogCaptureRequest(area, site, content, sinceVersion, sinceIndex);
+		}
+	}
+
 }

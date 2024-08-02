@@ -36,5 +36,9 @@ public enum CaptureArea {
 	/**
 	 * Changes in the data are captured.
 	 */
-	DATA
+	DATA,
+	/**
+	 * Infrastructural mutations that are neither schema nor data.
+	 */
+	INFRASTRUCTURE
 }

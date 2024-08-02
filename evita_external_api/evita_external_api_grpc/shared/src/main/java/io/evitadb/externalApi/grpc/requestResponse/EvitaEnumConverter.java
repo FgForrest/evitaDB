@@ -841,6 +841,7 @@ public class EvitaEnumConverter {
 		return switch (area) {
 			case DATA -> CaptureArea.DATA;
 			case SCHEMA -> CaptureArea.SCHEMA;
+			case INFRASTRUCTURE -> CaptureArea.INFRASTRUCTURE;
 			default -> throw new GenericEvitaInternalError("Unrecognized capture area: " + area);
 		};
 	}
@@ -855,6 +856,7 @@ public class EvitaEnumConverter {
 		return switch (area) {
 			case DATA -> GrpcCaptureArea.DATA;
 			case SCHEMA -> GrpcCaptureArea.SCHEMA;
+			case INFRASTRUCTURE -> GrpcCaptureArea.INFRASTRUCTURE;
 		};
 	}
 

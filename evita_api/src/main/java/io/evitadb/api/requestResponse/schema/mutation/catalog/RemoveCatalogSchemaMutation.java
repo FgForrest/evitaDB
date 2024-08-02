@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
@@ -78,9 +79,11 @@ public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
 		@Nonnull CaptureContent content) {
+		final MutationPredicateContext context = predicate.getContext();
+		context.advance();
 		return Stream.of(
 			ChangeCatalogCapture.schemaCapture(
-				predicate.getContext(),
+				context,
 				operation(),
 				content == CaptureContent.BODY ? this : null
 			)

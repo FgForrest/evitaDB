@@ -137,6 +137,7 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 		@Nonnull MutationPredicate predicate,
 		@Nonnull CaptureContent content) {
 		final MutationPredicateContext context = predicate.getContext();
+		context.advance();
 		context.setEntityType(entityType);
 
 		final Stream<ChangeCatalogCapture> entitySchemaCapture = Stream.of(
@@ -150,6 +151,7 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 			return Stream.concat(
 				entitySchemaCapture,
 				Arrays.stream(this.schemaMutations)
+					.filter(predicate)
 					.flatMap(m -> m.toChangeCatalogCapture(predicate, content))
 			);
 		} else {
@@ -157,7 +159,9 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 			return Stream.concat(
 				Stream.generate(() -> null)
 					.takeWhile(x -> index.get() > 0)
-					.flatMap(x -> this.schemaMutations[index.decrementAndGet()].toChangeCatalogCapture(predicate, content)),
+					.map(x -> this.schemaMutations[index.decrementAndGet()])
+					.filter(predicate)
+					.flatMap(x -> x.toChangeCatalogCapture(predicate, content)),
 				entitySchemaCapture
 			);
 

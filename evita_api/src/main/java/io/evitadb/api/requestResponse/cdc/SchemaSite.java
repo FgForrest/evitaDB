@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.cdc;
 
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
@@ -43,6 +44,54 @@ public record SchemaSite(
 
 	public SchemaSite(@Nullable Operation... operation) {
 		this(null, operation);
+	}
+
+	/**
+	 * Creates builder object that helps you create DataSite record using builder pattern.
+	 * @return new instance of {@link DataSite.Builder}
+	 */
+	@Nonnull
+	public static SchemaSite.Builder builder() {
+		return new SchemaSite.Builder();
+	}
+
+	/**
+	 * Builder class for {@link SchemaSite}.
+	 */
+	public static class Builder {
+		private String entityType;
+		private Operation[] operation;
+
+		/**
+		 * Sets the entity type.
+		 * @param entityType the entity type
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder entityType(@Nullable String entityType) {
+			this.entityType = entityType;
+			return this;
+		}
+
+		/**
+		 * Sets the operation.
+		 * @param operation the operation
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder operation(@Nullable Operation... operation) {
+			this.operation = operation;
+			return this;
+		}
+
+		/**
+		 * Builds the {@link DataSite} record.
+		 * @return the {@link DataSite} record
+		 */
+		@Nonnull
+		public SchemaSite build() {
+			return new SchemaSite(entityType, operation);
+		}
 	}
 
 }

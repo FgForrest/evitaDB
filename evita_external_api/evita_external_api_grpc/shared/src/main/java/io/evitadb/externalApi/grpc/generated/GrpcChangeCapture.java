@@ -89,15 +89,16 @@ public final class GrpcChangeCapture {
       "adb.externalApi.grpc.generated.GrpcEntit" +
       "yMutationH\000\022Q\n\rlocalMutation\030\010 \001(\01328.io." +
       "evitadb.externalApi.grpc.generated.GrpcL" +
-      "ocalMutationH\000B\006\n\004body*\'\n\017GrpcCaptureAre" +
-      "a\022\n\n\006SCHEMA\020\000\022\010\n\004DATA\020\001*8\n\rGrpcOperation" +
-      "\022\n\n\006UPSERT\020\000\022\n\n\006REMOVE\020\001\022\017\n\013TRANSACTION\020" +
-      "\002*\246\001\n\021GrpcContainerType\022\025\n\021CONTAINER_CAT" +
-      "ALOG\020\000\022\024\n\020CONTAINER_ENTITY\020\001\022\027\n\023CONTAINE" +
-      "R_ATTRIBUTE\020\002\022\035\n\031CONTAINER_ASSOCIATED_DA" +
-      "TA\020\003\022\023\n\017CONTAINER_PRICE\020\004\022\027\n\023CONTAINER_R" +
-      "EFERENCE\020\005**\n\022GrpcCaptureContent\022\n\n\006HEAD" +
-      "ER\020\000\022\010\n\004BODY\020\001B\014P\001\252\002\007EvitaDBb\006proto3"
+      "ocalMutationH\000B\006\n\004body*;\n\017GrpcCaptureAre" +
+      "a\022\n\n\006SCHEMA\020\000\022\010\n\004DATA\020\001\022\022\n\016INFRASTRUCTUR" +
+      "E\020\002*8\n\rGrpcOperation\022\n\n\006UPSERT\020\000\022\n\n\006REMO" +
+      "VE\020\001\022\017\n\013TRANSACTION\020\002*\246\001\n\021GrpcContainerT" +
+      "ype\022\025\n\021CONTAINER_CATALOG\020\000\022\024\n\020CONTAINER_" +
+      "ENTITY\020\001\022\027\n\023CONTAINER_ATTRIBUTE\020\002\022\035\n\031CON" +
+      "TAINER_ASSOCIATED_DATA\020\003\022\023\n\017CONTAINER_PR" +
+      "ICE\020\004\022\027\n\023CONTAINER_REFERENCE\020\005**\n\022GrpcCa" +
+      "ptureContent\022\n\n\006HEADER\020\000\022\010\n\004BODY\020\001B\014P\001\252\002" +
+      "\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

@@ -24,29 +24,34 @@
 package io.evitadb.core.cdc.predicate;
 
 import io.evitadb.api.requestResponse.cdc.CaptureSite;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
 
 /**
- * Interface prescribing contract for both schema and data area predicates.
+ * Predicate filters out only mutations that are related to infrastructure events.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public sealed abstract class AreaPredicate extends MutationPredicate permits SchemaAreaPredicate, DataAreaPredicate, InfrastructureAreaPredicate {
+public final class InfrastructureAreaPredicate extends AreaPredicate {
 
-	public AreaPredicate(@Nonnull MutationPredicateContext context) {
+	public InfrastructureAreaPredicate(@Nonnull MutationPredicateContext context) {
 		super(context);
 	}
 
-	/**
-	 * Method creates a predicate that filters out mutations that match the given {@link CaptureSite} criteria.
-	 * @param site criteria to be used for creating the predicate
-	 * @return predicate that filters out mutations that match the given criteria
-	 */
+	@Override
+	public boolean test(Mutation mutation) {
+		return mutation instanceof TransactionMutation;
+	}
+
 	@Nonnull
-	public abstract Optional<MutationPredicate> createSitePredicate(@Nonnull CaptureSite site);
+	@Override
+	public Optional<MutationPredicate> createSitePredicate(@Nonnull CaptureSite site) {
+		return Optional.empty();
+	}
 
 }

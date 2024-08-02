@@ -51,6 +51,14 @@ public enum GrpcCaptureArea
    * <code>DATA = 1;</code>
    */
   DATA(1),
+  /**
+   * <pre>
+   * Infrastructural mutations that are neither schema nor data.
+   * </pre>
+   *
+   * <code>INFRASTRUCTURE = 2;</code>
+   */
+  INFRASTRUCTURE(2),
   UNRECOGNIZED(-1),
   ;
 
@@ -70,6 +78,14 @@ public enum GrpcCaptureArea
    * <code>DATA = 1;</code>
    */
   public static final int DATA_VALUE = 1;
+  /**
+   * <pre>
+   * Infrastructural mutations that are neither schema nor data.
+   * </pre>
+   *
+   * <code>INFRASTRUCTURE = 2;</code>
+   */
+  public static final int INFRASTRUCTURE_VALUE = 2;
 
 
   public final int getNumber() {
@@ -98,6 +114,7 @@ public enum GrpcCaptureArea
     switch (value) {
       case 0: return SCHEMA;
       case 1: return DATA;
+      case 2: return INFRASTRUCTURE;
       default: return null;
     }
   }

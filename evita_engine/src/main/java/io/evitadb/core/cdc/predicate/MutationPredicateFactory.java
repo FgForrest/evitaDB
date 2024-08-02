@@ -23,11 +23,11 @@
 
 package io.evitadb.core.cdc.predicate;
 
-import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.util.Comparator;
@@ -93,8 +93,14 @@ public interface MutationPredicateFactory {
 			.orElseGet(() -> new VersionPredicate(context, criteria.sinceVersion(), versionComparator));
 
 		if (criteria.area() != null) {
-			final AreaPredicate areaPredicate = criteria.area() == CaptureArea.SCHEMA ?
-				new SchemaAreaPredicate(context) : new DataAreaPredicate(context);
+			final AreaPredicate areaPredicate;
+			switch (criteria.area()) {
+				case SCHEMA -> areaPredicate = new SchemaAreaPredicate(context);
+				case DATA -> areaPredicate = new DataAreaPredicate(context);
+				case INFRASTRUCTURE -> areaPredicate = new InfrastructureAreaPredicate(context);
+				default -> throw new GenericEvitaInternalError("Unknown area: " + criteria.area());
+			}
+
 			mutationPredicate = mutationPredicate.and(areaPredicate);
 			if (criteria.site() != null) {
 				mutationPredicate = areaPredicate.createSitePredicate(criteria.site())

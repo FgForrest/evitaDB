@@ -71,7 +71,7 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 			if (this.mutationIndex == this.transactionMutation.getMutationCount()) {
 				this.mutationIndex--;
 				return this.transactionMutation;
-			} else if (this.mutationIndex > 0) {
+			} else if (this.mutationIndex >= 0) {
 				// transaction is fully mapped - we could read it backwards
 				final FileLocation currentLocation = mappedPositions[this.mutationIndex--];
 				final StorageRecord<Mutation> storageRecord = StorageRecord.read(

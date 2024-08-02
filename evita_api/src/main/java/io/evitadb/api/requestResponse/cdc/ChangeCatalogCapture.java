@@ -87,7 +87,6 @@ public record ChangeCatalogCapture(
 		@Nonnull Operation operation,
 		@Nonnull Mutation mutation
 	) {
-		context.advance();
 		return new ChangeCatalogCapture(
 			context.getVersion(),
 			context.getIndex(),
@@ -97,4 +96,28 @@ public record ChangeCatalogCapture(
 			mutation
 		);
 	}
+
+	/**
+	 * Creates a new {@link ChangeCatalogCapture} instance of infrastructure capture.
+	 * @param context the context of the mutation
+	 * @param operation the operation that was performed
+	 * @param mutation the mutation that was performed
+	 * @return the new instance of {@link ChangeCatalogCapture}
+	 */
+	@Nonnull
+	public static ChangeCatalogCapture infrastructureCapture(
+		@Nonnull MutationPredicateContext context,
+		@Nonnull Operation operation,
+		@Nonnull Mutation mutation
+	) {
+		return new ChangeCatalogCapture(
+			context.getVersion(),
+			context.getIndex(),
+			CaptureArea.INFRASTRUCTURE,
+			context.getEntityType(),
+			operation,
+			mutation
+		);
+	}
+
 }

@@ -92,6 +92,7 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		@Nonnull MutationPredicate predicate,
 		@Nonnull CaptureContent content) {
 		final MutationPredicateContext context = predicate.getContext();
+		context.advance();
 		final Stream<ChangeCatalogCapture> catalogMutation = Stream.of(ChangeCatalogCapture.schemaCapture(
 			context,
 				operation(),
@@ -102,6 +103,7 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 			return Stream.concat(
 				catalogMutation,
 				Arrays.stream(this.schemaMutations)
+					.filter(predicate)
 					.flatMap(m -> m.toChangeCatalogCapture(predicate, content))
 			);
 		} else {
@@ -109,7 +111,9 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 			return Stream.concat(
 				Stream.generate(() -> null)
 					.takeWhile(x -> index.get() > 0)
-					.flatMap(x -> this.schemaMutations[index.decrementAndGet()].toChangeCatalogCapture(predicate, content)),
+					.map(x -> this.schemaMutations[index.decrementAndGet()])
+					.filter(predicate)
+					.flatMap(x -> x.toChangeCatalogCapture(predicate, content)),
 				catalogMutation
 			);
 

@@ -58,6 +58,8 @@ enum GrpcCaptureArea {
   SCHEMA = 0;
   // Changes in the data are captured.
   DATA = 1;
+  // Infrastructural mutations that are neither schema nor data.
+  INFRASTRUCTURE = 2;
 }
 
 // Enumeration of possible mutation types handled by evitaDB.

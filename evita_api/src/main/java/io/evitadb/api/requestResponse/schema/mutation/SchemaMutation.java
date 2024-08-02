@@ -54,10 +54,9 @@ public non-sealed interface SchemaMutation extends Mutation {
 	@Nonnull
 	default Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content) {
-		// each schema mutation is separate atomic operation
+		@Nonnull CaptureContent content
+	) {
 		final MutationPredicateContext context = predicate.getContext();
-		context.advance();
 		return Stream.of(
 			ChangeCatalogCapture.schemaCapture(
 				context,

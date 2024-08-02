@@ -87,8 +87,10 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content) {
+		@Nonnull CaptureContent content
+	) {
 		final MutationPredicateContext context = predicate.getContext();
+		context.advance();
 		context.setEntityType(name);
 
 		return Stream.of(

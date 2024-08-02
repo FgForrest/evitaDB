@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.ContainerType;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
@@ -49,12 +50,17 @@ public record DataSite(
 
 	public static final CaptureSite ALL = new DataSite(null, null, null, null, null);
 
+	/**
+	 * Creates builder object that helps you create DataSite record using builder pattern.
+	 * @return new instance of {@link Builder}
+	 */
+	@Nonnull
 	public static Builder builder() {
 		return new Builder();
 	}
 
 	/**
-	 * TODO JNO - document, add similar builder for SchemaSite
+	 * Builder class for {@link DataSite}.
 	 */
 	public static class Builder {
 		private String entityType;
@@ -63,34 +69,70 @@ public record DataSite(
 		private ContainerType[] containerType;
 		private String[] classifierName;
 
-		public Builder entityType(String entityType) {
+		/**
+		 * Sets the entity type.
+		 * @param entityType the entity type
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder entityType(@Nullable String entityType) {
 			this.entityType = entityType;
 			return this;
 		}
 
-		public Builder entityPrimaryKey(Integer entityPrimaryKey) {
+		/**
+		 * Sets the entity primary key.
+		 * @param entityPrimaryKey the entity primary key
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder entityPrimaryKey(int entityPrimaryKey) {
 			this.entityPrimaryKey = entityPrimaryKey;
 			return this;
 		}
 
-		public Builder operation(Operation... operation) {
+		/**
+		 * Sets the operation.
+		 * @param operation the operation
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder operation(@Nullable Operation... operation) {
 			this.operation = operation;
 			return this;
 		}
 
-		public Builder containerType(ContainerType... containerType) {
+		/**
+		 * Sets the container type.
+		 * @param containerType the container type
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder containerType(@Nullable ContainerType... containerType) {
 			this.containerType = containerType;
 			return this;
 		}
 
-		public Builder classifierName(String... classifierName) {
+		/**
+		 * Sets the classifier name.
+		 * @param classifierName the classifier name
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder classifierName(@Nullable String... classifierName) {
 			this.classifierName = classifierName;
 			return this;
 		}
 
+		/**
+		 * Builds the {@link DataSite} record.
+		 * @return the {@link DataSite} record
+		 */
+		@Nonnull
 		public DataSite build() {
 			return new DataSite(entityType, entityPrimaryKey, operation, containerType, classifierName);
 		}
+
 	}
 
 }

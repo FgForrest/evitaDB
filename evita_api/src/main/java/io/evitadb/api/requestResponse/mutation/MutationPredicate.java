@@ -81,7 +81,7 @@ public abstract class MutationPredicate implements Predicate<Mutation> {
 
 		public AndMutationPredicate(@Nonnull MutationPredicate former, @Nonnull MutationPredicate other) {
 			super(former.getContext());
-			this.former = this;
+			this.former = former;
 			this.other = other;
 			Assert.isPremiseValid(
 				former.getContext().equals(other.getContext()),

@@ -97,7 +97,7 @@ public non-sealed class TransactionMutation implements Mutation {
 		context.setVersion(this.catalogVersion, this.mutationCount);
 
 		return Stream.of(
-			ChangeCatalogCapture.dataCapture(context, operation(), content == CaptureContent.BODY ? this : null)
+			ChangeCatalogCapture.infrastructureCapture(context, operation(), content == CaptureContent.BODY ? this : null)
 		);
 	}
 

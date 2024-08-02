@@ -1191,6 +1191,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final MutationPredicate mutationPredicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(criteria);
 		return getCatalog()
 			.getReversedCommittedMutationStream(criteria.sinceVersion())
+			.filter(mutationPredicate)
 			.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()));
 	}
 
@@ -1353,6 +1354,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				return null;
 			}
 		);
+	}
+
+	@Override
+	public String toString() {
+		return (isTransactionOpen() ? "Read-write session:" : "Read-only session: ") + id + (isActive() ? "" : " (terminated)");
 	}
 
 	/**
