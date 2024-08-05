@@ -24,6 +24,9 @@
 
 <configuration>
 
+	<!-- avoid initial logs from LogBack itself -->
+	<statusListener class="ch.qos.logback.core.status.NopStatusListener" />
+
 	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
 		<target>System.out</target>
 		<encoder>
