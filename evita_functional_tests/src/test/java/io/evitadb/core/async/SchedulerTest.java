@@ -61,29 +61,29 @@ class SchedulerTest {
 
 	@Test
 	void shouldRegisterTask() {
-		assertEquals(0, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(0, scheduler.listTaskStatuses(1, 20).getTotalRecordCount());
 
 		scheduler.submit(
 			(ServerTask<?, ?>) new ClientRunnableTask<>("Test task", null, () -> {
 			})
 		);
 
-		assertEquals(1, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(1, scheduler.listTaskStatuses(1, 20).getTotalRecordCount());
 	}
 
 	@Test
 	void shouldGetStatusOfTheTask() throws ExecutionException, InterruptedException {
-		assertEquals(0, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(0, scheduler.listTaskStatuses(1, 20).getTotalRecordCount());
 
 		final CompletableFuture<Integer> result = scheduler.submit(
 			(ServerTask<?, Integer>) new ClientCallableTask<>("Test task", null, () -> 5)
 		);
 
-		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listJobStatuses(1, 20);
+		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listTaskStatuses(1, 20);
 		assertEquals(1, jobStatuses.getTotalRecordCount());
 
 		assertEquals(5, result.get());
-		final Optional<TaskStatus<?, ?>> jobStatus = scheduler.getJobStatus(jobStatuses.getData().get(0).taskId());
+		final Optional<TaskStatus<?, ?>> jobStatus = scheduler.getTaskStatus(jobStatuses.getData().get(0).taskId());
 
 		assertTrue(jobStatus.isPresent());
 		assertEquals("Test task", jobStatus.get().taskName());
@@ -93,7 +93,7 @@ class SchedulerTest {
 
 	@Test
 	void shouldCancelTheTask() throws InterruptedException {
-		assertEquals(0, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(0, scheduler.listTaskStatuses(1, 20).getTotalRecordCount());
 
 		final AtomicBoolean started = new AtomicBoolean(false);
 		final AtomicBoolean interrupted = new AtomicBoolean(false);
@@ -111,15 +111,15 @@ class SchedulerTest {
 			})
 		);
 
-		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listJobStatuses(1, 20);
+		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listTaskStatuses(1, 20);
 		assertEquals(1, jobStatuses.getTotalRecordCount());
 
-		final Optional<TaskStatus<?, ?>> jobStatus = scheduler.getJobStatus(jobStatuses.getData().get(0).taskId());
+		final Optional<TaskStatus<?, ?>> jobStatus = scheduler.getTaskStatus(jobStatuses.getData().get(0).taskId());
 
 		assertTrue(jobStatus.isPresent());
 		assertEquals("Test task", jobStatus.get().taskName());
 
-		scheduler.cancelJob(jobStatus.get().taskId());
+		scheduler.cancelTask(jobStatus.get().taskId());
 
 		try {
 			result.get();
@@ -134,7 +134,7 @@ class SchedulerTest {
 			Thread.onSpinWait();
 		} while (started.get() && !interrupted.get() && System.currentTimeMillis() - start < 100_000);
 
-		final Optional<TaskStatus<?, ?>> jobStatusAgain = scheduler.getJobStatus(jobStatuses.getData().get(0).taskId());
+		final Optional<TaskStatus<?, ?>> jobStatusAgain = scheduler.getTaskStatus(jobStatuses.getData().get(0).taskId());
 		final Optional<TaskStatus<?, ?>> taskStatusRef = jobStatusAgain;
 		taskStatusRef.ifPresent(taskStatus -> {
 			assertNull(taskStatus.result());

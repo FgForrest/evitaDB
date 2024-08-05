@@ -24,19 +24,20 @@
 package io.evitadb.externalApi.rest.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.utils.path.PathHandlingService;
+import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
-import io.undertow.Handlers;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.RoutingHandler;
-import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.server.handlers.PathHandler;
-import io.undertow.util.Methods;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -47,12 +48,12 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
- * Custom Undertow router for REST APIs.
+ * Custom HTTP router for REST APIs.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-public class RestRouter implements HttpHandler {
+public class RestRouter implements HttpService {
 
 	private static final String SYSTEM_API_NAME = "system";
 
@@ -61,14 +62,9 @@ public class RestRouter implements HttpHandler {
 	 */
 	@Nonnull private final ObjectMapper objectMapper;
 	@Nonnull private final RestConfig restConfig;
+	private final PathHandlingService delegateRouter = new PathHandlingService();
 
-	private final PathHandler delegateRouter = Handlers.path();
 	@Nonnull private final Set<String> registeredApis = createHashSet(20);
-
-	@Override
-	public void handleRequest(HttpServerExchange httpServerExchange) throws Exception {
-		delegateRouter.handleRequest(httpServerExchange);
-	}
 
 	/**
 	 * Registers new system API.
@@ -84,6 +80,12 @@ public class RestRouter implements HttpHandler {
 		registerApi(catalogName, api);
 	}
 
+	@Nonnull
+	@Override
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+		return delegateRouter.serve(ctx, req);
+	}
+
 	/**
 	 * Registers new API with endpoints under specified API name.
 	 */
@@ -93,15 +95,16 @@ public class RestRouter implements HttpHandler {
 			() -> new RestInternalError("API `" + apiName + "` has been already registered.")
 		);
 
-		final RoutingHandler apiRouter = Handlers.routing();
+		final RoutingHandlerService apiRouter = new RoutingHandlerService();
 		final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
 		api.endpoints().forEach(endpoint -> {
 			final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpoint.path(), p -> new CorsEndpoint(restConfig));
 			registerEndpoint(apiRouter, corsEndpoint, endpoint);
 		});
-		corsEndpoints.forEach((path, endpoint) -> apiRouter.add(Methods.OPTIONS, path.toString(), endpoint.toHandler()));
+		corsEndpoints.forEach((path, endpoint) -> apiRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler()));
 
+		//fix router hierarchical inputs
 		delegateRouter.addPrefixPath(constructApiPath(apiName).toString(), apiRouter);
 
 		registeredApis.add(apiName);
@@ -120,20 +123,16 @@ public class RestRouter implements HttpHandler {
 	/**
 	 * Creates new REST endpoint on specified path with specified {@link Rest} instance.
 	 */
-	private void registerEndpoint(@Nonnull RoutingHandler apiRouter, @Nonnull CorsEndpoint corsEndpoint, @Nonnull Rest.Endpoint endpoint) {
-		corsEndpoint.addMetadataFromHandler(endpoint.handler());
+	private void registerEndpoint(@Nonnull RoutingHandlerService apiRouter, @Nonnull CorsEndpoint corsEndpoint, @Nonnull Rest.Endpoint endpoint) {
+		corsEndpoint.addMetadataFromEndpoint(endpoint.handler());
 
 		apiRouter.add(
 			endpoint.method(),
 			endpoint.path().toString(),
-			new BlockingHandler(
-				new CorsFilter(
-					new RestExceptionHandler(
-						objectMapper,
-						endpoint.handler()
-					),
-					restConfig.getAllowedOrigins()
-				)
+			new CorsFilter(
+				endpoint.handler()
+					.decorate(service -> new RestExceptionHandler(objectMapper, service)),
+				restConfig.getAllowedOrigins()
 			)
 		);
 	}

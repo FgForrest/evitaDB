@@ -118,6 +118,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -129,9 +130,11 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.store.spi.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
 import static io.evitadb.store.spi.model.storageParts.index.PriceListAndCurrencySuperIndexStoragePart.computeUniquePartId;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.notNull;
@@ -1106,6 +1109,25 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		}
 	}
 
+	@Override
+	public long getSizeOnDiskInBytes() {
+		final Pattern pattern = getEntityCollectionDataStoreFileNamePattern(
+			this.entityCollectionFileReference.entityType(),
+			this.entityCollectionFileReference.entityTypePrimaryKey()
+		);
+		return Arrays.stream(
+			this.entityCollectionFile.getParent().toFile().listFiles(
+				(dir, name) -> pattern.matcher(name).matches()
+			)
+		).mapToLong(File::length).sum();
+
+	}
+
+	@Override
+	public void close() {
+		this.storagePartPersistenceService.close();
+	}
+
 	@Nonnull
 	public OffsetIndexDescriptor flush(long newCatalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
 		final long previousVersion = this.storagePartPersistenceService.getVersion();
@@ -1156,7 +1178,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Flushes entire living data set to the target output stream. If the output stream represents a file, the file must
 	 * exist and must be prepared for re-writing. File must not be used by any other process.
 	 *
-	 * @param outputStream output stream to write the data to
+	 * @param outputStream   output stream to write the data to
 	 * @param catalogVersion new catalog version
 	 */
 	@Nonnull
@@ -1181,11 +1203,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				offsetIndexDescriptor.fileLocation()
 			)
 		);
-	}
-
-	@Override
-	public void close() {
-		this.storagePartPersistenceService.close();
 	}
 
 	/*
@@ -1215,7 +1232,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	/**
 	 * Reports changes in historical records kept.
 	 *
-	 * @param catalogName     name of the catalog
+	 * @param catalogName            name of the catalog
 	 * @param oldestHistoricalRecord oldest historical record
 	 */
 	private void reportOldestHistoricalRecord(@Nonnull String catalogName, @Nullable OffsetDateTime oldestHistoricalRecord) {

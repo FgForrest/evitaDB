@@ -28,12 +28,10 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.utils.NetworkUtils;
-import io.undertow.server.HttpHandler;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.function.Predicate;
 
 /**
@@ -63,10 +61,12 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 		return CODE;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public HttpHandler getApiHandler() {
-		return restManager.getRestRouter();
+	public HttpServiceDefinition[] getHttpServiceDefinitions() {
+		return new HttpServiceDefinition[] {
+			new HttpServiceDefinition(restManager.getRestRouter(), PathHandlingMode.DYNAMIC_PATH_HANDLING)
+		};
 	}
 
 	@Override

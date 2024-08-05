@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutation;
@@ -60,7 +61,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	private final CatalogSchemaContract catalogSchema;
 	private final EntitySchemaContract entitySchema;
 	private final AssociatedDataSchemaContract baseSchema;
-	private final List<EntitySchemaMutation> mutations = new LinkedList<>();
+	private final List<LocalEntitySchemaMutation> mutations = new LinkedList<>();
 	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
 	private int lastMutationReflectedInSchema = 0;
 	private AssociatedDataSchemaContract updatedSchema;
@@ -249,7 +250,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	 * conditions based on "optimistic locking" mechanism in very granular way.
 	 */
 	@Nonnull
-	public Collection<EntitySchemaMutation> toMutation() {
+	public Collection<LocalEntitySchemaMutation> toMutation() {
 		return this.mutations;
 	}
 

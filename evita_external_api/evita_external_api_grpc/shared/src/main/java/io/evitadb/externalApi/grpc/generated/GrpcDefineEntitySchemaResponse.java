@@ -592,7 +592,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchema.Builder getEntitySchemaBuilder() {
-      
+
       onChanged();
       return getEntitySchemaFieldBuilder().getBuilder();
     }
@@ -619,7 +619,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntitySchema, io.evitadb.externalApi.grpc.generated.GrpcEntitySchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntitySchema, io.evitadb.externalApi.grpc.generated.GrpcEntitySchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOrBuilder>
         getEntitySchemaFieldBuilder() {
       if (entitySchemaBuilder_ == null) {
         entitySchemaBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

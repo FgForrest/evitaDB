@@ -416,11 +416,12 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * the catalog to the given version. The stream goes through all the mutations in this transaction from last to
 	 * first one and continues backward with previous transaction after that until the beginning of the WAL.
 	 *
-	 * @param catalogVersion version of the catalog to start the stream with
+	 * @param catalogVersion version of the catalog to start the stream with, if null is provided then the stream will
+	 *                       start with the last transaction in the WAL
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion);
+	Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
@@ -464,6 +465,18 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
 
 	/**
+	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
+	 * specified method returns first version known to the catalog mutation history.
+	 *
+	 * @param moment the moment in time for which the catalog version should be returned
+	 * @return catalog version that was valid at the specified moment in time, or first version known to the catalog
+	 * mutation history if no moment was specified
+	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 */
+	@Nonnull
+	CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+
+	/**
 	 * Returns a stream of {@link CatalogVersionDescriptor} instances for the given catalog versions. Descriptors will
 	 * be ordered the same way as the input catalog versions, but may be missing some versions if they are not known in
 	 * history. Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients
@@ -493,6 +506,12 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 */
 	@Nonnull
 	ServerTask<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+
+	/**
+	 * Returns size taken by all catalog data structures in bytes.
+	 * @return size taken by all catalog data structures in bytes
+	 */
+	long getSizeOnDiskInBytes();
 
 	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created

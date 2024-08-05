@@ -15,11 +15,73 @@ import "GrpcEntitySchema.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcCatalogSchemaMutations.proto";
+import "GrpcChangeCapture.proto";
 
 // Response to GetCatalogState request.
 message GrpcCatalogStateResponse {
   // The current state of the catalog.
   GrpcCatalogState state = 1;
+}
+
+// Request to GrpcCatalogVersionAt request.
+message GrpcCatalogVersionAtRequest {
+  // Chosen moment in time for which the version of the catalog should be returned.
+  GrpcOffsetDateTime theMoment = 1;
+}
+
+// Response to GrpcCatalogVersionAt request.
+message GrpcCatalogVersionAtResponse {
+  // The version of the catalog at the specified moment in time.
+  int64 version = 1;
+  // Exact moment when this version was stored (introduced).
+  GrpcOffsetDateTime introducedAt = 2;
+}
+
+// Request to GetMutationsHistoryPage request.
+message GetMutationsHistoryPageRequest {
+  // The page number starting with 1
+  int32 page = 1;
+  // The size of the page to return
+  int32 pageSize = 2;
+  // Starting point for the search (catalog version)
+  int64 sinceVersion = 3;
+  // Starting point for the search (index of the mutation within catalog version)
+  int32 sinceIndex = 4;
+  // The criteria of the capture, allows to define constraints on the returned mutations
+  repeated GrpcCaptureCriteria criteria = 5;
+  // The scope of the returned data - either header of the mutation, or the whole mutation
+  GrpcCaptureContent content = 6;
+}
+
+// Response to GetMutationsHistoryPage request.
+message GetMutationsHistoryPageResponse {
+  // The list of mutations that match the criteria
+  repeated GrpcChangeCatalogCapture changeCapture = 1;
+}
+
+// Request to GetMutationsHistoryPage request.
+message GetMutationsHistoryRequest {
+  // Starting point for the search (catalog version)
+  google.protobuf.Int64Value sinceVersion = 1;
+  // Starting point for the search (index of the mutation within catalog version)
+  google.protobuf.Int32Value sinceIndex = 2;
+  // The criteria of the capture, allows to define constraints on the returned mutations
+  repeated GrpcCaptureCriteria criteria = 3;
+  // The scope of the returned data - either header of the mutation, or the whole mutation
+  GrpcCaptureContent content = 4;
+}
+
+// Response to GetMutationsHistory request.
+message GetMutationsHistoryResponse {
+  // The list of mutations that match the criteria
+  repeated GrpcChangeCatalogCapture changeCapture = 1;
+}
+
+// Request to GetCatalogSchema request.
+message GrpcGetCatalogSchemaRequest {
+  // True, if the schema should include name variants for it and all sub-schemas.
+  // This could considerably increase the size of the response.
+  bool nameVariants = 1;
 }
 
 // Response to GetCatalogSchema request.
@@ -32,6 +94,9 @@ message GrpcCatalogSchemaResponse {
 message GrpcEntitySchemaRequest {
   // The entity type for which the schema is requested.
   string entityType = 1;
+  // True, if the schema should include name variants for it and all sub-schemas.
+  // This could considerably increase the size of the response.
+  bool nameVariants = 2;
 }
 
 // Response to GetEntitySchema request.
@@ -258,6 +323,12 @@ message GrpcQueryRequest {
   map<string, GrpcQueryParam> namedQueryParams = 3;
 }
 
+// Request for specifying a query to be executed.
+message GrpcQueryUnsafeRequest {
+  // The string part of the parametrised query.
+  string query = 1;
+}
+
 // Response to Query request.
 message GrpcQueryResponse {
   // The fetched record page with entities.
@@ -471,9 +542,15 @@ message GrpcQueryParam {
 // be fetched by specifying a complex queries.
 service EvitaSessionService {
   // Procedure that returns the current (the one on which the used session operates) catalog schema.
-  rpc GetCatalogSchema(google.protobuf.Empty) returns (GrpcCatalogSchemaResponse);
+  rpc GetCatalogSchema(GrpcGetCatalogSchemaRequest) returns (GrpcCatalogSchemaResponse);
   // Procedure that returns the current state of the catalog.
   rpc GetCatalogState(google.protobuf.Empty) returns (GrpcCatalogStateResponse);
+  // Procedure that returns the version of the catalog at a specific moment in time.
+  rpc GetCatalogVersionAt(GrpcCatalogVersionAtRequest) returns (GrpcCatalogVersionAtResponse);
+  // Procedure that returns requested page of past mutations in reversed order that match the request criteria.
+  rpc GetMutationsHistoryPage(GetMutationsHistoryPageRequest) returns (GetMutationsHistoryPageResponse);
+  // Procedure that returns stream of all past mutations in reversed order that match the request criteria.
+  rpc GetMutationsHistory(GetMutationsHistoryRequest) returns (stream GetMutationsHistoryResponse);
   // Procedure that returns the schema of a specific entity type.
   rpc GetEntitySchema(GrpcEntitySchemaRequest) returns (GrpcEntitySchemaResponse);
   // Procedure that returns the list of all entity types.
@@ -491,6 +568,15 @@ service EvitaSessionService {
   rpc QueryList(GrpcQueryRequest) returns (GrpcQueryListResponse);
   // Procedure that executes passed parametrised query and returns a data chunk with computed extra results.
   rpc Query(GrpcQueryRequest) returns (GrpcQueryResponse);
+  // Procedure that executes passed query with embedded variables and returns zero or one entity.
+  // Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+  rpc QueryOneUnsafe(GrpcQueryUnsafeRequest) returns (GrpcQueryOneResponse);
+  // Procedure that executes passed query with embedded variables and returns a list of entities.
+  // Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+  rpc QueryListUnsafe(GrpcQueryUnsafeRequest) returns (GrpcQueryListResponse);
+  // Procedure that executes passed query with embedded variables and returns a data chunk with computed extra results.
+  // Do not use in your applications! This method is unsafe and should be used only for internal purposes.
+  rpc QueryUnsafe(GrpcQueryUnsafeRequest) returns (GrpcQueryResponse);
   // Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
   rpc GetEntity(GrpcEntityRequest) returns (GrpcEntityResponse);
 

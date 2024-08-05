@@ -24,17 +24,20 @@
 package io.evitadb.externalApi.rest.io;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpResponseWriter;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.utils.Assert;
+import io.netty.channel.EventLoop;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * {@link RestEndpointHandler} that uses JSON as a request and response body format.
@@ -53,24 +56,26 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> T parseRequestBody(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Class<T> dataClass) {
-		final String content = readRawRequestBody(exchange);
-		Assert.isTrue(
-			!content.trim().isEmpty(),
-			() -> new RestInvalidArgumentException("Request's body contains no data.")
-		);
+	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Class<T> dataClass) {
+		return readRawRequestBody(exchange)
+			.thenApply(content -> {
+				Assert.isTrue(
+					!content.trim().isEmpty(),
+					() -> new RestInvalidArgumentException("Request's body contains no data.")
+				);
 
-		try {
-			return restHandlingContext.getObjectMapper().readValue(content, dataClass);
-		} catch (JsonProcessingException e) {
-			throw new RestInternalError("Could not parse request body: ", e);
-		}
+				try {
+					return restHandlingContext.getObjectMapper().readValue(content, dataClass);
+				} catch (JsonProcessingException e) {
+					throw new RestInternalError("Could not parse request body: ", e);
+				}
+			});
 	}
 
 	@Override
-	protected void writeResult(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull OutputStream outputStream, @Nonnull Object result) {
+	protected void writeResponse(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutors) {
 		try {
-			restHandlingContext.getObjectMapper().writeValue(outputStream, result);
+			responseWriter.write(HttpData.copyOf(restHandlingContext.getObjectMapper().writeValueAsBytes(result)));
 		} catch (IOException e) {
 			throw new OpenApiInternalError(
 				"Could not serialize Java object response to JSON: " + e.getMessage(),

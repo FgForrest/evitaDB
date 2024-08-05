@@ -122,6 +122,8 @@ message GrpcEntitySchema {
   repeated GrpcEvolutionMode evolutionMode = 14;
   // Contains index of definitions of all sortable attribute compounds defined in this schema.
   map<string, GrpcSortableAttributeCompoundSchema> sortableAttributeCompounds = 15;
+  // Contains entity type converted to different naming conventions.
+  repeated GrpcNameVariant nameVariant = 16;
 }
 
 // This is the definition object for attributes that are stored along with
@@ -194,6 +196,8 @@ message GrpcAttributeSchema {
   // number must not ever exceed maximum limits of `Int` type when scaling the number by the power
   // of ten using `indexedDecimalPlaces` as exponent.
   int32 indexedDecimalPlaces = 14;
+  // Contains attribute name converted to different naming conventions.
+  repeated GrpcNameVariant nameVariant = 15;
 }
 
 // This is the definition object for associated data that is stored along with
@@ -224,6 +228,8 @@ message GrpcAssociatedDataSchema {
   // When associated data is nullable, its values may be missing in the entities. Otherwise, the system will enforce
   // non-null checks upon upserting of the entity.
   bool nullable = 6;
+  // Contains associated data name converted to different naming conventions.
+  repeated GrpcNameVariant nameVariant = 7;
 }
 
 // This is the definition object for reference that is stored along with
@@ -265,12 +271,14 @@ message GrpcReferenceSchema {
   // that identifies type some external resource not maintained by Evita.
   string entityType = 5;
   // Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
-  bool entityTypeRelatesToEntity = 6;
+  // DEPRECATED!!! use referencedEntityTypeManaged instead
+  bool entityTypeRelatesToEntity = 6 [deprecated = true];
   // Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
   // resource not maintained by Evita.
   google.protobuf.StringValue groupType = 7;
   // Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
-  bool groupTypeRelatesToEntity = 8;
+  // DEPRECATED!!! use referencedGroupTypeManaged instead
+  bool groupTypeRelatesToEntity = 8 [deprecated = true];
   // Contains `true` if the index for this reference should be created and maintained allowing to filter by
   // `reference_{reference name}_having` filtering constraints. Index is also required when reference is
   // `faceted`.
@@ -302,6 +310,16 @@ message GrpcReferenceSchema {
   map<string, GrpcAttributeSchema> attributes = 11;
   // Contains index of definitions of all sortable attribute compounds defined in this schema.
   map<string, GrpcSortableAttributeCompoundSchema> sortableAttributeCompounds = 12;
+  // Contains reference name converted to different naming conventions.
+  repeated GrpcNameVariant nameVariant = 13;
+  // Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+  repeated GrpcNameVariant entityTypeNameVariant = 14;
+  // Contains referenced group name converted to different naming conventions (only for non-managed entities).
+  repeated GrpcNameVariant groupTypeNameVariant = 15;
+  // Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+  bool referencedEntityTypeManaged = 16;
+  // Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+  bool referencedGroupTypeManaged = 17;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB
@@ -323,6 +341,8 @@ message GrpcSortableAttributeCompoundSchema {
   // Collection of attribute elements that define the sortable compound. The order of the elements
   // is important, as it defines the order of the sorting.
   repeated GrpcAttributeElement attributeElements = 4;
+  // Contains attribute compound name converted to different naming conventions.
+  repeated GrpcNameVariant nameVariant = 5;
 }
 
 // Attribute element is a part of the sortable compound. It defines the attribute name, the direction of the

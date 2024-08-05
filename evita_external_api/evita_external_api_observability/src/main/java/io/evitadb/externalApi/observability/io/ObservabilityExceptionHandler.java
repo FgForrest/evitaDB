@@ -24,22 +24,22 @@
 package io.evitadb.externalApi.observability.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.http.JsonApiExceptionHandler;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
-import io.undertow.server.HttpHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 
 /**
- * Handles exception that occurred during processing of HTTP request outside LoggingEndpointHandler execution.
+ * Handles exception that occurred during processing of HTTP request outside JfrRecordingEndpointHandler execution.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 @Slf4j
 public class ObservabilityExceptionHandler extends JsonApiExceptionHandler {
 
-	public ObservabilityExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpHandler next) {
+	public ObservabilityExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpService next) {
 		super(objectMapper, next);
 	}
 

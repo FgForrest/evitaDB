@@ -82,6 +82,11 @@ private static final long serialVersionUID = 0L;
             entityType_ = s;
             break;
           }
+          case 16: {
+
+            nameVariants_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -130,7 +135,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -150,7 +155,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -158,6 +163,22 @@ private static final long serialVersionUID = 0L;
     } else {
       return (com.google.protobuf.ByteString) ref;
     }
+  }
+
+  public static final int NAMEVARIANTS_FIELD_NUMBER = 2;
+  private boolean nameVariants_;
+  /**
+   * <pre>
+   * True, if the schema should include name variants for it and all sub-schemas.
+   * This could considerably increase the size of the response.
+   * </pre>
+   *
+   * <code>bool nameVariants = 2;</code>
+   * @return The nameVariants.
+   */
+  @java.lang.Override
+  public boolean getNameVariants() {
+    return nameVariants_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -177,6 +198,9 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, entityType_);
     }
+    if (nameVariants_ != false) {
+      output.writeBool(2, nameVariants_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -188,6 +212,10 @@ private static final long serialVersionUID = 0L;
     size = 0;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, entityType_);
+    }
+    if (nameVariants_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(2, nameVariants_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -206,6 +234,8 @@ private static final long serialVersionUID = 0L;
 
     if (!getEntityType()
         .equals(other.getEntityType())) return false;
+    if (getNameVariants()
+        != other.getNameVariants()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -219,6 +249,9 @@ private static final long serialVersionUID = 0L;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + ENTITYTYPE_FIELD_NUMBER;
     hash = (53 * hash) + getEntityType().hashCode();
+    hash = (37 * hash) + NAMEVARIANTS_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getNameVariants());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -358,6 +391,8 @@ private static final long serialVersionUID = 0L;
       super.clear();
       entityType_ = "";
 
+      nameVariants_ = false;
+
       return this;
     }
 
@@ -385,6 +420,7 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest result = new io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest(this);
       result.entityType_ = entityType_;
+      result.nameVariants_ = nameVariants_;
       onBuilt();
       return result;
     }
@@ -436,6 +472,9 @@ private static final long serialVersionUID = 0L;
       if (!other.getEntityType().isEmpty()) {
         entityType_ = other.entityType_;
         onChanged();
+      }
+      if (other.getNameVariants() != false) {
+        setNameVariants(other.getNameVariants());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -499,7 +538,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -522,7 +561,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       entityType_ = value;
       onChanged();
       return this;
@@ -536,7 +575,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-      
+
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
@@ -556,8 +595,54 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       entityType_ = value;
+      onChanged();
+      return this;
+    }
+
+    private boolean nameVariants_ ;
+    /**
+     * <pre>
+     * True, if the schema should include name variants for it and all sub-schemas.
+     * This could considerably increase the size of the response.
+     * </pre>
+     *
+     * <code>bool nameVariants = 2;</code>
+     * @return The nameVariants.
+     */
+    @java.lang.Override
+    public boolean getNameVariants() {
+      return nameVariants_;
+    }
+    /**
+     * <pre>
+     * True, if the schema should include name variants for it and all sub-schemas.
+     * This could considerably increase the size of the response.
+     * </pre>
+     *
+     * <code>bool nameVariants = 2;</code>
+     * @param value The nameVariants to set.
+     * @return This builder for chaining.
+     */
+    public Builder setNameVariants(boolean value) {
+
+      nameVariants_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * True, if the schema should include name variants for it and all sub-schemas.
+     * This could considerably increase the size of the response.
+     * </pre>
+     *
+     * <code>bool nameVariants = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearNameVariants() {
+
+      nameVariants_ = false;
       onChanged();
       return this;
     }

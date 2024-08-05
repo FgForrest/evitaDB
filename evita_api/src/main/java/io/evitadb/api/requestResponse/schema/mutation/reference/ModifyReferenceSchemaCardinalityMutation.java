@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,8 +30,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -48,7 +48,7 @@ import java.util.Optional;
  * Mutation is responsible for setting value to a {@link ReferenceSchemaContract#getCardinality()}
  * in {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link ReferenceSchemaContract} alone.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -57,7 +57,7 @@ import java.util.Optional;
 @Immutable
 @EqualsAndHashCode(callSuper = true)
 public class ModifyReferenceSchemaCardinalityMutation
-	extends AbstractModifyReferenceDataSchemaMutation implements CombinableEntitySchemaMutation {
+	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -6542945168078711713L;
 	@Nonnull @Getter private final Cardinality cardinality;
 
@@ -68,8 +68,12 @@ public class ModifyReferenceSchemaCardinalityMutation
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation newMutation) {
-		if (newMutation instanceof ModifyReferenceSchemaCardinalityMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
+		if (existingMutation instanceof ModifyReferenceSchemaCardinalityMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;

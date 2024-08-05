@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,13 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.entity;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -48,7 +49,7 @@ import java.util.stream.Stream;
 /**
  * Mutation is responsible for removing one or more currencies to a {@link EntitySchemaContract#getCurrencies()}
  * in {@link EntitySchemaContract}.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * or negative mutation {@link AllowCurrencyInEntitySchemaMutation} if those mutation are present in the mutation pipeline
  * multiple times.
  *
@@ -57,7 +58,7 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class DisallowCurrencyInEntitySchemaMutation implements CombinableEntitySchemaMutation {
+public class DisallowCurrencyInEntitySchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 8499615143393252355L;
 	@Getter private final Set<Currency> currencies;
 
@@ -71,7 +72,11 @@ public class DisallowCurrencyInEntitySchemaMutation implements CombinableEntityS
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
 		if (existingMutation instanceof DisallowCurrencyInEntitySchemaMutation disallowCurrencyInEntitySchema) {
 			return new MutationCombinationResult<>(
 				null,
@@ -131,6 +136,12 @@ public class DisallowCurrencyInEntitySchemaMutation implements CombinableEntityS
 				entitySchema.getSortableAttributeCompounds()
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

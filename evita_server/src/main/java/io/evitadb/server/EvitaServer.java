@@ -23,13 +23,16 @@
 
 package io.evitadb.server;
 
-import ch.qos.logback.classic.util.ContextInitializer;
+import ch.qos.logback.classic.ClassicConstants;
 import ch.qos.logback.core.Context;
 import ch.qos.logback.core.ContextBase;
 import ch.qos.logback.core.spi.ContextAwareBase;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -76,6 +79,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -95,9 +102,7 @@ import static java.util.Optional.ofNullable;
  * - graphQL: web friendly JSON API optimized for direct consumption from browsers or JavaScript based server implementations
  * - REST: web friendly JSON API
  *
- * We use two different web servers - Netty for gRPC and Undertow for graphQL and REST APIs. We plan to unify all APIs
- * under Undertow 3.x version that's going to be based on Netty instead of XNIO. Currently, we at least to try reusing
- * single executor service so that there are not so many threads competing for the limited amount of CPUs.
+ * We use Armeria web servers for all APIs.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -131,9 +136,9 @@ public class EvitaServer {
 	 */
 	private final EvitaConfiguration evitaConfiguration;
 	/**
-	 * Instance of the {@link ApiOptions} initialized from the evita configuration file.
+	 * Instance of the {@link EvitaServerConfiguration} initialized from the evita configuration file.
 	 */
-	private final ApiOptions apiOptions;
+	private final EvitaServerConfiguration evitaServerConfiguration;
 	/**
 	 * List of external API providers indexed by their {@link ExternalApiProviderRegistrar#getExternalApiCode()}.
 	 */
@@ -147,6 +152,10 @@ public class EvitaServer {
 	 * Instance of the web server providing the HTTP endpoints.
 	 */
 	@Getter private ExternalApiServer externalApiServer;
+	/**
+	 * Reference to a future that is initialized when server is stopped.
+	 */
+	private CompletableFuture<Void> stopFuture;
 
 	/**
 	 * Rock'n'Roll.
@@ -176,15 +185,15 @@ public class EvitaServer {
 	@Nonnull
 	private static String initLog() {
 		String logMsg;
-		if (System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) == null) {
-			System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
+		if (System.getProperty(ClassicConstants.CONFIG_FILE_PROPERTY) == null) {
+			System.setProperty(ClassicConstants.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
 			logMsg = null;
 		} else {
-			final String originalFilePath = System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY);
+			final String originalFilePath = System.getProperty(ClassicConstants.CONFIG_FILE_PROPERTY);
 			final File logFile = new File(originalFilePath);
 			if (!logFile.exists() || !logFile.isFile()) {
 				logMsg = "original file `" + originalFilePath + "` doesn't exist";
-				System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
+				System.setProperty(ClassicConstants.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
 			} else {
 				logMsg = null;
 			}
@@ -371,6 +380,7 @@ public class EvitaServer {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
 		final EvitaServerConfigurationWithLogFilesListing evitaServerConfigurationWithLogFilesListing = parseConfiguration(configDirLocation, arguments);
 		final EvitaServerConfiguration evitaServerConfig = evitaServerConfigurationWithLogFilesListing.configuration();
+		this.evitaServerConfiguration = evitaServerConfig;
 		this.evitaConfiguration = new EvitaConfiguration(
 			evitaServerConfig.name(),
 			evitaServerConfig.server(),
@@ -378,7 +388,6 @@ public class EvitaServer {
 			evitaServerConfig.transaction(),
 			evitaServerConfig.cache()
 		);
-		this.apiOptions = evitaServerConfig.api();
 
 		if (this.evitaConfiguration.server().quiet()) {
 			ConsoleWriter.setQuiet(true);
@@ -398,7 +407,7 @@ public class EvitaServer {
 		ConsoleWriter.write("Visit us at: ");
 		ConsoleWriter.write("https://evitadb.io", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 		ConsoleWriter.write("\n\n", ConsoleColor.WHITE);
-		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logInitializationStatus).map(it -> " (" + it + ")").orElse("") + "\n", ConsoleColor.DARK_GRAY);
+		ConsoleWriter.write("Log config used: " + System.getProperty(ClassicConstants.CONFIG_FILE_PROPERTY) + ofNullable(logInitializationStatus).map(it -> " (" + it + ")").orElse("") + "\n", ConsoleColor.DARK_GRAY);
 		ConsoleWriter.write("Config files used:\n   - DEFAULT (on classpath)\n" + Arrays.stream(evitaServerConfigurationWithLogFilesListing.configFilesApplied()).map(it -> "   - " + it.toAbsolutePath()).collect(Collectors.joining("\n")), ConsoleColor.DARK_GRAY);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 
@@ -414,7 +423,14 @@ public class EvitaServer {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
 		this.evita = evita;
 		this.evitaConfiguration = evita.getConfiguration();
-		this.apiOptions = apiOptions;
+		this.evitaServerConfiguration = new EvitaServerConfiguration(
+			evitaConfiguration.name(),
+			evitaConfiguration.server(),
+			evitaConfiguration.storage(),
+			evitaConfiguration.transaction(),
+			evitaConfiguration.cache(),
+			apiOptions
+		);
 	}
 
 	/**
@@ -422,22 +438,46 @@ public class EvitaServer {
 	 */
 	public void run() {
 		if (this.evita == null) {
-			this.evita = new Evita(evitaConfiguration);
+			this.evita = new Evita(this.evitaConfiguration);
 		}
 		this.externalApiServer = new ExternalApiServer(
-			this.evita, this.apiOptions, this.externalApiProviders
+			this.evita, this.evitaServerConfiguration.api(), this.externalApiProviders
 		);
+		this.evita.management().setConfigurationSupplier(this::serializeConfiguration);
 		this.externalApiServer.start();
+	}
+
+	/**
+	 * Method serializes the configuration to a YAML string.
+	 * @return serialized configuration
+	 */
+	@Nonnull
+	private String serializeConfiguration() {
+		try {
+			final ObjectMapper yamlMapper = new ObjectMapper(
+				YAMLFactory.builder()
+					.disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+					.enable(Feature.INDENT_ARRAYS)
+					.enable(Feature.INDENT_ARRAYS_WITH_INDICATOR)
+					.build()
+			);
+			return yamlMapper.writeValueAsString(this.evitaServerConfiguration);
+		} catch (JsonProcessingException e) {
+			log.error("Failed to serialize configuration.", e);
+			return "Failed to serialize configuration.";
+		}
 	}
 
 	/**
 	 * Method stops {@link ExternalApiServer} and closes all opened ports.
 	 */
-	public void stop() {
-		if (externalApiServer != null) {
-			externalApiServer.close();
+	@Nonnull
+	public CompletableFuture<Void> stop() {
+		if (this.stopFuture == null) {
+			this.stopFuture = externalApiServer.closeAsynchronously()
+				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n\n"));
 		}
-		ConsoleWriter.write("Server stopped, bye.\n\n");
+		return this.stopFuture;
 	}
 
 	/**
@@ -545,8 +585,13 @@ public class EvitaServer {
 
 		@Override
 		public void run() {
-			evitaServer.stop();
-			stop();
+			try {
+				evitaServer.stop()
+					.thenAccept(unused -> stop())
+					.get(30, TimeUnit.SECONDS);
+			} catch (ExecutionException | InterruptedException | TimeoutException e) {
+				ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
+			}
 		}
 
 		protected void stop() {

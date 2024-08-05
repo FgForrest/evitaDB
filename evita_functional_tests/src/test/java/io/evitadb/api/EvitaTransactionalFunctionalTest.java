@@ -148,9 +148,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	private static final String TRANSACTIONAL_DATA_SET = "transactionalDataSet";
 	private static final int SEED = 42;
 	private static final TriFunction<String, EvitaSessionContract, Faker, Integer> RANDOM_ENTITY_PICKER = (entityType, session, faker) -> {
-		final int entityCount = session.getEntityCollectionSize(entityType);
-		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
-		return primaryKey == 0 ? null : primaryKey;
+		try {
+			final int entityCount = session.getEntityCollectionSize(entityType);
+			final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
+			return primaryKey == 0 ? null : primaryKey;
+		} catch (Exception e) {
+			return null;
+		}
 	};
 	private static final Pattern DATE_TIME_PATTERN_1 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{2}:\\d{2}");
 	private static final Pattern DATE_TIME_PATTERN_2 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z");
@@ -1187,7 +1191,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
 		final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 			evita, productSchema, theEvita -> {
-				lastBackupProcess.set(theEvita.backupCatalog(TEST_CATALOG, null, false));
+				lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, false));
 			}
 		);
 
@@ -1195,7 +1199,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
-		evita.restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
+		evita.management().restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
 			.getFutureResult().get(5, TimeUnit.MINUTES);
 
 		final long originalCatalogVersion = evita.queryCatalog(
@@ -1277,7 +1281,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
 		final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 			evita, productSchema, theEvita -> {
-				lastBackupProcess.set(theEvita.backupCatalog(TEST_CATALOG, null, true));
+				lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, true));
 			}
 		);
 
@@ -1285,7 +1289,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
-		evita.restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
+		evita.management().restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
 			.getFutureResult().get(5, TimeUnit.MINUTES);
 
 		final long originalCatalogVersion = evita.queryCatalog(
@@ -1500,12 +1504,12 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						try {
 							log.info("Bootstrap record: " + record);
 							// create backup from each point in time
-							final Path backupPath = restartedEvita.backupCatalog(TEST_CATALOG, record.timestamp(), false)
+							final Path backupPath = restartedEvita.management().backupCatalog(TEST_CATALOG, record.timestamp(), false)
 								.get(2, TimeUnit.MINUTES).path(evita.getConfiguration().storage().exportDirectory());
 							// restore it to unique new catalog
 							final String restoredCatalogName = TEST_CATALOG + "_restored_" + record.catalogVersion();
 							try (final InputStream inputStream = Files.newInputStream(backupPath)) {
-								restartedEvita.restoreCatalog(restoredCatalogName, Files.size(backupPath), inputStream)
+								restartedEvita.management().restoreCatalog(restoredCatalogName, Files.size(backupPath), inputStream)
 									.getFutureResult().get(2, TimeUnit.MINUTES);
 							}
 							// connect to it and check existence of the first record

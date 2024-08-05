@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -33,8 +34,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
@@ -60,7 +61,7 @@ import java.util.stream.Stream;
 /**
  * Mutation is responsible for setting up a new {@link ReferenceSchemaContract} in the {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link ReferenceSchemaContract} alone.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with
  * {@link RemoveReferenceSchemaMutation} mutation (if such is found in mutation pipeline).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -68,7 +69,7 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableEntitySchemaMutation {
+public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -1736213837309810284L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
@@ -109,7 +110,11 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
 		// when the reference schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
 		if (existingMutation instanceof RemoveReferenceSchemaMutation removeReferenceMutation && Objects.equals(removeReferenceMutation.getName(), name)) {
@@ -168,7 +173,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 					)
 					.flatMap(Function.identity())
 					.filter(Objects::nonNull)
-					.toArray(EntitySchemaMutation[]::new)
+					.toArray(LocalEntitySchemaMutation[]::new)
 			);
 		} else {
 			return null;
@@ -236,15 +241,21 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	}
 
 	@Nullable
-	private static <T> EntitySchemaMutation makeMutationIfDifferent(
+	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
 		@Nonnull ReferenceSchemaContract createdVersion,
 		@Nonnull ReferenceSchemaContract existingVersion,
 		@Nonnull Function<ReferenceSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, EntitySchemaMutation> mutationCreator
+		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
 	) {
 		final T newValue = propertyRetriever.apply(createdVersion);
 		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
 			null : mutationCreator.apply(newValue);
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

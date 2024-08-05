@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionMode
 import io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -37,7 +39,9 @@ import java.util.Arrays;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AllowEvolutionModeInCatalogSchemaMutationConverter implements SchemaMutationConverter<AllowEvolutionModeInCatalogSchemaMutation, GrpcAllowEvolutionModeInCatalogSchemaMutation> {
+	public static final AllowEvolutionModeInCatalogSchemaMutationConverter INSTANCE = new AllowEvolutionModeInCatalogSchemaMutationConverter();
 
 	@Nonnull
 	public AllowEvolutionModeInCatalogSchemaMutation convert(@Nonnull GrpcAllowEvolutionModeInCatalogSchemaMutation mutation) {

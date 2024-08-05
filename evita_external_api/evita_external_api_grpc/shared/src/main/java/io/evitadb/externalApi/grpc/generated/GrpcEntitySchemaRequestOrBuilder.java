@@ -49,4 +49,15 @@ public interface GrpcEntitySchemaRequestOrBuilder extends
    */
   com.google.protobuf.ByteString
       getEntityTypeBytes();
+
+  /**
+   * <pre>
+   * True, if the schema should include name variants for it and all sub-schemas.
+   * This could considerably increase the size of the response.
+   * </pre>
+   *
+   * <code>bool nameVariants = 2;</code>
+   * @return The nameVariants.
+   */
+  boolean getNameVariants();
 }

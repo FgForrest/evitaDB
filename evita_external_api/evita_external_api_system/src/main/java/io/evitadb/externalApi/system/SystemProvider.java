@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.system;
 
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.http.ExternalApiProviderWithConsoleOutput;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
@@ -32,11 +33,12 @@ import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.NetworkUtils;
 import io.evitadb.utils.StringUtils;
-import io.undertow.server.HttpHandler;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+
+import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SERVER_NAME;
 
 /**
  * Descriptor of external API provider that provides System API.
@@ -54,7 +56,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 
 	@Nonnull
 	@Getter
-	private final HttpHandler apiHandler;
+	private final HttpService apiHandler;
 
 	@Nonnull
 	@Getter
@@ -85,6 +87,17 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	@Override
 	public String getCode() {
 		return CODE;
+	}
+
+	@Nonnull
+	@Override
+	public HttpServiceDefinition[] getHttpServiceDefinitions() {
+		return new HttpServiceDefinition[] {
+			new HttpServiceDefinition(
+				apiHandler,
+				PathHandlingMode.DYNAMIC_PATH_HANDLING
+			)
+		};
 	}
 
 	@Override
@@ -162,8 +175,9 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
-				if (NetworkUtils.isReachable(baseUrl)) {
-					this.reachableUrl = baseUrl;
+				final String nameUrl = baseUrl + ENDPOINT_SERVER_NAME;
+				if (NetworkUtils.isReachable(nameUrl)) {
+					this.reachableUrl = nameUrl;
 					return true;
 				}
 			}

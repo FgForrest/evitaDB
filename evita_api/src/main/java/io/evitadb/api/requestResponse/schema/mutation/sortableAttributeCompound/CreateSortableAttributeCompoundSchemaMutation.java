@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
@@ -35,8 +36,8 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -57,7 +58,7 @@ import java.util.stream.Stream;
  * Mutation is responsible for setting up a new {@link SortableAttributeCompoundSchemaContract} in
  * the {@link EntitySchemaContract} or {@link ReferenceSchemaContract}.
  * Mutation can be used for altering also the existing {@link SortableAttributeCompoundSchemaContract} alone.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with
  * {@link RemoveSortableAttributeCompoundSchemaMutation} mutation (if such is found in mutation pipeline).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
@@ -66,7 +67,7 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateSortableAttributeCompoundSchemaMutation
-	implements CombinableEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
+	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
 
 	@Serial private static final long serialVersionUID = 5667962046673510848L;
 	@Getter @Nonnull private final String name;
@@ -89,10 +90,10 @@ public class CreateSortableAttributeCompoundSchemaMutation
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
 		@Nonnull CatalogSchemaContract currentCatalogSchema,
 		@Nonnull EntitySchemaContract currentEntitySchema,
-		@Nonnull EntitySchemaMutation existingMutation
+		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
 		// when the attribute schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
@@ -123,7 +124,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 						)
 					)
 					.filter(Objects::nonNull)
-					.toArray(EntitySchemaMutation[]::new)
+					.toArray(LocalEntitySchemaMutation[]::new)
 			);
 		} else {
 			return null;
@@ -235,6 +236,12 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	@Override
 	public String toString() {
 		return "Create sortable attribute compound schema: " +
@@ -245,11 +252,11 @@ public class CreateSortableAttributeCompoundSchemaMutation
 	}
 
 	@Nullable
-	private static <T> EntitySchemaMutation makeMutationIfDifferent(
+	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
 		@Nonnull SortableAttributeCompoundSchemaContract createdVersion,
 		@Nonnull SortableAttributeCompoundSchemaContract existingVersion,
 		@Nonnull Function<SortableAttributeCompoundSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, EntitySchemaMutation> mutationCreator
+		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
 	) {
 		final T newValue = propertyRetriever.apply(createdVersion);
 		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?

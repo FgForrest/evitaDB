@@ -34,6 +34,7 @@
 		<version>2024.9-SNAPSHOT</version>
 		<relativePath>../../pom.xml</relativePath>
 	</parent>
+
 	<dependencies>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
@@ -50,45 +51,19 @@
 			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcpkix-jdk18on</artifactId>
-			<version>${bouncyCastle.version}</version>
+			<groupId>com.linecorp.armeria</groupId>
+			<artifactId>armeria-grpc</artifactId>
+			<version>${armeria.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcprov-jdk18on</artifactId>
-			<version>${bouncyCastle.version}</version>
+			<groupId>com.linecorp.armeria</groupId>
+			<artifactId>armeria-grpc-protocol</artifactId>
+			<version>${armeria.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcprov-ext-jdk18on</artifactId>
-			<version>${bouncyCastle.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>io.grpc</groupId>
-			<artifactId>grpc-core</artifactId>
-			<version>${grpc.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>com.google.code.findbugs</groupId>
-					<artifactId>jsr305</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>io.grpc</groupId>
-			<artifactId>grpc-context</artifactId>
-			<version>${grpc.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>io.grpc</groupId>
-			<artifactId>grpc-protobuf</artifactId>
-			<version>${grpc.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>io.grpc</groupId>
-			<artifactId>grpc-stub</artifactId>
-			<version>${grpc.version}</version>
+			<groupId>com.linecorp.armeria</groupId>
+			<artifactId>armeria-protobuf</artifactId>
+			<version>${armeria.version}</version>
 		</dependency>
 	</dependencies>
 </project>

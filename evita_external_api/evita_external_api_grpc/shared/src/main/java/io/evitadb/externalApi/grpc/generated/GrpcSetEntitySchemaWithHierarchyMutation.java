@@ -475,7 +475,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setWithHierarchy(boolean value) {
-      
+
       withHierarchy_ = value;
       onChanged();
       return this;
@@ -495,7 +495,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWithHierarchy() {
-      
+
       withHierarchy_ = false;
       onChanged();
       return this;

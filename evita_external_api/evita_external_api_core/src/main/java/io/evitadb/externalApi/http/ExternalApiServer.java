@@ -23,48 +23,52 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.common.util.EventLoopGroups;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.Server;
+import com.linecorp.armeria.server.ServerBuilder;
+import com.linecorp.armeria.server.VirtualHostBuilder;
+import com.linecorp.armeria.server.encoding.DecodingService;
+import com.linecorp.armeria.server.encoding.EncodingService;
+import com.linecorp.armeria.server.logging.AccessLogWriter;
+import com.linecorp.armeria.server.logging.LoggingService;
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.ApiConfigurationWithMutualTls;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.HostDefinition;
-import io.evitadb.externalApi.exception.ExternalApiInternalError;
-import io.evitadb.externalApi.log.NoopAccessLogReceiver;
-import io.evitadb.externalApi.log.Slf4JAccessLogReceiver;
+import io.evitadb.externalApi.configuration.MtlsConfiguration;
+import io.evitadb.externalApi.configuration.TlsMode;
+import io.evitadb.externalApi.http.ExternalApiProvider.HttpServiceDefinition;
+import io.evitadb.externalApi.http.ExternalApiProvider.PathHandlingMode;
+import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
+import io.evitadb.utils.NetworkUtils;
 import io.evitadb.utils.StringUtils;
-import io.undertow.Handlers;
-import io.undertow.Undertow;
-import io.undertow.UndertowOptions;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.handlers.PathHandler;
-import io.undertow.server.handlers.accesslog.AccessLogHandler;
-import io.undertow.server.handlers.accesslog.AccessLogReceiver;
-import io.undertow.server.handlers.encoding.ContentEncodingRepository;
-import io.undertow.server.handlers.encoding.DeflateEncodingProvider;
-import io.undertow.server.handlers.encoding.EncodingHandler;
-import io.undertow.server.handlers.encoding.GzipEncodingProvider;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
+import io.netty.handler.ssl.ClientAuth;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.io.pem.PemReader;
-import org.xnio.Xnio;
-import org.xnio.XnioWorker;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
@@ -72,7 +76,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.security.KeyFactory;
-import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -83,18 +86,14 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.ServiceLoader;
+import java.time.Duration;
+import java.util.*;
 import java.util.ServiceLoader.Provider;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -107,7 +106,7 @@ import static java.util.Optional.ofNullable;
 /**
  * HTTP server of external APIs. It is responsible for starting HTTP server with all configured external API providers
  * (GraphQL, REST, ...).
- * It uses {@link Undertow} server under the hood and uses {@link ExternalApiProviderRegistrar} for registering
+ * It uses Armeria {@link Server} server under the hood and uses {@link ExternalApiProviderRegistrar} for registering
  * each external API provider to be run on this HTTP server.
  *
  * @author Lukáš Hornych, FG Forrest a.s. 2022
@@ -116,9 +115,10 @@ import static java.util.Optional.ofNullable;
 public class ExternalApiServer implements AutoCloseable {
 
 	public static final int PADDING_START_UP = 40;
-	private final Undertow rootServer;
+	private final Server server;
 	@Getter private final ApiOptions apiOptions;
 	private final Map<String, ExternalApiProvider<?>> registeredApiProviders;
+	private CompletableFuture<Void> stopFuture;
 
 	/**
 	 * Finds all implementations of {@link ExternalApiProviderRegistrar} using {@link ServiceLoader} from the classpath.
@@ -147,9 +147,9 @@ public class ExternalApiServer implements AutoCloseable {
 				.stream()
 				.flatMap(
 					it -> Stream.of(
-							it.isEnabled() && it.isTlsEnabled() ? CertificateType.SERVER : null,
-							it.isEnabled() && it.isMtlsEnabled() ? CertificateType.CLIENT : null
-						).filter(Objects::nonNull)
+						it.isEnabled() && it.getTlsMode() != TlsMode.FORCE_NO_TLS ? CertificateType.SERVER : null,
+						it.isEnabled() && it.isMtlsEnabled() ? CertificateType.CLIENT : null
+					).filter(Objects::nonNull)
 				)
 				.distinct()
 				.toArray(CertificateType[]::new);
@@ -182,6 +182,14 @@ public class ExternalApiServer implements AutoCloseable {
 					);
 				}
 			}
+
+			getRootCaCertificateFingerPrint(serverCertificateManager)
+				.ifPresent(it -> {
+					ConsoleWriter.write(StringUtils.rightPad("Root CA Certificate fingerprint: ", " ", PADDING_START_UP));
+					ConsoleWriter.write(it, ConsoleColor.BRIGHT_YELLOW);
+					ConsoleWriter.write("\n", ConsoleColor.WHITE);
+				});
+
 		} else {
 			if (!certificateFile.exists() || !certificateKeyFile.exists()) {
 				throw new GenericEvitaInternalError("Certificate or its private key file does not exist");
@@ -191,55 +199,32 @@ public class ExternalApiServer implements AutoCloseable {
 	}
 
 	/**
-	 * Configures and returns SSLContext for the Undertow.
-	 */
-	@Nonnull
-	private static SSLContext configureSSLContext(
-		@Nonnull CertificatePath certificatePath,
-		@Nonnull ServerCertificateManager serverCertificateManager
-	) {
-		final SSLContext sslContext;
-
-		try {
-			final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-			final Optional<String> rootCaFingerPrint = getRootCaCertificateFingerPrint(serverCertificateManager, cf);
-			final KeyManagerFactory keyManagerFactory = createKeyManagerFactory(certificatePath, cf);
-
-			sslContext = SSLContext.getInstance("TLS");
-			sslContext.init(keyManagerFactory.getKeyManagers(), null, null);
-
-			rootCaFingerPrint.ifPresent(it -> {
-				ConsoleWriter.write(StringUtils.rightPad("Root CA Certificate fingerprint: ", " ", PADDING_START_UP));
-				ConsoleWriter.write(it, ConsoleColor.BRIGHT_YELLOW);
-				ConsoleWriter.write("\n", ConsoleColor.WHITE);
-			});
-
-		} catch (NoSuchAlgorithmException | UnrecoverableKeyException | CertificateException | KeyStoreException |
-		         IOException | KeyManagementException e) {
-			throw new GenericEvitaInternalError(
-				"Error while creating SSL context: " + e.getMessage(),
-				"Error while creating SSL context",
-				e
-			);
-		}
-		return sslContext;
-	}
-
-	/**
 	 * Reads root CA certificate from the file if exists.
 	 */
 	@Nullable
 	private static Optional<String> getRootCaCertificateFingerPrint(
-		@Nonnull ServerCertificateManager serverCertificateManager,
-		@Nonnull CertificateFactory certificateFactory
-	) throws IOException, CertificateException, NoSuchAlgorithmException {
+		@Nonnull ServerCertificateManager serverCertificateManager
+	) {
 		final File rootCaFile = serverCertificateManager.getRootCaCertificatePath().toFile();
 		if (rootCaFile.exists()) {
 			try (InputStream in = new FileInputStream(rootCaFile)) {
+				final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
 				final String fingerprint = CertificateUtils.getCertificateFingerprint(
 					certificateFactory.generateCertificate(in)
 				);
 				return of(fingerprint);
+			} catch (IOException e) {
+				throw new GenericEvitaInternalError(
+					"Failed to read root CA certificate: " + e.getMessage(),
+					"Failed to read root CA certificate.",
+					e
+				);
+			} catch (NoSuchAlgorithmException | CertificateException e) {
+				throw new GenericEvitaInternalError(
+					"Failed to generate certificate fingerprint: " + e.getMessage(),
+					"Failed to generate certificate fingerprint.",
+					e
+				);
 			}
 		} else {
 			return empty();
@@ -273,32 +258,41 @@ public class ExternalApiServer implements AutoCloseable {
 	 */
 	@Nonnull
 	private static KeyManagerFactory createKeyManagerFactory(
-		@Nonnull CertificatePath certificatePath,
-		@Nonnull CertificateFactory cf
-	) throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException {
-		final PrivateKey privateKey = loadPrivateKey(certificatePath);
+		@Nonnull CertificatePath certificatePath
+	) {
+		try {
+			final PrivateKey privateKey = loadPrivateKey(certificatePath);
 
-		final File certificateFile = Path.of(Objects.requireNonNull(certificatePath.certificate())).toFile();
-		final List<? extends Certificate> certificates;
-		Assert.isTrue(certificateFile.exists(), () -> "Certificate file `" + certificatePath.certificate() + "` doesn't exists!");
-		try (InputStream in = new FileInputStream(certificateFile)) {
-			certificates = new ArrayList<>(cf.generateCertificates(in));
-			Assert.isTrue(certificateFile.length() > 0, () -> "Certificate file `" + certificatePath.certificate() + "` contains no certificate!");
+			final File certificateFile = Path.of(Objects.requireNonNull(certificatePath.certificate())).toFile();
+			final List<? extends Certificate> certificates;
+			Assert.isTrue(certificateFile.exists(), () -> "Certificate file `" + certificatePath.certificate() + "` doesn't exists!");
+			try (InputStream in = new FileInputStream(certificateFile)) {
+				final CertificateFactory cf = CertificateFactory.getInstance("X.509");
+				certificates = new ArrayList<>(cf.generateCertificates(in));
+				Assert.isTrue(certificateFile.length() > 0, () -> "Certificate file `" + certificatePath.certificate() + "` contains no certificate!");
+			}
+
+			final KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+			keyStore.load(null);
+			keyStore.setCertificateEntry("cert", certificates.get(0));
+			keyStore.setKeyEntry(
+				"key",
+				privateKey,
+				ofNullable(certificatePath.privateKeyPassword()).map(String::toCharArray).orElse(null),
+				certificates.toArray(Certificate[]::new)
+			);
+
+			final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+			keyManagerFactory.init(keyStore, null);
+			return keyManagerFactory;
+		} catch (CertificateException | UnrecoverableKeyException | NoSuchAlgorithmException | KeyStoreException |
+		         IOException e) {
+			throw new GenericEvitaInternalError(
+				"Failed to create key manager factory with provided certificate and private key: " + e.getMessage(),
+				"Failed to create key manager factory with provided certificate and private key.",
+				e
+			);
 		}
-
-		final KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-		keyStore.load(null);
-		keyStore.setCertificateEntry("cert", certificates.get(0));
-		keyStore.setKeyEntry(
-			"key",
-			privateKey,
-			ofNullable(certificatePath.privateKeyPassword()).map(String::toCharArray).orElse(null),
-			certificates.toArray(Certificate[]::new)
-		);
-
-		final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-		keyManagerFactory.init(keyStore, null);
-		return keyManagerFactory;
 	}
 
 	/**
@@ -340,6 +334,75 @@ public class ExternalApiServer implements AutoCloseable {
 			);
 	}
 
+	/**
+	 * Customizes TLS settings for the server. Sets up a mutual TLS verification if requested.
+	 */
+	private static void customizeTls(
+		@Nonnull VirtualHostBuilder virtualHostBuilder,
+		@Nonnull ApiOptions apiOptions,
+		@Nullable MtlsConfiguration mtlsConfiguration
+	) {
+		virtualHostBuilder.tlsCustomizer(
+			customizer -> {
+				try {
+					if (apiOptions.certificate().generateAndUseSelfSigned()) {
+						customizer.trustManager(
+							apiOptions.certificate().getFolderPath()
+								.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName())
+								.toFile()
+						);
+					}
+					if (mtlsConfiguration != null && Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
+						customizer.clientAuth(ClientAuth.REQUIRE);
+						final CertificateFactory cf = CertificateFactory.getInstance("X.509");
+						for (String clientCert : mtlsConfiguration.allowedClientCertificatePaths()) {
+							customizer.trustManager(new FileInputStream(clientCert));
+							try (InputStream in = new FileInputStream(clientCert)) {
+								log.info("Whitelisted client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(cf.generateCertificate(in)));
+							}
+						}
+					} else {
+						customizer.clientAuth(ClientAuth.OPTIONAL);
+					}
+				} catch (Exception e) {
+					throw new GenericEvitaInternalError(
+						"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
+						"Failed to create gRPC server credentials with provided certificate and private key.",
+						e
+					);
+				}
+			});
+	}
+
+	/**
+	 * Prints information about API endpoint to the server console output.
+	 *
+	 * @param apiOptions            API endpoint options
+	 * @param registeredApiProvider registered API provider
+	 */
+	private static void logStatusToConsole(
+		@Nonnull ApiOptions apiOptions,
+		@Nonnull ExternalApiProvider<?> registeredApiProvider
+	) {
+		final AbstractApiConfiguration configuration = registeredApiProvider.getConfiguration();
+		ConsoleWriter.write(
+			StringUtils.rightPad("API `" + registeredApiProvider.getCode() + "` listening on ", " ", PADDING_START_UP)
+		);
+		final String[] baseUrls = configuration.getBaseUrls(apiOptions.exposedOn());
+		for (int i = 0; i < baseUrls.length; i++) {
+			final String url = baseUrls[i];
+			if (i > 0) {
+				ConsoleWriter.write(", ", ConsoleColor.WHITE);
+			}
+			ConsoleWriter.write(url, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		}
+		ConsoleWriter.write("\n", ConsoleColor.WHITE);
+
+		if (registeredApiProvider instanceof ExternalApiProviderWithConsoleOutput<?> consoleOutput) {
+			consoleOutput.writeToConsole();
+		}
+	}
+
 	public ExternalApiServer(
 		@Nonnull Evita evita,
 		@Nonnull ApiOptions apiOptions
@@ -354,33 +417,41 @@ public class ExternalApiServer implements AutoCloseable {
 	) {
 		this.apiOptions = apiOptions;
 
-		final Undertow.Builder rootServerBuilder = Undertow.builder();
-
-		final CertificateSettings certificateSettings = apiOptions.certificate();
-		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(certificateSettings);
-		final CertificatePath certificatePath = certificateSettings.generateAndUseSelfSigned() ?
-			initCertificate(apiOptions, serverCertificateManager) :
-			(
-				certificateSettings.custom().certificate() != null && !certificateSettings.custom().certificate().isBlank() &&
-					certificateSettings.custom().privateKey() != null && !certificateSettings.custom().privateKey().isBlank() ?
-					new CertificatePath(
-						certificateSettings.custom().certificate(),
-						certificateSettings.custom().privateKey(),
-						certificateSettings.custom().privateKeyPassword()
-					) : null
-			);
-
-		this.registeredApiProviders = registerApiProviders(evita, this, apiOptions, externalApiProviders);
+		final ServerBuilder serverBuilder = Server.builder();
+		this.registeredApiProviders = registerApiProviders(
+			evita, this, apiOptions, externalApiProviders
+		);
 		if (this.registeredApiProviders.isEmpty()) {
 			log.info("No external API providers were registered. No server will be created.");
-			rootServer = null;
+			server = null;
 			return;
 		}
 
-		configureUndertow(rootServerBuilder, evita, certificatePath, apiOptions, serverCertificateManager);
+		try {
+			final CertificateSettings certificateSettings = apiOptions.certificate();
+			final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(certificateSettings);
+			final CertificatePath certificatePath = certificateSettings.generateAndUseSelfSigned() ?
+				initCertificate(apiOptions, serverCertificateManager) :
+				(
+					certificateSettings.custom().certificate() != null && !certificateSettings.custom().certificate().isBlank() &&
+						certificateSettings.custom().privateKey() != null && !certificateSettings.custom().privateKey().isBlank() ?
+						new CertificatePath(
+							certificateSettings.custom().certificate(),
+							certificateSettings.custom().privateKey(),
+							certificateSettings.custom().privateKeyPassword()
+						) : null
+				);
+			configureArmeria(evita, serverBuilder, certificatePath, apiOptions);
+		} catch (CertificateException | UnrecoverableKeyException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
+			throw new GenericEvitaInternalError(
+				"Failed to configure Armeria server with provided certificate and private key: " + e.getMessage(),
+				"Failed to configure Armeria server with provided certificate and private key.",
+				e
+			);
+		}
 
-		this.rootServer = rootServerBuilder.build();
-		registeredApiProviders.values().forEach(ExternalApiProvider::afterAllInitialized);
+		this.server = serverBuilder.build();
+		this.registeredApiProviders.values().forEach(ExternalApiProvider::afterAllInitialized);
 	}
 
 	/**
@@ -396,12 +467,17 @@ public class ExternalApiServer implements AutoCloseable {
 	 * Starts this configured HTTP server with registered APIs.
 	 */
 	public void start() {
-		if (rootServer == null) {
+		if (server == null) {
 			return;
 		}
 
-		rootServer.start();
-		registeredApiProviders.values().forEach(ExternalApiProvider::afterStart);
+		server.closeOnJvmShutdown();
+		try {
+			server.start().get();
+			registeredApiProviders.values().forEach(ExternalApiProvider::afterStart);
+		} catch (InterruptedException | ExecutionException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	/**
@@ -409,190 +485,256 @@ public class ExternalApiServer implements AutoCloseable {
 	 */
 	@Override
 	public void close() {
-		if (rootServer == null) {
-			return;
-		}
-
 		try {
-			registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
-			rootServer.stop();
-			final XnioWorker worker = rootServer.getWorker();
-			worker.shutdown();
-			try {
-				if (!worker.awaitTermination(5000, TimeUnit.MILLISECONDS)) {
-					worker.shutdownNow();
-				}
-			} catch (InterruptedException e) {
-				worker.shutdownNow();
-				Thread.currentThread().interrupt();
-				throw new RuntimeException(e);
-			}
-
-			ConsoleWriter.write("External APIs stopped.\n");
+			closeAsynchronously().get(30, TimeUnit.SECONDS);
 		} catch (Exception ex) {
-			ConsoleWriter.write("Failed to stop external APIs in dedicated time (5 secs.).\n");
+			ConsoleWriter.write("Failed to stop external APIs in dedicated time (30 secs.).\n");
 		}
 	}
 
-	private void configureUndertow(
-		@Nonnull Undertow.Builder undertowBuilder,
-		@Nonnull Evita evita,
-		@Nullable CertificatePath certificatePath,
-		@Nonnull ApiOptions apiOptions,
-		@Nonnull ServerCertificateManager serverCertificateManager
-	) {
-		undertowBuilder
-			.setWorker(
-				Xnio.getInstance()
-					.createWorkerBuilder()
-					/*
-						IO threads represent separate thread pool, this is enforced by Undertow.
-					 */
-					.setWorkerIoThreads(apiOptions.ioThreads())
-					.setWorkerName("Undertow XNIO worker.")
-					.build()
-			)
-			/*
-				Use direct byte buffers.
-			 */
-			.setDirectBuffers(true)
-			/*
-				We use recommended buffer size.
-			 */
-			.setBufferSize(16_384)
-			/*
-				The amount of time a connection can be idle for before it is timed out. An idle connection is a
-				connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
-				grained approach, and small values will cause problems for requests with a long processing time.
-				(milliseconds)
-			 */
-			.setServerOption(UndertowOptions.IDLE_TIMEOUT, apiOptions.idleTimeoutInMillis())
-			/*
-				How long a request can spend in the parsing phase before it is timed out. This timer is started when
-				the first bytes of a request are read, and finishes once all the headers have been parsed.
-				(milliseconds)
-			 */
-			.setServerOption(UndertowOptions.REQUEST_PARSE_TIMEOUT, apiOptions.parseTimeoutInMillis())
-			/*
-				The amount of time a connection can sit idle without processing a request, before it is closed by
-				the server.
-				(milliseconds)
-			 */
-			.setServerOption(UndertowOptions.NO_REQUEST_TIMEOUT, apiOptions.requestTimeoutInMillis())
-			/*
-			    If this is true then a Connection: keep-alive header will be added to responses, even when it is not strictly required by
-			    the specification.
-			 */
-			.setServerOption(UndertowOptions.ALWAYS_SET_KEEP_ALIVE, apiOptions.keepAlive())
-			/*
-				The default maximum size of a request entity. If entity body is larger than this limit then a
-				java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
-				length requests, when too much data has been read for chunked requests). This value is only the default
-				 size, it is possible for a handler to override this for an individual request by calling
-				 io.undertow.server.HttpServerExchange.setMaxEntitySize(long size). Defaults to unlimited.
-			 */
-			.setServerOption(UndertowOptions.MAX_ENTITY_SIZE, apiOptions.maxEntitySizeInBytes());
-
-		final AccessLogReceiver accessLogReceiver = apiOptions.accessLog() ? new Slf4JAccessLogReceiver() : new NoopAccessLogReceiver();
-
-		final Optional<SSLContext> sslContext = certificatePath == null ?
-			empty() : of(configureSSLContext(certificatePath, serverCertificateManager));
-		final Map<HostKey, PathHandler> undertowSetupHosts = createHashMap(10);
-		this.registeredApiProviders
-			.entrySet()
-			.stream()
-			.sorted(Entry.comparingByKey())
-			.forEach(
-				entry -> {
-					final String apiCode = entry.getKey();
-					final ExternalApiProvider<?> registeredApiProvider = entry.getValue();
-					final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
-					for (HostDefinition host : configuration.getHost()) {
-						final HostKey hostKey = new HostKey(host, configuration.isTlsEnabled());
-						if (!registeredApiProvider.isManagedByUndertow() || registeredApiProvider.getApiHandler() == null) {
-							continue;
-						}
-
-						final boolean portCollision = undertowSetupHosts.keySet()
-							.stream()
-							.anyMatch(it -> it.host().port() == hostKey.host().port() &&
-								it.ssl() != hostKey.ssl());
-						if (portCollision) {
-							throw new EvitaInvalidUsageException("There is ports collision in APIs configuration for `" + host + "`.");
-						}
-
-						final PathHandler hostRouter;
-						if (undertowSetupHosts.containsKey(hostKey)) {
-							hostRouter = undertowSetupHosts.get(hostKey);
-						} else {
-							hostRouter = Handlers.path();
-							undertowSetupHosts.put(hostKey, hostRouter);
-
-							final HttpHandler fallbackHandler = new FallbackExceptionHandler(hostRouter);
-
-							// we want to support GZIP/deflate compression options for large payloads
-							// source https://stackoverflow.com/questions/28295752/compressing-undertow-server-responses#28329810
-							final EncodingHandler compressionHandler = new EncodingHandler(
-								new ContentEncodingRepository()
-									.addEncodingHandler("gzip", new GzipEncodingProvider(), 50)
-									.addEncodingHandler("deflate", new DeflateEncodingProvider(), 5)
-							)
-								.setNext(fallbackHandler);
-
-							// we want to log all requests coming into the Undertow server
-							final HttpHandler accessLogHandler = new AccessLogHandler(
-								compressionHandler,
-								accessLogReceiver,
-								"combined",
-								ExternalApiServer.class.getClassLoader()
-							);
-
-							if (configuration.isTlsEnabled()) {
-								undertowBuilder.addHttpsListener(
-									host.port(), host.host().getHostAddress(),
-									sslContext
-										.orElseThrow(
-											() -> new ExternalApiInternalError(
-												"API `" + apiCode + "` has TLS enabled, but server is not configured" +
-													" to use either provided server certificate nor to generate its own self-signed one."
-											)
-										),
-									accessLogHandler
-								);
-							} else {
-								undertowBuilder.addHttpListener(host.port(), host.host().getHostAddress(), accessLogHandler);
-							}
-						}
-
-						Assert.isPremiseValid(
-							configuration instanceof ApiWithSpecificPrefix,
-							() -> new ExternalApiInternalError("Cannot register path because API `" + apiCode + "` has no prefix specified.")
-						);
-						hostRouter.addPrefixPath(
-							((ApiWithSpecificPrefix) configuration).getPrefix(),
-							registeredApiProvider.getApiHandler()
-						);
-					}
-					ConsoleWriter.write(
-						StringUtils.rightPad("API `" + apiCode + "` listening on ", " ", PADDING_START_UP)
+	/**
+	 * Stops this running HTTP server and its registered APIs.
+	 */
+	@Nonnull
+	public CompletableFuture<Void> closeAsynchronously() {
+		if (this.stopFuture == null) {
+			if (this.server == null) {
+				this.stopFuture = CompletableFuture.completedFuture(null);
+			} else {
+				this.registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
+				final long start = System.nanoTime();
+				this.stopFuture = this.server.stop()
+					.thenAccept(
+						unused -> ConsoleWriter.write(
+							"External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n")
 					);
-					final String[] baseUrls = configuration.getBaseUrls(apiOptions.exposedOn());
-					for (int i = 0; i < baseUrls.length; i++) {
-						final String url = baseUrls[i];
-						if (i > 0) {
-							ConsoleWriter.write(", ", ConsoleColor.WHITE);
-						}
-						ConsoleWriter.write(url, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-					}
-					ConsoleWriter.write("\n", ConsoleColor.WHITE);
+			}
+		}
+		return this.stopFuture;
+	}
 
-					if (registeredApiProvider instanceof ExternalApiProviderWithConsoleOutput<?> consoleOutput) {
-						consoleOutput.writeToConsole();
+	/**
+	 * Configures Armeria server with all registered external API providers.
+	 *
+	 * @param serverBuilder   - Armeria server builder
+	 * @param certificatePath - certificate path
+	 * @param apiOptions      - API configuration options
+	 * @throws CertificateException      when certificate cannot be created
+	 * @throws UnrecoverableKeyException when key cannot be recovered
+	 * @throws KeyStoreException         when keystore cannot be created or accessed
+	 * @throws IOException               when IO operation fails
+	 * @throws NoSuchAlgorithmException  when algorithm for creating cipher keys is not found
+	 */
+	private void configureArmeria(
+		@Nonnull Evita evita,
+		@Nonnull ServerBuilder serverBuilder,
+		@Nonnull CertificatePath certificatePath,
+		@Nonnull ApiOptions apiOptions
+	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
+
+		// in tests we don't wait for shutdowns
+		final boolean gracefulShutdown = !"true".equals(System.getProperty(DevelopmentConstants.TEST_RUN));
+		// we share worker group both for I/O and service processing, all computations are done in separate executors
+		// and having different worker groups for I/O and service processing only slows down the server
+		// due to context switching between threads and branch misses
+		final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt());
+		serverBuilder
+			.blockingTaskExecutor(evita.getServiceExecutor(), gracefulShutdown)
+			.childChannelOption(ChannelOption.SO_REUSEADDR, true)
+			.childChannelOption(ChannelOption.SO_KEEPALIVE, apiOptions.keepAlive())
+			.decorator(DecodingService.newDecorator())
+			.decorator(EncodingService.builder()
+				.encodableContentTypes(
+					MediaType.PLAIN_TEXT,
+					MediaType.PLAIN_TEXT_UTF_8,
+					MediaType.GRAPHQL,
+					MediaType.GRAPHQL_RESPONSE_JSON,
+					MediaType.JSON,
+					MediaType.JSON_UTF_8
+				)
+				.newDecorator()
+			)
+			.errorHandler(LoggingServerErrorHandler.INSTANCE)
+			.gracefulShutdownTimeout(gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO, gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO)
+			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
+			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
+			.serviceWorkerGroup(workerGroup, gracefulShutdown)
+			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
+			.verboseResponses(false)
+			.workerGroup(workerGroup, gracefulShutdown);
+
+		if (apiOptions.accessLog()) {
+			serverBuilder.accessLogWriter(AccessLogWriter.combined(), gracefulShutdown);
+		}
+
+		final AtomicReference<KeyManagerFactory> keyFactoryRef = new AtomicReference<>();
+		final Map<HostDefinition, VirtualHostDefinition> hosts = createHashMap(8);
+
+		// we need to process APIs with PathHandlingMode.FIXED_PATH_HANDLING first,
+		// because the DYNAMIC_PATH_HANDLING catches all other requests on the same '/' route
+		final List<ExternalApiProvider<?>> sortedRegisteredApiProviders = registeredApiProviders.values()
+			.stream()
+			.sorted(Comparator.comparing(api ->
+				Arrays.stream(api.getHttpServiceDefinitions()).anyMatch(it -> it.pathHandlingMode() == PathHandlingMode.FIXED_PATH_HANDLING) ? -1 : 1)
+			).toList();
+		// for each API provider do
+		for (ExternalApiProvider<?> registeredApiProvider : sortedRegisteredApiProviders) {
+			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
+			// ok, only for those that are actually enabled ;)
+			if (configuration.isEnabled()) {
+				for (HostDefinition host : configuration.getHost()) {
+					final VirtualHostDefinition hostDefinitionVirtualHosts;
+					// get existing host configuration or set up new one
+					hostDefinitionVirtualHosts = hosts.computeIfAbsent(
+						host,
+						theHost -> {
+							final VirtualHostDefinition definition = new VirtualHostDefinition(serverBuilder, host);
+							// if at least one host on this virtual host allows TLS
+							if (apiOptions.atLeastOneEndpointRequiresTls(host)) {
+								definition.applyToAllHostSetups(
+									virtualHostBuilder -> {
+										// configure TLS
+										virtualHostBuilder.tls(
+											// key manager factory is created only once and shared
+											keyFactoryRef.updateAndGet(
+												it -> it == null ? createKeyManagerFactory(certificatePath) : it
+											)
+										);
+										// customize TLS settings
+										customizeTls(
+											virtualHostBuilder, apiOptions,
+											configuration instanceof ApiConfigurationWithMutualTls apiWithMutualTls ?
+												apiWithMutualTls.getMtlsConfiguration() : null
+										);
+									}
+								);
+							}
+							return definition;
+						}
+					);
+
+					// if the host allows non-TLS interface, set it up
+					final TlsMode tlsMode = configuration.getTlsMode();
+					if (tlsMode == TlsMode.FORCE_NO_TLS || tlsMode == TlsMode.RELAXED) {
+						serverBuilder.http(host.port());
+					}
+					// if the host allows TLS interface, set it up
+					if (tlsMode == TlsMode.FORCE_TLS || tlsMode == TlsMode.RELAXED) {
+						serverBuilder.https(host.port());
+					}
+
+					// now provide implementation for the host services
+					for (HttpServiceDefinition httpServiceDefinition : registeredApiProvider.getHttpServiceDefinitions()) {
+						final String basePath = configuration instanceof ApiWithSpecificPrefix apiWithSpecificPrefix ?
+							apiWithSpecificPrefix.getPrefix() : "";
+
+						// calculate base path of the service
+						final String servicePath = "/" + basePath +
+							ofNullable(httpServiceDefinition)
+								.map(HttpServiceDefinition::path)
+								.map(it -> !it.isEmpty() && it.charAt(0) == '/' ? it.substring(1) : it)
+								.orElse("");
+
+						if (httpServiceDefinition.pathHandlingMode() == PathHandlingMode.FIXED_PATH_HANDLING) {
+							// if the service handles base path pathHandlingMode on its own then configure it for all hosts
+							hostDefinitionVirtualHosts.setupFixedPathHandling(
+								servicePath, httpServiceDefinition.service()
+							);
+						} else {
+							// else use path handling service to route requests to the service
+							hostDefinitionVirtualHosts.setupDynamicPathHandling(
+								servicePath, httpServiceDefinition.service()
+							);
+						}
 					}
 				}
-			);
+				logStatusToConsole(apiOptions, registeredApiProvider);
+			}
+		}
 	}
 
-	private record HostKey(HostDefinition host, boolean ssl) {
+	/**
+	 * Class encapsulates one or more virtual hosts with shared router. All virtual hosts share the same port, but may
+	 * listen on multiple internet addresses.
+	 */
+	private static class VirtualHostDefinition {
+		/**
+		 * Contains setup for one or more virtual hosts with shared router.
+		 */
+		private final Map<String, VirtualHostBuilder> hostSetup = createHashMap(10);
+		/**
+		 * Contains shared path handling service for all virtual hosts.
+		 * Instance is unique per virtual host definition.
+		 */
+		private PathHandlingService pathHandlingService;
+
+		public VirtualHostDefinition(
+			@Nonnull ServerBuilder serverBuilder,
+			@Nonnull HostDefinition hostDefinition
+		) {
+			setupHost(hostDefinition.hostNameWithPort(), serverBuilder);
+			setupHost(hostDefinition.hostWithPort(), serverBuilder);
+			if (hostDefinition.localhost()) {
+				Arrays.stream(
+					new String[]{
+						"127.0.0.1:" + hostDefinition.port(),
+						"localhost:" + hostDefinition.port(),
+						NetworkUtils.getHostName(NetworkUtils.getByName("localhost")) + ":" + hostDefinition.port()
+					}
+				).forEach(host -> setupHost(host, serverBuilder));
+			}
+		}
+
+		/**
+		 * Applies given function to all virtual host builders.
+		 */
+		public void applyToAllHostSetups(@Nonnull Consumer<VirtualHostBuilder> function) {
+			this.hostSetup.values().forEach(function);
+		}
+
+		/**
+		 * Registers the service as service with fixed path handling that doesn't change in runtime.
+		 *
+		 * @param servicePath base path
+		 * @param service the service to register
+		 */
+		public void setupFixedPathHandling(@Nonnull String servicePath, @Nonnull HttpService service) {
+			applyToAllHostSetups(
+				virtualHostBuilder -> virtualHostBuilder.serviceUnder(servicePath, service)
+			);
+		}
+
+		/**
+		 * Registers the service as service with dynamic path handling that changes during runtime - i.e. new paths
+		 * may be set-up, old ones removed. For this reasons our internal {@link PathHandlingService} exists.
+		 *
+		 * @param servicePath base path
+		 * @param service the service to register
+		 */
+		public void setupDynamicPathHandling(@Nonnull String servicePath, @Nonnull HttpService service) {
+			if (this.pathHandlingService == null) {
+				this.pathHandlingService = new PathHandlingService();
+				applyToAllHostSetups(
+					virtualHostBuilder -> virtualHostBuilder
+						.service("glob:/**", pathHandlingService)
+						.decorator(LoggingService.newDecorator())
+				);
+			}
+			this.pathHandlingService.addPrefixPath(servicePath, service);
+		}
+
+		/**
+		 * Registers virtual host with given host name and port.
+		 */
+		private void setupHost(
+			@Nonnull String hostNameWithPort,
+			@Nonnull ServerBuilder serverBuilder
+		) {
+			this.hostSetup.put(
+				hostNameWithPort,
+				serverBuilder.virtualHost(hostNameWithPort)
+			);
+		}
 	}
+
 }

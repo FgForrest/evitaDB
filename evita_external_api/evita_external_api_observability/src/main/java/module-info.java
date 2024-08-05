@@ -50,7 +50,6 @@ module evita.external.api.observability {
 	requires static jsr305;
 	requires static lombok;
 	requires org.slf4j;
-	requires undertow.core;
 	requires evita.api;
 	requires evita.common;
 	requires evita.external.api.core;
@@ -62,12 +61,8 @@ module evita.external.api.observability {
 
 	requires io.prometheus.metrics.core;
 	requires io.prometheus.metrics.instrumentation.jvm;
-	requires io.prometheus.metrics.exporter.servlet.jakarta;
 
-	requires undertow.servlet;
-	requires jakarta.servlet;
 	requires jdk.jfr;
-	requires jboss.threads;
 	requires io.grpc;
 
 	requires io.opentelemetry.sdk.trace;
@@ -87,6 +82,13 @@ module evita.external.api.observability {
 	requires evita.external.api.graphql;
 	requires evita.external.api.rest;
 	requires io.prometheus.metrics.model;
+	requires com.linecorp.armeria;
+	requires io.netty.common;
+	requires org.reactivestreams;
+	requires io.prometheus.metrics.exporter.common;
+	requires io.netty.transport;
+	requires com.fasterxml.jackson.datatype.jsr310;
+	requires com.fasterxml.jackson.datatype.jdk8;
 
 	exports io.evitadb.externalApi.observability.configuration;
 	exports io.evitadb.externalApi.observability.trace;

@@ -172,6 +172,12 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	);
 
 	/**
+	 * Returns the size of the entity collection on disk in bytes.
+	 * @return size of the entity collection on disk in bytes
+	 */
+	long getSizeOnDiskInBytes();
+
+	/**
 	 * Closes the entity collection persistent storage. If you don't call {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
 	 * or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}  you'll lose the data in the buffers.
 	 */

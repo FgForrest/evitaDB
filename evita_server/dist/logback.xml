@@ -7,7 +7,7 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023
+  ~   Copyright (c) 2023-2024
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@
 
 	<appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
 		<target>System.err</target>
-		<filter class="io.evitadb.server.log.AppLogFilter" />
 		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
 			<level>WARN</level>
 		</filter>
@@ -37,7 +36,6 @@
 
 	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
 		<target>System.out</target>
-		<filter class="io.evitadb.server.log.AppLogFilter" />
 		<filter class="ch.qos.logback.classic.filter.LevelFilter">
 			<level>INFO</level>
 			<onMatch>ACCEPT</onMatch>
@@ -49,7 +47,6 @@
 	</appender>
 
 	<appender name="FILE" class="ch.qos.logback.core.FileAppender">
-		<filter class="io.evitadb.server.log.AppLogFilter" />
 		<file>logs/evita_server.log</file>
 
 		<encoder>
@@ -58,7 +55,6 @@
 	</appender>
 
 	<appender name="ACCESS_FILE" class="ch.qos.logback.core.FileAppender">
-		<filter class="io.evitadb.server.log.AccessLogFilter" />
 		<file>logs/evita_server_access.log</file>
 
 		<encoder>
@@ -66,15 +62,18 @@
 		</encoder>
 	</appender>
 
+	<logger name="com.linecorp.armeria.logging.access" level="INFO" additivity="false">
+		<appender-ref ref="ACCESS_FILE"/>
+	</logger>
+
 	<root level="INFO">
 		<appender-ref ref="STDOUT" />
 		<appender-ref ref="STDERR" />
 		<appender-ref ref="FILE" />
-		<appender-ref ref="ACCESS_FILE" />
 	</root>
 
-	<logger name="org.xnio" level="ERROR"/>
-	<logger name="org.jboss" level="ERROR"/>
-	<logger name="io.undertow" level="ERROR"/>
+	<logger name="com.linecorp.armeria" level="ERROR"/>
+	<logger name="io.netty" level="ERROR"/>
+	<logger name="io.micrometer" level="OFF"/>
 
 </configuration>

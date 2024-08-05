@@ -32,26 +32,6 @@ public interface GrpcEvitaSessionTerminationRequestOrBuilder extends
 
   /**
    * <pre>
-   * Name of the catalog for which the session is to be terminated.
-   * </pre>
-   *
-   * <code>string catalogName = 1;</code>
-   * @return The catalogName.
-   */
-  java.lang.String getCatalogName();
-  /**
-   * <pre>
-   * Name of the catalog for which the session is to be terminated.
-   * </pre>
-   *
-   * <code>string catalogName = 1;</code>
-   * @return The bytes for catalogName.
-   */
-  com.google.protobuf.ByteString
-      getCatalogNameBytes();
-
-  /**
-   * <pre>
    * UUID of the session to be terminated.
    * </pre>
    *

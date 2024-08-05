@@ -457,7 +457,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setDeleted(boolean value) {
-      
+
       deleted_ = value;
       onChanged();
       return this;
@@ -471,7 +471,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearDeleted() {
-      
+
       deleted_ = false;
       onChanged();
       return this;

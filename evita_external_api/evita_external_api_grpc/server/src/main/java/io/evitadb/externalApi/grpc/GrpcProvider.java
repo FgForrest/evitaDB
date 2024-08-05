@@ -24,33 +24,22 @@
 package io.evitadb.externalApi.grpc;
 
 import com.google.protobuf.Empty;
-import io.evitadb.externalApi.certificate.ServerCertificateManager;
-import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificatePath;
-import io.evitadb.externalApi.configuration.CertificateSettings;
+import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.ClientFactoryBuilder;
+import com.linecorp.armeria.client.grpc.GrpcClients;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.docs.DocService;
+import com.linecorp.armeria.server.docs.DocServiceFilter;
 import io.evitadb.externalApi.configuration.HostDefinition;
-import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
+import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
-import io.evitadb.externalApi.grpc.exception.GrpcServerStartFailedException;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse;
+import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaManagementServiceBlockingStub;
 import io.evitadb.externalApi.http.ExternalApiProvider;
-import io.evitadb.utils.CertificateUtils;
-import io.grpc.ManagedChannel;
-import io.grpc.Server;
-import io.grpc.netty.NettyChannelBuilder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Descriptor of external API provider that provides gRPC API.
@@ -65,22 +54,24 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	public static final String CODE = "gRPC";
 
 	@Nonnull
-	private final String serverName;
-
-	@Nonnull
-	private final ApiOptions apiOptions;
-
-	@Nonnull
 	@Getter
 	private final GrpcConfig configuration;
 
+	@Nonnull
 	@Getter
-	private final Server server;
-
+	private final HttpService apiHandler;
 	/**
-	 * Contains channel that was successfully used to check if gRPC server is ready.
+	 * Contains url that was at least once found reachable.
 	 */
-	private ManagedChannel channel;
+	private String reachableUrl;
+	/**
+	 * Builder for gRPC client factory.
+	 */
+	private final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
+		.useHttp1Pipelining(true)
+		.idleTimeoutMillis(100)
+		.tlsNoVerify();
+
 
 	@Nonnull
 	@Override
@@ -88,100 +79,64 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 		return CODE;
 	}
 
+	@Nonnull
 	@Override
-	public boolean isManagedByUndertow() {
-		return false;
-	}
+	public HttpServiceDefinition[] getHttpServiceDefinitions() {
+		if (configuration.isExposeDocsService()) {
+			final DocService docService = DocService.builder()
+				.exclude(DocServiceFilter.ofServiceName("grpc.reflection.v1alpha.ServerReflection"))
+				.build();
 
-	@Override
-	public void afterStart() {
-		try {
-			server.start();
-		} catch (IOException e) {
-			throw new GrpcServerStartFailedException(
-				"Failed to start gRPC server due to: " + e.getMessage(),
-				"Failed to start gRPC server.",
-				e
-			);
+			return new HttpServiceDefinition[]{
+				new HttpServiceDefinition(apiHandler, PathHandlingMode.FIXED_PATH_HANDLING),
+				new HttpServiceDefinition("grpc/doc", docService, PathHandlingMode.FIXED_PATH_HANDLING)
+			};
+		} else {
+			return new HttpServiceDefinition[]{
+				new HttpServiceDefinition(apiHandler, PathHandlingMode.FIXED_PATH_HANDLING)
+			};
 		}
-	}
-
-	@Override
-	public void beforeStop() {
-		if (this.channel != null && !this.channel.isShutdown()) {
-			this.channel.shutdown();
-			this.channel = null;
-		}
-		this.server.shutdown();
 	}
 
 	@Override
 	public boolean isReady() {
-		if (this.channel == null) {
-			for (HostDefinition hostDefinition : this.configuration.getHost()) {
-				NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(hostDefinition.hostName(), hostDefinition.port());
-				final CertificateSettings certificateSettings = apiOptions.certificate();
-				if (!certificateSettings.generateAndUseSelfSigned() && configuration.isMtlsEnabled()) {
-					log.error(
-						"Cannot check readiness of the gRPC API on the server side if mTLS is enabled currently." +
-						"The client private key is missing."
-					);
-					return false;
-				}
-				final Optional<CertificatePath> certificatePaths = ServerCertificateManager.getCertificatePath(certificateSettings);
-				if (configuration.isTlsEnabled() && certificatePaths.isPresent()) {
-					final CertificatePath paths = certificatePaths.get();
-					final Path folderPath = certificateSettings.getFolderPath().toAbsolutePath().normalize();
-					final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
-						.usingTrustedRootCaCertificate(certificateSettings.generateAndUseSelfSigned())
-						// this will prevent attempt to download certificates (we use certificates directly from the server)
-						.dontUseGeneratedCertificate()
-						.serverName(serverName)
-						.mtls(configuration.isMtlsEnabled())
-						.rootCaCertificateFilePath(Path.of(paths.certificate()))
-						.certificateClientFolderPath(folderPath)
-						.clientCertificateFilePath(folderPath.resolve(CertificateUtils.getGeneratedClientCertificateFileName()))
-						.clientPrivateKeyFilePath(folderPath.resolve(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-						.build();
-					nettyChannelBuilder.sslContext(clientCertificateManager.buildClientSslContext(null));
-				} else {
-					nettyChannelBuilder.usePlaintext();
-				}
-				final ManagedChannel examinedChannel = nettyChannelBuilder.build();
-				try {
-					if (isReady(examinedChannel)) {
-						return true;
-					}
-				} finally {
-					if (examinedChannel != null && !examinedChannel.isShutdown()) {
-						examinedChannel.shutdown();
-					}
-				}
-			}
-		} else {
-			if (isReady(this.channel)) {
+		if (reachableUrl != null) {
+			if (checkReachable(reachableUrl)) {
 				return true;
-			} else {
-				this.channel = null;
+			}
+		}
+
+		for (HostDefinition hostDefinition : this.configuration.getHost()) {
+			final String uriScheme = configuration.getTlsMode() != TlsMode.FORCE_NO_TLS ? "https" : "http";
+
+			final String uri = uriScheme + "://" + hostDefinition.hostWithPort() + "/";
+			if (!uri.equals(reachableUrl) && checkReachable(uri)) {
+				return true;
 			}
 		}
 		return false;
 	}
 
 	/**
-	 * Returns true if the channel is ready or idle.
-	 * @param channel channel to check
-	 * @return true if the channel is ready or idle
+	 * Check if the given URI is reachable via gRPC client.
+	 * @param uri URI to check
+	 * @return true if the URI is reachable, false otherwise
 	 */
-	private static boolean isReady(@Nonnull ManagedChannel channel) {
-		final EvitaServiceFutureStub evitaService = EvitaServiceGrpc.newFutureStub(channel);
+	public boolean checkReachable(@Nonnull String uri) {
 		try {
-			final GrpcEvitaServerStatusResponse response = evitaService.serverStatus(Empty.newBuilder().build())
-				.get(1, TimeUnit.SECONDS);
-			return response.isInitialized();
-		} catch (InterruptedException | ExecutionException | TimeoutException e) {
+			final EvitaManagementServiceBlockingStub evitaService = GrpcClients.builder(uri)
+				.factory(clientFactoryBuilder.build())
+				.responseTimeoutMillis(100)
+				.build(EvitaManagementServiceBlockingStub.class);
+			final long uptime = evitaService.serverStatus(Empty.newBuilder().build()).getUptime();
+			if (uptime > 0) {
+				reachableUrl = uri;
+				return true;
+			} else {
+				return false;
+			}
+		} catch (Exception e) {
 			return false;
 		}
 	}
-
 }

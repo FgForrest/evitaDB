@@ -39,7 +39,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -296,7 +296,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(2, localMutations.size());
 
 		final SealedEntitySchema sealedEntitySchema = new EntitySchemaDecorator(() -> CATALOG_SCHEMA, (EntitySchema) initialEntity.getSchema());
-		final EntitySchemaMutation[] schemaMutations = EntityMutation.verifyOrEvolveSchema(
+		final LocalEntitySchemaMutation[] schemaMutations = EntityMutation.verifyOrEvolveSchema(
 			CATALOG_SCHEMA,
 			sealedEntitySchema,
 			localMutations

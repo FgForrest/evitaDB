@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceS
 import io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -36,7 +38,9 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CreateReferenceSchemaMutationConverter implements SchemaMutationConverter<CreateReferenceSchemaMutation, GrpcCreateReferenceSchemaMutation> {
+	public static final CreateReferenceSchemaMutationConverter INSTANCE = new CreateReferenceSchemaMutationConverter();
 
 	@Nonnull
 	public CreateReferenceSchemaMutation convert(@Nonnull GrpcCreateReferenceSchemaMutation mutation) {

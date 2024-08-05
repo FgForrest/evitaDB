@@ -27,6 +27,8 @@ import com.carrotsearch.hppc.ObjectObjectIdentityHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.CatalogStatistics;
+import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
@@ -661,17 +663,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		}
 	}
 
-	@Nonnull
-	@Override
-	public EntityCollectionContract createCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
-		if (entityCollections.containsKey(entityType)) {
-			return entityCollections.get(entityType);
-		} else {
-			updateSchema(new CreateEntitySchemaMutation(entityType));
-			return Objects.requireNonNull(entityCollections.get(entityType));
-		}
-	}
-
 	@Override
 	@Nonnull
 	public Optional<EntityCollectionContract> getCollectionForEntity(@Nonnull String entityType) {
@@ -841,14 +832,20 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 	@Nonnull
 	@Override
-	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
-		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
+	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+		return this.persistenceService.getCatalogVersionAt(moment);
 	}
 
 	@Nonnull
 	@Override
 	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
 		return this.persistenceService.getCatalogVersionDescriptors(catalogVersion);
+	}
+
+	@Nonnull
+	@Override
+	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
 	}
 
 	@Override
@@ -859,7 +856,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion) {
+	public Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
 		return this.persistenceService.getReversedCommittedMutationStream(catalogVersion);
 	}
 
@@ -1241,6 +1238,26 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		}
 	}
 
+	@Nonnull
+	@Override
+	public CatalogStatistics getStatistics() {
+		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
+			.stream()
+			.map(EntityCollection::getStatistics)
+			.toArray(EntityCollectionStatistics[]::new);
+		return new CatalogStatistics(
+			getCatalogId(),
+			getName(),
+			false,
+			getCatalogState(),
+			getVersion(),
+			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::totalRecords).sum(),
+			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::indexCount).sum() + 1,
+			this.persistenceService.getSizeOnDiskInBytes(),
+			collectionStatistics
+		);
+	}
+
 	/**
 	 * Method allows to immediately flush all information held in memory to the persistent storage.
 	 * This method might do nothing particular in transaction ({@link CatalogState#ALIVE}) mode.
@@ -1456,7 +1473,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final SealedEntitySchema currentEntitySchema = entityCollection.getSchema();
 		if (!ArrayUtils.isEmpty(modifyEntitySchemaMutation.getSchemaMutations())) {
 			// validate the new schema version before any changes are applied
-			currentEntitySchema.withMutations(modifyEntitySchemaMutation)
+			currentEntitySchema.withMutations(modifyEntitySchemaMutation.getSchemaMutations())
 				.toInstance()
 				.validate(catalogSchema);
 			entityCollection.updateSchema(catalogSchema, modifyEntitySchemaMutation.getSchemaMutations());

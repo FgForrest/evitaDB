@@ -27,5 +27,11 @@ java \
         -javaagent:target/evita-server.jar \
         -jar "target/evita-server.jar" \
         "configDir=../config/" \
+        "logback.configurationFile=./logback.xml" \
         "storage.storageDirectory=../data " \
-        "cache.enabled=false"
+        "api.accessLog=true" \
+        "cache.enabled=false" \
+        "api.endpoints.graphQL.tlsMode=FORCE_NO_TLS" \
+        "api.endpoints.rest.tlsMode=FORCE_NO_TLS" \
+        "api.endpoints.lab.tlsMode=FORCE_NO_TLS" \
+        "api.endpoints.gRPC.exposeDocsService=true"

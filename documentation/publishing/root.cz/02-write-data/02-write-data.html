@@ -58,9 +58,10 @@
 		spustit tento příkaz:
 	</p>
 
-	<pre>docker run --name evitadb -i --rm --net=host \
-       -e "api.exposedOn=localhost" \
-       index.docker.io/evitadb/evitadb:latest
+	<pre>
+	docker run --name evitadb -i --rm --net=host \
+           -e "EVITA_ARGS=api.exposedOn=localhost" \
+           index.docker.io/evitadb/evitadb:latest
 	</pre>
 
 	<p>
@@ -73,9 +74,10 @@
 			href="https://github.com/docker/roadmap/issues/238">issue #238</a>):
 	</p>
 
-	<pre>docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \
-       -e "api.exposedOn=localhost" \
-       index.docker.io/evitadb/evitadb:latest
+	<pre>
+		docker run --name evitadb -i --rm -p 5555:5555 \
+               -e "EVITA_ARGS=api.exposedOn=localhost" \
+               index.docker.io/evitadb/evitadb:latest
 	</pre>
 
 	<p>
@@ -88,7 +90,7 @@
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2024.7.2 (keep calm and report bugs 😉)
+beta build 2024.8.4 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 Log config used: META-INF/logback.xml (original file `/evita/logback.xml` doesn't exist)
@@ -99,13 +101,13 @@ Server name: evitaDB-b493e0c4c8d06865
 Root CA Certificate fingerprint:        C2:62:C6:B7:97:B1:B6:82:08:D0:C6:5F:2F:0B:A1:EA:F7:A2:01:08:C3:7C:20:60:CC:02:7C:1E:5F:F1:57:B3
 API `graphQL` listening on              https://localhost:5555/gql/, https://d651d19eee1a:5555/gql/
 API `rest` listening on                 https://localhost:5555/rest/, https://d651d19eee1a:5555/rest/
-API `gRPC` listening on                 https://localhost:5556/, https://d651d19eee1a:5556/
-API `system` listening on               http://localhost:5557/system/, http://d651d19eee1a:5557/system/
-   - server name served at:             http://localhost:5557/system/server-name, http://d651d19eee1a:5557/system/server-name
-   - CA certificate served at:          http://localhost:5557/system/evitaDB-CA-selfSigned.crt, http://d651d19eee1a:5557/system/evitaDB-CA-selfSigned.crt
-   - server certificate served at:      http://localhost:5557/system/server.crt, http://d651d19eee1a:5557/system/server.crt
-   - client certificate served at:      http://localhost:5557/system/client.crt, http://d651d19eee1a:5557/system/client.crt
-   - client private key served at:      http://localhost:5557/system/client.key, http://d651d19eee1a:5557/system/client.key
+API `gRPC` listening on                 https://localhost:5555/, https://d651d19eee1a:5555/
+API `system` listening on               http://localhost:5555/system/, http://d651d19eee1a:5555/system/
+   - server name served at:             http://localhost:5555/system/server-name, http://d651d19eee1a:5555/system/server-name
+   - CA certificate served at:          http://localhost:5555/system/evitaDB-CA-selfSigned.crt, http://d651d19eee1a:5555/system/evitaDB-CA-selfSigned.crt
+   - server certificate served at:      http://localhost:5555/system/server.crt, http://d651d19eee1a:5555/system/server.crt
+   - client certificate served at:      http://localhost:5555/system/client.crt, http://d651d19eee1a:5555/system/client.crt
+   - client private key served at:      http://localhost:5555/system/client.key, http://d651d19eee1a:5555/system/client.key
 
 ************************* WARNING!!! *************************
 You use mTLS with automatically generated client certificate.
@@ -194,7 +196,7 @@ API `lab` listening on                  https://localhost:5555/lab/, https://d65
 EvitaContract evita = new EvitaClient(
    EvitaClientConfiguration.builder()
                            .host("localhost")
-                           .port(5556)
+                           .port(5555)
                            .build()
 );
 	</pre>

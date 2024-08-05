@@ -36,7 +36,7 @@ import java.util.regex.Pattern;
  * Base tracing context interface for external APIs. Its implementations should bridge trace requests from APIs to the
  * evitaDB core to allow adding additional inner traces.
  *
- * @param <C> type of the context, should be either {@link io.undertow.util.HeaderMap} for JSON APIs (REST, GraphQL) or
+ * @param <C> type of the context, should be either {@link com.linecorp.armeria.common.RequestHeaders} for JSON APIs (REST, GraphQL) or
  *            gRPC Metadata type.
  * @see TracingContext
  */

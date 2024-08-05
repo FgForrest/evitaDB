@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
@@ -79,7 +80,7 @@ public final class ReferenceSchemaBuilder
 	private final CatalogSchemaContract catalogSchema;
 	private final EntitySchemaContract entitySchema;
 	private final ReferenceSchemaContract baseSchema;
-	private final List<EntitySchemaMutation> mutations = new LinkedList<>();
+	private final List<LocalEntitySchemaMutation> mutations = new LinkedList<>();
 	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
 	private int lastMutationReflectedInSchema = 0;
 	private ReferenceSchemaContract updatedSchema;
@@ -90,16 +91,16 @@ public final class ReferenceSchemaBuilder
 		@Nullable ReferenceSchemaContract existingSchema,
 		@Nonnull String name,
 		@Nonnull String entityType,
-		boolean entityTypeRelatesToEntity,
+		boolean referencedEntityTypeManaged,
 		@Nonnull Cardinality cardinality,
-		@Nonnull List<EntitySchemaMutation> mutations,
+		@Nonnull List<LocalEntitySchemaMutation> mutations,
 		boolean createNew
 	) {
 		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
 		this.baseSchema = existingSchema == null ?
 			ReferenceSchema._internalBuild(
-				name, entityType, entityTypeRelatesToEntity, cardinality, null, false, false, false
+				name, entityType, referencedEntityTypeManaged, cardinality, null, false, false, false
 			) :
 			existingSchema;
 		if (createNew) {
@@ -110,7 +111,7 @@ public final class ReferenceSchemaBuilder
 					baseSchema.getDeprecationNotice(),
 					cardinality,
 					entityType,
-					entityTypeRelatesToEntity,
+					referencedEntityTypeManaged,
 					baseSchema.getReferencedGroupType(),
 					baseSchema.isReferencedGroupTypeManaged(),
 					baseSchema.isIndexed(),
@@ -305,8 +306,8 @@ public final class ReferenceSchemaBuilder
 					attributeSchemaBuilder
 						.toReferenceMutation(getName())
 						.stream()
-						.map(it -> (EntitySchemaMutation) it)
-						.toArray(EntitySchemaMutation[]::new)
+						.map(it -> (LocalEntitySchemaMutation) it)
+						.toArray(LocalEntitySchemaMutation[]::new)
 				)
 			);
 		}
@@ -411,8 +412,8 @@ public final class ReferenceSchemaBuilder
 					schemaBuilder
 						.toReferenceMutation(getName())
 						.stream()
-						.map(it -> (EntitySchemaMutation) it)
-						.toArray(EntitySchemaMutation[]::new)
+						.map(it -> (LocalEntitySchemaMutation) it)
+						.toArray(LocalEntitySchemaMutation[]::new)
 				)
 			);
 		}
@@ -469,7 +470,7 @@ public final class ReferenceSchemaBuilder
 
 	@Override
 	@Nonnull
-	public Collection<EntitySchemaMutation> toMutation() {
+	public Collection<LocalEntitySchemaMutation> toMutation() {
 		return this.mutations;
 	}
 

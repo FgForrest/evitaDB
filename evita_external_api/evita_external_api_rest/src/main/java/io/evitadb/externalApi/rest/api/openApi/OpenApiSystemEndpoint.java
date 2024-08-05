@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ package io.evitadb.externalApi.rest.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.SystemRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
@@ -49,7 +48,7 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
 
 /**
  * Single REST endpoint with schema description and handler builder for building system-specific endpoints.
- * It combines {@link PathItem}, {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults.
+ * It combines {@link PathItem}, {@link Operation} and {@link com.linecorp.armeria.server.HttpService} into one place with useful defaults.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -162,34 +161,6 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		@Nonnull
 		public Builder deprecationNotice(@Nullable String deprecationNotice) {
 			this.deprecationNotice = deprecationNotice;
-			return this;
-		}
-
-		/**
-		 * Adds single query parameter.
-		 */
-		@Nonnull
-		public Builder queryParameter(@Nonnull OpenApiEndpointParameter queryParameter) {
-			Assert.isPremiseValid(
-				queryParameter.getLocation().equals(ParameterLocation.QUERY),
-				() -> new OpenApiBuildingError("Only query parameters are supported here.")
-			);
-			this.parameters.add(queryParameter);
-			return this;
-		}
-
-		/**
-		 * Adds list of query parameters to existing query parameters.
-		 */
-		@Nonnull
-		public Builder queryParameters(@Nonnull List<OpenApiEndpointParameter> queryParameters) {
-			queryParameters.forEach(queryParameter ->
-				Assert.isPremiseValid(
-					queryParameter.getLocation().equals(ParameterLocation.QUERY),
-					() -> new OpenApiBuildingError("Only query parameters are supported here.")
-				)
-			);
-			this.parameters.addAll(queryParameters);
 			return this;
 		}
 

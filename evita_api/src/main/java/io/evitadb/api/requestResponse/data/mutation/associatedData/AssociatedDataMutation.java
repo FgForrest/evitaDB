@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,12 +27,13 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.NamedLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.dataType.ContainerType;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -60,7 +61,7 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode
-public abstract class AssociatedDataMutation implements LocalMutation<AssociatedDataValue, AssociatedDataKey> {
+public abstract class AssociatedDataMutation implements NamedLocalMutation<AssociatedDataValue, AssociatedDataKey> {
 	@Serial private static final long serialVersionUID = 2877681453791825337L;
 	/**
 	 * Identification of the associated data that the mutation affects.
@@ -71,6 +72,18 @@ public abstract class AssociatedDataMutation implements LocalMutation<Associated
 	protected AssociatedDataMutation(@Nonnull AssociatedDataKey associatedDataKey) {
 		Assert.isTrue(associatedDataKey != null, "Associated data key cannot be null for set associated data mutation!");
 		this.associatedDataKey = associatedDataKey;
+	}
+
+	@Nonnull
+	@Override
+	public String classifierName() {
+		return associatedDataKey.associatedDataName();
+	}
+
+	@Nonnull
+	@Override
+	public ContainerType containerType() {
+		return ContainerType.ASSOCIATED_DATA;
 	}
 
 	@Override

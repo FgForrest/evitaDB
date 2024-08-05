@@ -221,7 +221,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true)
 	@Override
-	DataCarrier setUp(Evita evita) {
+	protected DataCarrier setUp(Evita evita) {
 		return super.setUp(evita);
 	}
 

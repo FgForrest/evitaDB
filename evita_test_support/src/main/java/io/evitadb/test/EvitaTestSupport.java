@@ -47,10 +47,6 @@ import java.util.stream.Stream;
  */
 public interface EvitaTestSupport extends TestConstants {
 	/**
-	 * Default name of the evita configuration file.
-	 */
-	String DEFAULT_EVITA_CONFIGURATION_FILE = "evita-configuration.yaml";
-	/**
 	 * Default data folder for evita data in tests.
 	 */
 	Path BASE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita" + File.separator);

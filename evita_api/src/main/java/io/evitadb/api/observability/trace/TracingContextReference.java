@@ -42,5 +42,6 @@ public interface TracingContextReference<C> {
 	 * Returns the actual underlying context object.
 	 */
 	@Nonnull
-	Object getContext();
+	C getContext();
+
 }

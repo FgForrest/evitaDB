@@ -108,7 +108,7 @@
 		</dependency>
 		<dependency>
 			<groupId>io.prometheus</groupId>
-			<artifactId>prometheus-metrics-exporter-servlet-jakarta</artifactId>
+			<artifactId>prometheus-metrics-exporter-common</artifactId>
 			<version>${prometheus.version}</version>
 		</dependency>
 		<dependency>

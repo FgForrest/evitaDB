@@ -31,6 +31,8 @@
 		</encoder>
 	</appender>
 
+	<logger name="com.linecorp.armeria" level="ERROR"/>
+
 	<root level="INFO">
 		<appender-ref ref="STDOUT" />
 	</root>

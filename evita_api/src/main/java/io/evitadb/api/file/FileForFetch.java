@@ -58,8 +58,25 @@ public record FileForFetch(
 	@Nonnull OffsetDateTime created,
 	@Nullable String[] origin
 ) implements Serializable {
-
 	public static final String METADATA_EXTENSION = ".metadata";
+
+	public FileForFetch(
+		@Nonnull UUID fileId,
+		@Nonnull String name,
+		@Nullable String description,
+		@Nonnull String contentType,
+		long totalSizeInBytes,
+		@Nonnull OffsetDateTime created,
+		@Nullable String[] origin
+	) {
+		this.fileId = fileId;
+		this.name = FileUtils.convertToSupportedName(name);
+		this.description = description;
+		this.contentType = contentType;
+		this.totalSizeInBytes = totalSizeInBytes;
+		this.created = created;
+		this.origin = origin;
+	}
 
 	/**
 	 * Returns path to the metadata file in target directory.
@@ -81,6 +98,24 @@ public record FileForFetch(
 	@Nonnull
 	public Path path(@Nonnull Path directory) {
 		return directory.resolve(fileId + FileUtils.getFileExtension(name).map(it -> "." + it).orElse(""));
+	}
+
+	/**
+	 * Returns new instance of the record with updated total size in bytes.
+	 * @param actualSize Actual size of the file in bytes.
+	 * @return New instance of the record with updated total size in bytes.
+	 */
+	@Nonnull
+	public FileForFetch withTotalSizeInBytes(long actualSize) {
+		return new FileForFetch(
+			this.fileId,
+			this.name,
+			this.description,
+			this.contentType,
+			actualSize,
+			this.created,
+			this.origin
+		);
 	}
 
 	/**

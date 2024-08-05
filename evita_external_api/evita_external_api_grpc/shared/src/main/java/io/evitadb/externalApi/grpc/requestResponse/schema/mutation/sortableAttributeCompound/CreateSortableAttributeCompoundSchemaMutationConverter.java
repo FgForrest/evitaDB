@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -38,7 +40,9 @@ import java.util.Arrays;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CreateSortableAttributeCompoundSchemaMutationConverter implements SchemaMutationConverter<CreateSortableAttributeCompoundSchemaMutation, GrpcCreateSortableAttributeCompoundSchemaMutation> {
+	public static final CreateSortableAttributeCompoundSchemaMutationConverter INSTANCE = new CreateSortableAttributeCompoundSchemaMutationConverter();
 
 	@Nonnull
 	public CreateSortableAttributeCompoundSchemaMutation convert(@Nonnull GrpcCreateSortableAttributeCompoundSchemaMutation mutation) {

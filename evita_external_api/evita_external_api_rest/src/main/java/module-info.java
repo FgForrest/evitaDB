@@ -50,14 +50,17 @@ module evita.external.api.rest {
 	requires com.fasterxml.jackson.core;
 	requires com.fasterxml.jackson.annotation;
 	requires io.swagger.v3.oas.models;
-	requires undertow.core;
 	requires io.swagger.v3.core;
+	requires com.linecorp.armeria;
 
 	requires evita.api;
 	requires evita.common;
 	requires evita.external.api.core;
 	requires evita.query;
 	requires evita.engine;
+	requires org.reactivestreams;
+	requires io.netty.common;
+	requires io.netty.transport;
 	requires jdk.jfr;
 
 	exports io.evitadb.externalApi.rest;
@@ -71,7 +74,6 @@ module evita.external.api.rest {
 	exports io.evitadb.externalApi.rest.api.openApi to evita.external.api.lab;
 	exports io.evitadb.externalApi.rest.exception to evita.external.api.lab;
 	exports io.evitadb.externalApi.rest.api.model to evita.external.api.lab;
-	exports io.evitadb.externalApi.rest.api to evita.external.api.lab;
 	exports io.evitadb.externalApi.rest.api.resolver.serializer to evita.external.api.lab;
 	exports io.evitadb.externalApi.rest.api.catalog.dataApi.builder to evita.external.api.lab;
 	exports io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity to evita.external.api.lab;
@@ -86,4 +88,5 @@ module evita.external.api.rest {
 	exports io.evitadb.externalApi.rest.api.dataType to evita.external.api.lab;
 	exports io.evitadb.externalApi.rest.api.system.dto to evita.external.api.lab;
 	exports io.evitadb.externalApi.rest.api.system.model to evita.external.api.lab;
+	exports io.evitadb.externalApi.rest.api;
 }

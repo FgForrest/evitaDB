@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.associatedData;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -73,6 +74,12 @@ public class RemoveAssociatedDataMutation extends AssociatedDataMutation {
 	@Override
 	public long getPriority() {
 		return PRIORITY_REMOVAL;
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.REMOVE;
 	}
 
 	@Override

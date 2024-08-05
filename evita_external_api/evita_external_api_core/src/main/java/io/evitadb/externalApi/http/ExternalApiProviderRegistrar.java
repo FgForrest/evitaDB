@@ -23,9 +23,17 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.configuration.TlsMode;
+import io.evitadb.function.TriFunction;
 
 import javax.annotation.Nonnull;
 
@@ -78,4 +86,30 @@ public interface ExternalApiProviderRegistrar<T extends AbstractApiConfiguration
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull T externalApiConfiguration
 	);
+
+	/**
+	 * Provides lambda that verifies the request scheme according to configuration. If the scheme does not match the
+	 * configuration, the response with status code 403 is returned.
+	 *
+	 * @param externalApiConfiguration configuration of the external API
+	 * @return lambda that verifies the request scheme according to configuration
+	 */
+	@Nonnull
+	default TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> getApiHandlerPortTlsValidatingFunction(@Nonnull T externalApiConfiguration) {
+		return (context, httpRequest, delegate) -> {
+			try {
+				final TlsMode tlsMode = externalApiConfiguration.getTlsMode();
+				final boolean wasTlsRequest = httpRequest.scheme().equals("https");
+				if (tlsMode == TlsMode.FORCE_TLS  && !wasTlsRequest) {
+					return HttpResponse.of(HttpStatus.FORBIDDEN, MediaType.PLAIN_TEXT, "This endpoint requires TLS.");
+				}
+				if (tlsMode == TlsMode.FORCE_NO_TLS && wasTlsRequest) {
+					return HttpResponse.of(HttpStatus.FORBIDDEN, MediaType.PLAIN_TEXT, "This endpoint does not support TLS.");
+				}
+				return delegate.serve(context, httpRequest);
+			} catch (Exception e) {
+				return HttpResponse.of(HttpStatus.INTERNAL_SERVER_ERROR, MediaType.PLAIN_TEXT, "Internal server error: " + e.getMessage());
+			}
+		};
+	}
 }

@@ -25,12 +25,14 @@ package io.evitadb.externalApi.http;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.exception.EvitaError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -46,30 +48,29 @@ public abstract class JsonApiExceptionHandler extends ExternalApiExceptionHandle
 	@Nonnull
 	private final ObjectMapper objectMapper;
 
-	protected JsonApiExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpHandler next) {
+	protected JsonApiExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpService next) {
 		super(next);
 		this.objectMapper = objectMapper;
 	}
 
 	@Override
-	protected void renderError(@Nonnull EvitaError evitaError, @Nonnull HttpServerExchange exchange) {
+	protected HttpResponse renderError(@Nonnull EvitaError evitaError, @Nonnull HttpRequest httpRequest) {
 		if (evitaError instanceof final HttpExchangeException httpExchangeException) {
-			setResponse(exchange, httpExchangeException.getStatusCode(), httpExchangeException);
+			return setResponse(httpExchangeException.getStatusCode(), httpExchangeException);
 		} else if (evitaError instanceof EvitaInvalidUsageException) {
-			setResponse(exchange, StatusCodes.BAD_REQUEST, evitaError);
+			return setResponse(HttpStatus.BAD_REQUEST.code(), evitaError);
 		} else {
-			setResponse(exchange, StatusCodes.INTERNAL_SERVER_ERROR, evitaError);
+			return setResponse(HttpStatus.INTERNAL_SERVER_ERROR.code(), evitaError);
 		}
 	}
 
 	/**
 	 * Common way to set basic error response.
 	 */
-	private void setResponse(@Nonnull HttpServerExchange exchange, int statusCode, @Nonnull EvitaError evitaError) {
-		setResponse(
-			exchange,
+	private HttpResponse setResponse(int statusCode, @Nonnull EvitaError evitaError) {
+		return buildResponse(
 			statusCode,
-			MimeTypes.APPLICATION_JSON,
+			MediaType.JSON,
 			serializeError(evitaError)
 		);
 	}

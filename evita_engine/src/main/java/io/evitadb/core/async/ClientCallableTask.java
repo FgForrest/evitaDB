@@ -118,6 +118,7 @@ public class ClientCallableTask<S, T> extends AbstractServerTask<S, T> implement
 		return super.execute();
 	}
 
+	@Nonnull
 	@Override
 	protected T executeInternal() {
 		return this.callableWithProgress.apply(this);

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -32,12 +33,12 @@ import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
-import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Returns all evitaDB catalogs.
@@ -56,24 +57,28 @@ public class ListCatalogsHandler extends JsonRestHandler<SystemRestHandlingConte
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-		requestExecutedEvent.finishInputDeserialization();
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> {
+				final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+				requestExecutedEvent.finishInputDeserialization();
 
-		final Collection<CatalogContract> catalogs = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			restHandlingContext.getEvita().getCatalogs());
-		requestExecutedEvent.finishOperationExecution();
+				final Collection<CatalogContract> catalogs = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					restHandlingContext.getEvita().getCatalogs());
+				requestExecutedEvent.finishOperationExecution();
 
-		final Object result = convertResultIntoSerializableObject(executionContext, catalogs);
-		requestExecutedEvent.finishResultSerialization();
+				final Object result = convertResultIntoSerializableObject(executionContext, catalogs);
+				requestExecutedEvent.finishResultSerialization();
 
-		return new SuccessEndpointResponse(result);
+				return new SuccessEndpointResponse(result);
+			}
+		);
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.GET);
 	}
 
 	@Nonnull

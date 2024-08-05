@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -35,9 +36,9 @@ import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -53,7 +54,7 @@ import java.io.Serial;
  * in {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link AttributeSchemaContract} or
  * {@link GlobalAttributeSchemaContract} alone.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -63,7 +64,7 @@ import java.io.Serial;
 @EqualsAndHashCode
 public class SetAttributeSchemaRepresentativeMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-				CombinableEntitySchemaMutation, CombinableCatalogSchemaMutation {
+	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -8009199371166088386L;
 	@Getter @Nonnull private final String name;
 	@Getter private final boolean representative;
@@ -85,7 +86,11 @@ public class SetAttributeSchemaRepresentativeMutation
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
 		if (existingMutation instanceof SetAttributeSchemaRepresentativeMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
@@ -183,6 +188,12 @@ public class SetAttributeSchemaRepresentativeMutation
 		return replaceAttributeIfDifferent(
 			referenceSchema, existingAttributeSchema, updatedAttributeSchema
 		);
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

@@ -23,26 +23,30 @@
 
 package io.evitadb.externalApi.graphql.io;
 
+import com.linecorp.armeria.common.HttpRequest;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * TODO lho docs
+ * Endpoint execution context for GraphQL schema DSL requests.
  *
- * @author Lukáš Hornych, 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 class GraphQLSchemaEndpointExecutionContext extends EndpointExecutionContext {
 
 	@Nullable private String requestBodyContentType;
 	@Nullable private String preferredResponseContentType;
 
-	public GraphQLSchemaEndpointExecutionContext(@Nonnull HttpServerExchange serverExchange) {
-		super(serverExchange);
+	public GraphQLSchemaEndpointExecutionContext(
+		@Nonnull HttpRequest serverExchange,
+		@Nonnull Evita evita
+	) {
+		super(serverExchange, evita);
 	}
 
 	@Override

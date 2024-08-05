@@ -219,13 +219,13 @@ public class GrpcAssertions {
 			}
 			assertEquals(expectedReferenceSchema.getCardinality(), Cardinality.valueOf(actualReferenceSchema.getCardinality().name()));
 			assertEquals(expectedReferenceSchema.getReferencedEntityType(), actualReferenceSchema.getEntityType());
-			assertEquals(expectedReferenceSchema.isReferencedEntityTypeManaged(), actualReferenceSchema.getEntityTypeRelatesToEntity());
+			assertEquals(expectedReferenceSchema.isReferencedEntityTypeManaged(), actualReferenceSchema.getReferencedEntityTypeManaged());
 			if (expectedReferenceSchema.getReferencedGroupType() == null) {
 				assertEquals(actualReferenceSchema.getGroupType().getDefaultInstanceForType(), actualReferenceSchema.getGroupType());
 			} else {
 				assertEquals(expectedReferenceSchema.getReferencedGroupType(), actualReferenceSchema.getGroupType().getValue());
 			}
-			assertEquals(expectedReferenceSchema.isReferencedGroupTypeManaged(), actualReferenceSchema.getGroupTypeRelatesToEntity());
+			assertEquals(expectedReferenceSchema.isReferencedGroupTypeManaged(), actualReferenceSchema.getReferencedGroupTypeManaged());
 			assertEquals(expectedReferenceSchema.isIndexed(), actualReferenceSchema.getIndexed());
 			assertEquals(expectedReferenceSchema.isFaceted(), actualReferenceSchema.getFaceted());
 			assertAttributes(expectedReferenceSchema.getAttributes(), actualReferenceSchema.getAttributesMap());

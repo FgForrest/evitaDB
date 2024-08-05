@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -154,7 +154,7 @@ public class CreateReferenceSchemaMutationTest {
 				of(createExistingReferenceSchema())
 			);
 		RemoveReferenceSchemaMutation removeMutation = new RemoveReferenceSchemaMutation(REFERENCE_NAME);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation);
 		assertNotNull(result);
 		assertFalse(result.discarded());
 		assertEquals(10, result.current().length);

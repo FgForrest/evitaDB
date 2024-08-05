@@ -40,7 +40,11 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@EventGroup(AbstractRestRequestEvent.PACKAGE_NAME)
+@EventGroup(
+	value = AbstractRestRequestEvent.PACKAGE_NAME,
+	name = "evitaDB - REST Request",
+	description = "evitaDB events relating to REST request processing."
+)
 @Category({"evitaDB", "ExternalAPI", "REST", "Request"})
 @Getter
 public class AbstractRestRequestEvent extends CustomMetricsExecutionEvent {

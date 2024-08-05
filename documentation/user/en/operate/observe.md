@@ -12,26 +12,28 @@ preferredLang: 'java'
 
 **Work in progress**
 
-This article will contain description of Evita monitoring facilities - would it be directly Prometheus or OpenTelemetry.
-There should be also information how to log slow queries or see other problems within application (logging).
-The functionality is not finalized - [see issue #18](https://github.com/FgForrest/evitaDB/issues/18).
+The functionality is not finalized - [see issue #18](https://github.com/FgForrest/evitaDB/issues/18) 
+and [issue #628](https://github.com/FgForrest/evitaDB/issues/628).
 
 ## Logging
 
 evitaDB uses the [SLF4J](https://www.slf4j.org/) logging facade for logging both application log messages and access log messages. By default
 only application log messages are enabled, the access log messages must be explicitly [enabled in configuration](#access-log).
 
+You can override our default logback configuration by providing your own `logback.xml` and configuring it in a standard
+way as [documented on Logback site](https://logback.qos.ch/manual/configuration.html#auto_configuration). For example by
+passing `logback.configurationFile=/path/to/logback.xml` as a JVM argument.
+
+Our default Logback configuration can be found in GitHub repository:
+<SourceClass>https://github.com/FgForrest/evitaDB/blob/dev/evita_server/src/main/resources/META-INF/logback.xml</SourceClass>
+
 ### Access log
 
 If the `accessLog` property is set to `true` in the [configuration](configure.md#api-configuration), the server will log
 access log messages for all APIs using the
 [Slf4j](https://www.slf4j.org/) logging facade. These messages are logged at the `INFO` level and contain the `ACCESS_LOG`
-marker which you can use to separate standard messages from access log messages.
-
-Access log messages can be further categorized using `UNDERTOW_ACCESS_LOG` and `GRPC_ACCESS_LOG` markers. This is because
-evitaDB uses [Undertow](https://undertow.io/) web server for REST and GraphQL APIs and separate web server
-for [gRPC](https://grpc.io/). It might be sometimes useful to log these separately because even though they both
-use the same log format, for example, gRPC doesn't support all properties as Undertow.
+marker which you can use to separate standard messages from access log messages. Access log messages are logged
+by logger `com.linecorp.armeria.logging.access` (see [Armeria documentation](https://armeria.dev/docs/server-access-log)).
 
 ### Server Logback utilities
 
@@ -41,37 +43,6 @@ evitaDB server comes ready with several custom utilities for easier configuratio
 doesn't rely on a concrete implementation of the [Slf4j](https://www.slf4j.org/) logging facade.
 If the evitaDB is used as embedded instance, the following tools are not available, but can be used as reference to
 custom implementation in chosen framework.
-
-#### Log filters
-
-The basic utilities are two [Logback](https://logback.qos.ch/) filters ready-to-use to easily separate access log messages
-from app log messages.
-
-There is `io.evitadb.server.log.AccessLogFilter` filter to only log access log messages.
-This filter can be used as follows:
-```xml
-<appender name="FILE" class="ch.qos.logback.core.FileAppender">
-    <filter class="io.evitadb.server.log.AccessLogFilter"/>
-    <file>/path/to/access.log</file>
-    <encoder>
-        <pattern>%msg%n</pattern>
-    </encoder>
-</appender>
-```
-
-There is also `io.evitadb.server.log.AppLogFilter` filter to only log standard log messages.
-This filter can be used as follows:
-```xml
-<appender name="FILE" class="ch.qos.logback.core.FileAppender">
-    <filter class="io.evitadb.server.log.AppLogFilter"/>
-    <file>/evita/logs/evita_server.log</file>
-    <encoder>
-        <pattern>%date %level [%thread] %logger{10} [%file:%line] -%kvp- %msg%n</pattern>
-    </encoder>
-</appender>
-```
-This filter exists because when you enable access logs the log messages with the `ACCESS_LOG` marker aren't filtered out
-by default.
 
 #### Tooling for log aggregators
 
@@ -86,7 +57,6 @@ The layout is the `io.evitadb.server.log.AppLogJsonLayout` layout to log app log
     <!-- ... -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <target>System.out</target>
-        <filter class="io.evitadb.server.log.AppLogFilter" />
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>INFO</level>
         </filter>
@@ -100,8 +70,8 @@ The layout is the `io.evitadb.server.log.AppLogJsonLayout` layout to log app log
 
 ## Readiness and liveness probes
 
-The evitaDB server provides endpoints for Kubernetes [readiness and liveness probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/). The liveness probe is also c
-onfigured as [healthcheck](https://docs.docker.com/reference/dockerfile/#healthcheck) by default in our Docker image. By default the health check waits `30s` before it
+The evitaDB server provides endpoints for Kubernetes [readiness and liveness probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/). The liveness probe is also 
+configured as [healthcheck](https://docs.docker.com/reference/dockerfile/#healthcheck) by default in our Docker image. By default the health check waits `30s` before it
 starts checking the server health, for larger databases you may need to increase this value using environment variable 
 `HEALTHCHECK_START_DELAY` so that they have enough time to be loaded into memory.
 
@@ -112,7 +82,7 @@ starts checking the server health, for larger databases you may need to increase
 ##### When you change system API port don't forget to set `SYSTEM_API_PORT` environment variable
 </NoteTitle>
 
-The healthcheck in the Docker image is configured to use the default system API port, which is `5557`. If you change 
+The healthcheck in the Docker image is configured to use the default system API port, which is `5555`. If you change 
 the port, the health check will immediately report an unhealthy container because it won't be able to reach the probe 
 endpoint. You need to specify the new port using the `SYSTEM_API_PORT` environment variable of the Docker container.
 
@@ -123,7 +93,7 @@ Both probes are available in the `system` API and are accessible at the followin
 ### Readiness probe
 
 ```shell
-curl -k "http://localhost:5557/system/readiness" \
+curl -k "http://localhost:5555/system/readiness" \
      -H 'Content-Type: application/json'
 ```
 
@@ -164,7 +134,7 @@ or `STALLING` status.
 ### Liveness probe
 
 ```shell
-curl -k "http://localhost:5557/system/liveness" \
+curl -k "http://localhost:5555/system/liveness" \
      -H 'Content-Type: application/json'
 ```
 
@@ -200,7 +170,7 @@ If the server is unhealthy, the response will list the problems.
 
 ## Metrics
 
-evitaDB server has the option to publish [metrics](https://en.wikipedia.org/wiki/Observability_(software)#Metrics).
+evitaDB server can publish [metrics](https://en.wikipedia.org/wiki/Observability_(software)#Metrics).
 The popular option of using the [Prometheus](https://prometheus.io/) solution was chosen as a way to make them available
 outside the application. evitaDB exposes a scraping endpoint to which the application publishes collected metrics at
 regular intervals, which can then be visualized using any tool such as [Grafana](https://grafana.com/).
@@ -230,7 +200,7 @@ To collect metrics and publish them to the scrape endpoint, you don't need to do
 *observability* API enabled in the evitaDB config - this is a default behaviour. You can also set the path to a YAML 
 file that can be used to restrict what metrics are actually collected. Without its specification (or with an empty file),
 all metrics from both groups are automatically collected. The metrics are then available at the URL: 
-*http://[evita-server-name]:5557/observability/metrics*.
+*http://[evita-server-name]:5555/observability/metrics*.
 
 The sample below shows the relevant part of the configuration file related to the metrics.
 
@@ -239,9 +209,9 @@ api:
   endpoints:
     observability:
       enabled: ${api.endpoints.observability.enabled:true}
-      host: ${api.endpoints.observability.host:localhost:5557}
+      host: ${api.endpoints.observability.host:localhost:5555}
       exposedHost: ${api.endpoints.observability.exposedHost:null}
-      tlsEnabled: ${api.endpoints.observability.tlsEnabled:false}
+      tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
       allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
 ```
@@ -251,43 +221,31 @@ to constrain the collected data. From the JVM category (
 more [here](https://prometheus.github.io/client_java/instrumentation/jvm/)), published metrics can be constrained by
 specifying selected names in the YAML array:
 
-- AllMetrics
-- JvmThreadsMetrics
-- JvmBufferPoolMetrics
-- JvmClassLoadingMetrics
-- JvmCompilationMetrics
-- JvmGarbageCollectorMetrics
-- JvmMemoryPoolAllocationMetrics
-- JvmMemoryMetrics
-- JvmRuntimeInfoMetric
-- ProcessMetrics
+- `AllMetrics`
+- `JvmThreadsMetrics`
+- `JvmBufferPoolMetrics`
+- `JvmClassLoadingMetrics`
+- `JvmCompilationMetrics`
+- `JvmGarbageCollectorMetrics`
+- `JvmMemoryPoolAllocationMetrics`
+- `JvmMemoryMetrics`
+- `JvmRuntimeInfoMetric`
+- `ProcessMetrics`
 
 From the internal metrics section, metrics can also be constrained using the *wildcard* pattern in conjunction with Java
 package. Thus, we can specify the name of the package that contains the metrics we want to enable with the suffix ".*",
 which will enable the collection of all events in that category (package). It is also possible to specify individual
 metrics by specifying the full name of their corresponding class (*package_path.class_name*).
 
-Categories of internal metrics (the corresponding class and package names will be added later):
-
-- Storage
-    - Transactions
-    - Storage
-        - Per collection
-        - Per catalog
-        - Per instance
-- Engine
-    - Queries
-    - Per instance
-    - Cache
-- Web API
+Internal metrics are documented in the [Metrics reference](#metrics-reference) section.
 
 ### JFR events
 
 The [JFR events](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170) can also be
 associated with metrics, which are used for local diagnostics of Java applications and can provide deeper insight into
-their functioning. Unlike metrics that publish different types of data (Counter, Gauge, ...), JFR (Java Flight Recorder)
-responds to the invocation of any of the events targeted by the recording that is running. It is usually desirable to
-run a streaming recording that collects data on all registered events while it is running and it can be saved to a file
+their functioning. Unlike metrics that publish different types of data (counter, gauge, ...), JFR (Java Flight Recorder) 
+responds to the invocation of any of the events targeted by the current recording. It is usually desirable to
+run a streaming recording that collects data on all registered events while it is running, and it can be saved to a file
 when the recording stops if desired. With JFR, one can also learn how long it took to process the monitored events or
 how many times each event was called during the monitored time. These internal events, which in the case of evitaDB
 share a class with Prometheus metrics, carry auxiliary information (catalog name, query parameters, etc.) which can help
@@ -295,13 +253,154 @@ in solving more complex problems and finding performance bottlenecks. Among othe
 traces are stored in conjunction with this data.
 
 In evitaDB, this concept has been integrated into the aforementioned Observability API (URL: */observability/*), on which
-these two endpoints exist for JFR control:
+these endpoints exist for JFR control:
 
-- **start:** starts the JFR.
-- **stop:** stops the JFR and saves the recording progress file - the file is then available at URL */observability/recording.jfr*.
+#### Check recording is running
+
+Since only one recording can be running at a time, it is necessary to check if the recording is currently running.
+You can do this by calling the following endpoint:
+
+```shell
+curl -k "http://localhost:5555/observability/checkRecording" \
+     -H 'Content-Type: application/json'
+```
+
+The response will be empty if there is no active JFR recording. If there is an active recording, the response will 
+return a JSON object representing the task:
+
+```json
+{
+  "taskType": "JfrRecorderTask",
+  "taskName": "JFR recording",
+  "taskId": "e36303cd-9e20-4e51-8972-2b98c9945dd4",
+  "catalogName": null,
+  "issued": "2024-07-22T17:20:28.157+02:00",
+  "started": "2024-07-22T17:20:28.16+02:00",
+  "finished": null,
+  "progress": 0,
+  "settings": {
+    "allowedEvents": [
+      "io.evitadb.query",
+      "MemoryAllocation"
+    ],
+    "maxSizeInBytes": null,
+    "maxAgeInSeconds": null
+  },
+  "result": null,
+  "publicExceptionMessage": null,
+  "exceptionWithStackTrace": null
+}
+```
+
+#### List event groups to include in recording
+
+To start recording JFR events, you must specify which JFR event groups to include in the recording.
+You can list all available event groups by invoking the following endpoint:
+
+```shell
+curl -k "http://localhost:5555/observability/getRecordingEventTypes" \
+     -H 'Content-Type: application/json'
+```
+
+And you will get a list of all available event groups:
+
+```json
+[
+  {
+    "id": "io.evitadb.cache",
+    "name": "evitaDB - Cache",
+    "description": "evitaDB events relating to internal database cache."
+  },
+  {
+    "id": "io.evitadb.externalApi.graphql.instance",
+    "name": "evitaDB - GraphQL API",
+    "description": "evitaDB events relating to GraphQL API."
+  },
+  ... and more ...
+]
+```
+
+The `id` property is the identification of the group, which you must specify when starting the recording. 
+Other properties just describe the group.
+
+#### Start recording
+
+Recording is started by calling the following endpoint:
+
+```shell
+curl -k -X POST "http://localhost:5555/observability/startRecording" \
+     -H 'Content-Type: application/json' \
+     -d '{
+           "allowedEvents": [
+             "io.evitadb.query",
+             "MemoryAllocation"
+           ]
+         }'
+```
+
+The `allowedEvents` property is an array of event group IDs that you want to include in the recording.
+
+<Note type="info">
+
+Only one recording can be running at a time. If you try to start a new recording while another one is running, 
+the server will return an error.
+
+</Note>
+
+#### Stop recording
+
+Recording can be stopped by calling the following endpoint:
+
+```shell
+curl -k -X POST "http://localhost:5555/observability/stopRecording" \
+     -H 'Content-Type: application/json'
+```
+
+And you'll get similar response as when checking if the recording is running:
+
+```json
+{
+  "taskType": "JfrRecorderTask",
+  "taskName": "JFR recording",
+  "taskId": "e36303cd-9e20-4e51-8972-2b98c9945dd4",
+  "catalogName": null,
+  "issued": "2024-07-22T17:20:28.157+02:00",
+  "started": "2024-07-22T17:20:28.16+02:00",
+  "finished": "2024-07-22T17:28:00.729+02:00",
+  "progress": 100,
+  "settings": {
+    "allowedEvents": [
+      "io.evitadb.query",
+      "MemoryAllocation"
+    ],
+    "maxSizeInBytes": null,
+    "maxAgeInSeconds": null
+  },
+  "result": {
+    "fileId": "45cee61c-a233-4c36-ad3c-fa2325434bf6",
+    "name": "jfr_recording_2024-07-22T17-20-28.157316739-02-00.jfr",
+    "description": "JFR recording started at 2024-07-22T17:20:28.157619773+02:00 with events: [io.evitadb.query, MemoryAllocation].",
+    "contentType": "application/octet-stream",
+    "totalSizeInBytes": 180281,
+    "created": "2024-07-22T17:20:28.158+02:00",
+    "origin": [
+      "JfrRecorderTask"
+    ]
+  },
+  "publicExceptionMessage": null,
+  "exceptionWithStackTrace": null
+}
+```
+
+The main difference is that the result of a JFR recording task includes a file that you can download from the server or 
+find directly in the server's export folder. The file is automatically removed after a configured period of time.
+
+<Note type="info">
 
 Since the produced JFR files are binary and therefore not directly readable (the JDK offers a terminal utility *JMC*,
 but this is not ideal in terms of readability and orientation in the output), we plan to add a visualizer to evitaLab.
+
+</Note>
 
 ## Tracing
 
@@ -310,7 +409,7 @@ using [OpenTelemetry](https://opentelemetry.io/).
 It offers to collect useful information on all queries to the database within a request made via any of the external
 APIs. This data is exported from the database using
 the [OTLP exporter](https://opentelemetry.io/docs/specs/otel/protocol/exporter/) and then forwarded to
-the [OpenTelemetry collector](https://opentelemetry.io/docs/collector/). The latter can sort, reduce and forward the
+the [OpenTelemetry collector](https://opentelemetry.io/docs/collector/). The latter can sort, reduce, and forward the
 data to other applications that can be used to visualize it, for example (tools like [Grafana](https://grafana.com/)
 using the [Tempo](https://grafana.com/oss/tempo/) module, [Jaeger](https://www.jaegertracing.io/),...). To maximize the
 effect of tracing, it is also possible to use the so-called distributed tracing method, where not only data from evitaDB
@@ -334,9 +433,9 @@ will be sent over.
 ```yaml
 Observability:
   enabled: ${api.endpoints.observability.enabled:true}
-  host: ${api.endpoints.observability.host:localhost:5557}
+  host: ${api.endpoints.observability.host:localhost:5555}
   exposedHost: ${api.endpoints.observability.exposedHost:null}
-  tlsEnabled: ${api.endpoints.observability.tlsEnabled:false}
+  tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
   allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
   tracing:
     endpoint: ${api.endpoints.observability.tracing.endpoint:null}

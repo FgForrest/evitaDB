@@ -18,6 +18,9 @@ message GrpcCatalogSchema {
   // Contains description of the model is optional but helps authors of the schema / client API to better
   // explain the original purpose of the model to the consumers.
   google.protobuf.StringValue description = 3;
+  // set of evolution modes that allow to specify how strict is evitaDB when unknown information is presented to her
+  // for the first time. When no evolution mode is set, each violation of the catalog schema is
+  // reported by an exception. This behaviour can be changed by this evolution mode, however.
   repeated GrpcCatalogEvolutionMode catalogEvolutionMode = 4;
   // Contains index of generally (catalog-wide) shared `AttributeSchema` that could be used as attributes of any
   // entity type that refers them. These attributes cannot be changed from within the entity schema. Entity schemas
@@ -30,6 +33,8 @@ message GrpcCatalogSchema {
   // The "catalog-wide" unique attributes allows Evita to fetch entity of any (and up-front unknown) entity type by
   // some unique attribute value - usually URL.
   map<string, GrpcGlobalAttributeSchema> attributes = 5;
+  // Contains catalog name converted to different naming conventions.
+  repeated GrpcNameVariant nameVariant = 6;
 }
 
 // This is the definition object for attributes that are stored along with
@@ -47,7 +52,9 @@ message GrpcCatalogSchema {
 // Attributes are not recommended for bigger data as they are all loaded at once when requested.
 message GrpcGlobalAttributeSchema {
   string name = 1;
+  // optional description of the attribute
   google.protobuf.StringValue description = 2;
+  // optional deprecation notice
   google.protobuf.StringValue deprecationNotice = 3;
   // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
   // having certain value of this attribute among other entities in the same collection.
@@ -94,4 +101,6 @@ message GrpcGlobalAttributeSchema {
   // As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
   // better to have this ensured by the database engine.
   GrpcGlobalAttributeUniquenessType uniqueGlobally = 13;
+  // Contains attribute name converted to different naming conventions.
+  repeated GrpcNameVariant nameVariant = 14;
 }

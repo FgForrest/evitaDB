@@ -77,7 +77,6 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		.stream()
 		.filter(gc -> OLD_GENERATION_GC_NAMES.contains(gc.getName()))
 		.toList();
-	private ObservabilityManager observabilityManager;
 	private final AtomicLong lastSeenRejectedTaskCount = new AtomicLong(0L);
 	private final AtomicLong lastSeenSubmittedTaskCount = new AtomicLong(0L);
 	private final AtomicLong lastSeenJavaErrorCount = new AtomicLong(0L);
@@ -86,6 +85,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	private final AtomicLong lastSeenJavaGarbageCollections = new AtomicLong(0L);
 	private final AtomicBoolean seenReady = new AtomicBoolean();
 	private final AtomicReference<ReadinessWithTimestamp> lastReadinessSeen = new AtomicReference<>();
+	private ObservabilityManager observabilityManager;
 
 	/**
 	 * Records the result of the health problem check.
@@ -157,8 +157,9 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
 		for (String apiCode : apiCodes) {
 			final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
-			readiness.put(apiProvider.getCode(), apiProvider.isReady());
-			theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), apiProvider.isReady()));
+			final boolean ready = apiProvider.isReady();
+			readiness.put(apiProvider.getCode(), ready);
+			theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), ready));
 		}
 		final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
 		if (ready) {
@@ -319,12 +320,14 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	/**
 	 * Record keeps the readiness result and the detail of readiness result for each API along with the timestamp when
 	 * it was recorded.
-	 * @param result overall readiness result (over all APIs)
+	 *
+	 * @param result    overall readiness result (over all APIs)
 	 * @param timestamp timestamp when the readiness was recorded
 	 */
 	private record ReadinessWithTimestamp(
 		@Nonnull Readiness result,
 		@Nonnull OffsetDateTime timestamp
-	) { }
+	) {
+	}
 
 }

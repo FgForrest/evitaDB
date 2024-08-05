@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -75,12 +75,12 @@ public class LabConfig extends AbstractApiConfiguration implements ApiWithSpecif
 		@Nullable @JsonProperty("enabled") Boolean enabled,
 		@Nonnull @JsonProperty("host") String host,
 		@Nullable @JsonProperty("exposedHost") String exposedHost,
-		@Nullable @JsonProperty("tlsEnabled") Boolean tlsEnabled,
+		@Nullable @JsonProperty("tlsMode") String tlsMode,
 		@Nullable @JsonProperty("prefix") String prefix,
 		@Nullable @JsonProperty("allowedOrigins") String allowedOrigins,
 		@Nullable @JsonProperty("gui") GuiConfig gui
 	) {
-		super(enabled, host, exposedHost, tlsEnabled);
+		super(enabled, host, exposedHost, tlsMode);
 		this.prefix = ofNullable(prefix).orElse(BASE_LAB_PATH);
 		if (allowedOrigins == null) {
 			this.allowedOrigins = null;

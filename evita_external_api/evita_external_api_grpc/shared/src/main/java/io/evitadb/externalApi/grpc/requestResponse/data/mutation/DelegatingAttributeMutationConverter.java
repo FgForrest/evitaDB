@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,8 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.attribute.Apply
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.attribute.RemoveAttributeMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.attribute.UpsertAttributeMutationConverter;
 import io.evitadb.utils.Assert;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -54,21 +56,23 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DelegatingAttributeMutationConverter implements LocalMutationConverter<AttributeMutation, GrpcAttributeMutation> {
+	public static final DelegatingAttributeMutationConverter INSTANCE = new DelegatingAttributeMutationConverter();
 
 	private static final Map<Class<? extends AttributeMutation>, ToGrpc> TO_GRPC_CONVERTERS;
 	private static final Map<MutationCase, ToJava> TO_JAVA_CONVERTERS;
 
 	static {
 		TO_GRPC_CONVERTERS = createHashMap(5);
-		TO_GRPC_CONVERTERS.put(ApplyDeltaAttributeMutation.class, new ToGrpc((b, m) -> b.setApplyDeltaAttributeMutation((GrpcApplyDeltaAttributeMutation) m), new ApplyDeltaAttributeMutationConverter()));
-		TO_GRPC_CONVERTERS.put(RemoveAttributeMutation.class, new ToGrpc((b, m) -> b.setRemoveAttributeMutation((GrpcRemoveAttributeMutation) m), new RemoveAttributeMutationConverter()));
-		TO_GRPC_CONVERTERS.put(UpsertAttributeMutation.class, new ToGrpc((b, m) -> b.setUpsertAttributeMutation((GrpcUpsertAttributeMutation) m), new UpsertAttributeMutationConverter()));
+		TO_GRPC_CONVERTERS.put(ApplyDeltaAttributeMutation.class, new ToGrpc((b, m) -> b.setApplyDeltaAttributeMutation((GrpcApplyDeltaAttributeMutation) m), ApplyDeltaAttributeMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveAttributeMutation.class, new ToGrpc((b, m) -> b.setRemoveAttributeMutation((GrpcRemoveAttributeMutation) m), RemoveAttributeMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(UpsertAttributeMutation.class, new ToGrpc((b, m) -> b.setUpsertAttributeMutation((GrpcUpsertAttributeMutation) m), UpsertAttributeMutationConverter.INSTANCE));
 
 		TO_JAVA_CONVERTERS = createHashMap(5);
-		TO_JAVA_CONVERTERS.put(APPLYDELTAATTRIBUTEMUTATION, new ToJava(GrpcAttributeMutation::getApplyDeltaAttributeMutation, new ApplyDeltaAttributeMutationConverter()));
-		TO_JAVA_CONVERTERS.put(REMOVEATTRIBUTEMUTATION, new ToJava(GrpcAttributeMutation::getRemoveAttributeMutation, new RemoveAttributeMutationConverter()));
-		TO_JAVA_CONVERTERS.put(UPSERTATTRIBUTEMUTATION, new ToJava(GrpcAttributeMutation::getUpsertAttributeMutation, new UpsertAttributeMutationConverter()));
+		TO_JAVA_CONVERTERS.put(APPLYDELTAATTRIBUTEMUTATION, new ToJava(GrpcAttributeMutation::getApplyDeltaAttributeMutation, ApplyDeltaAttributeMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(REMOVEATTRIBUTEMUTATION, new ToJava(GrpcAttributeMutation::getRemoveAttributeMutation, RemoveAttributeMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(UPSERTATTRIBUTEMUTATION, new ToJava(GrpcAttributeMutation::getUpsertAttributeMutation, UpsertAttributeMutationConverter.INSTANCE));
 	}
 
 	@SuppressWarnings("unchecked")

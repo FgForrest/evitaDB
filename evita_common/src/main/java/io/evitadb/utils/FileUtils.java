@@ -35,7 +35,10 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -50,6 +53,9 @@ import java.util.stream.StreamSupport;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class FileUtils {
 	private static final Path[] EMPTY_PATHS = new Path[0];
+	private static final Pattern WHITESPACE_FILE_NAME_CHARACTERS_PATTERN = Pattern.compile("\\s+");
+	private static final Pattern UNSUPPORTED_FILE_NAME_CHARACTERS_PATTERN = Pattern.compile("[+<>:\"/\\\\|?*]+");
+	private static final Pattern COLLAPSE_PATTERN = Pattern.compile("[_-]{2,}");
 
 	/**
 	 * Returns list of folders in Evita directory. Each folder is considered to be Evita catalog - name of the folder
@@ -229,5 +235,22 @@ public class FileUtils {
 	public static Optional<String> getFileExtension(@Nonnull String fileName) {
 		final int i = fileName.lastIndexOf('.') + 1;
 		return i > 0 ? Optional.of(fileName.substring(i)).filter(it -> !it.isBlank()) : Optional.empty();
+	}
+
+	/**
+	 * Converts name with potentially unsupported characters to a name that is supported by all file systems.
+	 * @param name The name to convert.
+	 * @return The name with unsupported characters replaced by a dash.
+	 */
+	@Nonnull
+	public static String convertToSupportedName(@Nonnull String name) {
+		return Arrays.stream(
+			name.split("\\.", 2)
+		)
+			.map(String::trim)
+			.map(it -> WHITESPACE_FILE_NAME_CHARACTERS_PATTERN.matcher(it).replaceAll("_"))
+			.map(it -> UNSUPPORTED_FILE_NAME_CHARACTERS_PATTERN.matcher(it).replaceAll("-"))
+			.map(it -> COLLAPSE_PATTERN.matcher(it).replaceAll("-"))
+			.collect(Collectors.joining("."));
 	}
 }

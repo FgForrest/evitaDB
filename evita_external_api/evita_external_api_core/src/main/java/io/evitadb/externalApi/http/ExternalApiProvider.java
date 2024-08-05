@@ -23,8 +23,9 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
-import io.undertow.server.HttpHandler;
+import io.evitadb.externalApi.utils.path.PathHandlingService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,17 +55,8 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	/**
 	 * @return HTTP handler that is responsible for processing all requests addressed to this API
 	 */
-	@Nullable
-	default HttpHandler getApiHandler() {
-		return null;
-	}
-
-	/**
-	 * Method should return true if the API is managed by the Undertow server.
-	 */
-	default boolean isManagedByUndertow() {
-		return true;
-	}
+	@Nonnull
+	HttpServiceDefinition[] getHttpServiceDefinitions();
 
 	/**
 	 * Called automatically when entire server is done initializing but not started yet.
@@ -94,5 +86,34 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	 * @return TRUE if the API is ready to accept requests
 	 */
 	boolean isReady();
+
+	/**
+	 * Represents HTTP service that is responsible for processing all requests addressed to this API on given sub-path.
+	 *
+	 * @param path sub-path of the API
+	 * @param service HTTP service that is responsible for processing all requests addressed to path
+	 */
+	record HttpServiceDefinition(
+		@Nullable String path,
+		@Nonnull HttpService service,
+		@Nonnull PathHandlingMode pathHandlingMode
+	) {
+
+		public HttpServiceDefinition(@Nonnull HttpService service, @Nonnull PathHandlingMode routing) {
+			this("", service, routing);
+		}
+	}
+
+	enum PathHandlingMode {
+		/**
+		 * Needs to be used for services on root path that execute their own path handling.
+		 */
+		FIXED_PATH_HANDLING,
+		/**
+		 * Might be used for services on sub-paths that can be handled by {@link PathHandlingService}, that can
+		 * be dynamically updated during runtime.
+		 */
+		DYNAMIC_PATH_HANDLING
+	}
 
 }

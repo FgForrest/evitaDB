@@ -35,7 +35,11 @@ import lombok.RequiredArgsConstructor;
 /**
  * This event is base class for all query related events.
  */
-@EventGroup(AbstractQueryEvent.PACKAGE_NAME)
+@EventGroup(
+	value = AbstractQueryEvent.PACKAGE_NAME,
+	name = "evitaDB - Query",
+	description = "evitaDB events relating to query processing."
+)
 @Category({"evitaDB", "Query"})
 @RequiredArgsConstructor
 @Getter

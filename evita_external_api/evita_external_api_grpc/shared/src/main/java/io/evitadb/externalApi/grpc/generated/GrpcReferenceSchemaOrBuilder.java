@@ -167,12 +167,14 @@ public interface GrpcReferenceSchemaOrBuilder extends
   /**
    * <pre>
    * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+   * DEPRECATED!!! use referencedEntityTypeManaged instead
    * </pre>
    *
-   * <code>bool entityTypeRelatesToEntity = 6;</code>
+   * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
+   * @deprecated
    * @return The entityTypeRelatesToEntity.
    */
-  boolean getEntityTypeRelatesToEntity();
+  @java.lang.Deprecated boolean getEntityTypeRelatesToEntity();
 
   /**
    * <pre>
@@ -207,12 +209,14 @@ public interface GrpcReferenceSchemaOrBuilder extends
   /**
    * <pre>
    * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+   * DEPRECATED!!! use referencedGroupTypeManaged instead
    * </pre>
    *
-   * <code>bool groupTypeRelatesToEntity = 8;</code>
+   * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
+   * @deprecated
    * @return The groupTypeRelatesToEntity.
    */
-  boolean getGroupTypeRelatesToEntity();
+  @java.lang.Deprecated boolean getGroupTypeRelatesToEntity();
 
   /**
    * <pre>
@@ -387,4 +391,156 @@ public interface GrpcReferenceSchemaOrBuilder extends
 
   io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema getSortableAttributeCompoundsOrThrow(
       java.lang.String key);
+
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+      getNameVariantList();
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariant(int index);
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  int getNameVariantCount();
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getNameVariantOrBuilderList();
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+      getEntityTypeNameVariantList();
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getEntityTypeNameVariant(int index);
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  int getEntityTypeNameVariantCount();
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getEntityTypeNameVariantOrBuilderList();
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getEntityTypeNameVariantOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+      getGroupTypeNameVariantList();
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getGroupTypeNameVariant(int index);
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  int getGroupTypeNameVariantCount();
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getGroupTypeNameVariantOrBuilderList();
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getGroupTypeNameVariantOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+   * </pre>
+   *
+   * <code>bool referencedEntityTypeManaged = 16;</code>
+   * @return The referencedEntityTypeManaged.
+   */
+  boolean getReferencedEntityTypeManaged();
+
+  /**
+   * <pre>
+   * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+   * </pre>
+   *
+   * <code>bool referencedGroupTypeManaged = 17;</code>
+   * @return The referencedGroupTypeManaged.
+   */
+  boolean getReferencedGroupTypeManaged();
 }

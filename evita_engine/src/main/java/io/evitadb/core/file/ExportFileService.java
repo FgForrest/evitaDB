@@ -31,6 +31,9 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.UUIDUtil;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -42,6 +45,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
@@ -70,6 +74,7 @@ import static java.util.Optional.of;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Slf4j
 public class ExportFileService {
 	/**
 	 * Storage options.
@@ -146,6 +151,75 @@ public class ExportFileService {
 	}
 
 	/**
+	 * Method creates new file for fetch but doesn't create it - only metadata is created.
+	 *
+	 * @param fileName    name of the file
+	 * @param description optional description of the file
+	 * @param contentType MIME type of the file
+	 * @param origin      optional origin of the file
+	 * @return file for fetch
+	 */
+	@Nonnull
+	public FileForFetch createFile(
+		@Nonnull String fileName,
+		@Nullable String description,
+		@Nonnull String contentType,
+		@Nullable String origin
+	) {
+		final UUID fileId = UUIDUtil.randomUUID();
+		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
+		final Path finalFilePath = storageOptions.exportDirectory().resolve(finalFileName);
+		try {
+			if (!storageOptions.exportDirectory().toFile().exists()) {
+				Assert.isPremiseValid(
+					storageOptions.exportDirectory().toFile().mkdirs(),
+					() -> new UnexpectedIOException(
+						"Failed to create directory: " + storageOptions.exportDirectory(),
+						"Failed to create directory."
+					)
+				);
+			}
+			Assert.isPremiseValid(
+				finalFilePath.toFile().createNewFile(),
+				() -> new UnexpectedIOException(
+					"Failed to create file: " + finalFilePath,
+					"Failed to create file."
+				)
+			);
+			lock.lock();
+			try {
+				final FileForFetch fileForFetch = new FileForFetch(
+					fileId,
+					fileName,
+					description,
+					contentType,
+					Files.size(finalFilePath),
+					OffsetDateTime.now(),
+					origin == null ? null : Arrays.stream(origin.split(","))
+						.map(String::trim)
+						.toArray(String[]::new)
+				);
+				writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
+				this.files.add(0, fileForFetch);
+				return fileForFetch;
+			} catch (IOException e) {
+				throw new UnexpectedIOException(
+					"Failed to write metadata file: " + e.getMessage(),
+					"Failed to write metadata file."
+				);
+			} finally {
+				lock.unlock();
+			}
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to store file: " + finalFilePath,
+				"Failed to store file.",
+				e
+			);
+		}
+	}
+
+	/**
 	 * Method creates new file for fetch and stores it in the export directory.
 	 *
 	 * @param fileName    name of the file
@@ -201,12 +275,7 @@ public class ExportFileService {
 									.map(String::trim)
 									.toArray(String[]::new)
 							);
-							Files.write(
-								storageOptions.exportDirectory().resolve(fileId + FileForFetch.METADATA_EXTENSION),
-								fileForFetch.toLines(),
-								StandardCharsets.UTF_8,
-								StandardOpenOption.CREATE_NEW
-							);
+							writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
 							this.files.add(0, fileForFetch);
 							return fileForFetch;
 						} catch (IOException e) {
@@ -287,7 +356,64 @@ public class ExportFileService {
 	 */
 	@Nonnull
 	public InputStream createInputStream(@Nonnull FileForFetch file) throws IOException {
-		return Files.newInputStream(file.path(storageOptions.exportDirectory()), StandardOpenOption.READ);
+		return new ExportFileInputStream(
+			file,
+			Files.newInputStream(file.path(storageOptions.exportDirectory()), StandardOpenOption.READ)
+		);
+	}
+
+	/**
+	 * Returns absolute path of the file in the export directory.
+	 *
+	 * @param file file to get the path for
+	 * @return absolute path of the file in the export directory
+	 */
+	@Nonnull
+	public Path getFilePath(@Nonnull FileForFetch file) {
+		return file.path(this.storageOptions.exportDirectory());
+	}
+
+	/**
+	 * Checks whether a file has still the same size on the disk and if not, it updates the metadata file and the file
+	 * contents in the memory.
+	 *
+	 * @param theFile file to check
+	 * @return updated file
+	 */
+	@Nonnull
+	public FileForFetch updateFileData(@Nonnull FileForFetch theFile) {
+		this.lock.lock();
+		try {
+			final long actualSize = Files.size(theFile.path(this.storageOptions.exportDirectory()));
+			if (actualSize != theFile.totalSizeInBytes()) {
+				final FileForFetch updatedFile = theFile.withTotalSizeInBytes(actualSize);
+				writeFileMetadata(updatedFile, StandardOpenOption.TRUNCATE_EXISTING);
+				this.files = this.files.stream()
+					.map(it -> it.fileId().equals(theFile.fileId()) ? updatedFile : it)
+					.collect(Collectors.toList());
+				return updatedFile;
+			}
+		} catch (IOException e) {
+			log.error("Failed to read file size: {}", theFile.name(), e);
+		} finally {
+			this.lock.unlock();
+		}
+		return theFile;
+	}
+
+	/**
+	 * Writes metadata file for the file with the specified fileId.
+	 *
+	 * @param fileForFetch file to write metadata for
+	 * @throws IOException if the metadata file cannot be written
+	 */
+	private void writeFileMetadata(@Nonnull FileForFetch fileForFetch, @Nonnull OpenOption... options) throws IOException {
+		Files.write(
+			storageOptions.exportDirectory().resolve(fileForFetch.fileId() + FileForFetch.METADATA_EXTENSION),
+			fileForFetch.toLines(),
+			StandardCharsets.UTF_8,
+			options
+		);
 	}
 
 	/**
@@ -359,6 +485,86 @@ public class ExportFileService {
 			}
 		}
 
+	}
+
+	/**
+	 * Input stream that wraps the file input stream and provides the file ID. This input stream is used to distinguish
+	 * this input stream from other input streams that read data for example from the network.
+	 */
+	@RequiredArgsConstructor
+	public static class ExportFileInputStream extends InputStream {
+		@Getter private final FileForFetch file;
+		private final InputStream inputStream;
+
+		@Override
+		public int read() throws IOException {
+			return inputStream.read();
+		}
+
+		@Override
+		public int read(byte[] b) throws IOException {
+			return inputStream.read(b);
+		}
+
+		@Override
+		public int read(byte[] b, int off, int len) throws IOException {
+			return inputStream.read(b, off, len);
+		}
+
+		@Override
+		public byte[] readAllBytes() throws IOException {
+			return inputStream.readAllBytes();
+		}
+
+		@Override
+		public byte[] readNBytes(int len) throws IOException {
+			return inputStream.readNBytes(len);
+		}
+
+		@Override
+		public int readNBytes(byte[] b, int off, int len) throws IOException {
+			return inputStream.readNBytes(b, off, len);
+		}
+
+		@Override
+		public long skip(long n) throws IOException {
+			return inputStream.skip(n);
+		}
+
+		@Override
+		public void skipNBytes(long n) throws IOException {
+			inputStream.skipNBytes(n);
+		}
+
+		@Override
+		public int available() throws IOException {
+			return inputStream.available();
+		}
+
+		@Override
+		public void close() throws IOException {
+			inputStream.close();
+		}
+
+		@Override
+		public void mark(int readlimit) {
+			inputStream.mark(readlimit);
+		}
+
+		@Override
+		public void reset() throws IOException {
+			inputStream.reset();
+		}
+
+		@Override
+		public boolean markSupported() {
+			return inputStream.markSupported();
+		}
+
+		@Override
+		public long transferTo(OutputStream out) throws IOException {
+			return inputStream.transferTo(out);
+		}
 	}
 
 }

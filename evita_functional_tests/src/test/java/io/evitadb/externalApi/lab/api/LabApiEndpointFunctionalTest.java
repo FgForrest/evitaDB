@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -143,7 +143,6 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 			.body(
 				"",
 				equalTo(
-					// todo lho: maybe move these builders to some common place
 					createCatalogSchemaDto(evita, getCatalogSchemaFromTestData(evita))
 				)
 			);
@@ -190,13 +189,13 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 				codes.stream().map(it -> "'" + it + "'").collect(Collectors.joining(", ")))
 			.executeAndThen()
 			.statusCode(200)
-			// todo lho: maybe move these builders to some common place
 			.body("recordPage.data", equalTo(createEntityDtos(entities)));
 	}
 
 	@Nonnull
 	private static Map<String, Object> createCatalogDto(@Nonnull CatalogContract catalog) {
 		return map()
+			.e(CatalogDescriptor.CATALOG_ID.name(), catalog.getCatalogId().toString())
 			.e(CatalogDescriptor.NAME.name(), catalog.getName())
 			.e(CatalogDescriptor.NAME_VARIANTS.name(), map()
 				.e(NameVariantsDescriptor.CAMEL_CASE.name(), catalog.getSchema().getNameVariants().get(NamingConvention.CAMEL_CASE))

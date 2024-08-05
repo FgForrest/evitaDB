@@ -36,9 +36,9 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpoint;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiReferenceValidator;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
-import io.evitadb.externalApi.rest.api.resolver.serializer.BigDecimalSerializer;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.serialization.BigDecimalSerializer;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VersionUtils;
@@ -52,11 +52,9 @@ import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
-import io.undertow.util.HttpString;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -77,8 +75,8 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 public abstract class RestBuildingContext {
 
 	@Nonnull protected final AbstractApiConfiguration restConfig;
-	@Getter @Nullable private final String exposedOn;
-	@Getter @Nonnull private final Evita evita;
+	@Nonnull @Getter private final String exposedOn;
+	@Nonnull @Getter private final Evita evita;
 
 	/**
 	 * This instance of object mapper is shared by all REST handlers registered via RoutingHandler.
@@ -229,7 +227,7 @@ public abstract class RestBuildingContext {
 			endpoints.forEach((method, endpoint) ->
 				builtEndpoints.add(new Rest.Endpoint(
 					path,
-					new HttpString(endpoint.getMethod().name()),
+					com.linecorp.armeria.common.HttpMethod.valueOf(endpoint.getMethod().name()),
 					endpoint.toHandler(objectMapper, evita, openApi, enumMapping)
 				))
 			)
@@ -237,7 +235,7 @@ public abstract class RestBuildingContext {
 		return Collections.unmodifiableList(builtEndpoints);
 	}
 
-	private void validateReferences(OpenAPI openApi) {
+	private static void validateReferences(OpenAPI openApi) {
 		final OpenApiReferenceValidator referenceValidator = new OpenApiReferenceValidator(openApi);
 		final Set<String> missingSchemas = referenceValidator.validateSchemaReferences();
 

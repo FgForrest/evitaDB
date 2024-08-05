@@ -24,10 +24,15 @@
 package io.evitadb.externalApi.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.http.HttpServiceTlsCheckingDecorator;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
@@ -39,10 +44,10 @@ import io.evitadb.externalApi.rest.io.RestInstanceType;
 import io.evitadb.externalApi.rest.io.RestRouter;
 import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent;
 import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent.BuildType;
+import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.undertow.server.HttpHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -75,7 +80,6 @@ public class RestManager {
 	@Nullable private final String exposedOn;
 	@Nonnull private final RestConfig restConfig;
 
-
 	/**
 	 * REST specific endpoint router.
 	 */
@@ -85,14 +89,17 @@ public class RestManager {
 	 */
 	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
 
-	@Nonnull private SystemBuildStatistics systemBuildStatistics;
+	@Nullable private SystemBuildStatistics systemBuildStatistics;
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
-	public RestManager(@Nonnull Evita evita, @Nullable String exposedOn, @Nonnull RestConfig restConfig) {
+	@Nonnull private final TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction;
+
+	public RestManager(@Nonnull Evita evita, @Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction) {
 		this.evita = evita;
 		this.exposedOn = exposedOn;
 		this.restConfig = restConfig;
 		this.restRouter = new RestRouter(objectMapper, restConfig);
+		this.apiHandlerPortSslValidatingFunction = apiHandlerPortSslValidatingFunction;
 
 		final long buildingStartTime = System.currentTimeMillis();
 
@@ -104,10 +111,11 @@ public class RestManager {
 	}
 
 	@Nonnull
-	public HttpHandler getRestRouter() {
-		return new PathNormalizingHandler(restRouter);
+	public HttpService getRestRouter() {
+		return new HttpServiceTlsCheckingDecorator(
+			new PathNormalizingHandler(restRouter), apiHandlerPortSslValidatingFunction
+		);
 	}
-
 
 	/**
 	 * Builds and registers system API to manage evitaDB
@@ -279,7 +287,7 @@ public class RestManager {
 	/**
 	 * Counts lines of printed OpenAPI schema in DSL.
 	 */
-	private long countOpenApiSchemaLines(@Nonnull OpenAPI schema) {
+	private static long countOpenApiSchemaLines(@Nonnull OpenAPI schema) {
 		final ByteArrayOutputStream out = new ByteArrayOutputStream();
 		try {
 			OpenApiWriter.toYaml(schema, out);

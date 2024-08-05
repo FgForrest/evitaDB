@@ -56,7 +56,6 @@ module evita.external.api.graphql {
 	requires org.slf4j;
 	requires com.graphqljava;
 	requires com.fasterxml.jackson.databind;
-	requires undertow.core;
 	requires net.bytebuddy;
 	requires jdk.jfr;
 
@@ -65,5 +64,9 @@ module evita.external.api.graphql {
 	requires evita.query;
 	requires evita.engine;
 	requires evita.external.api.core;
+	requires com.linecorp.armeria;
+	requires org.reactivestreams;
+	requires io.netty.common;
+	requires io.netty.transport;
 
 }

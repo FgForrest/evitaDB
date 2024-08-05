@@ -191,7 +191,7 @@ public interface GrpcExtraResultsOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics>
       getFacetGroupStatisticsList();
   /**
    * <pre>
@@ -219,7 +219,7 @@ public interface GrpcExtraResultsOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder>
       getFacetGroupStatisticsOrBuilderList();
   /**
    * <pre>

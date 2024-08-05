@@ -34,7 +34,11 @@ import lombok.RequiredArgsConstructor;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@EventGroup(AbstractGraphQLInstanceEvent.PACKAGE_NAME)
+@EventGroup(
+	value = AbstractGraphQLInstanceEvent.PACKAGE_NAME,
+	name = "evitaDB - GraphQL API",
+	description = "evitaDB events relating to GraphQL API."
+)
 @Category({"evitaDB", "API", "GraphQL", "Instance", "Schema"})
 @RequiredArgsConstructor
 @Getter

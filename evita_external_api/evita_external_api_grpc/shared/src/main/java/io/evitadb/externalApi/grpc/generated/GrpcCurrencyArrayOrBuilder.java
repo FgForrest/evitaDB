@@ -37,7 +37,7 @@ public interface GrpcCurrencyArrayOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency>
       getValueList();
   /**
    * <pre>
@@ -62,7 +62,7 @@ public interface GrpcCurrencyArrayOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
       getValueOrBuilderList();
   /**
    * <pre>

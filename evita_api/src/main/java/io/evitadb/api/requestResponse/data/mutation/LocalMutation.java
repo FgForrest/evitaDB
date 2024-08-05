@@ -23,15 +23,20 @@
 
 package io.evitadb.api.requestResponse.data.mutation;
 
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.ContainerType;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.util.stream.Stream;
 
 /**
  * Entity {@link Mutation} allows to execute mutation operations on {@link EntityContract} object itself. Each change
@@ -56,6 +61,13 @@ public non-sealed interface LocalMutation<T, S extends Comparable<S>> extends Mu
 	long PRIORITY_UPSERT = 0L;
 
 	/**
+	 * Returns the type of the container that this mutation is targeting.
+	 * @return the type of the container that this mutation is targeting.
+	 */
+	@Nonnull
+	ContainerType containerType();
+
+	/**
 	 * Executes the real mutation. Fabricates new attribute value that will be used in next version of the entity.
 	 */
 	@Nonnull
@@ -74,6 +86,20 @@ public non-sealed interface LocalMutation<T, S extends Comparable<S>> extends Mu
 	 * rely on in tests.
 	 */
 	S getComparableKey();
+
+	@Override
+	@Nonnull
+	default Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull CaptureContent content) {
+		return Stream.of(
+			ChangeCatalogCapture.dataCapture(
+				predicate.getContext(),
+				operation(),
+				content == CaptureContent.BODY ? this : null
+			)
+		);
+	}
 
 	@Override
 	default int compareTo(LocalMutation<T, S> o) {

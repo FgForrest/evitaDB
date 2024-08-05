@@ -141,7 +141,7 @@ public class FullResponseObjectBuilder {
 	public void buildCommonTypes() {
 		buildingContext.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildHistogramObject());
-		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
 		buildingContext.registerType(buildAttributeNamedHistogramObject());
 		buildingContext.registerType(buildFacetRequestImpactObject());
 	}
@@ -260,7 +260,7 @@ public class FullResponseObjectBuilder {
 		final List<BuiltFieldDescriptor> extraResultFields = new ArrayList<>(10);
 
 		buildAttributeHistogramField(entitySchema).ifPresent(extraResultFields::add);
-		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
 		buildAttributeHistogramsField(entitySchema).ifPresent(extraResultFields::add);
 		buildPriceHistogramField(entitySchema).ifPresent(extraResultFields::add);
 		buildFacetSummaryField(entitySchema).ifPresent(extraResultFields::add);
@@ -341,7 +341,7 @@ public class FullResponseObjectBuilder {
 		);
 	}
 
-	// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+	// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
 	@Nonnull
 	private static Optional<BuiltFieldDescriptor> buildAttributeHistogramsField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLFieldDefinition attributeHistogramField = newFieldDefinition()
@@ -954,7 +954,7 @@ public class FullResponseObjectBuilder {
 			.build();
 	}
 
-	// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+	// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
 	@Nonnull
 	private GraphQLObjectType buildAttributeNamedHistogramObject() {
 		return HistogramDescriptor.THIS

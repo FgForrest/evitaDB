@@ -7,7 +7,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,6 +44,8 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.sortableAttri
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationConverter;
 import io.evitadb.utils.Assert;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -60,26 +62,28 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DelegatingSortableAttributeCompoundSchemaMutationConverter
 	implements SchemaMutationConverter<SortableAttributeCompoundSchemaMutation, GrpcSortableAttributeCompoundSchemaMutation> {
+	public static final DelegatingSortableAttributeCompoundSchemaMutationConverter INSTANCE = new DelegatingSortableAttributeCompoundSchemaMutationConverter();
 
 	private static final Map<Class<? extends SortableAttributeCompoundSchemaMutation>, ToGrpc> TO_GRPC_CONVERTERS;
 	private static final Map<MutationCase, ToJava> TO_JAVA_CONVERTERS;
 
 	static {
 		TO_GRPC_CONVERTERS = createHashMap(20);
-		TO_GRPC_CONVERTERS.put(CreateSortableAttributeCompoundSchemaMutation.class, new ToGrpc((b, m) -> b.setCreateSortableAttributeCompoundSchemaMutation((GrpcCreateSortableAttributeCompoundSchemaMutation) m), new CreateSortableAttributeCompoundSchemaMutationConverter()));
-		TO_GRPC_CONVERTERS.put(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.class, new ToGrpc((b, m) -> b.setModifySortableAttributeCompoundSchemaDeprecationNoticeMutation((GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) m), new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter()));
-		TO_GRPC_CONVERTERS.put(ModifySortableAttributeCompoundSchemaDescriptionMutation.class, new ToGrpc((b, m) -> b.setModifySortableAttributeCompoundSchemaDescriptionMutation((GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) m), new ModifySortableAttributeCompoundSchemaDescriptionMutationConverter()));
-		TO_GRPC_CONVERTERS.put(ModifySortableAttributeCompoundSchemaNameMutation.class, new ToGrpc((b, m) -> b.setModifySortableAttributeCompoundSchemaNameMutation((GrpcModifySortableAttributeCompoundSchemaNameMutation) m), new ModifySortableAttributeCompoundSchemaNameMutationConverter()));
-		TO_GRPC_CONVERTERS.put(RemoveSortableAttributeCompoundSchemaMutation.class, new ToGrpc((b, m) -> b.setRemoveSortableAttributeCompoundSchemaMutation((GrpcRemoveSortableAttributeCompoundSchemaMutation) m), new RemoveSortableAttributeCompoundSchemaMutationConverter()));
+		TO_GRPC_CONVERTERS.put(CreateSortableAttributeCompoundSchemaMutation.class, new ToGrpc((b, m) -> b.setCreateSortableAttributeCompoundSchemaMutation((GrpcCreateSortableAttributeCompoundSchemaMutation) m), CreateSortableAttributeCompoundSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.class, new ToGrpc((b, m) -> b.setModifySortableAttributeCompoundSchemaDeprecationNoticeMutation((GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) m), ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(ModifySortableAttributeCompoundSchemaDescriptionMutation.class, new ToGrpc((b, m) -> b.setModifySortableAttributeCompoundSchemaDescriptionMutation((GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) m), ModifySortableAttributeCompoundSchemaDescriptionMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(ModifySortableAttributeCompoundSchemaNameMutation.class, new ToGrpc((b, m) -> b.setModifySortableAttributeCompoundSchemaNameMutation((GrpcModifySortableAttributeCompoundSchemaNameMutation) m), ModifySortableAttributeCompoundSchemaNameMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveSortableAttributeCompoundSchemaMutation.class, new ToGrpc((b, m) -> b.setRemoveSortableAttributeCompoundSchemaMutation((GrpcRemoveSortableAttributeCompoundSchemaMutation) m), RemoveSortableAttributeCompoundSchemaMutationConverter.INSTANCE));
 
 		TO_JAVA_CONVERTERS = createHashMap(20);
-		TO_JAVA_CONVERTERS.put(MutationCase.CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION, new ToJava(GrpcSortableAttributeCompoundSchemaMutation::getCreateSortableAttributeCompoundSchemaMutation, new CreateSortableAttributeCompoundSchemaMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADEPRECATIONNOTICEMUTATION, new ToJava(GrpcSortableAttributeCompoundSchemaMutation::getModifySortableAttributeCompoundSchemaDeprecationNoticeMutation, new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADESCRIPTIONMUTATION, new ToJava(GrpcSortableAttributeCompoundSchemaMutation::getModifySortableAttributeCompoundSchemaDescriptionMutation, new ModifySortableAttributeCompoundSchemaDescriptionMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMANAMEMUTATION, new ToJava(GrpcSortableAttributeCompoundSchemaMutation::getModifySortableAttributeCompoundSchemaNameMutation, new ModifySortableAttributeCompoundSchemaNameMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.REMOVESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION, new ToJava(GrpcSortableAttributeCompoundSchemaMutation::getRemoveSortableAttributeCompoundSchemaMutation, new RemoveSortableAttributeCompoundSchemaMutationConverter()));
+		TO_JAVA_CONVERTERS.put(MutationCase.CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION, new ToJava(GrpcSortableAttributeCompoundSchemaMutation::getCreateSortableAttributeCompoundSchemaMutation, CreateSortableAttributeCompoundSchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADEPRECATIONNOTICEMUTATION, new ToJava(GrpcSortableAttributeCompoundSchemaMutation::getModifySortableAttributeCompoundSchemaDeprecationNoticeMutation, ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADESCRIPTIONMUTATION, new ToJava(GrpcSortableAttributeCompoundSchemaMutation::getModifySortableAttributeCompoundSchemaDescriptionMutation, ModifySortableAttributeCompoundSchemaDescriptionMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMANAMEMUTATION, new ToJava(GrpcSortableAttributeCompoundSchemaMutation::getModifySortableAttributeCompoundSchemaNameMutation, ModifySortableAttributeCompoundSchemaNameMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.REMOVESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION, new ToJava(GrpcSortableAttributeCompoundSchemaMutation::getRemoveSortableAttributeCompoundSchemaMutation, RemoveSortableAttributeCompoundSchemaMutationConverter.INSTANCE));
 	}
 
 	@SuppressWarnings("unchecked")

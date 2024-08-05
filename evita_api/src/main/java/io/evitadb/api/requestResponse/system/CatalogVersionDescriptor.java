@@ -132,10 +132,10 @@ public record CatalogVersionDescriptor(
 	) implements Serializable {
 
 		/**
-		 * Returns processing lag between commit and processed timestamp. I.e. how long it took to incorporate changes to be
+		 * Returns processing lag between commit and processed introducedAt. I.e. how long it took to incorporate changes to be
 		 * visible by all clients since the transaction has been committed.
 		 *
-		 * @return processing lag between commit and processed timestamp
+		 * @return processing lag between commit and processed introducedAt
 		 */
 		@Nonnull
 		public Duration processingLag(@Nonnull OffsetDateTime processedTimestamp) {

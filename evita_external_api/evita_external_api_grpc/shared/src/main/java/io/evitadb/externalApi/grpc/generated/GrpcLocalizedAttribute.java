@@ -139,7 +139,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcAttribute.internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalizedAttribute_AttributesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcAttribute.internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalizedAttribute_AttributesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,

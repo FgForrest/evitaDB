@@ -59,6 +59,9 @@ private static final long serialVersionUID = 0L;
     name_ = "";
     cardinality_ = 0;
     entityType_ = "";
+    nameVariant_ = java.util.Collections.emptyList();
+    entityTypeNameVariant_ = java.util.Collections.emptyList();
+    groupTypeNameVariant_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -195,6 +198,43 @@ private static final long serialVersionUID = 0L;
                 sortableAttributeCompounds__.getKey(), sortableAttributeCompounds__.getValue());
             break;
           }
+          case 106: {
+            if (!((mutable_bitField0_ & 0x00000004) != 0)) {
+              nameVariant_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>();
+              mutable_bitField0_ |= 0x00000004;
+            }
+            nameVariant_.add(
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcNameVariant.parser(), extensionRegistry));
+            break;
+          }
+          case 114: {
+            if (!((mutable_bitField0_ & 0x00000008) != 0)) {
+              entityTypeNameVariant_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>();
+              mutable_bitField0_ |= 0x00000008;
+            }
+            entityTypeNameVariant_.add(
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcNameVariant.parser(), extensionRegistry));
+            break;
+          }
+          case 122: {
+            if (!((mutable_bitField0_ & 0x00000010) != 0)) {
+              groupTypeNameVariant_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>();
+              mutable_bitField0_ |= 0x00000010;
+            }
+            groupTypeNameVariant_.add(
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcNameVariant.parser(), extensionRegistry));
+            break;
+          }
+          case 128: {
+
+            referencedEntityTypeManaged_ = input.readBool();
+            break;
+          }
+          case 136: {
+
+            referencedGroupTypeManaged_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -210,6 +250,15 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000004) != 0)) {
+        nameVariant_ = java.util.Collections.unmodifiableList(nameVariant_);
+      }
+      if (((mutable_bitField0_ & 0x00000008) != 0)) {
+        entityTypeNameVariant_ = java.util.Collections.unmodifiableList(entityTypeNameVariant_);
+      }
+      if (((mutable_bitField0_ & 0x00000010) != 0)) {
+        groupTypeNameVariant_ = java.util.Collections.unmodifiableList(groupTypeNameVariant_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -258,7 +307,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -279,7 +328,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -426,7 +475,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -447,7 +496,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -462,13 +511,15 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+   * DEPRECATED!!! use referencedEntityTypeManaged instead
    * </pre>
    *
-   * <code>bool entityTypeRelatesToEntity = 6;</code>
+   * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
+   * @deprecated
    * @return The entityTypeRelatesToEntity.
    */
   @java.lang.Override
-  public boolean getEntityTypeRelatesToEntity() {
+  @java.lang.Deprecated public boolean getEntityTypeRelatesToEntity() {
     return entityTypeRelatesToEntity_;
   }
 
@@ -518,13 +569,15 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+   * DEPRECATED!!! use referencedGroupTypeManaged instead
    * </pre>
    *
-   * <code>bool groupTypeRelatesToEntity = 8;</code>
+   * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
+   * @deprecated
    * @return The groupTypeRelatesToEntity.
    */
   @java.lang.Override
-  public boolean getGroupTypeRelatesToEntity() {
+  @java.lang.Deprecated public boolean getGroupTypeRelatesToEntity() {
     return groupTypeRelatesToEntity_;
   }
 
@@ -575,7 +628,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_AttributesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_AttributesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -700,7 +753,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_SortableAttributeCompoundsEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_SortableAttributeCompoundsEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -791,6 +844,216 @@ private static final long serialVersionUID = 0L;
     return map.get(key);
   }
 
+  public static final int NAMEVARIANT_FIELD_NUMBER = 13;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> nameVariant_;
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> getNameVariantList() {
+    return nameVariant_;
+  }
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getNameVariantOrBuilderList() {
+    return nameVariant_;
+  }
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  @java.lang.Override
+  public int getNameVariantCount() {
+    return nameVariant_.size();
+  }
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariant(int index) {
+    return nameVariant_.get(index);
+  }
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
+      int index) {
+    return nameVariant_.get(index);
+  }
+
+  public static final int ENTITYTYPENAMEVARIANT_FIELD_NUMBER = 14;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> entityTypeNameVariant_;
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> getEntityTypeNameVariantList() {
+    return entityTypeNameVariant_;
+  }
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getEntityTypeNameVariantOrBuilderList() {
+    return entityTypeNameVariant_;
+  }
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  @java.lang.Override
+  public int getEntityTypeNameVariantCount() {
+    return entityTypeNameVariant_.size();
+  }
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcNameVariant getEntityTypeNameVariant(int index) {
+    return entityTypeNameVariant_.get(index);
+  }
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getEntityTypeNameVariantOrBuilder(
+      int index) {
+    return entityTypeNameVariant_.get(index);
+  }
+
+  public static final int GROUPTYPENAMEVARIANT_FIELD_NUMBER = 15;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> groupTypeNameVariant_;
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> getGroupTypeNameVariantList() {
+    return groupTypeNameVariant_;
+  }
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getGroupTypeNameVariantOrBuilderList() {
+    return groupTypeNameVariant_;
+  }
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  @java.lang.Override
+  public int getGroupTypeNameVariantCount() {
+    return groupTypeNameVariant_.size();
+  }
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcNameVariant getGroupTypeNameVariant(int index) {
+    return groupTypeNameVariant_.get(index);
+  }
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getGroupTypeNameVariantOrBuilder(
+      int index) {
+    return groupTypeNameVariant_.get(index);
+  }
+
+  public static final int REFERENCEDENTITYTYPEMANAGED_FIELD_NUMBER = 16;
+  private boolean referencedEntityTypeManaged_;
+  /**
+   * <pre>
+   * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+   * </pre>
+   *
+   * <code>bool referencedEntityTypeManaged = 16;</code>
+   * @return The referencedEntityTypeManaged.
+   */
+  @java.lang.Override
+  public boolean getReferencedEntityTypeManaged() {
+    return referencedEntityTypeManaged_;
+  }
+
+  public static final int REFERENCEDGROUPTYPEMANAGED_FIELD_NUMBER = 17;
+  private boolean referencedGroupTypeManaged_;
+  /**
+   * <pre>
+   * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+   * </pre>
+   *
+   * <code>bool referencedGroupTypeManaged = 17;</code>
+   * @return The referencedGroupTypeManaged.
+   */
+  @java.lang.Override
+  public boolean getReferencedGroupTypeManaged() {
+    return referencedGroupTypeManaged_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -847,6 +1110,21 @@ private static final long serialVersionUID = 0L;
         internalGetSortableAttributeCompounds(),
         SortableAttributeCompoundsDefaultEntryHolder.defaultEntry,
         12);
+    for (int i = 0; i < nameVariant_.size(); i++) {
+      output.writeMessage(13, nameVariant_.get(i));
+    }
+    for (int i = 0; i < entityTypeNameVariant_.size(); i++) {
+      output.writeMessage(14, entityTypeNameVariant_.get(i));
+    }
+    for (int i = 0; i < groupTypeNameVariant_.size(); i++) {
+      output.writeMessage(15, groupTypeNameVariant_.get(i));
+    }
+    if (referencedEntityTypeManaged_ != false) {
+      output.writeBool(16, referencedEntityTypeManaged_);
+    }
+    if (referencedGroupTypeManaged_ != false) {
+      output.writeBool(17, referencedGroupTypeManaged_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -914,6 +1192,26 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(12, sortableAttributeCompounds__);
     }
+    for (int i = 0; i < nameVariant_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(13, nameVariant_.get(i));
+    }
+    for (int i = 0; i < entityTypeNameVariant_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(14, entityTypeNameVariant_.get(i));
+    }
+    for (int i = 0; i < groupTypeNameVariant_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(15, groupTypeNameVariant_.get(i));
+    }
+    if (referencedEntityTypeManaged_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(16, referencedEntityTypeManaged_);
+    }
+    if (referencedGroupTypeManaged_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(17, referencedGroupTypeManaged_);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -961,6 +1259,16 @@ private static final long serialVersionUID = 0L;
         other.internalGetAttributes())) return false;
     if (!internalGetSortableAttributeCompounds().equals(
         other.internalGetSortableAttributeCompounds())) return false;
+    if (!getNameVariantList()
+        .equals(other.getNameVariantList())) return false;
+    if (!getEntityTypeNameVariantList()
+        .equals(other.getEntityTypeNameVariantList())) return false;
+    if (!getGroupTypeNameVariantList()
+        .equals(other.getGroupTypeNameVariantList())) return false;
+    if (getReferencedEntityTypeManaged()
+        != other.getReferencedEntityTypeManaged()) return false;
+    if (getReferencedGroupTypeManaged()
+        != other.getReferencedGroupTypeManaged()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -1010,6 +1318,24 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + SORTABLEATTRIBUTECOMPOUNDS_FIELD_NUMBER;
       hash = (53 * hash) + internalGetSortableAttributeCompounds().hashCode();
     }
+    if (getNameVariantCount() > 0) {
+      hash = (37 * hash) + NAMEVARIANT_FIELD_NUMBER;
+      hash = (53 * hash) + getNameVariantList().hashCode();
+    }
+    if (getEntityTypeNameVariantCount() > 0) {
+      hash = (37 * hash) + ENTITYTYPENAMEVARIANT_FIELD_NUMBER;
+      hash = (53 * hash) + getEntityTypeNameVariantList().hashCode();
+    }
+    if (getGroupTypeNameVariantCount() > 0) {
+      hash = (37 * hash) + GROUPTYPENAMEVARIANT_FIELD_NUMBER;
+      hash = (53 * hash) + getGroupTypeNameVariantList().hashCode();
+    }
+    hash = (37 * hash) + REFERENCEDENTITYTYPEMANAGED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getReferencedEntityTypeManaged());
+    hash = (37 * hash) + REFERENCEDGROUPTYPEMANAGED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getReferencedGroupTypeManaged());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1181,6 +1507,9 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
+        getNameVariantFieldBuilder();
+        getEntityTypeNameVariantFieldBuilder();
+        getGroupTypeNameVariantFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1220,6 +1549,28 @@ private static final long serialVersionUID = 0L;
 
       internalGetMutableAttributes().clear();
       internalGetMutableSortableAttributeCompounds().clear();
+      if (nameVariantBuilder_ == null) {
+        nameVariant_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000004);
+      } else {
+        nameVariantBuilder_.clear();
+      }
+      if (entityTypeNameVariantBuilder_ == null) {
+        entityTypeNameVariant_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000008);
+      } else {
+        entityTypeNameVariantBuilder_.clear();
+      }
+      if (groupTypeNameVariantBuilder_ == null) {
+        groupTypeNameVariant_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000010);
+      } else {
+        groupTypeNameVariantBuilder_.clear();
+      }
+      referencedEntityTypeManaged_ = false;
+
+      referencedGroupTypeManaged_ = false;
+
       return this;
     }
 
@@ -1273,6 +1624,35 @@ private static final long serialVersionUID = 0L;
       result.attributes_.makeImmutable();
       result.sortableAttributeCompounds_ = internalGetSortableAttributeCompounds();
       result.sortableAttributeCompounds_.makeImmutable();
+      if (nameVariantBuilder_ == null) {
+        if (((bitField0_ & 0x00000004) != 0)) {
+          nameVariant_ = java.util.Collections.unmodifiableList(nameVariant_);
+          bitField0_ = (bitField0_ & ~0x00000004);
+        }
+        result.nameVariant_ = nameVariant_;
+      } else {
+        result.nameVariant_ = nameVariantBuilder_.build();
+      }
+      if (entityTypeNameVariantBuilder_ == null) {
+        if (((bitField0_ & 0x00000008) != 0)) {
+          entityTypeNameVariant_ = java.util.Collections.unmodifiableList(entityTypeNameVariant_);
+          bitField0_ = (bitField0_ & ~0x00000008);
+        }
+        result.entityTypeNameVariant_ = entityTypeNameVariant_;
+      } else {
+        result.entityTypeNameVariant_ = entityTypeNameVariantBuilder_.build();
+      }
+      if (groupTypeNameVariantBuilder_ == null) {
+        if (((bitField0_ & 0x00000010) != 0)) {
+          groupTypeNameVariant_ = java.util.Collections.unmodifiableList(groupTypeNameVariant_);
+          bitField0_ = (bitField0_ & ~0x00000010);
+        }
+        result.groupTypeNameVariant_ = groupTypeNameVariant_;
+      } else {
+        result.groupTypeNameVariant_ = groupTypeNameVariantBuilder_.build();
+      }
+      result.referencedEntityTypeManaged_ = referencedEntityTypeManaged_;
+      result.referencedGroupTypeManaged_ = referencedGroupTypeManaged_;
       onBuilt();
       return result;
     }
@@ -1357,6 +1737,90 @@ private static final long serialVersionUID = 0L;
           other.internalGetAttributes());
       internalGetMutableSortableAttributeCompounds().mergeFrom(
           other.internalGetSortableAttributeCompounds());
+      if (nameVariantBuilder_ == null) {
+        if (!other.nameVariant_.isEmpty()) {
+          if (nameVariant_.isEmpty()) {
+            nameVariant_ = other.nameVariant_;
+            bitField0_ = (bitField0_ & ~0x00000004);
+          } else {
+            ensureNameVariantIsMutable();
+            nameVariant_.addAll(other.nameVariant_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.nameVariant_.isEmpty()) {
+          if (nameVariantBuilder_.isEmpty()) {
+            nameVariantBuilder_.dispose();
+            nameVariantBuilder_ = null;
+            nameVariant_ = other.nameVariant_;
+            bitField0_ = (bitField0_ & ~0x00000004);
+            nameVariantBuilder_ =
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getNameVariantFieldBuilder() : null;
+          } else {
+            nameVariantBuilder_.addAllMessages(other.nameVariant_);
+          }
+        }
+      }
+      if (entityTypeNameVariantBuilder_ == null) {
+        if (!other.entityTypeNameVariant_.isEmpty()) {
+          if (entityTypeNameVariant_.isEmpty()) {
+            entityTypeNameVariant_ = other.entityTypeNameVariant_;
+            bitField0_ = (bitField0_ & ~0x00000008);
+          } else {
+            ensureEntityTypeNameVariantIsMutable();
+            entityTypeNameVariant_.addAll(other.entityTypeNameVariant_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.entityTypeNameVariant_.isEmpty()) {
+          if (entityTypeNameVariantBuilder_.isEmpty()) {
+            entityTypeNameVariantBuilder_.dispose();
+            entityTypeNameVariantBuilder_ = null;
+            entityTypeNameVariant_ = other.entityTypeNameVariant_;
+            bitField0_ = (bitField0_ & ~0x00000008);
+            entityTypeNameVariantBuilder_ =
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getEntityTypeNameVariantFieldBuilder() : null;
+          } else {
+            entityTypeNameVariantBuilder_.addAllMessages(other.entityTypeNameVariant_);
+          }
+        }
+      }
+      if (groupTypeNameVariantBuilder_ == null) {
+        if (!other.groupTypeNameVariant_.isEmpty()) {
+          if (groupTypeNameVariant_.isEmpty()) {
+            groupTypeNameVariant_ = other.groupTypeNameVariant_;
+            bitField0_ = (bitField0_ & ~0x00000010);
+          } else {
+            ensureGroupTypeNameVariantIsMutable();
+            groupTypeNameVariant_.addAll(other.groupTypeNameVariant_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.groupTypeNameVariant_.isEmpty()) {
+          if (groupTypeNameVariantBuilder_.isEmpty()) {
+            groupTypeNameVariantBuilder_.dispose();
+            groupTypeNameVariantBuilder_ = null;
+            groupTypeNameVariant_ = other.groupTypeNameVariant_;
+            bitField0_ = (bitField0_ & ~0x00000010);
+            groupTypeNameVariantBuilder_ =
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getGroupTypeNameVariantFieldBuilder() : null;
+          } else {
+            groupTypeNameVariantBuilder_.addAllMessages(other.groupTypeNameVariant_);
+          }
+        }
+      }
+      if (other.getReferencedEntityTypeManaged() != false) {
+        setReferencedEntityTypeManaged(other.getReferencedEntityTypeManaged());
+      }
+      if (other.getReferencedGroupTypeManaged() != false) {
+        setReferencedGroupTypeManaged(other.getReferencedGroupTypeManaged());
+      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -1422,7 +1886,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -1446,7 +1910,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       name_ = value;
       onChanged();
       return this;
@@ -1461,7 +1925,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
+
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
@@ -1482,7 +1946,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       name_ = value;
       onChanged();
       return this;
@@ -1610,7 +2074,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
-      
+
       onChanged();
       return getDescriptionFieldBuilder().getBuilder();
     }
@@ -1639,7 +2103,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1781,7 +2245,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
-      
+
       onChanged();
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
@@ -1812,7 +2276,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1855,7 +2319,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCardinalityValue(int value) {
-      
+
       cardinality_ = value;
       onChanged();
       return this;
@@ -1895,7 +2359,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       cardinality_ = value.getNumber();
       onChanged();
       return this;
@@ -1913,7 +2377,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCardinality() {
-      
+
       cardinality_ = 0;
       onChanged();
       return this;
@@ -1954,7 +2418,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -1978,7 +2442,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       entityType_ = value;
       onChanged();
       return this;
@@ -1993,7 +2457,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-      
+
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
@@ -2014,7 +2478,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       entityType_ = value;
       onChanged();
       return this;
@@ -2024,26 +2488,30 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+     * DEPRECATED!!! use referencedEntityTypeManaged instead
      * </pre>
      *
-     * <code>bool entityTypeRelatesToEntity = 6;</code>
+     * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
+     * @deprecated
      * @return The entityTypeRelatesToEntity.
      */
     @java.lang.Override
-    public boolean getEntityTypeRelatesToEntity() {
+    @java.lang.Deprecated public boolean getEntityTypeRelatesToEntity() {
       return entityTypeRelatesToEntity_;
     }
     /**
      * <pre>
      * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+     * DEPRECATED!!! use referencedEntityTypeManaged instead
      * </pre>
      *
-     * <code>bool entityTypeRelatesToEntity = 6;</code>
+     * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
+     * @deprecated
      * @param value The entityTypeRelatesToEntity to set.
      * @return This builder for chaining.
      */
-    public Builder setEntityTypeRelatesToEntity(boolean value) {
-      
+    @java.lang.Deprecated public Builder setEntityTypeRelatesToEntity(boolean value) {
+
       entityTypeRelatesToEntity_ = value;
       onChanged();
       return this;
@@ -2051,13 +2519,15 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+     * DEPRECATED!!! use referencedEntityTypeManaged instead
      * </pre>
      *
-     * <code>bool entityTypeRelatesToEntity = 6;</code>
+     * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearEntityTypeRelatesToEntity() {
-      
+    @java.lang.Deprecated public Builder clearEntityTypeRelatesToEntity() {
+
       entityTypeRelatesToEntity_ = false;
       onChanged();
       return this;
@@ -2185,7 +2655,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      */
     public com.google.protobuf.StringValue.Builder getGroupTypeBuilder() {
-      
+
       onChanged();
       return getGroupTypeFieldBuilder().getBuilder();
     }
@@ -2214,7 +2684,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getGroupTypeFieldBuilder() {
       if (groupTypeBuilder_ == null) {
         groupTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2231,26 +2701,30 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * DEPRECATED!!! use referencedGroupTypeManaged instead
      * </pre>
      *
-     * <code>bool groupTypeRelatesToEntity = 8;</code>
+     * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
+     * @deprecated
      * @return The groupTypeRelatesToEntity.
      */
     @java.lang.Override
-    public boolean getGroupTypeRelatesToEntity() {
+    @java.lang.Deprecated public boolean getGroupTypeRelatesToEntity() {
       return groupTypeRelatesToEntity_;
     }
     /**
      * <pre>
      * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * DEPRECATED!!! use referencedGroupTypeManaged instead
      * </pre>
      *
-     * <code>bool groupTypeRelatesToEntity = 8;</code>
+     * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
+     * @deprecated
      * @param value The groupTypeRelatesToEntity to set.
      * @return This builder for chaining.
      */
-    public Builder setGroupTypeRelatesToEntity(boolean value) {
-      
+    @java.lang.Deprecated public Builder setGroupTypeRelatesToEntity(boolean value) {
+
       groupTypeRelatesToEntity_ = value;
       onChanged();
       return this;
@@ -2258,13 +2732,15 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * DEPRECATED!!! use referencedGroupTypeManaged instead
      * </pre>
      *
-     * <code>bool groupTypeRelatesToEntity = 8;</code>
+     * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearGroupTypeRelatesToEntity() {
-      
+    @java.lang.Deprecated public Builder clearGroupTypeRelatesToEntity() {
+
       groupTypeRelatesToEntity_ = false;
       onChanged();
       return this;
@@ -2305,7 +2781,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIndexed(boolean value) {
-      
+
       indexed_ = value;
       onChanged();
       return this;
@@ -2325,7 +2801,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndexed() {
-      
+
       indexed_ = false;
       onChanged();
       return this;
@@ -2364,7 +2840,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setFaceted(boolean value) {
-      
+
       faceted_ = value;
       onChanged();
       return this;
@@ -2383,7 +2859,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearFaceted() {
-      
+
       faceted_ = false;
       onChanged();
       return this;
@@ -2753,6 +3229,1028 @@ private static final long serialVersionUID = 0L;
         java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> values) {
       internalGetMutableSortableAttributeCompounds().getMutableMap()
           .putAll(values);
+      return this;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> nameVariant_ =
+      java.util.Collections.emptyList();
+    private void ensureNameVariantIsMutable() {
+      if (!((bitField0_ & 0x00000004) != 0)) {
+        nameVariant_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>(nameVariant_);
+        bitField0_ |= 0x00000004;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> nameVariantBuilder_;
+
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> getNameVariantList() {
+      if (nameVariantBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(nameVariant_);
+      } else {
+        return nameVariantBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public int getNameVariantCount() {
+      if (nameVariantBuilder_ == null) {
+        return nameVariant_.size();
+      } else {
+        return nameVariantBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariant(int index) {
+      if (nameVariantBuilder_ == null) {
+        return nameVariant_.get(index);
+      } else {
+        return nameVariantBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public Builder setNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (nameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureNameVariantIsMutable();
+        nameVariant_.set(index, value);
+        onChanged();
+      } else {
+        nameVariantBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public Builder setNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (nameVariantBuilder_ == null) {
+        ensureNameVariantIsMutable();
+        nameVariant_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        nameVariantBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public Builder addNameVariant(io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (nameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureNameVariantIsMutable();
+        nameVariant_.add(value);
+        onChanged();
+      } else {
+        nameVariantBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public Builder addNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (nameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureNameVariantIsMutable();
+        nameVariant_.add(index, value);
+        onChanged();
+      } else {
+        nameVariantBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public Builder addNameVariant(
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (nameVariantBuilder_ == null) {
+        ensureNameVariantIsMutable();
+        nameVariant_.add(builderForValue.build());
+        onChanged();
+      } else {
+        nameVariantBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public Builder addNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (nameVariantBuilder_ == null) {
+        ensureNameVariantIsMutable();
+        nameVariant_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        nameVariantBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public Builder addAllNameVariant(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariant> values) {
+      if (nameVariantBuilder_ == null) {
+        ensureNameVariantIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, nameVariant_);
+        onChanged();
+      } else {
+        nameVariantBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public Builder clearNameVariant() {
+      if (nameVariantBuilder_ == null) {
+        nameVariant_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000004);
+        onChanged();
+      } else {
+        nameVariantBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public Builder removeNameVariant(int index) {
+      if (nameVariantBuilder_ == null) {
+        ensureNameVariantIsMutable();
+        nameVariant_.remove(index);
+        onChanged();
+      } else {
+        nameVariantBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder getNameVariantBuilder(
+        int index) {
+      return getNameVariantFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
+        int index) {
+      if (nameVariantBuilder_ == null) {
+        return nameVariant_.get(index);  } else {
+        return nameVariantBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+         getNameVariantOrBuilderList() {
+      if (nameVariantBuilder_ != null) {
+        return nameVariantBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(nameVariant_);
+      }
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder addNameVariantBuilder() {
+      return getNameVariantFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcNameVariant.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder addNameVariantBuilder(
+        int index) {
+      return getNameVariantFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Contains reference name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder>
+         getNameVariantBuilderList() {
+      return getNameVariantFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+        getNameVariantFieldBuilder() {
+      if (nameVariantBuilder_ == null) {
+        nameVariantBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>(
+                nameVariant_,
+                ((bitField0_ & 0x00000004) != 0),
+                getParentForChildren(),
+                isClean());
+        nameVariant_ = null;
+      }
+      return nameVariantBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> entityTypeNameVariant_ =
+      java.util.Collections.emptyList();
+    private void ensureEntityTypeNameVariantIsMutable() {
+      if (!((bitField0_ & 0x00000008) != 0)) {
+        entityTypeNameVariant_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>(entityTypeNameVariant_);
+        bitField0_ |= 0x00000008;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> entityTypeNameVariantBuilder_;
+
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> getEntityTypeNameVariantList() {
+      if (entityTypeNameVariantBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(entityTypeNameVariant_);
+      } else {
+        return entityTypeNameVariantBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public int getEntityTypeNameVariantCount() {
+      if (entityTypeNameVariantBuilder_ == null) {
+        return entityTypeNameVariant_.size();
+      } else {
+        return entityTypeNameVariantBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant getEntityTypeNameVariant(int index) {
+      if (entityTypeNameVariantBuilder_ == null) {
+        return entityTypeNameVariant_.get(index);
+      } else {
+        return entityTypeNameVariantBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public Builder setEntityTypeNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (entityTypeNameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureEntityTypeNameVariantIsMutable();
+        entityTypeNameVariant_.set(index, value);
+        onChanged();
+      } else {
+        entityTypeNameVariantBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public Builder setEntityTypeNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (entityTypeNameVariantBuilder_ == null) {
+        ensureEntityTypeNameVariantIsMutable();
+        entityTypeNameVariant_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        entityTypeNameVariantBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public Builder addEntityTypeNameVariant(io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (entityTypeNameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureEntityTypeNameVariantIsMutable();
+        entityTypeNameVariant_.add(value);
+        onChanged();
+      } else {
+        entityTypeNameVariantBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public Builder addEntityTypeNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (entityTypeNameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureEntityTypeNameVariantIsMutable();
+        entityTypeNameVariant_.add(index, value);
+        onChanged();
+      } else {
+        entityTypeNameVariantBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public Builder addEntityTypeNameVariant(
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (entityTypeNameVariantBuilder_ == null) {
+        ensureEntityTypeNameVariantIsMutable();
+        entityTypeNameVariant_.add(builderForValue.build());
+        onChanged();
+      } else {
+        entityTypeNameVariantBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public Builder addEntityTypeNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (entityTypeNameVariantBuilder_ == null) {
+        ensureEntityTypeNameVariantIsMutable();
+        entityTypeNameVariant_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        entityTypeNameVariantBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public Builder addAllEntityTypeNameVariant(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariant> values) {
+      if (entityTypeNameVariantBuilder_ == null) {
+        ensureEntityTypeNameVariantIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, entityTypeNameVariant_);
+        onChanged();
+      } else {
+        entityTypeNameVariantBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public Builder clearEntityTypeNameVariant() {
+      if (entityTypeNameVariantBuilder_ == null) {
+        entityTypeNameVariant_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000008);
+        onChanged();
+      } else {
+        entityTypeNameVariantBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public Builder removeEntityTypeNameVariant(int index) {
+      if (entityTypeNameVariantBuilder_ == null) {
+        ensureEntityTypeNameVariantIsMutable();
+        entityTypeNameVariant_.remove(index);
+        onChanged();
+      } else {
+        entityTypeNameVariantBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder getEntityTypeNameVariantBuilder(
+        int index) {
+      return getEntityTypeNameVariantFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getEntityTypeNameVariantOrBuilder(
+        int index) {
+      if (entityTypeNameVariantBuilder_ == null) {
+        return entityTypeNameVariant_.get(index);  } else {
+        return entityTypeNameVariantBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+         getEntityTypeNameVariantOrBuilderList() {
+      if (entityTypeNameVariantBuilder_ != null) {
+        return entityTypeNameVariantBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(entityTypeNameVariant_);
+      }
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder addEntityTypeNameVariantBuilder() {
+      return getEntityTypeNameVariantFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcNameVariant.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder addEntityTypeNameVariantBuilder(
+        int index) {
+      return getEntityTypeNameVariantFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder>
+         getEntityTypeNameVariantBuilderList() {
+      return getEntityTypeNameVariantFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+        getEntityTypeNameVariantFieldBuilder() {
+      if (entityTypeNameVariantBuilder_ == null) {
+        entityTypeNameVariantBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>(
+                entityTypeNameVariant_,
+                ((bitField0_ & 0x00000008) != 0),
+                getParentForChildren(),
+                isClean());
+        entityTypeNameVariant_ = null;
+      }
+      return entityTypeNameVariantBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> groupTypeNameVariant_ =
+      java.util.Collections.emptyList();
+    private void ensureGroupTypeNameVariantIsMutable() {
+      if (!((bitField0_ & 0x00000010) != 0)) {
+        groupTypeNameVariant_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>(groupTypeNameVariant_);
+        bitField0_ |= 0x00000010;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> groupTypeNameVariantBuilder_;
+
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> getGroupTypeNameVariantList() {
+      if (groupTypeNameVariantBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(groupTypeNameVariant_);
+      } else {
+        return groupTypeNameVariantBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public int getGroupTypeNameVariantCount() {
+      if (groupTypeNameVariantBuilder_ == null) {
+        return groupTypeNameVariant_.size();
+      } else {
+        return groupTypeNameVariantBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant getGroupTypeNameVariant(int index) {
+      if (groupTypeNameVariantBuilder_ == null) {
+        return groupTypeNameVariant_.get(index);
+      } else {
+        return groupTypeNameVariantBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public Builder setGroupTypeNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (groupTypeNameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureGroupTypeNameVariantIsMutable();
+        groupTypeNameVariant_.set(index, value);
+        onChanged();
+      } else {
+        groupTypeNameVariantBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public Builder setGroupTypeNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (groupTypeNameVariantBuilder_ == null) {
+        ensureGroupTypeNameVariantIsMutable();
+        groupTypeNameVariant_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        groupTypeNameVariantBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public Builder addGroupTypeNameVariant(io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (groupTypeNameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureGroupTypeNameVariantIsMutable();
+        groupTypeNameVariant_.add(value);
+        onChanged();
+      } else {
+        groupTypeNameVariantBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public Builder addGroupTypeNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (groupTypeNameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureGroupTypeNameVariantIsMutable();
+        groupTypeNameVariant_.add(index, value);
+        onChanged();
+      } else {
+        groupTypeNameVariantBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public Builder addGroupTypeNameVariant(
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (groupTypeNameVariantBuilder_ == null) {
+        ensureGroupTypeNameVariantIsMutable();
+        groupTypeNameVariant_.add(builderForValue.build());
+        onChanged();
+      } else {
+        groupTypeNameVariantBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public Builder addGroupTypeNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (groupTypeNameVariantBuilder_ == null) {
+        ensureGroupTypeNameVariantIsMutable();
+        groupTypeNameVariant_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        groupTypeNameVariantBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public Builder addAllGroupTypeNameVariant(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariant> values) {
+      if (groupTypeNameVariantBuilder_ == null) {
+        ensureGroupTypeNameVariantIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, groupTypeNameVariant_);
+        onChanged();
+      } else {
+        groupTypeNameVariantBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public Builder clearGroupTypeNameVariant() {
+      if (groupTypeNameVariantBuilder_ == null) {
+        groupTypeNameVariant_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000010);
+        onChanged();
+      } else {
+        groupTypeNameVariantBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public Builder removeGroupTypeNameVariant(int index) {
+      if (groupTypeNameVariantBuilder_ == null) {
+        ensureGroupTypeNameVariantIsMutable();
+        groupTypeNameVariant_.remove(index);
+        onChanged();
+      } else {
+        groupTypeNameVariantBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder getGroupTypeNameVariantBuilder(
+        int index) {
+      return getGroupTypeNameVariantFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getGroupTypeNameVariantOrBuilder(
+        int index) {
+      if (groupTypeNameVariantBuilder_ == null) {
+        return groupTypeNameVariant_.get(index);  } else {
+        return groupTypeNameVariantBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+         getGroupTypeNameVariantOrBuilderList() {
+      if (groupTypeNameVariantBuilder_ != null) {
+        return groupTypeNameVariantBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(groupTypeNameVariant_);
+      }
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder addGroupTypeNameVariantBuilder() {
+      return getGroupTypeNameVariantFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcNameVariant.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder addGroupTypeNameVariantBuilder(
+        int index) {
+      return getGroupTypeNameVariantFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder>
+         getGroupTypeNameVariantBuilderList() {
+      return getGroupTypeNameVariantFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+        getGroupTypeNameVariantFieldBuilder() {
+      if (groupTypeNameVariantBuilder_ == null) {
+        groupTypeNameVariantBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>(
+                groupTypeNameVariant_,
+                ((bitField0_ & 0x00000010) != 0),
+                getParentForChildren(),
+                isClean());
+        groupTypeNameVariant_ = null;
+      }
+      return groupTypeNameVariantBuilder_;
+    }
+
+    private boolean referencedEntityTypeManaged_ ;
+    /**
+     * <pre>
+     * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
+     * <code>bool referencedEntityTypeManaged = 16;</code>
+     * @return The referencedEntityTypeManaged.
+     */
+    @java.lang.Override
+    public boolean getReferencedEntityTypeManaged() {
+      return referencedEntityTypeManaged_;
+    }
+    /**
+     * <pre>
+     * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
+     * <code>bool referencedEntityTypeManaged = 16;</code>
+     * @param value The referencedEntityTypeManaged to set.
+     * @return This builder for chaining.
+     */
+    public Builder setReferencedEntityTypeManaged(boolean value) {
+
+      referencedEntityTypeManaged_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
+     * <code>bool referencedEntityTypeManaged = 16;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearReferencedEntityTypeManaged() {
+
+      referencedEntityTypeManaged_ = false;
+      onChanged();
+      return this;
+    }
+
+    private boolean referencedGroupTypeManaged_ ;
+    /**
+     * <pre>
+     * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
+     * <code>bool referencedGroupTypeManaged = 17;</code>
+     * @return The referencedGroupTypeManaged.
+     */
+    @java.lang.Override
+    public boolean getReferencedGroupTypeManaged() {
+      return referencedGroupTypeManaged_;
+    }
+    /**
+     * <pre>
+     * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
+     * <code>bool referencedGroupTypeManaged = 17;</code>
+     * @param value The referencedGroupTypeManaged to set.
+     * @return This builder for chaining.
+     */
+    public Builder setReferencedGroupTypeManaged(boolean value) {
+
+      referencedGroupTypeManaged_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+     * </pre>
+     *
+     * <code>bool referencedGroupTypeManaged = 17;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearReferencedGroupTypeManaged() {
+
+      referencedGroupTypeManaged_ = false;
+      onChanged();
       return this;
     }
     @java.lang.Override

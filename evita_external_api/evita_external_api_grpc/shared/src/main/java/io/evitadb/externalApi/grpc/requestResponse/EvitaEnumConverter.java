@@ -35,6 +35,9 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
@@ -47,9 +50,11 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.dataType.ContainerType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -99,7 +104,8 @@ public class EvitaEnumConverter {
 		return switch (grpcQueryPriceMode.getNumber()) {
 			case 0 -> QueryPriceMode.WITH_TAX;
 			case 1 -> QueryPriceMode.WITHOUT_TAX;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote query price mode: " + grpcQueryPriceMode);
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized remote query price mode: " + grpcQueryPriceMode);
 		};
 	}
 
@@ -130,7 +136,8 @@ public class EvitaEnumConverter {
 			case 0 -> PriceContentMode.NONE;
 			case 1 -> PriceContentMode.RESPECTING_FILTER;
 			case 2 -> PriceContentMode.ALL;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote price content mode: " + grpcPriceContentMode);
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized remote price content mode: " + grpcPriceContentMode);
 		};
 	}
 
@@ -161,7 +168,8 @@ public class EvitaEnumConverter {
 		return switch (grpcOrderDirection.getNumber()) {
 			case 0 -> OrderDirection.ASC;
 			case 1 -> OrderDirection.DESC;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote order direction: " + grpcOrderDirection);
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized remote order direction: " + grpcOrderDirection);
 		};
 	}
 
@@ -191,7 +199,8 @@ public class EvitaEnumConverter {
 		return switch (grpcOrderBehaviour.getNumber()) {
 			case 0 -> OrderBehaviour.NULLS_FIRST;
 			case 1 -> OrderBehaviour.NULLS_LAST;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote order behaviour: " + grpcOrderBehaviour);
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized remote order behaviour: " + grpcOrderBehaviour);
 		};
 	}
 
@@ -253,7 +262,8 @@ public class EvitaEnumConverter {
 		return switch (grpcStatisticsBase.getNumber()) {
 			case 0 -> StatisticsBase.COMPLETE_FILTER;
 			case 1 -> StatisticsBase.WITHOUT_USER_FILTER;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote statistics base: " + grpcStatisticsBase);
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized remote statistics base: " + grpcStatisticsBase);
 		};
 	}
 
@@ -283,7 +293,8 @@ public class EvitaEnumConverter {
 		return switch (grpcStatisticsType.getNumber()) {
 			case 0 -> StatisticsType.CHILDREN_COUNT;
 			case 1 -> StatisticsType.QUERIED_ENTITY_COUNT;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote statistics type: " + grpcStatisticsType);
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized remote statistics type: " + grpcStatisticsType);
 		};
 	}
 
@@ -313,7 +324,8 @@ public class EvitaEnumConverter {
 		return switch (grpcHistogramBehavior.getNumber()) {
 			case 0 -> HistogramBehavior.STANDARD;
 			case 1 -> HistogramBehavior.OPTIMIZED;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote histogram behavior: " + grpcHistogramBehavior);
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized remote histogram behavior: " + grpcHistogramBehavior);
 		};
 	}
 
@@ -343,7 +355,8 @@ public class EvitaEnumConverter {
 		return switch (grpcManagedReferencesBehaviour.getNumber()) {
 			case 0 -> ManagedReferencesBehaviour.ANY;
 			case 1 -> ManagedReferencesBehaviour.EXISTING;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote histogram behavior: " + grpcManagedReferencesBehaviour);
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized remote histogram behavior: " + grpcManagedReferencesBehaviour);
 		};
 	}
 
@@ -647,7 +660,8 @@ public class EvitaEnumConverter {
 			case 0 -> EntityExistence.MAY_EXIST;
 			case 1 -> EntityExistence.MUST_NOT_EXIST;
 			case 2 -> EntityExistence.MUST_EXIST;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote entity existence: " + grpcEntityExistence);
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized remote entity existence: " + grpcEntityExistence);
 		};
 	}
 
@@ -729,7 +743,8 @@ public class EvitaEnumConverter {
 			case 0 -> GlobalAttributeUniquenessType.NOT_UNIQUE;
 			case 1 -> GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG;
 			case 2 -> GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote global attribute uniqueness type: " + type);
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized remote global attribute uniqueness type: " + type);
 		};
 	}
 
@@ -777,6 +792,165 @@ public class EvitaEnumConverter {
 			case WAIT_FOR_LOG_PERSISTENCE -> CommitBehavior.WAIT_FOR_WAL_PERSISTENCE;
 			case WAIT_FOR_INDEX_PROPAGATION -> CommitBehavior.WAIT_FOR_INDEX_PROPAGATION;
 			default -> throw new GenericEvitaInternalError("Unrecognized remote commit behavior: " + commitBehaviour);
+		};
+	}
+
+	/**
+	 * Converts a GrpcNamingConvention to a NamingConvention.
+	 *
+	 * @param namingConvention The GrpcNamingConvention to convert.
+	 * @return The converted NamingConvention.
+	 */
+	@Nonnull
+	public static GrpcNamingConvention toGrpcNamingConvention(@Nonnull NamingConvention namingConvention) {
+		return switch (namingConvention) {
+			case SNAKE_CASE -> GrpcNamingConvention.SNAKE_CASE;
+			case CAMEL_CASE -> GrpcNamingConvention.CAMEL_CASE;
+			case UPPER_SNAKE_CASE -> GrpcNamingConvention.UPPER_SNAKE_CASE;
+			case PASCAL_CASE -> GrpcNamingConvention.PASCAL_CASE;
+			case KEBAB_CASE -> GrpcNamingConvention.KEBAB_CASE;
+		};
+	}
+
+	/**
+	 * Converts a NamingConvention to a GrpcNamingConvention.
+	 *
+	 * @param namingConvention The NamingConvention to convert.
+	 * @return The converted GrpcNamingConvention.
+	 */
+	@Nonnull
+	public static NamingConvention toNamingConvention(@Nonnull GrpcNamingConvention namingConvention) {
+		return switch (namingConvention) {
+			case SNAKE_CASE -> NamingConvention.SNAKE_CASE;
+			case CAMEL_CASE -> NamingConvention.CAMEL_CASE;
+			case UPPER_SNAKE_CASE -> NamingConvention.UPPER_SNAKE_CASE;
+			case PASCAL_CASE -> NamingConvention.PASCAL_CASE;
+			case KEBAB_CASE -> NamingConvention.KEBAB_CASE;
+			default -> throw new GenericEvitaInternalError("Unrecognized naming convention: " + namingConvention);
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcCaptureArea} to a {@link CaptureArea}.
+	 *
+	 * @param area The GrpcCaptureArea to convert.
+	 * @return The converted CaptureArea.
+	 */
+	@Nonnull
+	public static CaptureArea toCaptureArea(@Nonnull GrpcCaptureArea area) {
+		return switch (area) {
+			case DATA -> CaptureArea.DATA;
+			case SCHEMA -> CaptureArea.SCHEMA;
+			case INFRASTRUCTURE -> CaptureArea.INFRASTRUCTURE;
+			default -> throw new GenericEvitaInternalError("Unrecognized capture area: " + area);
+		};
+	}
+
+	/**
+	 * Converts a {@link CaptureArea} to a {@link GrpcCaptureArea}.
+	 * @param area The CaptureArea to convert.
+	 * @return The converted GrpcCaptureArea.
+	 */
+	@Nonnull
+	public static GrpcCaptureArea toGrpcCaptureArea(@Nonnull CaptureArea area) {
+		return switch (area) {
+			case DATA -> GrpcCaptureArea.DATA;
+			case SCHEMA -> GrpcCaptureArea.SCHEMA;
+			case INFRASTRUCTURE -> GrpcCaptureArea.INFRASTRUCTURE;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcCaptureOperation} to an {@link Operation}.
+	 *
+	 * @param grpcOperation The {@link GrpcCaptureOperation} to convert.
+	 * @return The converted {@link Operation}.
+	 */
+	@Nonnull
+	public static Operation toOperation(@Nonnull GrpcCaptureOperation grpcOperation) {
+		return switch (grpcOperation) {
+			case UPSERT -> Operation.UPSERT;
+			case REMOVE -> Operation.REMOVE;
+			case TRANSACTION -> Operation.TRANSACTION;
+			default -> throw new GenericEvitaInternalError("Unrecognized operation: " + grpcOperation);
+		};
+	}
+
+	/**
+	 * Converts an {@link Operation} to a {@link GrpcCaptureOperation}.
+	 * @param operation The Operation to convert.
+	 * @return The converted GrpcOperation.
+	 */
+	@Nonnull
+	public static GrpcCaptureOperation toGrpcOperation(@Nonnull Operation operation) {
+		return switch (operation) {
+			case UPSERT -> GrpcCaptureOperation.UPSERT;
+			case REMOVE -> GrpcCaptureOperation.REMOVE;
+			case TRANSACTION -> GrpcCaptureOperation.TRANSACTION;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcCaptureContainerType} to a {@link ContainerType}.
+	 *
+	 * @param GrpcCaptureContainerType The {@link GrpcCaptureContainerType} to convert.
+	 * @return The converted {@link ContainerType}.
+	 */
+	@Nonnull
+	public static ContainerType toContainerType(@Nonnull GrpcCaptureContainerType GrpcCaptureContainerType) {
+		return switch (GrpcCaptureContainerType) {
+			case CONTAINER_CATALOG -> ContainerType.CATALOG;
+			case CONTAINER_ENTITY -> ContainerType.ENTITY;
+			case CONTAINER_ATTRIBUTE -> ContainerType.ATTRIBUTE;
+			case CONTAINER_ASSOCIATED_DATA -> ContainerType.ASSOCIATED_DATA;
+			case CONTAINER_REFERENCE -> ContainerType.REFERENCE;
+			case CONTAINER_PRICE -> ContainerType.PRICE;
+			default -> throw new GenericEvitaInternalError("Unrecognized container type: " + GrpcCaptureContainerType);
+		};
+	}
+
+	/**
+	 * Converts a {@link ContainerType} to a {@link GrpcCaptureContainerType}.
+	 * @param containerType The ContainerType to convert.
+	 * @return The converted GrpcCaptureContainerType.
+	 */
+	@Nonnull
+	public static GrpcCaptureContainerType toGrpcCaptureContainerType(@Nonnull ContainerType containerType) {
+		return switch (containerType) {
+			case CATALOG -> GrpcCaptureContainerType.CONTAINER_CATALOG;
+			case ENTITY -> GrpcCaptureContainerType.CONTAINER_ENTITY;
+			case ATTRIBUTE -> GrpcCaptureContainerType.CONTAINER_ATTRIBUTE;
+			case ASSOCIATED_DATA -> GrpcCaptureContainerType.CONTAINER_ASSOCIATED_DATA;
+			case REFERENCE -> GrpcCaptureContainerType.CONTAINER_REFERENCE;
+			case PRICE -> GrpcCaptureContainerType.CONTAINER_PRICE;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcCaptureContent} to a {@link CaptureContent}.
+	 *
+	 * @param content The {@link GrpcCaptureContent} to convert.
+	 * @return The converted {@link CaptureContent}.
+	 */
+	@Nonnull
+	public static CaptureContent toCaptureContent(@Nonnull GrpcCaptureContent content) {
+		return switch (content) {
+			case HEADER -> CaptureContent.HEADER;
+			case BODY -> CaptureContent.BODY;
+			default -> throw new GenericEvitaInternalError("Unrecognized capture content: " + content);
+		};
+	}
+
+	/**
+	 * Converts a {@link CaptureContent} to a {@link GrpcCaptureContent}.
+	 * @param content The CaptureContent to convert.
+	 * @return The converted GrpcCaptureContent.
+	 */
+	@Nonnull
+	public static GrpcCaptureContent toGrpcCaptureContent(@Nonnull CaptureContent content) {
+		return switch (content) {
+			case HEADER -> GrpcCaptureContent.HEADER;
+			case BODY -> GrpcCaptureContent.BODY;
 		};
 	}
 

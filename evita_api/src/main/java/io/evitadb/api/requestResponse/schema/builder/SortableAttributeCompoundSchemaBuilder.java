@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
@@ -61,7 +62,7 @@ public final class SortableAttributeCompoundSchemaBuilder
 	private final EntitySchemaContract entitySchema;
 	private final ReferenceSchemaContract referenceSchema;
 	private final SortableAttributeCompoundSchemaContract baseSchema;
-	private final List<EntitySchemaMutation> mutations = new LinkedList<>();
+	private final List<LocalEntitySchemaMutation> mutations = new LinkedList<>();
 	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
 	private int lastMutationReflectedInSchema = 0;
 	private SortableAttributeCompoundSchemaContract updatedSchema;
@@ -73,7 +74,7 @@ public final class SortableAttributeCompoundSchemaBuilder
 		@Nullable SortableAttributeCompoundSchemaContract existingSchema,
 		@Nonnull String name,
 		@Nonnull List<AttributeElement> attributeElements,
-		@Nonnull List<EntitySchemaMutation> mutations,
+		@Nonnull List<LocalEntitySchemaMutation> mutations,
 		boolean createNew
 	) {
 		this.catalogSchema = catalogSchema;
@@ -141,7 +142,7 @@ public final class SortableAttributeCompoundSchemaBuilder
 
 	@Override
 	@Nonnull
-	public Collection<EntitySchemaMutation> toMutation() {
+	public Collection<LocalEntitySchemaMutation> toMutation() {
 		return this.mutations;
 	}
 

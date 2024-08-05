@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,17 +27,8 @@ import com.google.protobuf.GeneratedMessageV3;
 import com.google.rpc.Code;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryParser;
-import io.evitadb.api.query.QueryUtils;
-import io.evitadb.api.query.filter.EntityLocaleEquals;
-import io.evitadb.api.query.filter.PriceInCurrency;
-import io.evitadb.api.query.filter.PriceInPriceLists;
-import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.parser.DefaultQueryParser;
-import io.evitadb.api.query.require.DataInLocales;
 import io.evitadb.api.query.require.EntityContentRequire;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
-import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
@@ -47,19 +38,8 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.OffsetDateTime;
-import java.util.Arrays;
-import java.util.Currency;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * Class containing utility methods targeting on query, such as its parsing or getting specific parts of it.
@@ -72,49 +52,6 @@ public class QueryUtil {
 	 * Instance of {@link QueryParser} used for parsing queries.
 	 */
 	private static final QueryParser parser = DefaultQueryParser.getInstance();
-
-	/**
-	 * Get a set of {@link Locale}s from {@link Query}.
-	 *
-	 * @param query to get locales from
-	 * @return set of locales
-	 */
-	@Nonnull
-	public static Set<Locale> getRequiredLocales(@Nonnull Query query) {
-		final DataInLocales dataRequirement = QueryUtils.findRequire(query, DataInLocales.class);
-		if (dataRequirement != null) {
-			return Arrays.stream(dataRequirement.getLocales())
-				.filter(Objects::nonNull)
-				.collect(Collectors.toSet());
-		} else {
-			final Locale theLocale = ofNullable(QueryUtils.findFilter(query, EntityLocaleEquals.class))
-				.map(EntityLocaleEquals::getLocale)
-				.orElse(null);
-			if (theLocale != null) {
-				return Set.of(theLocale);
-			}
-		}
-		return new HashSet<>(0);
-	}
-
-	/**
-	 * Get an array of {@link EntityContentRequire}s from {@link Query}.
-	 *
-	 * @param query to get locales from
-	 * @return array of entity constraints
-	 */
-	@Nullable
-	public static EntityFetch getEntityFetchRequirement(@Nonnull Query query) {
-		if (query.getRequire() == null) {
-			return null;
-		} else {
-			return FinderVisitor.findConstraint(
-				query.getRequire(),
-				EntityFetch.class::isInstance,
-				SeparateEntityContentRequireContainer.class::isInstance
-			);
-		}
-	}
 
 	/**
 	 * Parse array of {@link EntityContentRequire} from {@link String}.
@@ -186,7 +123,11 @@ public class QueryUtil {
 	 * @return parsed {@link Query}
 	 */
 	@Nullable
-	public static <T extends GeneratedMessageV3> Query parseQuery(@Nonnull String queryString, @Nonnull Map<String, GrpcQueryParam> queryParams, @Nullable StreamObserver<T> responseObserver) {
+	public static <T extends GeneratedMessageV3> Query parseQuery(
+		@Nonnull String queryString,
+		@Nonnull Map<String, GrpcQueryParam> queryParams,
+		@Nullable StreamObserver<T> responseObserver
+	) {
 		try {
 			return parser.parseQuery(queryString, QueryConverter.convertQueryParamsMap(queryParams));
 		} catch (Exception ex) {
@@ -208,7 +149,12 @@ public class QueryUtil {
 	 * @return parsed {@link Query}
 	 */
 	@Nullable
-	public static <T extends GeneratedMessageV3> Query parseQuery(@Nonnull String queryString, @Nonnull List<GrpcQueryParam> queryParamsList, @Nonnull Map<String, GrpcQueryParam> queryParamsMap, @Nullable StreamObserver<T> responseObserver) {
+	public static <T extends GeneratedMessageV3> Query parseQuery(
+		@Nonnull String queryString,
+		@Nonnull List<GrpcQueryParam> queryParamsList,
+		@Nonnull Map<String, GrpcQueryParam> queryParamsMap,
+		@Nullable StreamObserver<T> responseObserver
+	) {
 		try {
 			if (queryParamsList.isEmpty() && queryParamsMap.isEmpty()) {
 				return parser.parseQuery(queryString);
@@ -233,42 +179,26 @@ public class QueryUtil {
 	}
 
 	/**
-	 * Get an array of priceList ({@link String}) from {@link Query}.
+	 * Parse unsafe query.
 	 *
-	 * @param query to get priceLists from
-	 * @return array of priceLists
-	 */
-	@Nonnull
-	public static String[] getPriceLists(@Nonnull Query query) {
-		final PriceInPriceLists pricesInPriceList = QueryUtils.findFilter(query, PriceInPriceLists.class);
-		return ofNullable(pricesInPriceList)
-			.map(PriceInPriceLists::getPriceLists)
-			.orElse(new String[0]);
-	}
-
-	/**
-	 * Get a ({@link Currency}) from {@link Query}.
-	 *
-	 * @param query to get currency from
-	 * @return currency if found, null otherwise
+	 * @param queryString      to be parsed
+	 * @param responseObserver response observer for error handling
+	 * @param <T>              type of response message to be able to pass generic {@link StreamObserver}
+	 * @return parsed {@link Query}
 	 */
 	@Nullable
-	public static Currency getCurrency(@Nonnull Query query) {
-		return ofNullable(QueryUtils.findFilter(query, PriceInCurrency.class))
-			.map(PriceInCurrency::getCurrency)
-			.orElse(null);
+	public static <T extends GeneratedMessageV3> Query parseQueryUnsafe(
+		@Nonnull String queryString,
+		@Nullable StreamObserver<T> responseObserver
+	) {
+		try {
+			return parser.parseQueryUnsafe(queryString);
+		} catch (Exception ex) {
+			if (responseObserver != null) {
+				responseObserver.onError(ExceptionStatusProvider.getStatus(ex, Code.INVALID_ARGUMENT, "Query parsing error"));
+			}
+			return null;
+		}
 	}
 
-	/**
-	 * Get a ({@link OffsetDateTime}) from {@link Query}.
-	 *
-	 * @param query to get priceValidIn from
-	 * @return priceValidIn if found, null otherwise
-	 */
-	@Nullable
-	public static OffsetDateTime getPriceValidIn(@Nonnull Query query, @Nonnull Supplier<OffsetDateTime> currentDateAndTime) {
-		return ofNullable(QueryUtils.findFilter(query, PriceValidIn.class))
-			.map(it -> it.getTheMoment(currentDateAndTime))
-			.orElse(null);
-	}
 }

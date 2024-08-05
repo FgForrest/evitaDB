@@ -10,8 +10,10 @@
 #### API / gRPC
 
 <dl>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/grpc/metric/event/ProcedureCalledEvent.java</SourceClass> gRPC procedure called</dt>
-  <dd>Event that is fired when a gRPC procedure is called.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/grpc/metric/event/EvitaProcedureCalledEvent.java</SourceClass> gRPC evitaDB procedure called</dt>
+  <dd>Event that is fired when evitaDB gRPC procedure is called.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/grpc/metric/event/SessionProcedureCalledEvent.java</SourceClass> gRPC session procedure called</dt>
+  <dd>Event that is fired when a session gRPC procedure is called.</dd>
 </dl>
 
 #### Cache
@@ -51,7 +53,7 @@
   <dd>Event that is fired when an entity is enriched directly.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/query/EntityFetchEvent.java</SourceClass> Entity fetched</dt>
   <dd>Event that is fired when an entity is fetched directly.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/query/FinishedEvent.java</SourceClass> Catalog finished</dt>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/query/FinishedEvent.java</SourceClass> Query finished</dt>
   <dd>Event that is fired when a query is finished.</dd>
 </dl>
 

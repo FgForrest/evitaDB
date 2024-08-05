@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.testUtils;
 
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
@@ -51,22 +52,22 @@ public class SessionInitializer {
 	/**
 	 * Sets a session into the {@link SessionIdHolder} with enabled {@link SessionFlags#DRY_RUN}.
 	 *
-	 * @param channel     upon which the service stub will be created
+	 * @param clientBuilder     upon which the service stub will be created
 	 * @param sessionType type of session to be created
 	 */
-	public static void setSession(@Nonnull ManagedChannel channel, @Nonnull GrpcSessionType sessionType) {
-		setSession(channel, sessionType, true);
+	public static void setSession(@Nonnull GrpcClientBuilder clientBuilder, @Nonnull GrpcSessionType sessionType) {
+		setSession(clientBuilder, sessionType, true);
 	}
 
 	/**
 	 * Sets a session into the {@link SessionIdHolder} with set {@link SessionFlags#DRY_RUN} to the passed value as {@code dryRun}.
 	 *
-	 * @param channel     upon which the service stub will be created
+	 * @param clientBuilder     upon which the service stub will be created
 	 * @param sessionType type of session to be created
 	 * @param dryRun      whether the session should be created with {@link SessionFlags#DRY_RUN}
 	 */
-	public static void setSession(@Nonnull ManagedChannel channel, @Nonnull GrpcSessionType sessionType, boolean dryRun) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+	public static void setSession(@Nonnull GrpcClientBuilder clientBuilder, @Nonnull GrpcSessionType sessionType, boolean dryRun) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
 
 		final GrpcEvitaSessionResponse response;
 		if (sessionType == GrpcSessionType.READ_WRITE) {
