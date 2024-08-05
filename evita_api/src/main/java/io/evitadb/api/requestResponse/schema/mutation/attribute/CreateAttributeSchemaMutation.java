@@ -130,12 +130,6 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.CREATE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

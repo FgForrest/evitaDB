@@ -66,7 +66,7 @@ class EntitySchemaMutationAggregateConverterTest {
 			new DisallowCurrencyInEntitySchemaMutation(Currency.getInstance("EUR"))
 		);
 
-		final List<LocalEntitySchemaMutation> convertedMutations1 = converter.convert(
+		final List<LocalEntitySchemaMutation> convertedMutations1 = converter.convertFromInput(
 			map()
 				.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(Locale.ENGLISH))
@@ -78,7 +78,7 @@ class EntitySchemaMutationAggregateConverterTest {
 		);
 		assertEquals(expectedMutations, convertedMutations1);
 
-		final List<LocalEntitySchemaMutation> convertedMutations2 = converter.convert(
+		final List<LocalEntitySchemaMutation> convertedMutations2 = converter.convertFromInput(
 			map()
 				.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of("en"))
@@ -92,7 +92,7 @@ class EntitySchemaMutationAggregateConverterTest {
 	}
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<LocalEntitySchemaMutation> convertedMutations = converter.convert(Map.of());
+		final List<LocalEntitySchemaMutation> convertedMutations = converter.convertFromInput(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 

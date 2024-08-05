@@ -58,11 +58,11 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidEvitaVersionException;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
-import io.evitadb.externalApi.grpc.dataType.ChangeCatalogCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceStub;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CertificateUtils;
@@ -388,7 +388,7 @@ public class EvitaClient implements EvitaContract {
 		@Nullable
 		@Override
 		protected ChangeSystemCapture convertCapture(@Nullable GrpcRegisterSystemChangeCaptureResponse item) {
-			return ChangeCatalogCaptureConverter.toChangeSystemCapture(item.getCapture());
+			return ChangeCaptureConverter.toChangeSystemCapture(item.getCapture());
 		}
 	}
 

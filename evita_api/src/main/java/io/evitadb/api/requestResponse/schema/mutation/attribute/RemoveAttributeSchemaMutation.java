@@ -81,12 +81,6 @@ public class RemoveAttributeSchemaMutation implements
 		this.name = name;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.REMOVE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {

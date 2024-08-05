@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
-import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
@@ -58,12 +57,6 @@ import java.util.stream.Stream;
 public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -8605223733449045709L;
 	@Getter @Nonnull private final String catalogName;
-
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.REMOVE;
-	}
 
 	@Nullable
 	@Override

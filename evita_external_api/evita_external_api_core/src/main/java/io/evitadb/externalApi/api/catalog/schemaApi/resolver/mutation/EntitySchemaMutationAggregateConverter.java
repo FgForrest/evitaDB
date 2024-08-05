@@ -60,11 +60,11 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class EntitySchemaMutationAggregateConverter extends MutationAggregateConverter<LocalEntitySchemaMutation, SchemaMutationConverter<? extends LocalEntitySchemaMutation>> {
+public class EntitySchemaMutationAggregateConverter extends MutationAggregateConverter<LocalEntitySchemaMutation, SchemaMutationConverter<LocalEntitySchemaMutation>> {
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final Map<String, SchemaMutationConverter<? extends LocalEntitySchemaMutation>> resolvers = createHashMap(55);
+	private final Map<String, SchemaMutationConverter<LocalEntitySchemaMutation>> converters = createHashMap(55);
 
 	public EntitySchemaMutationAggregateConverter(@Nonnull MutationObjectParser objectParser,
 	                                              @Nonnull MutationResolvingExceptionFactory exceptionFactory) {

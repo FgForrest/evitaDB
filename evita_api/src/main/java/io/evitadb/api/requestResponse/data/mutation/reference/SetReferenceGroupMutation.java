@@ -94,12 +94,6 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 
 	@Nonnull
 	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
-	@Nonnull
-	@Override
 	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
 		final Optional<ReferenceSchemaContract> referenceSchema = entitySchema.getReference(referenceKey.referenceName());
 		final Serializable existingGroupType = referenceSchema.map(ReferenceSchemaContract::getReferencedGroupType).orElse(null);

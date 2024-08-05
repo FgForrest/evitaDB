@@ -88,12 +88,6 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		this.attributeElements = attributeElements;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.CREATE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

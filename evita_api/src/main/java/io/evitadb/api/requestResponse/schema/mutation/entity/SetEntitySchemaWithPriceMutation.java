@@ -58,12 +58,6 @@ public class SetEntitySchemaWithPriceMutation implements CombinableLocalEntitySc
 	@Getter private final boolean withPrice;
 	@Getter private final int indexedPricePlaces;
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

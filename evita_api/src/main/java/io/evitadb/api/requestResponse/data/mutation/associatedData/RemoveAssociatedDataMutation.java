@@ -60,12 +60,6 @@ public class RemoveAssociatedDataMutation extends AssociatedDataMutation {
 
 	@Nonnull
 	@Override
-	public Operation getOperation() {
-		return Operation.REMOVE;
-	}
-
-	@Nonnull
-	@Override
 	public AssociatedDataValue mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable AssociatedDataValue existingValue) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),

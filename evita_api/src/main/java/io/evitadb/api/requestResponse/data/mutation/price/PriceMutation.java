@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.data.mutation.price;
 
-import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -51,18 +50,6 @@ public abstract class PriceMutation implements LocalMutation<PriceContract, Pric
 	 */
 	@Nonnull
 	@Getter protected final PriceKey priceKey;
-
-	@Nonnull
-	@Override
-	public ClassifierType getClassifierType() {
-		return ClassifierType.ENTITY;
-	}
-
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
 
 	@Override
 	public PriceKey getComparableKey() {

@@ -688,7 +688,7 @@ public final class Evita implements EvitaContract {
 				}
 			}
 		);
-		changeObserver.notifyPublishers(catalogName, Operation.CREATE, () -> createCatalogSchema);
+		changeObserver.notifyPublishers(catalogName, Operation.UPSERT, () -> createCatalogSchema);
 		updateCatalogStatistics();
 	}
 
@@ -748,12 +748,12 @@ public final class Evita implements EvitaContract {
 			);
 			if (previousCatalog == null) {
 				changeObserver.notifyPublishers(
-					catalogNameToBeReplaced, Operation.CREATE,
+					catalogNameToBeReplaced, Operation.UPSERT,
 					() -> modifyCatalogSchemaName
 				);
 			} else {
 				changeObserver.notifyPublishers(
-					catalogNameToBeReplaced, Operation.UPDATE, () -> modifyCatalogSchemaName
+					catalogNameToBeReplaced, Operation.UPSERT, () -> modifyCatalogSchemaName
 				);
 			}
 
@@ -864,7 +864,7 @@ public final class Evita implements EvitaContract {
 			final int newCatalogVersion = newCatalog.getSchema().version();
 			if (currentCatalog.getSchema().version() != newCatalogVersion) {
 				newCatalogInstance.notifyObservers(
-					CaptureArea.SCHEMA, Operation.UPDATE,
+					CaptureArea.SCHEMA, Operation.UPSERT,
 					null, null, null, newCatalogVersion, null,
 					captureBlock
 				);
@@ -888,7 +888,7 @@ public final class Evita implements EvitaContract {
 					final int newCollectionVersion = updatedCollectionRef.getSchema().version();
 					if (existingCollection.getSchema().version() != newCollectionVersion) {
 						newCatalogInstance.notifyObservers(
-							CaptureArea.SCHEMA, Operation.UPDATE,
+							CaptureArea.SCHEMA, Operation.UPSERT,
 							entityType, updatedCollectionRef.getEntityTypePrimaryKey(),
 							null, newCollectionVersion, null,
 							captureBlock
@@ -901,7 +901,7 @@ public final class Evita implements EvitaContract {
 					final EntityCollection createdCollection = newCatalogInstance.getCollectionForEntityOrThrowException(entityType);
 					final int newCollectionVersion = createdCollection.getSchema().version();
 					newCatalogInstance.notifyObservers(
-						CaptureArea.SCHEMA, Operation.CREATE,
+						CaptureArea.SCHEMA, Operation.UPSERT,
 						entityType, createdCollection.getEntityTypePrimaryKey(),
 						null, newCollectionVersion, null,
 						captureBlock
@@ -1105,7 +1105,7 @@ public final class Evita implements EvitaContract {
 			if (isCatalogSchemaModified(theCatalog)) {
 				final int newSchemaVersion = theCatalog.getSchema().version();
 				theCatalog.notifyObservers(
-					CaptureArea.SCHEMA, Operation.UPDATE,
+					CaptureArea.SCHEMA, Operation.UPSERT,
 					null, null, newSchemaVersion, null, null,
 					captureBlock
 				);
@@ -1119,7 +1119,7 @@ public final class Evita implements EvitaContract {
 					final EntityCollection entityCollection = theCatalog.getCollectionForEntityOrThrowException(it);
 					final EntitySchemaContract sealedEntitySchema = entityCollection.getSchema();
 					theCatalog.notifyObservers(
-						CaptureArea.SCHEMA, Operation.UPDATE,
+						CaptureArea.SCHEMA, Operation.UPSERT,
 						it, entityCollection.getEntityTypePrimaryKey(),
 						null,
 						sealedEntitySchema.version(),
@@ -1132,7 +1132,7 @@ public final class Evita implements EvitaContract {
 					final EntityCollection entityCollection = theCatalog.getCollectionForEntityOrThrowException(it);
 					final EntitySchemaContract sealedEntitySchema = entityCollection.getSchema();
 					theCatalog.notifyObservers(
-						CaptureArea.SCHEMA, Operation.CREATE,
+						CaptureArea.SCHEMA, Operation.UPSERT,
 						it, entityCollection.getEntityTypePrimaryKey(),
 						null,
 						sealedEntitySchema.version(),

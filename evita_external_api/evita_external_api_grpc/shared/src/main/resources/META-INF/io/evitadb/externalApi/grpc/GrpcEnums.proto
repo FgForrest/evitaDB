@@ -529,38 +529,3 @@ enum GrpcNamingConvention {
   KEBAB_CASE = 4;
 
 }
-
-/* TODO JNO - document */
-enum GrpcOperation {
-  CREATE = 0;
-  UPDATE = 1;
-  REMOVE = 2;
-  // todo jno: is this what you had in mind when we talked about the need to signalize the begin and the end of the transaction?
-  TRANSACTION_BEGIN = 3;
-  TRANSACTION_END = 4;
-}
-
-enum GrpcCaptureArea {
-  SCHEMA = 0;
-  DATA = 1;
-}
-
-enum GrpcClassifierType {
-  SERVER_NAME = 0;
-  CATALOG = 1;
-  ENTITY = 2;
-  ATTRIBUTE = 3;
-  ASSOCIATED_DATA = 4;
-  REFERENCE = 5;
-  REFERENCE_ATTRIBUTE = 6;
-}
-
-enum GrpcCaptureContent {
-  HEADER = 0;
-  BODY = 1;
-}
-
-enum GrpcCaptureResponseType {
-  ACKNOWLEDGEMENT = 0;
-  CHANGE = 1;
-}

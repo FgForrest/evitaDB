@@ -15,9 +15,7 @@ import "GrpcEntitySchema.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcCatalogSchemaMutations.proto";
-/* TODO JNO - unify */
 import "GrpcChangeCapture.proto";
-import "GrpcChangeCatalogCapture.proto";
 
 // Response to GetCatalogState request.
 message GrpcCatalogStateResponse {
@@ -77,6 +75,28 @@ message GetMutationsHistoryRequest {
 message GetMutationsHistoryResponse {
   // The list of mutations that match the criteria
   repeated GrpcChangeCatalogCapture changeCapture = 1;
+}
+
+// Request to RegisterChangeCatalogCapture request.
+message GrpcRegisterChangeCatalogCaptureRequest {
+  // Starting point for the search (catalog version)
+  google.protobuf.Int64Value sinceVersion = 1;
+  // Starting point for the search (index of the mutation within catalog version)
+  google.protobuf.Int32Value sinceIndex = 2;
+  // The criteria of the capture, allows to define constraints on the returned mutations
+  repeated GrpcCaptureCriteria criteria = 3;
+  // The scope of the returned data - either header of the mutation, or the whole mutation
+  GrpcCaptureContent content = 4;
+}
+
+// Response to RegisterChangeCatalogCapture request.
+message GrpcRegisterChangeCatalogCaptureResponse {
+  // Identification of the registered capture
+  string uuid = 1;
+  // The list of mutations (CDC events) that match the criteria
+  repeated GrpcChangeCatalogCapture capture = 2;
+  // ??? TODO JNO - document me
+  GrpcCaptureResponseType responseType = 3;
 }
 
 // Request to GetCatalogSchema request.
@@ -535,24 +555,6 @@ message GrpcQueryParam {
   }
 }
 
-/* TODO JNO - refactor */
-message GrpcRegisterChangeCatalogCaptureRequest {
-  GrpcCaptureArea area = 1;
-  oneof site {
-    GrpcSchemaSite schemaSite = 2;
-    GrpcDataSite dataSite = 3;
-  }
-  GrpcCaptureContent content = 4;
-  GrpcCaptureSince since = 5;
-}
-
-message GrpcRegisterChangeCatalogCaptureResponse {
-  string uuid = 1;
-  repeated GrpcChangeCatalogCapture capture = 2;
-  int64 transactionalId = 3;
-  GrpcCaptureResponseType responseType = 4;
-}
-
 // This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
 // By specifying its UUID and the name of a catalog to which it corresponds to it's possible to execute methods that in
 // evitaDB's implementation a called on an instance of EvitaSessionContract.
@@ -631,6 +633,6 @@ service EvitaSessionService {
 
   // Procedure that opens a transaction.
   rpc GetTransactionId(google.protobuf.Empty) returns (GrpcTransactionResponse);
-  // TODO JNO - document me
+  // Procedure that registers a change capture.
   rpc RegisterChangeCatalogCapture(GrpcRegisterChangeCatalogCaptureRequest) returns (stream GrpcRegisterChangeCatalogCaptureResponse);
 }

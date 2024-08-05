@@ -9,7 +9,7 @@ import "google/protobuf/wrappers.proto";
 import "GrpcEnums.proto";
 import "GrpcEvitaDataTypes.proto";
 import "GrpcCatalogSchemaMutation.proto";
-import "GrpcChangeCatalogCapture.proto";
+import "GrpcChangeCapture.proto";
 
 // Request to create a session inside of a catalog.
 message GrpcEvitaSessionRequest {

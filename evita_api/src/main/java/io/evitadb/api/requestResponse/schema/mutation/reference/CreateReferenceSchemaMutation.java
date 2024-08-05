@@ -108,12 +108,6 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		this.faceted = faceted;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.CREATE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

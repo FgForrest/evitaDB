@@ -34,8 +34,8 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
-import io.evitadb.externalApi.grpc.dataType.ChangeCatalogCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
@@ -53,6 +53,9 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Flow.Publisher;
+import java.util.concurrent.Flow.Subscriber;
+import java.util.concurrent.Flow.Subscription;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
@@ -413,7 +416,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		@Override
 		protected GrpcRegisterSystemChangeCaptureResponse convertCapture(@Nonnull ChangeSystemCapture capture) {
 			return GrpcRegisterSystemChangeCaptureResponse.newBuilder()
-				.setCapture(ChangeCatalogCaptureConverter.toGrpcChangeSystemCapture(capture))
+				.setCapture(ChangeCaptureConverter.toGrpcChangeSystemCapture(capture))
 				.build();
 		}
 	}

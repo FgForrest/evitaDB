@@ -1407,7 +1407,7 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * TODO JNO - document me
+     * Procedure that registers a change capture.
      * </pre>
      */
     public void registerChangeCatalogCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest request,
@@ -2013,7 +2013,7 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * TODO JNO - document me
+     * Procedure that registers a change capture.
      * </pre>
      */
     public void registerChangeCatalogCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest request,
@@ -2361,7 +2361,7 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * TODO JNO - document me
+     * Procedure that registers a change capture.
      * </pre>
      */
     public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse> registerChangeCatalogCapture(
@@ -2758,6 +2758,7 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 28;
   private static final int METHODID_DELETE_ENTITIES = 29;
   private static final int METHODID_GET_TRANSACTION_ID = 30;
+  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 31;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,

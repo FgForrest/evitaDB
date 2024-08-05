@@ -100,12 +100,6 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 		this.requiredRangeAfterApplication = requiredRangeAfterApplication;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Override
 	@Nonnull
 	public T getAttributeValue() {

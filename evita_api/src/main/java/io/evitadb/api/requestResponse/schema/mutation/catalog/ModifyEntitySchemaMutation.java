@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
-import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper;
@@ -71,12 +70,6 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 	public ModifyEntitySchemaMutation(@Nonnull String entityType, @Nonnull LocalEntitySchemaMutation... schemaMutations) {
 		this.entityType = entityType;
 		this.schemaMutations = schemaMutations;
-	}
-
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
 	}
 
 	@Nullable

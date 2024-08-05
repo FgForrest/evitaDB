@@ -65,12 +65,6 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 	@Getter @Nonnull private final String newName;
 	@Getter private final boolean overwriteTarget;
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {

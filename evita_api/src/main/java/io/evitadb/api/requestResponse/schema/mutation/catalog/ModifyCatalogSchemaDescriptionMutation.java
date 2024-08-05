@@ -61,13 +61,6 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 	@Serial private static final long serialVersionUID = -367741086084429615L;
 	@Nullable @Getter private final String description;
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {

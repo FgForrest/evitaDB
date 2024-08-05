@@ -43,11 +43,9 @@
         <processorPath useClasspath="false">
           <entry name="$USER_HOME$/.m2/repository/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
         </processorPath>
-        <module name="evita_external_api_observability" />
-        <module name="evita_java_driver" />
-        <module name="evita_functional_tests" />
         <module name="evita_external_api_grpc" />
         <module name="evita_external_api_grpc_shared" />
+        <module name="evita_java_driver" />
         <module name="evita_external_api_core" />
       </profile>
       <profile name="Annotation profile for evita_api" enabled="true">
@@ -199,6 +197,26 @@
           <entry name="$USER_HOME$/.m2/repository/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
         </processorPath>
         <module name="evita_test_support" />
+      </profile>
+      <profile name="Annotation profile for evita_external_api_observability" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$USER_HOME$/.m2/repository/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
+          <entry name="$USER_HOME$/.m2/repository/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
+        </processorPath>
+        <module name="evita_external_api_observability" />
+      </profile>
+      <profile name="Annotation profile for evita_functional_tests" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$USER_HOME$/.m2/repository/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
+          <entry name="$USER_HOME$/.m2/repository/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
+        </processorPath>
+        <module name="evita_functional_tests" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>

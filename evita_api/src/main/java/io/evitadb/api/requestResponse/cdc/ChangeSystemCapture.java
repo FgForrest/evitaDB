@@ -41,7 +41,7 @@ import javax.annotation.Nullable;
 public record ChangeSystemCapture(
 	long version,
 	int index,
-	@Nonnull String catalog,
+	@Nullable String catalog,
 	@Nonnull Operation operation,
 	@Nullable Mutation body
 ) implements ChangeCapture {

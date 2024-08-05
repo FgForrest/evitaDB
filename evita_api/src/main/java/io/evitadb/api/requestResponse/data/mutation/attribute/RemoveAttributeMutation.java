@@ -62,12 +62,6 @@ public class RemoveAttributeMutation extends AttributeMutation {
 
 	@Nonnull
 	@Override
-	public Operation getOperation() {
-		return Operation.REMOVE;
-	}
-
-	@Nonnull
-	@Override
 	public AttributeValue mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable AttributeValue existingValue) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),

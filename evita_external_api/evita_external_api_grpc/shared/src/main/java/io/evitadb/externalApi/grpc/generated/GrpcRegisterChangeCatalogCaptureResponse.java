@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response to RegisterChangeCatalogCapture request.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse}
  */
 public final class GrpcRegisterChangeCatalogCaptureResponse extends
@@ -91,11 +95,6 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 24: {
-
-            transactionalId_ = input.readInt64();
-            break;
-          }
-          case 32: {
             int rawValue = input.readEnum();
 
             responseType_ = rawValue;
@@ -139,6 +138,10 @@ private static final long serialVersionUID = 0L;
   public static final int UUID_FIELD_NUMBER = 1;
   private volatile java.lang.Object uuid_;
   /**
+   * <pre>
+   * Identification of the registered capture
+   * </pre>
+   *
    * <code>string uuid = 1;</code>
    * @return The uuid.
    */
@@ -156,6 +159,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Identification of the registered capture
+   * </pre>
+   *
    * <code>string uuid = 1;</code>
    * @return The bytes for uuid.
    */
@@ -177,6 +184,10 @@ private static final long serialVersionUID = 0L;
   public static final int CAPTURE_FIELD_NUMBER = 2;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> capture_;
   /**
+   * <pre>
+   * The list of mutations (CDC events) that match the criteria
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   @java.lang.Override
@@ -184,6 +195,10 @@ private static final long serialVersionUID = 0L;
     return capture_;
   }
   /**
+   * <pre>
+   * The list of mutations (CDC events) that match the criteria
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   @java.lang.Override
@@ -192,6 +207,10 @@ private static final long serialVersionUID = 0L;
     return capture_;
   }
   /**
+   * <pre>
+   * The list of mutations (CDC events) that match the criteria
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   @java.lang.Override
@@ -199,6 +218,10 @@ private static final long serialVersionUID = 0L;
     return capture_.size();
   }
   /**
+   * <pre>
+   * The list of mutations (CDC events) that match the criteria
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   @java.lang.Override
@@ -206,6 +229,10 @@ private static final long serialVersionUID = 0L;
     return capture_.get(index);
   }
   /**
+   * <pre>
+   * The list of mutations (CDC events) that match the criteria
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   @java.lang.Override
@@ -214,28 +241,25 @@ private static final long serialVersionUID = 0L;
     return capture_.get(index);
   }
 
-  public static final int TRANSACTIONALID_FIELD_NUMBER = 3;
-  private long transactionalId_;
-  /**
-   * <code>int64 transactionalId = 3;</code>
-   * @return The transactionalId.
-   */
-  @java.lang.Override
-  public long getTransactionalId() {
-    return transactionalId_;
-  }
-
-  public static final int RESPONSETYPE_FIELD_NUMBER = 4;
+  public static final int RESPONSETYPE_FIELD_NUMBER = 3;
   private int responseType_;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 4;</code>
+   * <pre>
+   * ??? TODO JNO - document me
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
    * @return The enum numeric value on the wire for responseType.
    */
   @java.lang.Override public int getResponseTypeValue() {
     return responseType_;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 4;</code>
+   * <pre>
+   * ??? TODO JNO - document me
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
    * @return The responseType.
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType getResponseType() {
@@ -264,11 +288,8 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < capture_.size(); i++) {
       output.writeMessage(2, capture_.get(i));
     }
-    if (transactionalId_ != 0L) {
-      output.writeInt64(3, transactionalId_);
-    }
     if (responseType_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType.ACKNOWLEDGEMENT.getNumber()) {
-      output.writeEnum(4, responseType_);
+      output.writeEnum(3, responseType_);
     }
     unknownFields.writeTo(output);
   }
@@ -286,13 +307,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, capture_.get(i));
     }
-    if (transactionalId_ != 0L) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(3, transactionalId_);
-    }
     if (responseType_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType.ACKNOWLEDGEMENT.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(4, responseType_);
+        .computeEnumSize(3, responseType_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -313,8 +330,6 @@ private static final long serialVersionUID = 0L;
         .equals(other.getUuid())) return false;
     if (!getCaptureList()
         .equals(other.getCaptureList())) return false;
-    if (getTransactionalId()
-        != other.getTransactionalId()) return false;
     if (responseType_ != other.responseType_) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
@@ -333,9 +348,6 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CAPTURE_FIELD_NUMBER;
       hash = (53 * hash) + getCaptureList().hashCode();
     }
-    hash = (37 * hash) + TRANSACTIONALID_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
-        getTransactionalId());
     hash = (37 * hash) + RESPONSETYPE_FIELD_NUMBER;
     hash = (53 * hash) + responseType_;
     hash = (29 * hash) + unknownFields.hashCode();
@@ -434,6 +446,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response to RegisterChangeCatalogCapture request.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse}
    */
   public static final class Builder extends
@@ -480,8 +496,6 @@ private static final long serialVersionUID = 0L;
       } else {
         captureBuilder_.clear();
       }
-      transactionalId_ = 0L;
-
       responseType_ = 0;
 
       return this;
@@ -521,7 +535,6 @@ private static final long serialVersionUID = 0L;
       } else {
         result.capture_ = captureBuilder_.build();
       }
-      result.transactionalId_ = transactionalId_;
       result.responseType_ = responseType_;
       onBuilt();
       return result;
@@ -601,9 +614,6 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
-      if (other.getTransactionalId() != 0L) {
-        setTransactionalId(other.getTransactionalId());
-      }
       if (other.responseType_ != 0) {
         setResponseTypeValue(other.getResponseTypeValue());
       }
@@ -639,6 +649,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object uuid_ = "";
     /**
+     * <pre>
+     * Identification of the registered capture
+     * </pre>
+     *
      * <code>string uuid = 1;</code>
      * @return The uuid.
      */
@@ -655,6 +669,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Identification of the registered capture
+     * </pre>
+     *
      * <code>string uuid = 1;</code>
      * @return The bytes for uuid.
      */
@@ -672,6 +690,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Identification of the registered capture
+     * </pre>
+     *
      * <code>string uuid = 1;</code>
      * @param value The uuid to set.
      * @return This builder for chaining.
@@ -687,6 +709,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Identification of the registered capture
+     * </pre>
+     *
      * <code>string uuid = 1;</code>
      * @return This builder for chaining.
      */
@@ -697,6 +723,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Identification of the registered capture
+     * </pre>
+     *
      * <code>string uuid = 1;</code>
      * @param value The bytes for uuid to set.
      * @return This builder for chaining.
@@ -726,6 +756,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> captureBuilder_;
 
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> getCaptureList() {
@@ -736,6 +770,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public int getCaptureCount() {
@@ -746,6 +784,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture getCapture(int index) {
@@ -756,6 +798,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder setCapture(
@@ -773,6 +819,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder setCapture(
@@ -787,6 +837,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder addCapture(io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture value) {
@@ -803,6 +857,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder addCapture(
@@ -820,6 +878,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder addCapture(
@@ -834,6 +896,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder addCapture(
@@ -848,6 +914,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder addAllCapture(
@@ -863,6 +933,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder clearCapture() {
@@ -876,6 +950,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public Builder removeCapture(int index) {
@@ -889,6 +967,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder getCaptureBuilder(
@@ -896,6 +978,10 @@ private static final long serialVersionUID = 0L;
       return getCaptureFieldBuilder().getBuilder(index);
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder getCaptureOrBuilder(
@@ -906,6 +992,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
@@ -917,6 +1007,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder addCaptureBuilder() {
@@ -924,6 +1018,10 @@ private static final long serialVersionUID = 0L;
           io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.getDefaultInstance());
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder addCaptureBuilder(
@@ -932,6 +1030,10 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.getDefaultInstance());
     }
     /**
+     * <pre>
+     * The list of mutations (CDC events) that match the criteria
+     * </pre>
+     *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder>
@@ -953,47 +1055,24 @@ private static final long serialVersionUID = 0L;
       return captureBuilder_;
     }
 
-    private long transactionalId_ ;
-    /**
-     * <code>int64 transactionalId = 3;</code>
-     * @return The transactionalId.
-     */
-    @java.lang.Override
-    public long getTransactionalId() {
-      return transactionalId_;
-    }
-    /**
-     * <code>int64 transactionalId = 3;</code>
-     * @param value The transactionalId to set.
-     * @return This builder for chaining.
-     */
-    public Builder setTransactionalId(long value) {
-
-      transactionalId_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <code>int64 transactionalId = 3;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearTransactionalId() {
-
-      transactionalId_ = 0L;
-      onChanged();
-      return this;
-    }
-
     private int responseType_ = 0;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 4;</code>
+     * <pre>
+     * ??? TODO JNO - document me
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
      * @return The enum numeric value on the wire for responseType.
      */
     @java.lang.Override public int getResponseTypeValue() {
       return responseType_;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 4;</code>
+     * <pre>
+     * ??? TODO JNO - document me
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
      * @param value The enum numeric value on the wire for responseType to set.
      * @return This builder for chaining.
      */
@@ -1004,7 +1083,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 4;</code>
+     * <pre>
+     * ??? TODO JNO - document me
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
      * @return The responseType.
      */
     @java.lang.Override
@@ -1014,7 +1097,11 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType.UNRECOGNIZED : result;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 4;</code>
+     * <pre>
+     * ??? TODO JNO - document me
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
      * @param value The responseType to set.
      * @return This builder for chaining.
      */
@@ -1028,7 +1115,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 4;</code>
+     * <pre>
+     * ??? TODO JNO - document me
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearResponseType() {

@@ -42,15 +42,14 @@ import io.evitadb.api.mock.TestEntity;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
-import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
@@ -647,13 +646,13 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		Thread.sleep(100); // we need to manually wait to really make sure that no more events came
 
 		// subscriber received one requested event
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog1"));
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog2"));
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog3"));
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog4"));
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog5"));
+		assertEquals(1, subscriber.getCatalogUpserted("newCatalog1"));
+		assertEquals(1, subscriber.getCatalogUpserted("newCatalog2"));
+		assertEquals(1, subscriber.getCatalogUpserted("newCatalog3"));
+		assertEquals(1, subscriber.getCatalogUpserted("newCatalog4"));
+		assertEquals(1, subscriber.getCatalogUpserted("newCatalog5"));
 		// subscriber didn't ask for more events, so it didn't receive any new events
-		assertEquals(0, subscriber.getCatalogCreated("newCatalog6"));
+		assertEquals(0, subscriber.getCatalogUpserted("newCatalog6"));
 
 		evitaClient.deleteCatalogIfExists("newCatalog1");
 		evitaClient.deleteCatalogIfExists("newCatalog2");
@@ -688,10 +687,10 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertTrue(subscriberWithDelayedRegistration.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
 
 		// both should receive one late event
-		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog1"));
-		assertEquals(0, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2"));
-		assertEquals(0, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog1"));
-		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogUpserted("newCatalog1"));
+		assertEquals(0, subscriberWithDelayedRequest.getCatalogUpserted("newCatalog2"));
+		assertEquals(0, subscriberWithDelayedRegistration.getCatalogUpserted("newCatalog1"));
+		assertEquals(1, subscriberWithDelayedRegistration.getCatalogUpserted("newCatalog2"));
 
 		evitaClient.deleteCatalogIfExists("newCatalog1");
 		evitaClient.deleteCatalogIfExists("newCatalog2");
@@ -724,12 +723,12 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertTrue(subscriber2.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
 		Thread.sleep(100); // we need to manually wait to really make sure that no more events came
 
-		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
-		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
-		assertEquals(1, subscriber1.getCatalogCreated("newCatalog2"));
-		assertEquals(1, subscriber2.getCatalogCreated("newCatalog2"));
-		assertEquals(0, subscriber1.getCatalogCreated("newCatalog3"));
-		assertEquals(0, subscriber2.getCatalogCreated("newCatalog3"));
+		assertEquals(1, subscriber1.getCatalogUpserted("newCatalog1"));
+		assertEquals(1, subscriber2.getCatalogUpserted("newCatalog1"));
+		assertEquals(1, subscriber1.getCatalogUpserted("newCatalog2"));
+		assertEquals(1, subscriber2.getCatalogUpserted("newCatalog2"));
+		assertEquals(0, subscriber1.getCatalogUpserted("newCatalog3"));
+		assertEquals(0, subscriber2.getCatalogUpserted("newCatalog3"));
 	}
 
 	@Test
@@ -748,8 +747,8 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertTrue(subscriber1.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
 		assertTrue(subscriber2.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
 
-		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
-		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriber1.getCatalogUpserted("newCatalog1"));
+		assertEquals(1, subscriber2.getCatalogUpserted("newCatalog1"));
 
 		evitaClient.deleteCatalogIfExists("newCatalog1");
 	}

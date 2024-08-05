@@ -28,7 +28,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
+ * Record represents a catalog CDC event that is sent to the subscriber if it matches to the request he made.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture}
@@ -706,7 +706,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
+   * Record represents a catalog CDC event that is sent to the subscriber if it matches to the request he made.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture}

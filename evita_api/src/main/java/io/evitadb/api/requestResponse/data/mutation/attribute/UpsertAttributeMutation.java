@@ -61,12 +61,6 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 		this.value = value;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Override
 	@Nonnull
 	public Serializable getAttributeValue() {

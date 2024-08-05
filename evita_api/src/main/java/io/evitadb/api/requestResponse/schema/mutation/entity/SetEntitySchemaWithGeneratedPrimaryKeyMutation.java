@@ -59,12 +59,6 @@ public class SetEntitySchemaWithGeneratedPrimaryKeyMutation implements Combinabl
 		this.withGeneratedPrimaryKey = withGeneratedPrimaryKey;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

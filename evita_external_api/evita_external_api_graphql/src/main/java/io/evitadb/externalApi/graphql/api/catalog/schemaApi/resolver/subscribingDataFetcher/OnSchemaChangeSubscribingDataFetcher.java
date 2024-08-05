@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
@@ -72,19 +73,26 @@ public class OnSchemaChangeSubscribingDataFetcher extends ChangeSubscribingDataF
 	protected Publisher<ChangeCatalogCapture> createPublisher(@Nonnull DataFetchingEnvironment environment) {
 		// todo lho this is not being called for some reason
 		final List<Operation> operation = environment.getArgument(OnSchemaChangeHeaderDescriptor.OPERATION.name());
-		final long sinceTransactionId = environment.getArgument(OnSchemaChangeHeaderDescriptor.SINCE_TRANSACTION_ID.name());
+		final long sinceVersion = environment.getArgument(OnSchemaChangeHeaderDescriptor.SINCE_VERSION.name());
 		final boolean needsBody = SelectionSetAggregator.containsImmediate(ChangeCatalogCaptureDescriptor.BODY.name(), environment.getSelectionSet());
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 		return evitaSession.registerChangeCatalogCapture(new ChangeCatalogCaptureRequest(
-			CaptureArea.SCHEMA,
-			new SchemaSite(
-				Optional.ofNullable(entitySchema).map(NamedSchemaContract::getName).orElse(null),
-				Optional.ofNullable(operation).map(it -> it.toArray(Operation[]::new)).orElse(null)
-			),
-			needsBody ? CaptureContent.BODY : CaptureContent.HEADER,
-			sinceTransactionId,
-			null
+			sinceVersion,
+			/* TODO JNO - add since index */
+			null,
+			new ChangeCatalogCaptureCriteria[] {
+				new ChangeCatalogCaptureCriteria(
+					CaptureArea.SCHEMA,
+					new SchemaSite(
+						Optional.ofNullable(entitySchema).map(NamedSchemaContract::getName).orElse(null),
+						Optional.ofNullable(operation).map(it -> it.toArray(Operation[]::new)).orElse(null),
+						/* TODO JNO - ADD container type */
+						null
+					)
+				)
+			},
+			needsBody ? CaptureContent.BODY : CaptureContent.HEADER
 		));
 	}
 }

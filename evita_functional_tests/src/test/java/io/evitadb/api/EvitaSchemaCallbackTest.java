@@ -81,7 +81,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	void shouldNotifyCallbackAboutCatalogCreation() {
 		evita.defineCatalog("newCatalog");
 
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog"));
+		assertEquals(1, subscriber.getCatalogUpserted("newCatalog"));
 	}
 
 	@Test

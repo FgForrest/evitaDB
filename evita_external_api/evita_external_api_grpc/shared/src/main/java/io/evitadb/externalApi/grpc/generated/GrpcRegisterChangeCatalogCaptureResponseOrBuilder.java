@@ -31,11 +31,19 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Identification of the registered capture
+   * </pre>
+   *
    * <code>string uuid = 1;</code>
    * @return The uuid.
    */
   java.lang.String getUuid();
   /**
+   * <pre>
+   * Identification of the registered capture
+   * </pre>
+   *
    * <code>string uuid = 1;</code>
    * @return The bytes for uuid.
    */
@@ -43,42 +51,64 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
       getUuidBytes();
 
   /**
+   * <pre>
+   * The list of mutations (CDC events) that match the criteria
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture>
       getCaptureList();
   /**
+   * <pre>
+   * The list of mutations (CDC events) that match the criteria
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture getCapture(int index);
   /**
+   * <pre>
+   * The list of mutations (CDC events) that match the criteria
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   int getCaptureCount();
   /**
+   * <pre>
+   * The list of mutations (CDC events) that match the criteria
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
       getCaptureOrBuilderList();
   /**
+   * <pre>
+   * The list of mutations (CDC events) that match the criteria
+   * </pre>
+   *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder getCaptureOrBuilder(
       int index);
 
   /**
-   * <code>int64 transactionalId = 3;</code>
-   * @return The transactionalId.
-   */
-  long getTransactionalId();
-
-  /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 4;</code>
+   * <pre>
+   * ??? TODO JNO - document me
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
    * @return The enum numeric value on the wire for responseType.
    */
   int getResponseTypeValue();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 4;</code>
+   * <pre>
+   * ??? TODO JNO - document me
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
    * @return The responseType.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType getResponseType();

@@ -53,12 +53,6 @@ public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey
 
 	@Nonnull
 	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
-	@Nonnull
-	@Override
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),

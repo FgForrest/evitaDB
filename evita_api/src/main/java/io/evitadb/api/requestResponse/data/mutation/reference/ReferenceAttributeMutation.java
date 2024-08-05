@@ -42,7 +42,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
-import io.evitadb.dataType.ClassifierType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -89,18 +88,6 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 
 	public ReferenceAttributeMutation(@Nonnull String referenceName, int primaryKey, @Nonnull AttributeMutation attributeMutation) {
 		this(new ReferenceKey(referenceName, primaryKey), attributeMutation);
-	}
-
-	@Nonnull
-	@Override
-	public ClassifierType getClassifierType() {
-		return ClassifierType.REFERENCE_ATTRIBUTE;
-	}
-
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
 	}
 
 	@Nonnull

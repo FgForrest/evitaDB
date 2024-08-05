@@ -307,7 +307,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		final GraphQLFieldDefinition onCatalogSchemaChangeField = CatalogSchemaApiRootDescriptor.ON_CATALOG_SCHEMA_CHANGE
 			.to(staticEndpointBuilderTransformer)
 			.argument(OnSchemaChangeHeaderDescriptor.OPERATION.to(argumentBuilderTransformer))
-			.argument(OnSchemaChangeHeaderDescriptor.SINCE_TRANSACTION_ID.to(argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.SINCE_VERSION.to(argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(

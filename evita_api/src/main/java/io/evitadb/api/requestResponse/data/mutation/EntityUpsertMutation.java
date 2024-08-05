@@ -27,7 +27,6 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
@@ -115,12 +114,6 @@ public class EntityUpsertMutation implements EntityMutation {
 		this.entityType = entityType;
 		this.entityExistence = entityExistence;
 		this.localMutations = Arrays.asList(localMutations);
-	}
-
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
 	}
 
 	@Nullable

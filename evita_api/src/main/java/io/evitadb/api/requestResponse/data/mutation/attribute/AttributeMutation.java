@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;

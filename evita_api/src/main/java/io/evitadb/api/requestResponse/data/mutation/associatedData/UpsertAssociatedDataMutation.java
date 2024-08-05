@@ -63,12 +63,6 @@ public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMu
 		this.value = value;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Override
 	public long getPriority() {
 		return PRIORITY_UPSERT;

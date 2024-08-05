@@ -86,12 +86,6 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 		this.referencedEntityType = referencedEntityType;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.CREATE;
-	}
-
 	@Override
 	public void verifyOrEvolveSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaBuilder entitySchemaBuilder) throws InvalidMutationException {
 		final Optional<ReferenceSchemaContract> existingSchema = entitySchemaBuilder.getReference(referenceKey.referenceName());

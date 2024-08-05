@@ -99,12 +99,6 @@ public class CreateAssociatedDataSchemaMutation
 		this.nullable = nullable;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.CREATE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

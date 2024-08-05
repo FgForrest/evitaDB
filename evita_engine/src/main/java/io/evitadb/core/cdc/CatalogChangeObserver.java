@@ -26,6 +26,7 @@ package io.evitadb.core.cdc;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureSite;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.cdc.Operation;
@@ -33,7 +34,7 @@ import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Catalog;
-import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.ContainerType;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.UUIDUtil;
@@ -52,6 +53,7 @@ import java.util.function.Consumer;
 
 /**
  * TODO JNO - document me
+ * TODO JNO - toto je na přepis
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -70,12 +72,14 @@ public class CatalogChangeObserver {
 		final UUID uuid = UUIDUtil.randomUUID();
 		final RequestWithObserver requestWithObserver = new RequestWithObserver(uuid, request/*, callback*/);
 		catalogObservers.put(uuid, requestWithObserver);
-		final CaptureArea[] areas = request.area() == null ?
-			CaptureArea.values() : new CaptureArea[]{request.area()};
+		/* TODO JNO - tohle je špatně */
+		final ChangeCatalogCaptureCriteria criteria = request.criteria()[0];
+		final CaptureArea[] areas = criteria.area() == null ?
+			CaptureArea.values() : new CaptureArea[]{criteria.area()};
 		for (CaptureArea area : areas) {
 			switch (area) {
-				case SCHEMA -> schemaObservers.registerObserver(catalog, request, requestWithObserver);
-				case DATA -> dataObservers.registerObserver(catalog, request, requestWithObserver);
+				case SCHEMA -> schemaObservers.registerObserver(catalog, criteria, requestWithObserver);
+				case DATA -> dataObservers.registerObserver(catalog, criteria, requestWithObserver);
 			}
 		}
 		return uuid;
@@ -125,18 +129,18 @@ public class CatalogChangeObserver {
 
 		public void registerObserver(
 			@Nonnull Catalog catalog,
-			@Nonnull ChangeCatalogCaptureRequest request,
+			@Nonnull ChangeCatalogCaptureCriteria criteria,
 			@Nonnull RequestWithObserver requestWithObserver
 		) {
-			final CaptureSite site = request.site() == null ? SchemaSite.ALL : request.site();
+			final CaptureSite site = criteria.site() == null ? SchemaSite.ALL : criteria.site();
 			if (site instanceof SchemaSite schemaSite) {
 				final Operation[] operations = ArrayUtils.isEmpty(schemaSite.operation()) ?
 					Operation.values() : schemaSite.operation();
 
 				for (Operation operation : operations) {
 					switch (operation) {
-						case CREATE -> createObservers.registerObserver(catalog, schemaSite, requestWithObserver);
-						case UPDATE -> updateObservers.registerObserver(catalog, schemaSite, requestWithObserver);
+						case UPSERT -> createObservers.registerObserver(catalog, schemaSite, requestWithObserver);
+						// case UPSERT -> updateObservers.registerObserver(catalog, schemaSite, requestWithObserver);
 						case REMOVE -> removeObservers.registerObserver(catalog, schemaSite, requestWithObserver);
 					}
 				}
@@ -155,10 +159,10 @@ public class CatalogChangeObserver {
 			@Nonnull CatalogChangeCaptureBlock captureBlock
 		) {
 			switch (operation) {
-				case CREATE ->
+				case UPSERT ->
 					createObservers.notifyObservers(catalog, operation, entityType, entityTypePk, version, mutation, captureBlock);
-				case UPDATE ->
-					updateObservers.notifyObservers(catalog, operation, entityType, entityTypePk, version, mutation, captureBlock);
+				/*case UPDATE ->
+					updateObservers.notifyObservers(catalog, operation, entityType, entityTypePk, version, mutation, captureBlock);*/
 				case REMOVE ->
 					removeObservers.notifyObservers(catalog, operation, entityType, entityTypePk, version, mutation, captureBlock);
 			}
@@ -202,13 +206,13 @@ public class CatalogChangeObserver {
 					case HEADER -> {
 						captureHeader = captureHeader == null ?
 							// todo jno implement counter
-							new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, version, operation, null) : captureHeader;
+							new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, operation, null) : captureHeader;
 						captureBlock.notify(observer.uuid(), captureHeader);
 					}
 					case BODY -> {
 						captureBody = captureBody == null ?
 							// todo jno implement counter
-							new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, version, operation, mutation) : captureBody;
+							new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, operation, mutation) : captureBody;
 						captureBlock.notify(observer.uuid(), captureBody);
 					}
 				}
@@ -222,13 +226,13 @@ public class CatalogChangeObserver {
 							case HEADER -> {
 								captureHeader = captureHeader == null ?
 									// todo jno implement counter
-									new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, version, operation, null) : captureHeader;
+									new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, operation, null) : captureHeader;
 								captureBlock.notify(observer.uuid(), captureHeader);
 							}
 							case BODY -> {
 								captureBody = captureBody == null ?
 									// todo jno implement counter
-									new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, version, operation, mutation) : captureBody;
+									new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, operation, mutation) : captureBody;
 								captureBlock.notify(observer.uuid(), captureBody);
 							}
 						}
@@ -245,18 +249,18 @@ public class CatalogChangeObserver {
 
 		public void registerObserver(
 			@Nonnull Catalog catalog,
-			@Nonnull ChangeCatalogCaptureRequest request,
+			@Nonnull ChangeCatalogCaptureCriteria criteria,
 			@Nonnull RequestWithObserver requestWithObserver
 		) {
-			final CaptureSite site = request.site() == null ? DataSite.ALL : request.site();
+			final CaptureSite site = criteria.site() == null ? DataSite.ALL : criteria.site();
 			if (site instanceof DataSite dataSite) {
 				final Operation[] operations = ArrayUtils.isEmpty(dataSite.operation()) ?
 					Operation.values() : dataSite.operation();
 
 				for (Operation operation : operations) {
 					switch (operation) {
-						case CREATE -> createObservers.registerObserver(catalog, dataSite, requestWithObserver);
-						case UPDATE -> updateObservers.registerObserver(catalog, dataSite, requestWithObserver);
+						case UPSERT -> createObservers.registerObserver(catalog, dataSite, requestWithObserver);
+						/*case UPDATE -> updateObservers.registerObserver(catalog, dataSite, requestWithObserver);*/
 						case REMOVE -> removeObservers.registerObserver(catalog, dataSite, requestWithObserver);
 					}
 				}
@@ -276,10 +280,10 @@ public class CatalogChangeObserver {
 			@Nonnull CatalogChangeCaptureBlock captureBlock
 		) {
 			switch (operation) {
-				case CREATE ->
+				case UPSERT ->
 					createObservers.notifyObservers(catalog, operation, entityType, entityTypePk, entityPk, version, mutation, captureBlock);
-				case UPDATE ->
-					updateObservers.notifyObservers(catalog, operation, entityType, entityTypePk, entityPk, version, mutation, captureBlock);
+				/*case UPDATE ->
+					updateObservers.notifyObservers(catalog, operation, entityType, entityTypePk, entityPk, version, mutation, captureBlock);*/
 				case REMOVE ->
 					removeObservers.notifyObservers(catalog, operation, entityType, entityTypePk, entityPk, version, mutation, captureBlock);
 			}
@@ -359,21 +363,22 @@ public class CatalogChangeObserver {
 		private final List<RequestWithObserver> referenceAttributeObservers = new CopyOnWriteArrayList<>();
 
 		public void registerObserver(@Nonnull DataSite site, @Nonnull RequestWithObserver requestWithObserver) {
-			final ClassifierType[] classifierTypes = ArrayUtils.isEmpty(site.classifierType()) ?
-				ClassifierType.values() : site.classifierType();
-			for (ClassifierType classifierType : classifierTypes) {
+			final ContainerType[] classifierTypes = ArrayUtils.isEmpty(site.containerType()) ?
+				ContainerType.values() : site.containerType();
+			for (ContainerType classifierType : classifierTypes) {
 				switch (classifierType) {
 					case ENTITY -> entityObservers.add(requestWithObserver);
 					case ATTRIBUTE -> attributeObservers.add(requestWithObserver);
 					case ASSOCIATED_DATA -> associatedDataObservers.add(requestWithObserver);
 					case REFERENCE -> referenceObservers.add(requestWithObserver);
-					case REFERENCE_ATTRIBUTE -> referenceAttributeObservers.add(requestWithObserver);
+					/* TODO JNO - tohle je blbě */
+					case PRICE -> referenceAttributeObservers.add(requestWithObserver);
 				}
 			}
 		}
 
 		public void notifyObservers(String catalog, Operation operation, String entityType, Integer version, Mutation mutation, CatalogChangeCaptureBlock captureBlock) {
-			final ClassifierType classifierType = mutation instanceof LocalMutation<?, ?> localMutation ? localMutation.getClassifierType() : ClassifierType.ENTITY;
+			final ContainerType containerType = mutation instanceof LocalMutation<?, ?> localMutation ? localMutation.containerType() : ContainerType.ENTITY;
 			final AtomicReference<ChangeCatalogCapture> captureHeader = new AtomicReference<>();
 			final AtomicReference<ChangeCatalogCapture> captureBody = new AtomicReference<>();
 
@@ -386,7 +391,7 @@ public class CatalogChangeObserver {
 							captureHeader.updateAndGet(
 								cdc -> cdc == null ?
 									// todo jno implement counter
-									new ChangeCatalogCapture(0, 0, CaptureArea.DATA, entityType, version, operation, null) :
+									new ChangeCatalogCapture(0, 0, CaptureArea.DATA, entityType, operation, null) :
 									cdc
 							)
 						);
@@ -397,7 +402,7 @@ public class CatalogChangeObserver {
 							captureBody.updateAndGet(
 								cdc -> cdc == null ?
 									// todo jno implement counter
-									new ChangeCatalogCapture(0, 0, CaptureArea.DATA, entityType, version, operation, mutation) :
+									new ChangeCatalogCapture(0, 0, CaptureArea.DATA, entityType, operation, mutation) :
 									cdc
 							)
 						);
@@ -409,12 +414,13 @@ public class CatalogChangeObserver {
 			genericObservers.forEach(notify);
 
 			// notify observers for specific classifier type
-			switch (classifierType) {
+			switch (containerType) {
 				case ENTITY -> entityObservers.forEach(notify);
 				case ATTRIBUTE -> attributeObservers.forEach(notify);
 				case ASSOCIATED_DATA -> associatedDataObservers.forEach(notify);
 				case REFERENCE -> referenceObservers.forEach(notify);
-				case REFERENCE_ATTRIBUTE -> referenceAttributeObservers.forEach(notify);
+				/* TODO JNO - tohle je blbě*/
+				case PRICE -> referenceAttributeObservers.forEach(notify);
 			}
 		}
 	}

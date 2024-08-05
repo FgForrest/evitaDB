@@ -54,12 +54,6 @@ abstract class AbstractModifyAssociatedDataSchemaMutation implements LocalEntity
 	@Serial private static final long serialVersionUID = -4384492921045013953L;
 	@Getter @Nonnull protected final String name;
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	/**
 	 * Replaces existing associated data schema with updated one but only when those schemas differ. Otherwise,
 	 * the non-changed, original entity schema is returned.

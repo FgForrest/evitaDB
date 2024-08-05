@@ -69,12 +69,6 @@ public class ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation
 		this.deprecationNotice = deprecationNotice;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public SortableAttributeCompoundSchemaContract mutate(

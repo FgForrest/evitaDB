@@ -157,17 +157,7 @@ public final class GrpcEnums {
       "NDEX_PROPAGATION\020\002*m\n\024GrpcNamingConventi" +
       "on\022\016\n\nCAMEL_CASE\020\000\022\017\n\013PASCAL_CASE\020\001\022\016\n\nS" +
       "NAKE_CASE\020\002\022\024\n\020UPPER_SNAKE_CASE\020\003\022\016\n\nKEB" +
-      "AB_CASE\020\004*_\n\rGrpcOperation\022\n\n\006CREATE\020\000\022\n" +
-      "\n\006UPDATE\020\001\022\n\n\006REMOVE\020\002\022\025\n\021TRANSACTION_BE" +
-      "GIN\020\003\022\023\n\017TRANSACTION_END\020\004*\'\n\017GrpcCaptur" +
-      "eArea\022\n\n\006SCHEMA\020\000\022\010\n\004DATA\020\001*\212\001\n\022GrpcClas" +
-      "sifierType\022\017\n\013SERVER_NAME\020\000\022\013\n\007CATALOG\020\001" +
-      "\022\n\n\006ENTITY\020\002\022\r\n\tATTRIBUTE\020\003\022\023\n\017ASSOCIATE" +
-      "D_DATA\020\004\022\r\n\tREFERENCE\020\005\022\027\n\023REFERENCE_ATT" +
-      "RIBUTE\020\006**\n\022GrpcCaptureContent\022\n\n\006HEADER" +
-      "\020\000\022\010\n\004BODY\020\001*:\n\027GrpcCaptureResponseType\022" +
-      "\023\n\017ACKNOWLEDGEMENT\020\000\022\n\n\006CHANGE\020\001B\014P\001\252\002\007E" +
-      "vitaDBb\006proto3"
+      "AB_CASE\020\004B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

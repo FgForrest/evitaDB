@@ -65,12 +65,6 @@ public class AllowLocaleInEntitySchemaMutation implements CombinableLocalEntityS
 		this.locales = locales;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

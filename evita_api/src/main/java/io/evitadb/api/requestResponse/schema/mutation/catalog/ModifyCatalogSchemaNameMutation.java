@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
-import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
@@ -63,12 +62,6 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 	@Getter @Nonnull private final String catalogName;
 	@Getter @Nonnull private final String newCatalogName;
 	@Getter private final boolean overwriteTarget;
-
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
 
 	@Nullable
 	@Override

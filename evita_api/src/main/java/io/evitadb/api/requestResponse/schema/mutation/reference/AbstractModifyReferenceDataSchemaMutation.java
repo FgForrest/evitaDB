@@ -53,12 +53,6 @@ abstract class AbstractModifyReferenceDataSchemaMutation implements ReferenceSch
 	@Serial private static final long serialVersionUID = 3160594356938000407L;
 	@Getter @Nonnull protected final String name;
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	/**
 	 * Replaces existing reference schema with updated one but only when those schemas differ. Otherwise,
 	 * the non-changed, original entity schema is returned.

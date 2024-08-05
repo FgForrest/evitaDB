@@ -70,12 +70,6 @@ public class DisallowCurrencyInEntitySchemaMutation implements CombinableLocalEn
 		this.currencies = new HashSet<>(currencies);
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

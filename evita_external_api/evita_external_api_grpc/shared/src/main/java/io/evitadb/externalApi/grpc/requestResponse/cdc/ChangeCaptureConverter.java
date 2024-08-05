@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
@@ -37,6 +38,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest;
 import io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest;
@@ -45,10 +47,12 @@ import io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite;
 import io.evitadb.externalApi.grpc.generated.GrpcCaptureSchemaSite;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder;
+import io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEntitySchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -174,6 +178,45 @@ public class ChangeCaptureConverter {
 			builder.setLocalMutation(DelegatingLocalMutationConverter.INSTANCE.convert(localMutation));
 		} else if (changeCatalogCapture.body() instanceof EntitySchemaMutation schemaMutation) {
 			builder.setSchemaMutation(DelegatingEntitySchemaMutationConverter.INSTANCE.convert(schemaMutation));
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Converts a {@link GrpcChangeSystemCapture} to a {@link ChangeSystemCapture}.
+	 *
+	 * @param changeSystemCapture the capture to convert
+	 * @return the converted request
+	 */
+	@Nonnull
+	public static ChangeSystemCapture toChangeSystemCapture(@Nonnull GrpcChangeSystemCapture changeSystemCapture) {
+		return new ChangeSystemCapture(
+			changeSystemCapture.getVersion(),
+			changeSystemCapture.getIndex(),
+			changeSystemCapture.hasCatalog() ? changeSystemCapture.getCatalog().getValue() : null,
+			EvitaEnumConverter.toOperation(changeSystemCapture.getOperation()),
+			DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE.convert(changeSystemCapture.getSystemMutation())
+		);
+	}
+
+	/**
+	 * Converts a {@link ChangeSystemCapture} to a {@link GrpcChangeSystemCapture}.
+	 * @param capture the capture to convert
+	 * @return the converted request
+	 */
+	@Nonnull
+	public static GrpcChangeSystemCapture toGrpcChangeSystemCapture(@Nonnull ChangeSystemCapture capture) {
+		final GrpcChangeSystemCapture.Builder builder = GrpcChangeSystemCapture.newBuilder()
+			.setVersion(capture.version())
+			.setIndex(capture.index())
+			.setOperation(EvitaEnumConverter.toGrpcOperation(capture.operation()));
+		if (capture.catalog() != null) {
+			builder.setCatalog(StringValue.of(capture.catalog()));
+		}
+		if (capture.body() instanceof TopLevelCatalogSchemaMutation topLevelCatalogSchemaMutation) {
+			builder.setSystemMutation(
+				DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE.convert(topLevelCatalogSchemaMutation)
+			);
 		}
 		return builder.build();
 	}

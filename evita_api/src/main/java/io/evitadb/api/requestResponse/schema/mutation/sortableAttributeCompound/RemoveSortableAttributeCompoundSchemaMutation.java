@@ -72,12 +72,6 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 		this.name = name;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.REMOVE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

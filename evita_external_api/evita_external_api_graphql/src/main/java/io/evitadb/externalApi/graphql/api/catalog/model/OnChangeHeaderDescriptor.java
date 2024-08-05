@@ -44,7 +44,7 @@ public interface OnChangeHeaderDescriptor {
 			""")
 		.type(nullable(Operation[].class))
 		.build();
-	PropertyDescriptor SINCE_TRANSACTION_ID = PropertyDescriptor.builder()
+	PropertyDescriptor SINCE_VERSION = PropertyDescriptor.builder()
 		.name("sinceVersion")
 		.description("""
 			Specifies the initial capture point for the CDC stream, it must always provide a last

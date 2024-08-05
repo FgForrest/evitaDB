@@ -63,18 +63,6 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 
 	@Nonnull
 	@Override
-	public ClassifierType getClassifierType() {
-		return ClassifierType.ENTITY;
-	}
-
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
-	@Nonnull
-	@Override
 	public PricesContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable PricesContract existingValue) {
 		if (existingValue == null) {
 			return new Prices(entitySchema, priceInnerRecordHandling);

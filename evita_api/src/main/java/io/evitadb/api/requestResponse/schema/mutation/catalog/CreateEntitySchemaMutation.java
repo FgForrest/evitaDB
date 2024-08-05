@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
-import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -69,12 +68,6 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 		this.entityType = entityType;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.CREATE;
-	}
-
 	@Nullable
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
@@ -99,7 +92,7 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 		if (predicate.test(this)) {
 			final MutationPredicateContext context = predicate.getContext();
 			context.advance();
-			context.setEntityType(name);
+			context.setEntityType(this.entityType);
 
 			return Stream.of(
 				ChangeCatalogCapture.schemaCapture(

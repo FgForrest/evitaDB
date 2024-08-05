@@ -67,12 +67,6 @@ public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalo
 		this.evolutionModes.addAll(Arrays.asList(evolutionModes));
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {

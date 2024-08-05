@@ -64,12 +64,6 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Serial private static final long serialVersionUID = -7746714314557968775L;
 	@Getter @Nonnull private final String name;
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.REMOVE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

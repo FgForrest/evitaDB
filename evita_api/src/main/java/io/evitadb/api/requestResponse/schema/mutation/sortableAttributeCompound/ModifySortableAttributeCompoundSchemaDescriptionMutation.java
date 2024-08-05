@@ -70,12 +70,6 @@ public class ModifySortableAttributeCompoundSchemaDescriptionMutation
 		this.description = description;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public SortableAttributeCompoundSchemaContract mutate(

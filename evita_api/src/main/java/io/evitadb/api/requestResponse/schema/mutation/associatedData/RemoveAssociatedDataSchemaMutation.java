@@ -65,12 +65,6 @@ public class RemoveAssociatedDataSchemaMutation
 	@Serial private static final long serialVersionUID = 5455262123304001612L;
 	@Getter @Nonnull private final String name;
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.REMOVE;
-	}
-
 	@Nullable
 	@Override
 	public AssociatedDataSchemaContract mutate(@Nullable AssociatedDataSchemaContract associatedDataSchema) {

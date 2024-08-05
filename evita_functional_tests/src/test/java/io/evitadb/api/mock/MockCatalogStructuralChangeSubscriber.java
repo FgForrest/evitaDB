@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -45,8 +45,7 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 	private final int initialRequestCount;
 	private Subscription subscription;
 
-	private final Map<String, Integer> catalogCreated = new HashMap<>();
-	private final Map<String, Integer> catalogUpdated = new HashMap<>();
+	private final Map<String, Integer> catalogUpserted = new HashMap<>();
 	private final Map<String, Integer> catalogDeleted = new HashMap<>();
 	private final Map<String, Integer> catalogSchemaUpdated = new HashMap<>();
 	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionCreated = new HashMap<>();
@@ -69,8 +68,7 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 	}
 
 	public void reset() {
-		catalogCreated.clear();
-		catalogUpdated.clear();
+		catalogUpserted.clear();
 		catalogDeleted.clear();
 		catalogSchemaUpdated.clear();
 		entityCollectionCreated.clear();
@@ -79,8 +77,8 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 		entityCollectionUpdated.clear();
 	}
 
-	public int getCatalogCreated(@Nonnull String catalogName) {
-		return catalogCreated.getOrDefault(catalogName, 0);
+	public int getCatalogUpserted(@Nonnull String catalogName) {
+		return catalogUpserted.getOrDefault(catalogName, 0);
 	}
 
 	public int getCatalogDeleted(@Nonnull String catalogName) {
@@ -118,9 +116,7 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 	@Override
 	public void onNext(ChangeSystemCapture item) {
 		switch (item.operation()) {
-			case CREATE -> catalogCreated
-				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
-			case UPDATE -> catalogUpdated
+			case UPSERT -> catalogUpserted
 				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 			case REMOVE -> catalogDeleted
 				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);

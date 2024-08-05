@@ -72,12 +72,6 @@ public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableLo
 		this.evolutionModes.addAll(Arrays.asList(evolutionModes));
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

@@ -71,12 +71,6 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEnti
 		this.locales.addAll(Arrays.asList(locales));
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(

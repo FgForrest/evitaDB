@@ -788,7 +788,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		final GraphQLFieldDefinition onEntitySchemaChangeField = CatalogSchemaApiRootDescriptor.ON_ENTITY_SCHEMA_CHANGE
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 			.argument(OnSchemaChangeHeaderDescriptor.OPERATION.to(argumentBuilderTransformer))
-			.argument(OnSchemaChangeHeaderDescriptor.SINCE_TRANSACTION_ID.to(argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.SINCE_VERSION.to(argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(

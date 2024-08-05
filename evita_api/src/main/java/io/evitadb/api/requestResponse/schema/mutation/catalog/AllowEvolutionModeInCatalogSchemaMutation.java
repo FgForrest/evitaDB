@@ -61,12 +61,6 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 		this.evolutionModes = evolutionModes;
 	}
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {

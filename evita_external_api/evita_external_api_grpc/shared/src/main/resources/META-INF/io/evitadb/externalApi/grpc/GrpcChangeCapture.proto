@@ -8,6 +8,7 @@ import "google/protobuf/wrappers.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcLocalMutation.proto";
 import "GrpcEntitySchemaMutation.proto";
+import "GrpcCatalogSchemaMutation.proto";
 
 // Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
 // properties.
@@ -47,7 +48,7 @@ message GrpcCaptureDataSite {
   repeated string containerName = 5;
 }
 
-// Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
+// Record represents a catalog CDC event that is sent to the subscriber if it matches to the request he made.
 message GrpcChangeCatalogCapture {
   // the version of the catalog where the operation was performed
   int64 version = 1;
@@ -66,6 +67,20 @@ message GrpcChangeCatalogCapture {
     GrpcEntityMutation entityMutation = 7;
     GrpcLocalMutation localMutation = 8;
   }
+}
+
+// Record represents a system CDC event that is sent to the subscriber if it matches to the request he made.
+message GrpcChangeSystemCapture {
+  // the version of the catalog where the operation was performed
+  int64 version = 1;
+  // the index of the event within the enclosed transaction, index 0 is the transaction lead event
+  int32 index = 2;
+  // the name of the catalog involved in the operation
+  google.protobuf.StringValue catalog = 3;
+  // the operation that was performed
+  GrpcCaptureOperation operation = 5;
+  // optional body of the operation when it is requested by the GrpcContent
+  GrpcTopLevelCatalogSchemaMutation systemMutation = 6;
 }
 
 // The enum defines what catalog area is covered by the capture.
@@ -112,4 +127,10 @@ enum GrpcCaptureContent {
   // update), the size of the event can be significant. Consider whether you need the entire mutation or just the
   // header.
   BODY = 1;
+}
+
+/* TODO JNO - document me */
+enum GrpcCaptureResponseType {
+  ACKNOWLEDGEMENT = 0;
+  CHANGE = 1;
 }

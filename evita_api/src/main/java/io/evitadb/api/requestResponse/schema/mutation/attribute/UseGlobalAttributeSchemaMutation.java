@@ -59,12 +59,6 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 	@Serial private static final long serialVersionUID = 1555098941604228716L;
 	@Nonnull @Getter private final String name;
 
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
-	}
-
 	@Nullable
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {

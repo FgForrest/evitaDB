@@ -28,15 +28,17 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
-import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.ContainerType;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.OnDataChangeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.model.OnChangeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.subscribingDataFetcher.ChangeSubscribingDataFetcher;
 
@@ -67,23 +69,29 @@ public class OnDataChangeSubscribingDataFetcher extends ChangeSubscribingDataFet
 	@Override
 	protected Publisher<ChangeCatalogCapture> createPublisher(@Nonnull DataFetchingEnvironment environment) {
 		final Integer entityPrimaryKey = environment.getArgument(OnDataChangeHeaderDescriptor.ENTITY_PRIMARY_KEY.name());
-		final List<ClassifierType> classifierType = environment.getArgument(OnDataChangeHeaderDescriptor.CLASSIFIER_TYPE.name());
-		final List<Operation> operation = environment.getArgument(OnDataChangeHeaderDescriptor.OPERATION.name());
-		final long sinceTransactionId = environment.getArgument(OnDataChangeHeaderDescriptor.SINCE_TRANSACTION_ID.name());
+		final List<ContainerType> containerType = environment.getArgument(OnDataChangeHeaderDescriptor.CONTAINER_TYPE.name());
+		final List<Operation> operation = environment.getArgument(OnChangeHeaderDescriptor.OPERATION.name());
+		final long sinceVersion = environment.getArgument(OnChangeHeaderDescriptor.SINCE_VERSION.name());
 		final boolean needsBody = SelectionSetAggregator.containsImmediate(ChangeCatalogCaptureDescriptor.BODY.name(), environment.getSelectionSet());
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 		return evitaSession.registerChangeCatalogCapture(new ChangeCatalogCaptureRequest(
-			CaptureArea.DATA,
-			new DataSite(
-				entitySchema.getName(),
-				entityPrimaryKey,
-				Optional.ofNullable(classifierType).map(it -> it.toArray(ClassifierType[]::new)).orElse(null),
-				Optional.ofNullable(operation).map(it -> it.toArray(Operation[]::new)).orElse(null)
-			),
-			needsBody ? CaptureContent.BODY : CaptureContent.HEADER,
-			sinceTransactionId,
-			null
+			sinceVersion,
+			/* TODO JNO - ADD SINCE INDEX */
+			null,
+			new ChangeCatalogCaptureCriteria[]{
+				new ChangeCatalogCaptureCriteria(
+					CaptureArea.DATA,
+					new DataSite(
+						entitySchema.getName(),
+						entityPrimaryKey,
+						Optional.ofNullable(operation).map(it -> it.toArray(Operation[]::new)).orElse(null),
+						Optional.ofNullable(containerType).map(it -> it.toArray(ContainerType[]::new)).orElse(null),
+						/* TODO JNO- ADD CONTAINER NAME */null
+					)
+				)
+			},
+			needsBody ? CaptureContent.BODY : CaptureContent.HEADER
 		));
 	}
 }
