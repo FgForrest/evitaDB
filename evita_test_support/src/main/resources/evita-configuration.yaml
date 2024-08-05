@@ -52,7 +52,6 @@ cache:
 api:
   exposedOn: ${api.exposedOn:null}
   workerGroupThreads: ${api.workerGroupThreads:null}
-  serviceWorkerGroupThreads: ${api.serviceWorkerGroupThreads:null}
   idleTimeoutInMillis: ${api.idleTimeoutInMillis:2K}
   requestTimeoutInMillis: ${api.requestTimeoutInMillis:2K}
   keepAlive: ${api.keepAlive:true}
