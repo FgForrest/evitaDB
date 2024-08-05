@@ -56,7 +56,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -130,7 +129,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private Set<Locale> removedLocales;
 
 	public ContainerizedLocalMutationExecutor(
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer,
 		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EntityExistence requiresExisting,
@@ -416,55 +415,6 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			// SHOULD NOT EVER HAPPEN
 			throw new GenericEvitaInternalError("Unknown mutation: " + attributeMutation.getClass());
 		}
-	}
-
-	/**
-	 * Applies entity consistency checks and returns list of mutations that needs to be also applied in order
-	 * maintain entity consistent (i.e. init default values).
-	 */
-	@Nonnull
-	private List<LocalMutation<?, ?>> verifyConsistency() {
-		final EntityBodyStoragePart entityStorageContainer = this.getEntityStorageContainer();
-		final List<LocalMutation<?, ?>> requestedChanges;
-		if (entityStorageContainer.isNew() && !entityStorageContainer.isValidated() && !entityContainer.isMarkedForRemoval()) {
-			// we need to check entire entity
-			final List<Object> missingMandatedAttributes = new LinkedList<>();
-			requestedChanges = verifyMandatoryAttributes(entityStorageContainer, missingMandatedAttributes, true, true);
-			requestedChanges.addAll(verifyReferenceMandatoryAttributes(entityContainer, referencesStorageContainer, missingMandatedAttributes));
-
-			if (!missingMandatedAttributes.isEmpty()) {
-				throw new MandatoryAttributesNotProvidedException(schemaAccessor.get().getName(), missingMandatedAttributes);
-			}
-
-			verifyMandatoryAssociatedData(entityStorageContainer);
-			verifyReferenceCardinalities(referencesStorageContainer);
-			entityStorageContainer.setValidated(true);
-		} else if (entityStorageContainer.isMarkedForRemoval()) {
-			requestedChanges = Collections.emptyList();
-		} else {
-			final List<Object> missingMandatedAttributes = new LinkedList<>();
-			// we need to check only changed parts
-			requestedChanges = verifyMandatoryAttributes(
-				entityStorageContainer,
-				missingMandatedAttributes,
-				ofNullable(this.globalAttributesStorageContainer).map(AttributesStoragePart::isDirty).orElse(false),
-				ofNullable(this.languageSpecificAttributesContainer).map(it -> it.values().stream().anyMatch(AttributesStoragePart::isDirty)).orElse(false)
-			);
-			if (referencesStorageContainer != null && referencesStorageContainer.isDirty()) {
-				requestedChanges.addAll(verifyReferenceMandatoryAttributes(entityContainer, referencesStorageContainer, missingMandatedAttributes));
-			}
-
-			if (!missingMandatedAttributes.isEmpty()) {
-				throw new MandatoryAttributesNotProvidedException(schemaAccessor.get().getName(), missingMandatedAttributes);
-			}
-
-			verifyRemovedMandatoryAssociatedData();
-
-			ofNullable(this.referencesStorageContainer)
-				.filter(ReferencesStoragePart::isDirty)
-				.ifPresent(this::verifyReferenceCardinalities);
-		}
-		return requestedChanges;
 	}
 
 	/**

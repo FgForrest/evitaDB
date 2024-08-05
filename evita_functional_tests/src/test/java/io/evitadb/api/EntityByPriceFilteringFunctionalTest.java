@@ -72,7 +72,6 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
-import static io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -198,19 +197,6 @@ public class EntityByPriceFilteringFunctionalTest {
 	}
 
 	/**
-	 * Verifies that result contains only prices in specified price lists.
-	 */
-	protected void assertResultContainOnlyPricesFrom(@Nonnull List<SealedEntity> recordData, @Nonnull Currency currency, @Nonnull String... priceLists) {
-		final Set<String> allowedPriceLists = Arrays.stream(priceLists).collect(Collectors.toSet());
-		for (SealedEntity entity : recordData) {
-			assertTrue(
-				entity.getPrices().stream()
-					.allMatch(price -> allowedPriceLists.contains(price.priceList()) && currency.equals(price.currency()))
-			);
-		}
-	}
-
-	/**
 	 * Verifies that result contains at least one product with non-sellable price from passed price list.
 	 */
 	protected static void assertResultContainProductWithNonSellablePriceFrom(@Nonnull List<SealedEntity> recordData, @Nonnull String... priceLists) {
@@ -247,6 +233,19 @@ public class EntityByPriceFilteringFunctionalTest {
 	 */
 	private static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull OffsetDateTime atTheMoment) {
 		return entity.getPrices(currency).stream().filter(PriceContract::sellable).anyMatch(it -> it.validity() == null || it.validity().isValidFor(atTheMoment));
+	}
+
+	/**
+	 * Verifies that result contains only prices in specified price lists.
+	 */
+	protected void assertResultContainOnlyPricesFrom(@Nonnull List<SealedEntity> recordData, @Nonnull Currency currency, @Nonnull String... priceLists) {
+		final Set<String> allowedPriceLists = Arrays.stream(priceLists).collect(Collectors.toSet());
+		for (SealedEntity entity : recordData) {
+			assertTrue(
+				entity.getPrices().stream()
+					.allMatch(price -> allowedPriceLists.contains(price.priceList()) && currency.equals(price.currency()))
+			);
+		}
 	}
 
 	/**
@@ -1516,30 +1515,27 @@ public class EntityByPriceFilteringFunctionalTest {
 						.limit(3)
 				).collect(Collectors.toList());
 
-				final EvitaResponse<SealedEntity> result = doWithCustomPrefetchCostEstimator(
-					() -> session.query(
-						query(
-							collection(Entities.PRODUCT),
-							filterBy(
-								and(
-									entityPrimaryKeyInSet(filteredProducts.stream().map(SealedEntity::getPrimaryKey).toArray(Integer[]::new)),
-									priceInCurrency(CURRENCY_EUR),
-									priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC),
-									userFilter(
-										priceBetween(from, to)
-									)
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(filteredProducts.stream().map(SealedEntity::getPrimaryKey).toArray(Integer[]::new)),
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC),
+								userFilter(
+									priceBetween(from, to)
 								)
-							),
-							require(
-								page(1, Integer.MAX_VALUE),
-								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-								entityFetch(),
-								priceHistogram(20)
 							)
 						),
-						SealedEntity.class
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_PREFETCHING),
+							entityFetch(),
+							priceHistogram(20)
+						)
 					),
-					(t, u) -> -1L
+					SealedEntity.class
 				);
 
 				// verify our test works
@@ -1642,7 +1638,7 @@ public class EntityByPriceFilteringFunctionalTest {
 						SealedEntity.class
 					);
 
-					lastPage = ((PaginatedList<SealedEntity>)result.getRecordPage()).getLastPageNumber();
+					lastPage = ((PaginatedList<SealedEntity>) result.getRecordPage()).getLastPageNumber();
 
 					assertSortedResultIs(
 						originalProductEntities,

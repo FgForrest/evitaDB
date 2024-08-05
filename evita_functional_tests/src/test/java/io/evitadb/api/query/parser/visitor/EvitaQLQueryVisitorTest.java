@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,14 +53,14 @@ class EvitaQLQueryVisitorTest {
             query(
                 filterBy(attributeEquals("a", true))
             ),
-            parseQuery("query(filterBy(attributeEqualsTrue('a')))")
+            parseQuery("query(filterBy(attributeEqualsTrue(?)))", "a")
         );
 
         assertEquals(
             query(
                 collection("a")
             ),
-            parseQuery("query(collection('a'))")
+            parseQuery("query(collection(?))", "a")
         );
 
         assertEquals(
@@ -68,7 +68,7 @@ class EvitaQLQueryVisitorTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("a"))
             ),
-            parseQuery("query(collection('a'),filterBy(attributeEqualsTrue('a')))")
+            parseQuery("query(collection(?),filterBy(attributeEqualsTrue(?)))", "a", "a")
         );
 
         assertEquals(
@@ -76,7 +76,7 @@ class EvitaQLQueryVisitorTest {
                 collection("a"),
                 orderBy(attributeNatural("c"))
             ),
-            parseQuery("query(collection('a'),orderBy(attributeNatural('c')))")
+            parseQuery("query(collection(?),orderBy(attributeNatural(?)))", "a", "c")
         );
 
         assertEquals(
@@ -84,7 +84,7 @@ class EvitaQLQueryVisitorTest {
                 collection("a"),
                 require(attributeContentAll())
             ),
-            parseQuery("query(collection('a'),require(attributeContentAll()))")
+            parseQuery("query(collection(?),require(attributeContentAll()))", "a")
         );
 
         assertEquals(
@@ -95,8 +95,8 @@ class EvitaQLQueryVisitorTest {
                 require(attributeContentAll())
             ),
             parseQuery(
-                "query(require(attributeContentAll()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',?)))",
-                1L
+                "query(require(attributeContentAll()),collection(?),orderBy(attributeNatural(?)),filterBy(attributeEquals(?,?)))",
+                "a", "c", "a", 1L
             )
         );
 
@@ -108,8 +108,11 @@ class EvitaQLQueryVisitorTest {
                 require(attributeContentAll())
             ),
             parseQuery(
-                "query(require(attributeContentAll()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',@value)))",
+                "query(require(attributeContentAll()),collection(@name1),orderBy(attributeNatural(@name2)),filterBy(attributeEquals(@name3,@value)))",
                 Map.of(
+                    "name1", "a",
+                    "name2", "c",
+                    "name3", "a",
                     "value", 1L
                 )
             )
@@ -144,34 +147,42 @@ class EvitaQLQueryVisitorTest {
             ),
             parseQuery("""
                 query(
-                    collection('Product'),
+                    collection(?),
                     filterBy(
                         referenceHaving(
-                            'brand',
+                            ?,
                             entityHaving(
-                                attributeEquals('code', ?)
+                                attributeEquals(?, ?)
                             )
                         )
                     ),
                     orderBy(
                         referenceProperty(
-                            'brand',
-                            attributeNatural('orderInBrand', ?)
+                            ?,
+                            attributeNatural(?, ?)
                         )
                     ),
                     require(
                         entityFetch(
-                            attributeContent('code'),
+                            attributeContent(?),
                             referenceContentWithAttributes(
-                                'brand',
-                                attributeContent('orderInBrand')
+                                ?,
+                                attributeContent(?)
                             )
                         )
                     )
                 )
                 """,
+                "Product",
+                "brand",
+                "code",
                 "sony",
-                OrderDirection.ASC)
+                "brand",
+                "orderInBrand",
+                OrderDirection.ASC,
+                "code",
+                "brand",
+                "orderInBrand")
         );
     }
 

@@ -1309,6 +1309,7 @@ As you can see, the filtered price list is returned.
 
 ```evitaql-syntax
 referenceContent(
+    argument:enum(ANY|EXISTING)?,
     argument:string+,
     filterConstraint:any,
     orderConstraint:any,
@@ -1318,6 +1319,16 @@ referenceContent(
 ```
 
 <dl>
+    <dt>argument:enum(ANY|EXISTING)?</dt>
+    <dd>
+        <p>**Default:** `ANY`</p>
+
+        <p>
+        optional argument, if set to `EXISTING` only existing references to managed entities are returned;
+        the default behavior is set to `ANY`, which returns all references set to the entity, regardless of whether 
+        they point to to existing or non-existing entities (see [managed references behaviour](../requirements/reference.md#managed-references-behaviour) chapter for more details)
+        </p>
+    </dd>
     <dt>argument:string+</dt>
     <dd>
         mandatory one or more string arguments representing the names of the references to fetch for the entity;
@@ -1517,6 +1528,23 @@ As you can see, the *cellular-true*, *display-size-10-2*, *ram-memory-4*, *rom-m
 values define the product variant, while the other parameters only describe the additional properties of the product.
 
 </Note>
+
+</LS>
+
+<LS to="e,j,c,r">
+
+#### Managed References Behaviour
+
+evitaDB is meant to be a secondary database for fast read access, so it doesn't enforce foreign key constraints on
+references. This means that you can have references to entities that don't exist in evitaDB - maybe because they will be
+indexed later. In certain situations and clients, it may be cumbersome to handle references pointing to non-existent
+entities, and that's why you can instruct evitaDB to do it for you. If you set the first optional argument of
+the `referenceContent` constraint to `EXISTING`, evitaDB will ensure that only references to existing entities are
+returned.
+
+Additional filtering of these references is not free, so it's not the default behavior. Even if you fetch the entity to
+make some changes to it, you may want to see all references, even those pointing to non-existing entities. Otherwise,
+you might send unnecessary upsert mutations to the server.
 
 </LS>
 

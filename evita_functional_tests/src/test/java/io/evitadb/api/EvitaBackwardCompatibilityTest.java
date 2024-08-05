@@ -26,6 +26,8 @@ package io.evitadb.api;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.query.Query;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
@@ -42,10 +44,17 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
+import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
+import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.require;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * This test verifies that data stored in older versions of evitaDB are still readable by the current version.
@@ -118,5 +127,32 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 		final SystemStatus status = evita.getSystemStatus();
 		assertEquals(0, status.catalogsCorrupted());
 		assertEquals(1, status.catalogsOk());
+
+		// check the catalog has its own id
+		final UUID catalogId = evita.queryCatalog(
+			"evita",
+			session -> {
+				for (String entityType : session.getAllEntityTypes()) {
+					log.info("Entity type: {}", entityType);
+					if (session.getEntityCollectionSize(entityType)  > 0) {
+						final List<SealedEntity> sealedEntities = session.queryListOfSealedEntities(
+							Query.query(
+								collection(entityType),
+								require(
+									page(1, 20),
+									entityFetchAll()
+								)
+							)
+						);
+						for (SealedEntity sealedEntity : sealedEntities) {
+							assertNotNull(sealedEntity);
+						}
+					}
+				}
+
+				return session.getCatalogId();
+			}
+		);
+		assertNotNull(catalogId);
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,8 @@ import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
 import io.undertow.util.Methods;
 
@@ -57,20 +58,30 @@ public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingCont
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Map<String, Object> parameters = getParametersFromRequest(exchange);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+
+		final Map<String, Object> parameters = getParametersFromRequest(executionContext);
+		requestExecutedEvent.finishInputDeserialization();
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final Optional<CatalogContract> catalog = restHandlingContext.getEvita().getCatalogInstance(catalogName);
+		final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			restHandlingContext.getEvita().getCatalogInstance(catalogName));
 		if (catalog.isEmpty()) {
+			requestExecutedEvent.finishOperationExecution();
+			requestExecutedEvent.finishResultSerialization();
 			return new NotFoundEndpointResponse();
 		}
 
-		final boolean deleted = restHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName());
+		final boolean deleted = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			restHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName()));
 		Assert.isPremiseValid(
 			deleted,
 			() -> new RestInternalError("Could not delete catalog `" + catalog.get().getName() + "`, even though it should exist.")
 		);
+
+		requestExecutedEvent.finishOperationExecution();
+		requestExecutedEvent.finishResultSerialization();
 		return new SuccessEndpointResponse();
 	}
 

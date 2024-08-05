@@ -24,13 +24,14 @@
 package io.evitadb.store.spi.model.reference;
 
 import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogVariableContentFileReference;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
+
+import static io.evitadb.store.spi.CatalogPersistenceService.getEntityCollectionDataStoreFileName;
 
 /**
  * Represents a reference to a file that contains the data for particular entity collection.
@@ -52,14 +53,14 @@ public record CollectionFileReference(
 	@Nonnull
 	public Path toFilePath(@Nonnull Path catalogFolder) {
 		return catalogFolder.resolve(
-			CatalogPersistenceService.getEntityCollectionDataStoreFileName(entityType, fileIndex)
+			getEntityCollectionDataStoreFileName(this.entityType, this.entityTypePrimaryKey, this.fileIndex)
 		);
 	}
 
 	@Override
 	@Nonnull
 	public CollectionFileReference incrementAndGet() {
-		return new CollectionFileReference(entityType, entityTypePrimaryKey, fileIndex + 1, null);
+		return new CollectionFileReference(this.entityType, this.entityTypePrimaryKey, this.fileIndex + 1, null);
 	}
 
 	@Override
@@ -69,14 +70,16 @@ public record CollectionFileReference(
 
 		CollectionFileReference that = (CollectionFileReference) o;
 
-		if (fileIndex != that.fileIndex) return false;
-		return entityType.equals(that.entityType);
+		if (this.fileIndex != that.fileIndex) return false;
+		if (this.entityTypePrimaryKey != that.entityTypePrimaryKey) return false;
+		return this.entityType.equals(that.entityType);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = entityType.hashCode();
-		result = 31 * result + fileIndex;
+		int result = this.entityType.hashCode();
+		result = 31 * result + this.entityTypePrimaryKey;
+		result = 31 * result + this.fileIndex;
 		return result;
 	}
 

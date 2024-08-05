@@ -12,7 +12,11 @@ mutation {
           entityType: "Category"
         }
       },
-
+      {
+        createEntitySchemaMutation: {
+          entityType: "Stock"
+        }
+      },
       {
         createEntitySchemaMutation: {
           entityType: "Product"
@@ -181,7 +185,7 @@ mutation {
             {
               createReferenceSchemaMutation: {
                 name: "stock"
-                referencedEntityType: "stock"
+                referencedEntityType: "Stock"
                 referencedEntityTypeManaged: false
                 cardinality: ZERO_OR_MORE
                 indexed: true

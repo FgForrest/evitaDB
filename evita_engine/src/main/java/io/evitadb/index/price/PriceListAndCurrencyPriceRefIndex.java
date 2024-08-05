@@ -23,6 +23,7 @@
 
 package io.evitadb.index.price;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.core.Catalog;
@@ -209,7 +210,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 
 	@Nonnull
 	@Override
-	public PriceListAndCurrencyPriceRefIndex createCopyForNewCatalogAttachment() {
+	public PriceListAndCurrencyPriceRefIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		assertNotTerminated();
 		return new PriceListAndCurrencyPriceRefIndex(
 			this.priceIndexKey,

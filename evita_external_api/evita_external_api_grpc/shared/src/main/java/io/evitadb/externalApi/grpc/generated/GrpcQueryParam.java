@@ -262,6 +262,12 @@ private static final long serialVersionUID = 0L;
             queryParam_ = rawValue;
             break;
           }
+          case 176: {
+            int rawValue = input.readEnum();
+            queryParamCase_ = 22;
+            queryParam_ = rawValue;
+            break;
+          }
           case 810: {
             io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder subBuilder = null;
             if (queryParamCase_ == 101) {
@@ -614,6 +620,7 @@ private static final long serialVersionUID = 0L;
     STATISTICSBASE(19),
     STATISTICSTYPE(20),
     HISTOGRAMBEHAVIOR(21),
+    MANAGEDREFERENCESBEHAVIOUR(22),
     STRINGARRAYVALUE(101),
     INTEGERARRAYVALUE(102),
     LONGARRAYVALUE(103),
@@ -673,6 +680,7 @@ private static final long serialVersionUID = 0L;
         case 19: return STATISTICSBASE;
         case 20: return STATISTICSTYPE;
         case 21: return HISTOGRAMBEHAVIOR;
+        case 22: return MANAGEDREFERENCESBEHAVIOUR;
         case 101: return STRINGARRAYVALUE;
         case 102: return INTEGERARRAYVALUE;
         case 103: return LONGARRAYVALUE;
@@ -1598,6 +1606,50 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior.STANDARD;
+  }
+
+  public static final int MANAGEDREFERENCESBEHAVIOUR_FIELD_NUMBER = 22;
+  /**
+   * <pre>
+   * The managed references behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+   * @return Whether the managedReferencesBehaviour field is set.
+   */
+  public boolean hasManagedReferencesBehaviour() {
+    return queryParamCase_ == 22;
+  }
+  /**
+   * <pre>
+   * The managed references behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+   * @return The enum numeric value on the wire for managedReferencesBehaviour.
+   */
+  public int getManagedReferencesBehaviourValue() {
+    if (queryParamCase_ == 22) {
+      return (java.lang.Integer) queryParam_;
+    }
+    return 0;
+  }
+  /**
+   * <pre>
+   * The managed references behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+   * @return The managedReferencesBehaviour.
+   */
+  public io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour getManagedReferencesBehaviour() {
+    if (queryParamCase_ == 22) {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.valueOf(
+          (java.lang.Integer) queryParam_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.UNRECOGNIZED : result;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.ANY;
   }
 
   public static final int STRINGARRAYVALUE_FIELD_NUMBER = 101;
@@ -2571,6 +2623,9 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 21) {
       output.writeEnum(21, ((java.lang.Integer) queryParam_));
     }
+    if (queryParamCase_ == 22) {
+      output.writeEnum(22, ((java.lang.Integer) queryParam_));
+    }
     if (queryParamCase_ == 101) {
       output.writeMessage(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_);
     }
@@ -2728,6 +2783,10 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 21) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(21, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 22) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(22, ((java.lang.Integer) queryParam_));
     }
     if (queryParamCase_ == 101) {
       size += com.google.protobuf.CodedOutputStream
@@ -2914,6 +2973,10 @@ private static final long serialVersionUID = 0L;
         if (getHistogramBehaviorValue()
             != other.getHistogramBehaviorValue()) return false;
         break;
+      case 22:
+        if (getManagedReferencesBehaviourValue()
+            != other.getManagedReferencesBehaviourValue()) return false;
+        break;
       case 101:
         if (!getStringArrayValue()
             .equals(other.getStringArrayValue())) return false;
@@ -3098,6 +3161,10 @@ private static final long serialVersionUID = 0L;
       case 21:
         hash = (37 * hash) + HISTOGRAMBEHAVIOR_FIELD_NUMBER;
         hash = (53 * hash) + getHistogramBehaviorValue();
+        break;
+      case 22:
+        hash = (37 * hash) + MANAGEDREFERENCESBEHAVIOUR_FIELD_NUMBER;
+        hash = (53 * hash) + getManagedReferencesBehaviourValue();
         break;
       case 101:
         hash = (37 * hash) + STRINGARRAYVALUE_FIELD_NUMBER;
@@ -3446,6 +3513,9 @@ private static final long serialVersionUID = 0L;
       if (queryParamCase_ == 21) {
         result.queryParam_ = queryParam_;
       }
+      if (queryParamCase_ == 22) {
+        result.queryParam_ = queryParam_;
+      }
       if (queryParamCase_ == 101) {
         if (stringArrayValueBuilder_ == null) {
           result.queryParam_ = queryParam_;
@@ -3727,6 +3797,10 @@ private static final long serialVersionUID = 0L;
         }
         case HISTOGRAMBEHAVIOR: {
           setHistogramBehaviorValue(other.getHistogramBehaviorValue());
+          break;
+        }
+        case MANAGEDREFERENCESBEHAVIOUR: {
+          setManagedReferencesBehaviourValue(other.getManagedReferencesBehaviourValue());
           break;
         }
         case STRINGARRAYVALUE: {
@@ -6417,6 +6491,101 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearHistogramBehavior() {
       if (queryParamCase_ == 21) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
+        onChanged();
+      }
+      return this;
+    }
+
+    /**
+     * <pre>
+     * The managed references behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+     * @return Whether the managedReferencesBehaviour field is set.
+     */
+    @java.lang.Override
+    public boolean hasManagedReferencesBehaviour() {
+      return queryParamCase_ == 22;
+    }
+    /**
+     * <pre>
+     * The managed references behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+     * @return The enum numeric value on the wire for managedReferencesBehaviour.
+     */
+    @java.lang.Override
+    public int getManagedReferencesBehaviourValue() {
+      if (queryParamCase_ == 22) {
+        return ((java.lang.Integer) queryParam_).intValue();
+      }
+      return 0;
+    }
+    /**
+     * <pre>
+     * The managed references behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+     * @param value The enum numeric value on the wire for managedReferencesBehaviour to set.
+     * @return This builder for chaining.
+     */
+    public Builder setManagedReferencesBehaviourValue(int value) {
+      queryParamCase_ = 22;
+      queryParam_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The managed references behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+     * @return The managedReferencesBehaviour.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour getManagedReferencesBehaviour() {
+      if (queryParamCase_ == 22) {
+        @SuppressWarnings("deprecation")
+        io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.valueOf(
+            (java.lang.Integer) queryParam_);
+        return result == null ? io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.UNRECOGNIZED : result;
+      }
+      return io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.ANY;
+    }
+    /**
+     * <pre>
+     * The managed references behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+     * @param value The managedReferencesBehaviour to set.
+     * @return This builder for chaining.
+     */
+    public Builder setManagedReferencesBehaviour(io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      queryParamCase_ = 22;
+      queryParam_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The managed references behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearManagedReferencesBehaviour() {
+      if (queryParamCase_ == 22) {
         queryParamCase_ = 0;
         queryParam_ = null;
         onChanged();

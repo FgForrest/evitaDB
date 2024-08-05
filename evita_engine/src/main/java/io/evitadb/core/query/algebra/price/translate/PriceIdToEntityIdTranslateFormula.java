@@ -59,7 +59,7 @@ import java.util.Collection;
 import java.util.function.Consumer;
 
 /**
- * PriceIdToEntityIdTranslateFormula translates price ids to entity ids in its {@link #compute()} method.
+ * PriceIdToEntityIdTranslateFormula translates price ids to entity ids in its {@link Formula#compute()} method.
  *
  * This formula consumes {@link Bitmap} of {@link PriceRecord#internalPriceId()} and
  * computes {@link Formula} of {@link PriceRecord#entityPrimaryKey() entity ids}. It also uses information
@@ -72,27 +72,34 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	private static final long CLASS_ID = -8575853054010280485L;
 
 	/**
-	 * Contains array of price records that links to the price ids produced by {@link #compute()} method. This array
-	 * is available once the {@link #compute()} method has been called.
+	 * Contains array of price records that links to the price ids produced by {@link Formula#compute()} method. This array
+	 * is available once the {@link Formula#compute()} method has been called.
 	 */
 	private FilteredPriceRecords filteredPriceRecords;
 
 	public PriceIdToEntityIdTranslateFormula(@Nonnull Formula delegate) {
-		super(null, delegate);
+		super(null);
+		this.initFields(delegate);
 	}
 
 	private PriceIdToEntityIdTranslateFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull FilteredPriceRecords filteredPriceRecords, @Nonnull Formula delegate) {
-		super(computationCallback, delegate);
+		super(computationCallback);
 		this.filteredPriceRecords = filteredPriceRecords;
+		this.initFields(delegate);
 	}
 
 	/**
 	 * Returns delegate formula of this container.
 	 */
+	@Nonnull
 	public Formula getDelegate() {
 		return this.innerFormulas[0];
 	}
 
+	/**
+	 * Returns bitmap of price ids produced by the delegate formula.
+	 */
+	@Nonnull
 	public Bitmap getPriceIdBitmap() {
 		return getDelegate().compute();
 	}
@@ -227,7 +234,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+		return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).sum();
 	}
 
 	@Override

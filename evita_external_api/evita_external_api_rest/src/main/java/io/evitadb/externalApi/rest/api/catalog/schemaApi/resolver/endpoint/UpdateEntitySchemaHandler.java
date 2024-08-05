@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,8 @@ import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObj
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
@@ -70,22 +71,33 @@ public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class);
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final List<EntitySchemaMutation> schemaMutations = new LinkedList<>();
-		final JsonNode inputMutations = requestData.getMutations()
-			.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
-		for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
-			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
-		}
-		final ModifyEntitySchemaMutation entitySchemaMutation = new ModifyEntitySchemaMutation(
-			restHandlingContext.getEntityType(),
-			schemaMutations.toArray(EntitySchemaMutation[]::new)
-		);
+		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(executionContext, CreateOrUpdateEntitySchemaRequestData.class);
+		requestExecutedEvent.finishInputDeserialization();
 
-		final EntitySchemaContract updatedEntitySchema = exchange.session().updateAndFetchEntitySchema(entitySchemaMutation);
-		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedEntitySchema));
+		final ModifyEntitySchemaMutation entitySchemaMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final List<EntitySchemaMutation> convertedSchemaMutations = new LinkedList<>();
+			final JsonNode inputMutations = requestData.getMutations()
+				.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
+			for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
+				convertedSchemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
+			}
+			return new ModifyEntitySchemaMutation(
+				restHandlingContext.getEntityType(),
+				convertedSchemaMutations.toArray(EntitySchemaMutation[]::new)
+			);
+		});
+
+		final EntitySchemaContract updatedEntitySchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			executionContext.session().updateAndFetchEntitySchema(entitySchemaMutation));
+		requestExecutedEvent.finishOperationExecution();
+
+		final Object result = convertResultIntoSerializableObject(executionContext, updatedEntitySchema);
+		requestExecutedEvent.finishResultSerialization();
+
+		return new SuccessEndpointResponse(result);
 	}
 
 	@Nonnull

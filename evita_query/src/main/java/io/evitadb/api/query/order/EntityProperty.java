@@ -79,7 +79,7 @@ import java.io.Serializable;
 	name = "property",
 	shortDescription = "The constraint sorts returned references by applying ordering constraint on referenced entity.",
 	userDocsLink = "/documentation/query/ordering/reference#entity-property",
-	supportedIn = ConstraintDomain.REFERENCE
+	supportedIn = ConstraintDomain.INLINE_REFERENCE
 )
 public class EntityProperty extends AbstractOrderConstraintContainer implements EntityConstraint<OrderConstraint> {
 

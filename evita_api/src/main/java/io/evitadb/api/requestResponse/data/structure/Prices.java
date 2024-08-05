@@ -243,6 +243,12 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 
 	@Nonnull
 	@Override
+	public Optional<PriceForSaleContext> getPriceForSaleContext() {
+		return Optional.empty();
+	}
+
+	@Nonnull
+	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
 		throw new ContextMissingException();
 	}

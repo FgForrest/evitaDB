@@ -27,6 +27,8 @@ import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -40,13 +42,17 @@ import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.dataType.PaginatedList;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -65,6 +71,15 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface CatalogContract {
+
+	/**
+	 * Returns unique catalog id that doesn't change with catalog schema changes - such as renaming.
+	 * The id is assigned to the catalog when it is created and never changes.
+	 *
+	 * @return unique catalog id
+	 */
+	@Nonnull
+	UUID getCatalogId();
 
 	/**
 	 * Returns read-only catalog configuration.
@@ -301,10 +316,24 @@ public interface CatalogContract {
 	Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion);
 
 	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 *
+	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
+	 *                     the dataset as it was at that moment
+	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
+	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @return jobId of the backup process
+	 * @throws TemporalDataNotAvailableException when the past data is not available
+	 */
+	@Nonnull
+	ServerTask<?, FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+
+	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.
 	 *
 	 * This method is idempotent and may be called multiple times. Only first call is really processed and others are
 	 * ignored.
 	 */
 	void terminate();
+
 }

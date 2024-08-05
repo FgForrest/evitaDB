@@ -30,6 +30,7 @@ import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.CategoryInterface;
 import io.evitadb.api.mock.ProductInterface;
 import io.evitadb.api.mock.TestEntity;
@@ -58,6 +59,10 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.task.Task;
+import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -79,6 +84,8 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -88,11 +95,20 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -114,6 +130,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Slf4j
 @ExtendWith(EvitaParameterResolver.class)
 class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	public static final String ATTRIBUTE_ORDER = "order";
@@ -126,6 +143,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 		return primaryKey == 0 ? null : primaryKey;
 	};
+	private static final int PRODUCT_COUNT = 10;
 	private static DataGenerator DATA_GENERATOR;
 
 	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
@@ -286,7 +304,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 							RANDOM_ENTITY_PICKER,
 							SEED
 						)
-						.limit(10)
+						.limit(PRODUCT_COUNT)
 						.forEach(it -> {
 							final EntityReference upsertedProduct = session.upsertEntity(it);
 							theProducts.put(
@@ -844,6 +862,169 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldBackupAndRestoreCatalogViaDownloadingAndUploadingFileContents(EvitaClient evitaClient) throws ExecutionException, InterruptedException, TimeoutException {
+		final Set<String> catalogNames = evitaClient.getCatalogNames();
+		assertEquals(1, catalogNames.size());
+		assertTrue(catalogNames.contains(TEST_CATALOG));
+
+		final CompletableFuture<FileForFetch> backupFileFuture = evitaClient.backupCatalog(TEST_CATALOG, null, true);
+		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
+
+		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
+
+		final String restoredCatalogName = TEST_CATALOG + "_restored";
+		try (final InputStream inputStream = evitaClient.fetchFile(fileForFetch.fileId())) {
+			// wait to restoration to be finished
+			evitaClient.restoreCatalog(restoredCatalogName, fileForFetch.totalSizeInBytes(), inputStream)
+				.getFutureResult()
+				.get(3, TimeUnit.MINUTES);
+
+		} catch (IOException e) {
+			fail("Failed to restore catalog!", e);
+		}
+
+		log.info("Catalog restored from file: {}", fileForFetch.fileId());
+
+		final Set<String> catalogNamesAgain = evitaClient.getCatalogNames();
+		assertEquals(2, catalogNamesAgain.size());
+		assertTrue(catalogNamesAgain.contains(TEST_CATALOG));
+		assertTrue(catalogNamesAgain.contains(restoredCatalogName));
+
+		assertEquals(
+			Integer.valueOf(PRODUCT_COUNT),
+			evitaClient.queryCatalog(restoredCatalogName, session -> {
+				return session.getEntityCollectionSize(Entities.PRODUCT);
+			})
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldBackupAndRestoreCatalogViaFileOnTheServerSide(EvitaClient evitaClient) throws ExecutionException, InterruptedException, TimeoutException {
+		final Set<String> catalogNames = evitaClient.getCatalogNames();
+		assertEquals(1, catalogNames.size());
+		assertTrue(catalogNames.contains(TEST_CATALOG));
+
+		final CompletableFuture<FileForFetch> backupFileFuture = evitaClient.backupCatalog(TEST_CATALOG, null, true);
+		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
+
+		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
+
+		final String restoredCatalogName = TEST_CATALOG + "_restored";
+		final Task<?, Void> restoreTask = evitaClient.restoreCatalog(restoredCatalogName, fileForFetch.fileId());
+
+		// wait for the restore to finish
+		restoreTask.getFutureResult().get(3, TimeUnit.MINUTES);
+
+		log.info("Catalog restored from file: {}", fileForFetch.fileId());
+
+		final Set<String> catalogNamesAgain = evitaClient.getCatalogNames();
+		assertEquals(2, catalogNamesAgain.size());
+		assertTrue(catalogNamesAgain.contains(TEST_CATALOG));
+		assertTrue(catalogNamesAgain.contains(restoredCatalogName));
+
+		assertEquals(
+			Integer.valueOf(PRODUCT_COUNT),
+			evitaClient.queryCatalog(restoredCatalogName, session -> {
+				return session.getEntityCollectionSize(Entities.PRODUCT);
+			})
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldListAndCancelTasks(EvitaClient evitaClient) {
+		final int numberOfTasks = 20;
+		ExecutorService executorService = Executors.newFixedThreadPool(numberOfTasks);
+
+		// Step 2: Generate backup tasks using the custom executor
+		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream.generate(
+				() -> CompletableFuture.supplyAsync(
+					() -> evitaClient.backupCatalog(TEST_CATALOG, null, true),
+					executorService
+				)
+			)
+			.limit(numberOfTasks)
+			.toList();
+
+		// Optional: Wait for all tasks to complete
+		CompletableFuture.allOf(backupTasks.toArray(new CompletableFuture[0])).join();
+		executorService.shutdown();
+
+		evitaClient.listTaskStatuses(1, numberOfTasks);
+
+		// cancel 7 of them immediately
+		final List<Boolean> cancellationResult = Stream.concat(
+				evitaClient.listTaskStatuses(1, 1)
+					.getData()
+					.stream()
+					.map(it -> evitaClient.cancelTask(it.taskId())),
+				backupTasks.subList(3, numberOfTasks - 1)
+					.stream()
+					.map(task -> task.getNow(null).cancel(true))
+			)
+			.toList();
+
+		// wait for all task to complete
+		assertThrows(
+			ExecutionException.class,
+			() -> CompletableFuture.allOf(
+				backupTasks.stream().map(it -> it.getNow(null)).toArray(CompletableFuture[]::new)
+			).get(3, TimeUnit.MINUTES)
+		);
+
+		final PaginatedList<TaskStatus<?, ?>> taskStatuses = evitaClient.listTaskStatuses(1, numberOfTasks);
+		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
+		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
+		assertEquals(backupTasks.size() - cancelled, taskStatuses.getData().stream().filter(task -> task.state() == State.FINISHED).count());
+		assertEquals(cancelled, taskStatuses.getData().stream().filter(task -> task.state() == State.FAILED).count());
+
+		// fetch all tasks by their ids
+		evitaClient.getTaskStatuses(
+			taskStatuses.getData().stream().map(TaskStatus::taskId).toArray(UUID[]::new)
+		).forEach(Assertions::assertNotNull);
+
+		// fetch tasks individually
+		taskStatuses.getData().forEach(task -> assertNotNull(evitaClient.getTaskStatus(task.taskId())));
+
+		// list exported files
+		final PaginatedList<FileForFetch> exportedFiles = evitaClient.listFilesToFetch(1, numberOfTasks, null);
+		// some task might have finished even if cancelled (if they were cancelled in terminal phase)
+		assertTrue(exportedFiles.getTotalRecordCount() >= backupTasks.size() - cancelled);
+		exportedFiles.getData().forEach(file -> assertTrue(file.totalSizeInBytes() > 0));
+
+		// get all files by their ids
+		exportedFiles.getData().forEach(file -> assertNotNull(evitaClient.getFileToFetch(file.fileId())));
+
+		// fetch all of them
+		exportedFiles.getData().forEach(
+			file -> {
+				try (final InputStream inputStream = evitaClient.fetchFile(file.fileId())) {
+					final Path tempFile = Files.createTempFile(String.valueOf(file.fileId()), ".zip");
+					Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+					assertTrue(tempFile.toFile().exists());
+					assertEquals(file.totalSizeInBytes(), Files.size(tempFile));
+					Files.delete(tempFile);
+				} catch (IOException e) {
+					fail(e);
+				}
+			});
+
+		// delete them
+		final Set<UUID> deletedFiles = CollectionUtils.createHashSet(exportedFiles.getData().size());
+		exportedFiles.getData()
+			.forEach(file -> {
+				evitaClient.deleteFile(file.fileId());
+				deletedFiles.add(file.fileId());
+			});
+
+		// list them again and there should be none of them
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = evitaClient.listFilesToFetch(1, numberOfTasks, null);
+		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	void shouldReplaceCollection(EvitaClient evitaClient) {
 		final String newCollection = "newCollection";
 		final AtomicInteger productCount = new AtomicInteger();
@@ -984,6 +1165,18 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		assertNotNull(catalogSchema);
 		assertEquals(TEST_CATALOG, catalogSchema.getName());
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldQueryCatalogAsynchronously(EvitaClient evitaClient) throws ExecutionException, InterruptedException {
+		final CompletableFuture<CatalogSchemaContract> catalogSchema = evitaClient.queryCatalogAsync(
+			TEST_CATALOG,
+			EvitaSessionContract::getCatalogSchema
+		);
+
+		assertNotNull(catalogSchema);
+		assertEquals(TEST_CATALOG, catalogSchema.get().getName());
 	}
 
 	@Test

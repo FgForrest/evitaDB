@@ -15,6 +15,11 @@ PUT /rest/evita/schema
     },
     {
       "createEntitySchemaMutation": {
+        "entityType": "Stock"
+      }
+    },
+    {
+      "createEntitySchemaMutation": {
         "entityType": "Product"
       }
     },
@@ -181,7 +186,7 @@ PUT /rest/evita/schema
           {
             "createReferenceSchemaMutation": {
               "name": "stock",
-              "referencedEntityType": "stock",
+              "referencedEntityType": "Stock",
               "referencedEntityTypeManaged": false,
               "cardinality": "ZERO_OR_MORE",
               "indexed": true,

@@ -83,7 +83,7 @@ import java.util.Optional;
 		"attribute contains the passed value within its limits (both ends are inclusive). " +
 		"The constraint can be used only for Range data type values.",
 	userDocsLink = "/documentation/query/filtering/range#attribute-in-range",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(
 		supportedTypes = {
 			DateTimeRange.class,

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,59 +56,60 @@ import java.util.stream.Collectors;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public abstract class EndpointHandler<E extends EndpointExchange> implements HttpHandler {
+public abstract class EndpointHandler<C extends EndpointExecutionContext> implements HttpHandler {
 
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
 
 	@Override
 	public void handleRequest(HttpServerExchange serverExchange) {
-		validateRequest(serverExchange);
+		final C executionContext = createExecutionContext(serverExchange);
+		try {
+			validateRequest(serverExchange);
 
-		try (final E exchange = createEndpointExchange(
-				serverExchange,
-				serverExchange.getRequestMethod().toString(),
-				getRequestBodyContentType(serverExchange).orElse(null),
-				getPreferredResponseContentType(serverExchange).orElse(null)
-			)) {
-			beforeRequestHandled(exchange);
-			final EndpointResponse response = doHandleRequest(exchange);
-			afterRequestHandled(exchange, response);
+			executionContext.provideRequestBodyContentType(resolveRequestBodyContentType(executionContext).orElse(null));
+			executionContext.providePreferredResponseContentType(resolvePreferredResponseContentType(executionContext).orElse(null));
+
+			beforeRequestHandled(executionContext);
+			final EndpointResponse response = doHandleRequest(executionContext);
+			afterRequestHandled(executionContext, response);
 
 			if (response instanceof NotFoundEndpointResponse) {
 				throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested resource wasn't found.");
 			} else if (response instanceof SuccessEndpointResponse successResponse) {
 				final Object result = successResponse.getResult();
 				if (result == null) {
-					sendEmptySuccessResponse(exchange);
+					sendEmptySuccessResponse(executionContext);
 				} else {
-					sendSuccessResponseWithBody(exchange, result);
+					sendSuccessResponseWithBody(executionContext, result);
 				}
 			} else {
 				throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
 			}
+		} catch (Exception e) {
+			executionContext.notifyError(e);
+			throw e;
+		} finally {
+			executionContext.close();
 		}
 	}
 
 	/**
-	 * Creates new instance of endpoint exchange for given HTTP server exchange.
+	 * Creates new instance of endpoint execution context for given HTTP server exchange.
 	 */
 	@Nonnull
-	protected abstract E createEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-												@Nonnull String method,
-	                                            @Nullable String requestBodyMediaType,
-	                                            @Nullable String preferredResponseMediaType);
+	protected abstract C createExecutionContext(@Nonnull HttpServerExchange serverExchange);
 
 	/**
 	 * Hook method called before actual endpoint handling logic is executed. Default implementation does nothing.
 	 */
-	protected void beforeRequestHandled(@Nonnull E exchange) {
+	protected void beforeRequestHandled(@Nonnull C executionContext) {
 		// default implementation does nothing
 	}
 
 	/**
 	 * Hook method called after actual endpoint handling logic is executed. Default implementation does nothing.
 	 */
-	protected void afterRequestHandled(@Nonnull E exchange, @Nonnull EndpointResponse response) {
+	protected void afterRequestHandled(@Nonnull C executionContext, @Nonnull EndpointResponse response) {
 		// default implementation does nothing
 	}
 
@@ -116,7 +117,7 @@ public abstract class EndpointHandler<E extends EndpointExchange> implements Htt
 	 * Actual endpoint logic.
 	 */
 	@Nonnull
-	protected abstract EndpointResponse doHandleRequest(@Nonnull E exchange);
+	protected abstract EndpointResponse doHandleRequest(@Nonnull C executionContext);
 
 	@Nonnull
 	protected abstract <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message);
@@ -170,13 +171,13 @@ public abstract class EndpointHandler<E extends EndpointExchange> implements Htt
 	 * Validates that request body (if any) has supported media type and if so, returns it.
 	 */
 	@Nonnull
-	private Optional<String> getRequestBodyContentType(@Nonnull HttpServerExchange serverExchange) {
+	private Optional<String> resolveRequestBodyContentType(@Nonnull C executionContext) {
 		if (getSupportedRequestContentTypes().isEmpty()) {
 			// we can ignore all content type headers because we don't accept any request body
 			return Optional.empty();
 		}
 
-		final String bodyContentType = serverExchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
+		final String bodyContentType = executionContext.serverExchange().getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
 		Assert.isTrue(
 			bodyContentType != null &&
 				getSupportedRequestContentTypes().stream().anyMatch(bodyContentType::startsWith),
@@ -194,13 +195,13 @@ public abstract class EndpointHandler<E extends EndpointExchange> implements Htt
 	 * preferred one by order of {@link #getSupportedResponseContentTypes().
 	 */
 	@Nonnull
-	private Optional<String> getPreferredResponseContentType(@Nonnull HttpServerExchange serverExchange) {
+	private Optional<String> resolvePreferredResponseContentType(@Nonnull C executionContext) {
 		if (getSupportedResponseContentTypes().isEmpty()) {
 			// we can ignore any accept headers because we will not return any body
 			return Optional.empty();
 		}
 
-		final Set<String> acceptHeaders = parseAcceptHeaders(serverExchange);
+		final Set<String> acceptHeaders = parseAcceptHeaders(executionContext);
 		if (acceptHeaders == null) {
 			// missing accept header means that client supports all media types
 			return Optional.of(getSupportedResponseContentTypes().iterator().next());
@@ -224,8 +225,8 @@ public abstract class EndpointHandler<E extends EndpointExchange> implements Htt
 	}
 
 	@Nullable
-	private static Set<String> parseAcceptHeaders(@Nonnull HttpServerExchange serverExchange) {
-		final HeaderValues acceptHeaders = serverExchange.getRequestHeaders().get(Headers.ACCEPT);
+	private Set<String> parseAcceptHeaders(@Nonnull C executionContext) {
+		final HeaderValues acceptHeaders = executionContext.serverExchange().getRequestHeaders().get(Headers.ACCEPT);
 		if (acceptHeaders == null) {
 			return null;
 		}
@@ -239,13 +240,13 @@ public abstract class EndpointHandler<E extends EndpointExchange> implements Htt
 	 * Reads request body into raw string.
 	 */
 	@Nonnull
-	protected String readRawRequestBody(@Nonnull E exchange) {
+	protected String readRawRequestBody(@Nonnull C executionContext) {
 		Assert.isPremiseValid(
 			!getSupportedRequestContentTypes().isEmpty(),
 			() -> createInternalError("Handler doesn't support reading of request body.")
 		);
 
-		final String bodyContentType = exchange.requestBodyContentType();
+		final String bodyContentType = executionContext.requestBodyContentType();
 		final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
 			.map(String::trim)
 			.filter(part -> part.startsWith("charset"))
@@ -267,7 +268,7 @@ public abstract class EndpointHandler<E extends EndpointExchange> implements Htt
 			.orElse(StandardCharsets.UTF_8);
 
 		final String body;
-		try (final InputStream is = exchange.serverExchange().getInputStream();
+		try (final InputStream is = executionContext.serverExchange().getInputStream();
 		     final InputStreamReader isr = new InputStreamReader(is, bodyCharset);
 		     final BufferedReader bf = new BufferedReader(isr)) {
 			body = bf.lines().collect(Collectors.joining("\n"));
@@ -286,31 +287,31 @@ public abstract class EndpointHandler<E extends EndpointExchange> implements Htt
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> T parseRequestBody(@Nonnull E exchange, @Nonnull Class<T> dataClass) {
+	protected <T> T parseRequestBody(@Nonnull C executionContext, @Nonnull Class<T> dataClass) {
 		throw createInternalError("Cannot parse request body because handler doesn't support it.");
 	}
 
 	/**
 	 * Serializes a result object into the preferred media type.
 	 *
-	 * @param exchange      endpoint exchange
+	 * @param executionContext      endpoint exchange
 	 * @param outputStream  output stream to write serialized data to
 	 * @param result        result data from handler to write to response
 	 */
-	protected void writeResult(@Nonnull E exchange, @Nonnull OutputStream outputStream, @Nonnull Object result) {
+	protected void writeResult(@Nonnull C executionContext, @Nonnull OutputStream outputStream, @Nonnull Object result) {
 		throw createInternalError("Cannot serialize response body because handler doesn't support it.");
 	}
 
-	private void sendEmptySuccessResponse(@Nonnull E exchange) {
-		exchange.serverExchange().setStatusCode(StatusCodes.NO_CONTENT);
-		exchange.serverExchange().endExchange();
+	private void sendEmptySuccessResponse(@Nonnull C executionContext) {
+		executionContext.serverExchange().setStatusCode(StatusCodes.NO_CONTENT);
+		executionContext.serverExchange().endExchange();
 	}
 
-	private void sendSuccessResponseWithBody(@Nonnull E exchange, @Nonnull Object result) {
-		exchange.serverExchange().setStatusCode(StatusCodes.OK);
-		exchange.serverExchange().getResponseHeaders().put(Headers.CONTENT_TYPE, exchange.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
-		writeResult(exchange, exchange.serverExchange().getOutputStream(), result);
-		exchange.serverExchange().endExchange();
+	private void sendSuccessResponseWithBody(@Nonnull C executionContext, @Nonnull Object result) {
+		executionContext.serverExchange().setStatusCode(StatusCodes.OK);
+		executionContext.serverExchange().getResponseHeaders().put(Headers.CONTENT_TYPE, executionContext.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
+		writeResult(executionContext, executionContext.serverExchange().getOutputStream(), result);
+		executionContext.serverExchange().endExchange();
 	}
 
 }

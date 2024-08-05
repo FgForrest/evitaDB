@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -234,25 +235,25 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				.getConfiguration()
 				.getBaseUrls(null);
 
-			Optional<String> response;
+			Optional<String> readiness;
 			final long start = System.currentTimeMillis();
 			do {
 				final String url = baseUrls[0] + "readiness";
 				log.info("Checking readiness at {}", url);
-				response = NetworkUtils.fetchContent(
+				readiness = NetworkUtils.fetchContent(
 					url,
 					"GET",
 					"application/json",
 					null
 				);
 
-				if (response.isPresent() && response.get().contains("\"status\": \"READY\"")) {
+				if (readiness.isPresent() && readiness.get().contains("\"status\": \"READY\"")) {
 					break;
 				}
 
 			} while (System.currentTimeMillis() - start < 20000);
 
-			assertTrue(response.isPresent());
+			assertTrue(readiness.isPresent());
 			assertEquals(
 				"""
 				{
@@ -266,7 +267,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 						"gRPC": "ready"
 					}
 				}""",
-				response.get().trim()
+				readiness.get().trim()
 			);
 
 			final Optional<String> liveness = NetworkUtils.fetchContent(
@@ -280,6 +281,68 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertEquals(
 				"{\"status\": \"healthy\"}",
 				liveness.get().trim()
+			);
+
+			final Optional<String> status = NetworkUtils.fetchContent(
+				baseUrls[0] + "status",
+				"GET",
+				"application/json",
+				null
+			);
+
+			assertTrue(status.isPresent());
+			String output = status.get();
+			output = Pattern.compile("(\"serverName\": \"evitaDB-)(.+?)\"").matcher(output).replaceAll("$1RANDOM\"");
+			output = Pattern.compile("(\"version\": \")((?:\\?)|(?:\\d{4}\\.\\d{1,2}(-SNAPSHOT)?))\"").matcher(output).replaceAll("$1VARIABLE\"");
+			output = Pattern.compile("(\"startedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
+			output = Pattern.compile("(\"uptime\": )(\\d+?)").matcher(output).replaceAll("$1VARIABLE");
+			output = Pattern.compile("(\"uptimeForHuman\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
+			output = Pattern.compile("(//)(.+:[0-9]+)(/)").matcher(output).replaceAll("$1VARIABLE$3");
+			assertEquals(
+				"""
+				{
+				   "serverName": "evitaDB-RANDOM",
+				   "version": "VARIABLE",
+				   "startedAt": "VARIABLE",
+				   "uptime": VARIABLE,
+				   "uptimeForHuman": "VARIABLE",
+				   "catalogsCorrupted": 0,
+				   "catalogsOk": 0,
+				   "healthProblems": [],
+				   "apis": [
+				      {
+				         "system": [
+				            "http://VARIABLE/system/"
+				         ]
+				      },
+				      {
+				         "graphQL": [
+				            "https://VARIABLE/gql/"
+				         ]
+				      },
+				      {
+				         "rest": [
+				            "https://VARIABLE/rest/"
+				         ]
+				      },
+				      {
+				         "gRPC": [
+				            "https://VARIABLE/"
+				         ]
+				      },
+				      {
+				         "lab": [
+				            "https://VARIABLE/lab/"
+				         ]
+				      },
+				      {
+				         "observability": [
+				            "http://VARIABLE/observability/"
+				         ]
+				      }
+				   ]
+				}""",
+				output
 			);
 
 		} catch (Exception ex) {

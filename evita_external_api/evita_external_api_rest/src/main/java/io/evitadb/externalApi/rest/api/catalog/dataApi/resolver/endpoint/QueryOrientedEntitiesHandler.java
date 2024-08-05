@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
-import io.evitadb.externalApi.http.EndpointExchange;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
@@ -39,7 +38,8 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Requi
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingException;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
-import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.ArrayUtils;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
@@ -104,31 +104,36 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	}
 
 	@Nonnull
-	protected Query resolveQuery(@Nonnull RestEndpointExchange exchange) {
-		final QueryEntityRequestDto requestData = parseRequestBody(exchange, QueryEntityRequestDto.class);
+	protected Query resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final FilterBy filterBy = requestData.getFilterBy()
-			.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
-			.orElse(null);
-		final OrderBy orderBy = requestData.getOrderBy()
-			.map(container -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
-			.orElse(null);
-		final Require require = requestData.getRequire()
-			.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
-			.orElse(null);
+		final QueryEntityRequestDto requestData = parseRequestBody(executionContext, QueryEntityRequestDto.class);
+		requestExecutedEvent.finishInputDeserialization();
 
-		return query(
-			collection(restHandlingContext.getEntityType()),
-			addLocaleIntoFilterByWhenUrlPathLocalized(exchange, filterBy),
-			orderBy,
-			require
-		);
+		return requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final FilterBy filterBy = requestData.getFilterBy()
+				.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
+				.orElse(null);
+			final OrderBy orderBy = requestData.getOrderBy()
+				.map(container -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
+				.orElse(null);
+			final Require require = requestData.getRequire()
+				.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
+				.orElse(null);
+
+			return query(
+				collection(restHandlingContext.getEntityType()),
+				addLocaleIntoFilterByWhenUrlPathLocalized(executionContext, filterBy),
+				orderBy,
+				require
+			);
+		});
 	}
 
 	@Nonnull
-	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull EndpointExchange exchange, @Nullable FilterBy filterBy) {
+	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull RestEndpointExecutionContext executionContext, @Nullable FilterBy filterBy) {
 		if (restHandlingContext.isLocalized()) {
-			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
+			final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
 			final Locale locale = (Locale) parametersFromRequest.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
 			if (locale == null) {
 				throw new RestRequiredParameterMissingException("Missing LOCALE in URL path.");

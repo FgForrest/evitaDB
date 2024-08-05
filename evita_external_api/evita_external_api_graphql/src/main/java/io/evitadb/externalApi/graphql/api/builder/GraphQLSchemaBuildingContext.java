@@ -54,7 +54,7 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  */
 public class GraphQLSchemaBuildingContext {
 
-    @Nonnull
+    @Getter @Nonnull
     private final GraphQLConfig config;
     @Getter @Nonnull
     private final Evita evita;
@@ -78,17 +78,6 @@ public class GraphQLSchemaBuildingContext {
         this.config = config;
         this.evita = evita;
         this.tracingContext = TracingContextProvider.getContext();;
-    }
-
-    /**
-     * Returns executor for async data fetcher. If empty, no data fetcher should run in parallel.
-     */
-    @Nonnull
-    public Optional<Executor> getEvitaExecutor() {
-        if (!config.isParallelize()) {
-            return Optional.empty();
-        }
-        return Optional.of(evita.getExecutor());
     }
 
     /**

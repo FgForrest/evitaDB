@@ -26,12 +26,17 @@ package io.evitadb.store.catalog;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
-import io.evitadb.scheduling.Scheduler;
+import io.evitadb.core.async.ClientRunnableTask;
+import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.file.ExportFileService;
+import io.evitadb.store.catalog.task.RestoreTask;
+import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
+import java.io.InputStream;
 
 /**
  * This implementation is the single and only implementation of {@link CatalogPersistenceServiceFactory}. Instance is
@@ -49,10 +54,11 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler
-	) {
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
+		) {
 		return new DefaultCatalogPersistenceService(
-			catalogName, storageOptions, transactionOptions, scheduler
+			catalogName, storageOptions, transactionOptions, scheduler, exportFileService
 		);
 	}
 
@@ -61,13 +67,29 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 	public CatalogPersistenceService load(
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
-		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService
 	) {
 		return new DefaultCatalogPersistenceService(
-			catalogInstance, catalogName, catalogStoragePath, storageOptions, transactionOptions, scheduler
+			catalogInstance, catalogName, storageOptions, transactionOptions, scheduler, exportFileService
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ClientRunnableTask<?> restoreCatalogTo(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		long totalBytesExpected,
+		@Nonnull InputStream inputStream
+	) throws DirectoryNotEmptyException, InvalidStoragePathException {
+		return new RestoreTask(
+			catalogName,
+			inputStream,
+			totalBytesExpected,
+			storageOptions
 		);
 	}
 

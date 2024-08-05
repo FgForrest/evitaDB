@@ -430,3 +430,9 @@ in [Logback](https://logback.qos.ch/index.html) this can be done using `%X{trace
 	<pattern>%d{HH:mm:ss.SSS} %-5level %logger{10} C:%X{traceId} R:%X{spanId} - %msg%n</pattern>
 </encoder>
 ```
+
+## Reference documentation
+
+<MDInclude>[Java Flight Recorder events](/documentation/user/en/operate/reference/jfr-events.md)</MDInclude>
+
+<MDInclude>[Metrics](/documentation/user/en/operate/reference/metrics.md)</MDInclude>

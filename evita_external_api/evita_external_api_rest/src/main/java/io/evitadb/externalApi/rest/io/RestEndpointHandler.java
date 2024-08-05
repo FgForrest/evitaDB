@@ -27,15 +27,18 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
-import io.evitadb.externalApi.http.EndpointExchange;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataDeserializer;
+import io.evitadb.externalApi.rest.api.system.resolver.endpoint.SystemRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingException;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent.OperationType;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
@@ -57,7 +60,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public abstract class RestEndpointHandler<CTX extends RestHandlingContext> extends EndpointHandler<RestEndpointExchange> {
+public abstract class RestEndpointHandler<CTX extends RestHandlingContext> extends EndpointHandler<RestEndpointExecutionContext> {
 
     @Nonnull
     protected final CTX restHandlingContext;
@@ -74,13 +77,13 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
 
     @Override
     public void handleRequest(HttpServerExchange serverExchange) {
-        handleRequestWithTracingContext(serverExchange);
+        instrumentRequest(serverExchange);
     }
 
     /**
      * Process every request with tracing context, so we can classify it in evitaDB.
      */
-    private void handleRequestWithTracingContext(@Nonnull HttpServerExchange serverExchange) {
+    private void instrumentRequest(@Nonnull HttpServerExchange serverExchange) {
         restHandlingContext.getTracingContext().executeWithinBlock(
             "REST",
             serverExchange,
@@ -90,35 +93,48 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
 
     @Nonnull
     @Override
-    protected RestEndpointExchange createEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-                                                          @Nonnull String httpMethod,
-                                                          @Nullable String requestBodyMediaType,
-                                                          @Nullable String preferredResponseMediaType) {
-        return new RestEndpointExchange(
+    protected RestEndpointExecutionContext createExecutionContext(@Nonnull HttpServerExchange serverExchange) {
+        final RestInstanceType instanceType;
+        if (restHandlingContext instanceof SystemRestHandlingContext) {
+            instanceType = RestInstanceType.SYSTEM;
+        } else if (restHandlingContext instanceof CatalogRestHandlingContext) {
+            instanceType = RestInstanceType.CATALOG;
+        } else {
+            // note: this is a bit of a hack to support lab rest API without rewriting it entirely. We will get rid of it
+            // when lab uses gRPC API
+            instanceType = RestInstanceType.LAB;
+        }
+
+        return new RestEndpointExecutionContext(
             serverExchange,
-            httpMethod,
-            requestBodyMediaType,
-            preferredResponseMediaType
+            new ExecutedEvent(
+                instanceType,
+                modifiesData() ? OperationType.MUTATION : OperationType.QUERY,
+                restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext ? catalogRestHandlingContext.getCatalogSchema().getName() : null,
+                restHandlingContext instanceof CollectionRestHandlingContext collectionRestHandlingContext ? collectionRestHandlingContext.getEntityType() : null,
+                serverExchange.getRequestMethod().toString(),
+                restHandlingContext.getEndpointOperation().getOperationId()
+            )
         );
     }
 
     @Override
-    protected void beforeRequestHandled(@Nonnull RestEndpointExchange exchange) {
+    protected void beforeRequestHandled(@Nonnull RestEndpointExecutionContext executionContext) {
         // tries to create evita session for this exchange
-        createSession(exchange).ifPresent(exchange::session);
+        createSession(executionContext).ifPresent(executionContext::provideSession);
     }
 
     @Override
-    protected void afterRequestHandled(@Nonnull RestEndpointExchange exchange, @Nonnull EndpointResponse response) {
+    protected void afterRequestHandled(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull EndpointResponse response) {
         // we need to close a current session and commit changes before we send the response to client
-        exchange.closeSessionIfOpen();
+        executionContext.closeSessionIfOpen();
     }
 
     /**
      * Tries to create a {@link EvitaSessionContract} automatically from context.
      */
     @Nullable
-    protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExchange exchange) {
+    protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExecutionContext exchange) {
         if (!(restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext)) {
             // we don't have any catalog to create session on
             return Optional.empty();
@@ -162,7 +178,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
     }
 
     @Nonnull
-    protected Map<String, Object> getParametersFromRequest(@Nonnull EndpointExchange exchange) {
+    protected Map<String, Object> getParametersFromRequest(@Nonnull RestEndpointExecutionContext exchange) {
         //create copy of parameters
         final Map<String, Deque<String>> parameters = new HashMap<>(exchange.serverExchange().getQueryParameters());
 

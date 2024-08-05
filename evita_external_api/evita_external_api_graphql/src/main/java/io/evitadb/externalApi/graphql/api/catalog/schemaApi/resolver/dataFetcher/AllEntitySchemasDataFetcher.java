@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,9 +29,11 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Returns collection of {@link EntitySchemaContract}s belonging to {@link io.evitadb.api.requestResponse.schema.CatalogSchemaContract}.
@@ -43,10 +45,14 @@ public class AllEntitySchemasDataFetcher implements DataFetcher<List<EntitySchem
 	@Nonnull
 	@Override
 	public List<EntitySchemaContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
+
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		return evitaSession.getAllEntityTypes()
+		final Set<String> allEntityTypes = requestExecutedEvent.measureInternalEvitaDBExecution(evitaSession::getAllEntityTypes);
+
+		return allEntityTypes
 			.stream()
-			.map(entityType -> evitaSession.getEntitySchema(entityType)
+			.map(entityType -> requestExecutedEvent.measureInternalEvitaDBExecution(() -> evitaSession.getEntitySchema(entityType))
 				.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing entity schema for type `" + entityType + "`.")))
 			.map(it -> (EntitySchemaContract)it)
 			.toList();

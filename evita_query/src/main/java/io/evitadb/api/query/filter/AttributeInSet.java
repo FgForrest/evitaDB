@@ -70,7 +70,7 @@ import java.util.Arrays;
 		"equals to at least one of the passed values. " +
 		"The constraint is equivalent to the multiple `equals` constraints combined with logical OR.",
 	userDocsLink = "/documentation/query/filtering/comparable#attribute-in-set",
-	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE},
+	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE},
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
 public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {

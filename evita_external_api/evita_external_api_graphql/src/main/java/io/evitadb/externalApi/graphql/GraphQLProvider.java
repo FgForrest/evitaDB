@@ -31,6 +31,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -50,10 +51,8 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
     @Nonnull
     @Getter
     private final GraphQLConfig configuration;
-
     @Nonnull
-    @Getter
-    private final HttpHandler apiHandler;
+    private final GraphQLManager graphQLManager;
 
     /**
      * Contains url that was at least once found reachable.
@@ -66,7 +65,18 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
         return CODE;
     }
 
-    @Override
+	@Nullable
+	@Override
+	public HttpHandler getApiHandler() {
+		return graphQLManager.getGraphQLRouter();
+	}
+
+	@Override
+	public void afterAllInitialized() {
+		graphQLManager.emitObservabilityEvents();
+	}
+
+	@Override
     public boolean isReady() {
         final Predicate<String> isReady = url -> {
             final Optional<String> post = NetworkUtils.fetchContent(url, "POST", "application/json", "{\"query\":\"{liveness}\"}");

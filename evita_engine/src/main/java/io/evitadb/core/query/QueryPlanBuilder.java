@@ -27,6 +27,7 @@ import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.prefetch.PrefetchFactory;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
@@ -53,12 +54,16 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
-	private final QueryContext queryContext;
+	private final QueryPlanningContext queryContext;
 	/**
 	 * Filtering formula tree.
 	 */
 	@Nonnull
 	@Getter private final Formula filterFormula;
+	/**
+	 * Superset of all possible results without any filtering.
+	 */
+	@Getter private final Formula superSetFormula;
 	/**
 	 * Indexes that were used for creating {@link #filterFormula}.
 	 */
@@ -68,7 +73,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	 * Optional visitor that collected information about target entities so that they can
 	 * be fetched upfront and filtered/ordered by their properties.
 	 */
-	@Nullable
+	@Nonnull
 	@Getter private final PrefetchFormulaVisitor prefetchFormulaVisitor;
 	/**
 	 * The sorter that is responsible for ordering the filtered results.
@@ -85,38 +90,42 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	 * Returns empty query plan.
 	 */
 	@Nonnull
-	public static QueryPlan empty(@Nonnull QueryContext queryContext) {
+	public static QueryPlan empty(@Nonnull QueryPlanningContext queryContext) {
 		return new QueryPlan(
 			queryContext,
-			"None", EmptyFormula.INSTANCE, null,
+			"None", EmptyFormula.INSTANCE, PrefetchFactory.NO_OP,
 			NoSorter.INSTANCE, Collections.emptyList()
 		);
 	}
 
 	public QueryPlanBuilder(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull Formula filterFormula,
-		@Nonnull TargetIndexes targetIndexes,
+		@Nonnull Formula superSetFormula,
+		@Nonnull TargetIndexes<?> targetIndexes,
 		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
 		@Nonnull Sorter replacedSorter
 	) {
 		this.queryContext = queryContext;
 		this.filterFormula = filterFormula;
+		this.superSetFormula = superSetFormula;
 		this.targetIndexes = targetIndexes;
 		this.prefetchFormulaVisitor = prefetchFormulaVisitor;
 		this.sorter = replacedSorter;
 	}
 
 	public QueryPlanBuilder(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull Formula filterFormula,
-		@Nonnull TargetIndexes targetIndexes,
+		@Nonnull Formula superSetFormula,
+		@Nonnull TargetIndexes<?> targetIndexes,
 		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
 		@Nonnull Sorter replacedSorter,
 		@Nonnull Collection<ExtraResultProducer> extraResultProducers
 	) {
 		this.queryContext = queryContext;
 		this.filterFormula = filterFormula;
+		this.superSetFormula = superSetFormula;
 		this.targetIndexes = targetIndexes;
 		this.prefetchFormulaVisitor = prefetchFormulaVisitor;
 		this.sorter = replacedSorter;
@@ -125,9 +134,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 
 	@Override
 	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
-		if (prefetchFormulaVisitor != null) {
-			prefetchFormulaVisitor.addRequirement(require);
-		}
+		prefetchFormulaVisitor.addRequirement(require);
 	}
 
 	/**

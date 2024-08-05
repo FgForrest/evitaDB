@@ -88,7 +88,7 @@ import java.io.Serializable;
 	name = "orderGroupBy",
 	shortDescription = "The container encapsulates order constraints that control the order of the facet groups in facet summary.",
 	userDocsLink = "/documentation/query/basics#order-by",
-	supportedIn = ConstraintDomain.REFERENCE
+	supportedIn = { ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
 public class OrderGroupBy extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = -309362096093370813L;

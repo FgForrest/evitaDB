@@ -68,7 +68,6 @@ public class AttributeEndsWithTranslator implements FilteringConstraintTranslato
 			);
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					new AttributeFormula(
 						attributeDefinition.isLocalized() ?
 							new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
@@ -82,7 +81,6 @@ public class AttributeEndsWithTranslator implements FilteringConstraintTranslato
 		} else {
 			return new EntityFilteringFormula(
 				"attribute ends with filter",
-				filterByVisitor,
 				createAlternativeBitmapFilter(filterByVisitor, attributeName, textToSearch)
 			);
 		}

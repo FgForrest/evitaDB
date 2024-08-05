@@ -1229,6 +1229,77 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
 	}
 
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return custom multiple prices for sale flag for master products")
+	void shouldReturnCustomMultiplePricesForSaleForMasterProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entity1 = findEntityWithPrice(originalProductEntities);
+
+		final var expectedBody1 = createEntityDtoWithMultiplePricesForSaleAvailable(entity1, false);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+	                        code: "%s"
+                        ) {
+                            primaryKey
+	                        type
+                            multiplePricesForSaleAvailable(currency: CZK, priceLists: "basic")
+	                    }
+	                }
+					""",
+				(String) entity1.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody1));
+
+		final var entity2 = findEntity(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::sellable)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1
+		);
+
+		final List<String> priceLists = entity2.getPrices(CURRENCY_CZK)
+			.stream()
+			.map(PriceContract::priceList)
+			.distinct()
+			.toList();
+		assertTrue(priceLists.size() > 1);
+
+		final var expectedBody2 = createEntityDtoWithMultiplePricesForSaleAvailable(entity2, true);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+	                        primaryKey: %d
+                        ) {
+                            primaryKey
+	                        type
+	                        multiplePricesForSaleAvailable(currency: CZK, priceLists: %s)
+	                    }
+	                }
+					""",
+				entity2.getPrimaryKey(),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody2));
+	}
+
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for single product")

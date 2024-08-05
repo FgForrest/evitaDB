@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EntitySche
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateEntitySchemaQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -48,7 +50,7 @@ import java.util.Map;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class UpdateEntitySchemaMutatingDataFetcher implements DataFetcher<EntitySchemaContract> {
+public class UpdateEntitySchemaMutatingDataFetcher implements DataFetcher<EntitySchemaContract>, WriteDataFetcher {
 
 	@Nonnull
 	private final EntitySchemaContract entitySchema;
@@ -62,16 +64,20 @@ public class UpdateEntitySchemaMutatingDataFetcher implements DataFetcher<Entity
 	@Nonnull
 	@Override
 	public EntitySchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		final Arguments arguments = Arguments.from(environment);
 
-		final EntitySchemaMutation[] schemaMutations = arguments.mutations()
-			.stream()
-			.flatMap(m -> mutationAggregateResolver.convert(m).stream())
-			.toArray(EntitySchemaMutation[]::new);
-		final ModifyEntitySchemaMutation entitySchemaMutation = new ModifyEntitySchemaMutation(entitySchema.getName(), schemaMutations);
+		final ModifyEntitySchemaMutation entitySchemaMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final EntitySchemaMutation[] schemaMutations = arguments.mutations()
+				.stream()
+				.flatMap(m -> mutationAggregateResolver.convert(m).stream())
+				.toArray(EntitySchemaMutation[]::new);
+			return new ModifyEntitySchemaMutation(entitySchema.getName(), schemaMutations);
+		});
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		return evitaSession.updateAndFetchEntitySchema(entitySchemaMutation);
+		return requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+			evitaSession.updateAndFetchEntitySchema(entitySchemaMutation));
 	}
 
 	/**

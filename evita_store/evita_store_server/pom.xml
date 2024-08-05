@@ -31,7 +31,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_store</artifactId>
-		<version>2024.7-SNAPSHOT</version>
+		<version>2024.9-SNAPSHOT</version>
 	</parent>
 
 	<dependencies>
@@ -60,4 +60,28 @@
 			<artifactId>kryo</artifactId>
 		</dependency>
 	</dependencies>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>net.bytebuddy</groupId>
+				<artifactId>byte-buddy-maven-plugin</artifactId>
+				<version>1.14.17</version>
+				<executions>
+					<execution>
+						<id>transform-classes</id>
+						<goals>
+							<goal>transform</goal>
+						</goals>
+						<configuration>
+							<transformations>
+								<transformation>
+									<plugin>io.evitadb.core.async.InterruptionTransformer</plugin>
+								</transformation>
+							</transformations>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
 </project>

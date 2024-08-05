@@ -1,3 +1,26 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2024
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
@@ -59,16 +82,6 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitRequireConstraintListUnit(EvitaQLParser.RequireConstraintListUnitContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#classifierTokenUnit}.
-	 * @param ctx the parse tree
-	 */
-	void enterClassifierTokenUnit(EvitaQLParser.ClassifierTokenUnitContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#classifierTokenUnit}.
-	 * @param ctx the parse tree
-	 */
-	void exitClassifierTokenUnit(EvitaQLParser.ClassifierTokenUnitContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#valueTokenUnit}.
 	 * @param ctx the parse tree
@@ -1628,6 +1641,26 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitRequireConstraintList(EvitaQLParser.RequireConstraintListContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#argsOpening}.
+	 * @param ctx the parse tree
+	 */
+	void enterArgsOpening(EvitaQLParser.ArgsOpeningContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#argsOpening}.
+	 * @param ctx the parse tree
+	 */
+	void exitArgsOpening(EvitaQLParser.ArgsOpeningContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#argsClosing}.
+	 * @param ctx the parse tree
+	 */
+	void enterArgsClosing(EvitaQLParser.ArgsClosingContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#argsClosing}.
+	 * @param ctx the parse tree
+	 */
+	void exitArgsClosing(EvitaQLParser.ArgsClosingContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#constraintListArgs}.
 	 * @param ctx the parse tree
 	 */
@@ -2168,16 +2201,6 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitFacetSummary2Args(EvitaQLParser.FacetSummary2ArgsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummaryOfReference1Args}.
-	 * @param ctx the parse tree
-	 */
-	void enterFacetSummaryOfReference1Args(EvitaQLParser.FacetSummaryOfReference1ArgsContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummaryOfReference1Args}.
-	 * @param ctx the parse tree
-	 */
-	void exitFacetSummaryOfReference1Args(EvitaQLParser.FacetSummaryOfReference1ArgsContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummaryOfReference2Args}.
 	 * @param ctx the parse tree
 	 */
@@ -2337,78 +2360,6 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitNamedParameter(EvitaQLParser.NamedParameterContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code positionalParameterVariadicClassifierTokens}
-	 * labeled alternative in {@link EvitaQLParser#variadicClassifierTokens}.
-	 * @param ctx the parse tree
-	 */
-	void enterPositionalParameterVariadicClassifierTokens(EvitaQLParser.PositionalParameterVariadicClassifierTokensContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code positionalParameterVariadicClassifierTokens}
-	 * labeled alternative in {@link EvitaQLParser#variadicClassifierTokens}.
-	 * @param ctx the parse tree
-	 */
-	void exitPositionalParameterVariadicClassifierTokens(EvitaQLParser.PositionalParameterVariadicClassifierTokensContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code namedParameterVariadicClassifierTokens}
-	 * labeled alternative in {@link EvitaQLParser#variadicClassifierTokens}.
-	 * @param ctx the parse tree
-	 */
-	void enterNamedParameterVariadicClassifierTokens(EvitaQLParser.NamedParameterVariadicClassifierTokensContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code namedParameterVariadicClassifierTokens}
-	 * labeled alternative in {@link EvitaQLParser#variadicClassifierTokens}.
-	 * @param ctx the parse tree
-	 */
-	void exitNamedParameterVariadicClassifierTokens(EvitaQLParser.NamedParameterVariadicClassifierTokensContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code explicitVariadicClassifierTokens}
-	 * labeled alternative in {@link EvitaQLParser#variadicClassifierTokens}.
-	 * @param ctx the parse tree
-	 */
-	void enterExplicitVariadicClassifierTokens(EvitaQLParser.ExplicitVariadicClassifierTokensContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code explicitVariadicClassifierTokens}
-	 * labeled alternative in {@link EvitaQLParser#variadicClassifierTokens}.
-	 * @param ctx the parse tree
-	 */
-	void exitExplicitVariadicClassifierTokens(EvitaQLParser.ExplicitVariadicClassifierTokensContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code positionalParameterClassifierToken}
-	 * labeled alternative in {@link EvitaQLParser#classifierToken}.
-	 * @param ctx the parse tree
-	 */
-	void enterPositionalParameterClassifierToken(EvitaQLParser.PositionalParameterClassifierTokenContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code positionalParameterClassifierToken}
-	 * labeled alternative in {@link EvitaQLParser#classifierToken}.
-	 * @param ctx the parse tree
-	 */
-	void exitPositionalParameterClassifierToken(EvitaQLParser.PositionalParameterClassifierTokenContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code namedParameterClassifierToken}
-	 * labeled alternative in {@link EvitaQLParser#classifierToken}.
-	 * @param ctx the parse tree
-	 */
-	void enterNamedParameterClassifierToken(EvitaQLParser.NamedParameterClassifierTokenContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code namedParameterClassifierToken}
-	 * labeled alternative in {@link EvitaQLParser#classifierToken}.
-	 * @param ctx the parse tree
-	 */
-	void exitNamedParameterClassifierToken(EvitaQLParser.NamedParameterClassifierTokenContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code stringClassifierToken}
-	 * labeled alternative in {@link EvitaQLParser#classifierToken}.
-	 * @param ctx the parse tree
-	 */
-	void enterStringClassifierToken(EvitaQLParser.StringClassifierTokenContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code stringClassifierToken}
-	 * labeled alternative in {@link EvitaQLParser#classifierToken}.
-	 * @param ctx the parse tree
-	 */
-	void exitStringClassifierToken(EvitaQLParser.StringClassifierTokenContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code positionalParameterVariadicValueTokens}
 	 * labeled alternative in {@link EvitaQLParser#variadicValueTokens}.

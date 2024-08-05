@@ -150,5 +150,6 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	/**
 	 * Produces mutable copy of the roaring bitmap.
 	 */
+	@Nonnull
 	RoaringBitmap getRoaringBitmap();
 }

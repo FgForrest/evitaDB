@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ParentStatisticsHierarchyVisitor;
@@ -81,14 +82,16 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 	@Nonnull
 	@Override
 	protected List<Accumulator> createStatistics(
+		@Nonnull QueryExecutionContext executionContext,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
 		if (context.hierarchyFilter() instanceof HierarchyWithin) {
 			final EntityIndex entityIndex = context.entityIndex();
-			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodes();
+			final Bitmap hierarchyNodes = context.rootHierarchyNodesSupplier().get();
 
 			final ChildrenStatisticsHierarchyVisitor childVisitor = new ChildrenStatisticsHierarchyVisitor(
+				executionContext,
 				context.removeEmptyResults(),
 				0,
 				hierarchyNodes::contains,
@@ -124,7 +127,8 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				siblingsComputerToUse = null;
 			} else {
 				siblingsComputerToUse = new SiblingsStatisticsTravelingComputer(
-					context, entityPk -> new EntityReference(context.entitySchema().getName(), entityPk),
+					context,
+					(theContext, entityPk) -> new EntityReference(context.entitySchema().getName(), entityPk),
 					context.hierarchyFilterPredicateProducer(),
 					havingPredicate,
 					HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS,
@@ -136,6 +140,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				startNode.getEntity().getPrimaryKey()
 			).negate();
 			final ParentStatisticsHierarchyVisitor parentVisitor = new ParentStatisticsHierarchyVisitor(
+				executionContext,
 				hierarchyNodes::contains,
 				scopePredicate,
 				filterPredicate.and(exceptStartNode),

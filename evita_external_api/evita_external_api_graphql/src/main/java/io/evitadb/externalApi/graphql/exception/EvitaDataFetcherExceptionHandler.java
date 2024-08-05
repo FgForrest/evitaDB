@@ -29,6 +29,8 @@ import graphql.execution.DataFetcherExceptionHandlerResult;
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.exception.EvitaError;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.ResponseStatus;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -85,6 +87,12 @@ public class EvitaDataFetcherExceptionHandler implements DataFetcherExceptionHan
 				"errorCode", evitaError.getErrorCode()
 			)
 		);
+
+		final ExecutedEvent requestExecutedEvent = handlerParameters.getDataFetchingEnvironment().getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
+		if (requestExecutedEvent != null) {
+			requestExecutedEvent.provideResponseStatus(ResponseStatus.ERROR);
+		}
+
 		return CompletableFuture.completedFuture(DataFetcherExceptionHandlerResult.newResult()
 			.error(error)
 			.build());

@@ -41,6 +41,7 @@ import java.io.Serial;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static java.util.Optional.ofNullable;
 
@@ -59,11 +60,11 @@ import static java.util.Optional.ofNullable;
  *                                       contains the information about the entity collection file
  * @param compressedKeys                 contains mapping of certain parts of {@link StoragePartKey} to an integer id
  *                                       that is used for compression of the original storage key
+ * @param catalogId                      contains the unique identifier of the catalog that doesn't change with catalog rename
  * @param catalogName                    contains name of the catalog that originates in {@link CatalogSchema#getName()}
  * @param catalogState                   contains the state of the catalog that originates in {@link Catalog#getCatalogState()}
  * @param lastEntityCollectionPrimaryKey contains the last assigned {@link EntityCollection#getEntityTypePrimaryKey()}
  * @param activeRecordShare              contains the share of active records in the catalog that is used for
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  * @see PersistentStorageHeader
  */
@@ -73,20 +74,22 @@ public record CatalogHeader(
 	@Nullable WalFileReference walFileReference,
 	@Nonnull Map<String, CollectionFileReference> collectionFileIndex,
 	@Nonnull Map<Integer, Object> compressedKeys,
+	@Nonnull UUID catalogId,
 	@Nonnull String catalogName,
 	@Nonnull CatalogState catalogState,
 	int lastEntityCollectionPrimaryKey,
 	double activeRecordShare
 ) implements StoragePart {
-	@Serial private static final long serialVersionUID = -5987715153038480011L;
+	@Serial private static final long serialVersionUID = 4115945765677481853L;
 
-	public CatalogHeader(@Nonnull String catalogName) {
+	public CatalogHeader(@Nonnull UUID catalogId, @Nonnull String catalogName) {
 		this(
 			CatalogPersistenceService.STORAGE_PROTOCOL_VERSION,
 			0L,
 			null,
 			Map.of(),
 			Map.of(),
+			catalogId,
 			catalogName,
 			CatalogState.WARMING_UP,
 			0,

@@ -1051,6 +1051,12 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
+	public Optional<PriceForSaleContext> getPriceForSaleContext() {
+		return pricePredicate.getPriceForSaleContext();
+	}
+
+	@Nonnull
+	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
 		if (pricePredicate.isContextAvailable()) {
 			pricePredicate.checkPricesFetched();

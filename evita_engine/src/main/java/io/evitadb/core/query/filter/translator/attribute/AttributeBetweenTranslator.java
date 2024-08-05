@@ -159,7 +159,6 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 			}
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					filteringFormula,
 					createAlternativeBitmapFilter(filterByVisitor, attributeName, from, to)
 				);
@@ -169,7 +168,6 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 		} else {
 			return new EntityFilteringFormula(
 				"attribute between filter",
-				filterByVisitor,
 				createAlternativeBitmapFilter(filterByVisitor, attributeName, from, to)
 			);
 		}

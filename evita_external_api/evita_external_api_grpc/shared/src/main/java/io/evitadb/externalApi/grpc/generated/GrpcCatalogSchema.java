@@ -198,7 +198,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -219,7 +219,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -350,7 +350,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogSchema_AttributesEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogSchema_AttributesEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -946,7 +946,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -970,7 +970,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       name_ = value;
       onChanged();
       return this;
@@ -985,7 +985,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-
+      
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
@@ -1006,7 +1006,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       name_ = value;
       onChanged();
       return this;
@@ -1037,7 +1037,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(int value) {
-
+      
       version_ = value;
       onChanged();
       return this;
@@ -1052,7 +1052,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-
+      
       version_ = 0;
       onChanged();
       return this;
@@ -1180,7 +1180,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
-
+      
       onChanged();
       return getDescriptionFieldBuilder().getBuilder();
     }
@@ -1209,7 +1209,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

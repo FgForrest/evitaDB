@@ -37,24 +37,28 @@ module evita.external.api.graphql {
 	opens io.evitadb.externalApi.graphql to com.graphqljava;
 	opens io.evitadb.externalApi.graphql.configuration to com.fasterxml.jackson.databind;
 	opens io.evitadb.externalApi.graphql.io to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.graphql.api.catalog to com.graphqljava;
 	opens io.evitadb.externalApi.graphql.api.catalog.dataApi.dto to com.graphqljava;
 	opens io.evitadb.externalApi.graphql.api to com.graphqljava;
 
 	exports io.evitadb.externalApi.graphql;
 	exports io.evitadb.externalApi.graphql.io;
 	exports io.evitadb.externalApi.graphql.configuration;
+	exports io.evitadb.externalApi.graphql.metric.event.request;
+	exports io.evitadb.externalApi.graphql.metric.event.instance;
 
 	exports io.evitadb.externalApi.graphql.api.catalog.dataApi.model to evita.test.support;
 	exports io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity to evita.test.support;
 	exports io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult to evita.test.support;
-	opens io.evitadb.externalApi.graphql.api.catalog to com.graphqljava;
 
 	requires static jsr305;
 	requires static lombok;
 	requires org.slf4j;
+	requires com.graphqljava;
 	requires com.fasterxml.jackson.databind;
 	requires undertow.core;
-	requires com.graphqljava;
+	requires net.bytebuddy;
+	requires jdk.jfr;
 
 	requires evita.api;
 	requires evita.common;

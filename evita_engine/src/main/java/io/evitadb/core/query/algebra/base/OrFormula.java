@@ -67,29 +67,33 @@ public class OrFormula extends AbstractCacheableFormula {
 	private final long[] indexTransactionId;
 
 	OrFormula(@Nonnull Consumer<CacheableFormula> computationCallback, @Nonnull Formula[] innerFormulas, long[] indexTransactionId, @Nullable Bitmap[] bitmaps) {
-		super(computationCallback, innerFormulas);
+		super(computationCallback);
 		Assert.isTrue(
 			innerFormulas.length > 1 || Objects.requireNonNull(bitmaps).length > 1,
 			"Or formula has no sense with " + innerFormulas.length + " inner formulas / bitmaps!"
 		);
 		this.bitmaps = bitmaps;
 		this.indexTransactionId = indexTransactionId;
+		this.initFields(innerFormulas);
 	}
 
 	public OrFormula(@Nonnull Formula... innerFormulas) {
-		super(null, innerFormulas);
+		super(null);
 		Assert.isTrue(innerFormulas.length > 1, "Or formula has no sense with " + innerFormulas.length + " inner formulas!");
 		this.bitmaps = null;
 		this.indexTransactionId = null;
+		this.initFields(innerFormulas);
 	}
 
 	public OrFormula(long[] indexTransactionId, @Nonnull Bitmap... bitmaps) {
 		super(null);
-		Assert.isTrue(bitmaps.length > 1, "Or formula has no sense with " + innerFormulas.length + " inner bitmaps!");
+		Assert.isTrue(bitmaps.length > 1, "Or formula has no sense with " + bitmaps.length + " inner bitmaps!");
 		this.bitmaps = bitmaps;
 		this.indexTransactionId = indexTransactionId;
+		this.initFields();
 	}
 
+	@Nonnull
 	public Bitmap[] getBitmaps() {
 		return bitmaps == null ? EMPTY_BITMAP_ARRAY : bitmaps;
 	}

@@ -227,6 +227,21 @@ message GrpcGoLiveAndCloseResponse {
   int64 catalogVersion = 2;
 }
 
+// Response to a catalog backup request.
+message GrpcBackupCatalogRequest {
+  // The moment in time to which the catalog should be backed up. Might be null for current time.
+  GrpcOffsetDateTime pastMoment = 1;
+  // True, if the WAL should be included in the backup. Use false if you want to restore catalog in exact state as
+  // it was at the pastMoment.
+  bool includingWAL = 2;
+}
+
+// Response to a catalog backup request.
+message GrpcBackupCatalogResponse {
+  // the task that is used to backup the catalog and getting its progress
+  GrpcTaskStatus taskStatus = 1;
+}
+
 // Request for acquiring the list of all entity types.
 message GrpcEntityTypesResponse {
   // The list of all entity types.
@@ -400,6 +415,8 @@ message GrpcQueryParam {
     GrpcStatisticsType statisticsType = 20;
     // The histogram behavior enum value.
     GrpcHistogramBehavior histogramBehavior = 21;
+    // The managed references behaviour
+    GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;
 
     // The string array value.
     GrpcStringArray stringArrayValue = 101;
@@ -463,6 +480,8 @@ service EvitaSessionService {
   rpc GetAllEntityTypes(google.protobuf.Empty) returns (GrpcEntityTypesResponse);
   // Procedure that changes the state of the catalog to ALIVE and closes the session.
   rpc GoLiveAndClose(google.protobuf.Empty) returns (GrpcGoLiveAndCloseResponse);
+  // Procedure used to backup an existing catalog.
+  rpc BackupCatalog(GrpcBackupCatalogRequest) returns (GrpcBackupCatalogResponse);
   // Procedure that closes the session.
   rpc Close(GrpcCloseRequest) returns (GrpcCloseResponse);
 

@@ -23,6 +23,7 @@
 
 package io.evitadb.store.compressor;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.exception.CompressionKeyUnknownException;
 import io.evitadb.store.service.KeyCompressor;
 
@@ -103,7 +104,10 @@ public class AggregatedKeyCompressor implements KeyCompressor {
 		}
 
 		// If no compressor has the ID, throw an exception
-		throw new IllegalArgumentException("ID not found: " + id);
+		throw new GenericEvitaInternalError(
+			"ID not found: " + id,
+			"ID not found."
+		);
 	}
 
 	@Nullable

@@ -46,7 +46,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.ReferencedEntityFetcher;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
@@ -77,7 +77,6 @@ import io.evitadb.core.query.filter.translator.price.PriceValidInTranslator;
 import io.evitadb.core.query.filter.translator.reference.EntityHavingTranslator;
 import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.core.query.response.TransactionalDataRelatedStructure.CalculationContext;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
@@ -202,7 +201,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
 	@Nonnull
-	@Delegate @Getter private final QueryContext queryContext;
+	@Delegate @Getter private final QueryPlanningContext queryContext;
 	/**
 	 * Collection contains all alternative {@link TargetIndexes} sets that might already contain precalculated information
 	 * related to {@link EntityIndex} that can be used to partially resolve input filter although the target index set
@@ -246,7 +245,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public static Formula createFormulaForTheFilter(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull FilterBy filterBy,
 		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
@@ -295,7 +294,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 
 	protected <T extends Index<?>> FilterByVisitor(
 		@Nonnull ProcessingScope<T> processingScope,
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<TargetIndexes<T>> targetIndexes,
 		@Nonnull TargetIndexes<T> indexSetToUse,
 		boolean targetIndexQueriedByOtherConstraints
@@ -311,7 +310,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	}
 
 	public <T extends Index<?>> FilterByVisitor(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<TargetIndexes<T>> targetIndexes,
 		@Nonnull TargetIndexes<T> indexSetToUse,
 		boolean targetIndexQueriedByOtherConstraints
@@ -591,7 +590,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			return EmptyFormula.INSTANCE;
 		}
 
-		return executeInContext(
+		final Formula resultFormula = executeInContext(
 			ReferencedTypeEntityIndex.class,
 			Collections.singletonList(entityIndex),
 			ReferenceContent.ALL_REFERENCES,
@@ -605,6 +604,11 @@ public class FilterByVisitor implements ConstraintVisitor {
 				return getFormulaAndClear();
 			}
 		);
+
+		// we need to initialize formula here, because the result will be needed in internal phase
+		resultFormula.initialize(this.getInternalExecutionContext());
+
+		return resultFormula;
 	}
 
 	/**
@@ -687,7 +691,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Formula getSuperSetFormula() {
-		return applyOnIndexes(EntityIndex::getAllPrimaryKeysFormula);
+		return getProcessingScope().getSuperSetFormula();
 	}
 
 	/**
@@ -944,6 +948,11 @@ public class FilterByVisitor implements ConstraintVisitor {
 		PRIVATE METHODS
 	 */
 
+	/**
+	 * Joins formulas into one OR formula.
+	 * @param formulaStream stream of formulas
+	 * @return joined formula
+	 */
 	@Nonnull
 	private Formula joinFormulas(@Nonnull Stream<Formula> formulaStream) {
 		final Formula[] formulas = formulaStream
@@ -973,7 +982,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	private Formula constructFinalFormula(@Nonnull Formula constraintFormula) {
 		Formula finalFormula = constraintFormula;
-		final CalculationContext calculationContext = new CalculationContext();
 		if (!this.postProcessors.isEmpty()) {
 			final Set<FormulaPostProcessor> executedProcessors = CollectionUtils.createHashSet(postProcessors.size());
 			for (FormulaPostProcessor postProcessor : this.postProcessors.values()) {
@@ -984,12 +992,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 				}
 			}
 		}
-		final FormulaDeduplicator deduplicator = new FormulaDeduplicator(
-			finalFormula,
-			result -> result.initialize(calculationContext),
-			result -> result.initializeAgain(calculationContext)
-		);
-		deduplicator.visit(constraintFormula);
+		final FormulaDeduplicator deduplicator = new FormulaDeduplicator(finalFormula);
+		deduplicator.visit(finalFormula);
 		return deduplicator.getPostProcessedFormula();
 	}
 
@@ -1069,6 +1073,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 		 * Contains set of indexes, that should be used for accessing final indexes.
 		 */
 		private List<T> indexes;
+		/**
+		 * Superset formula with all primary keys present in indexes.
+		 */
+		private Formula superSetFormula;
 
 		private static void examineChildren(
 			@Nonnull Consumer<FilterConstraint> lambda,
@@ -1284,6 +1292,27 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nullable
 		public Stream<Optional<AttributeValue>> getAttributeValueStream(@Nonnull EntityContract entitySchema, @Nonnull String attributeName, @Nullable Locale locale) {
 			return attributeValueAccessor.apply(entitySchema, attributeName, locale);
+		}
+
+		/**
+		 * Calculates and returns super-set formula (i.e. formula containing all primary keys from involved indexes)
+		 * for the current scope of the execution.
+		 *
+		 * @return super set formula
+		 */
+		@Nonnull
+		public Formula getSuperSetFormula() {
+			if (this.superSetFormula == null) {
+				this.superSetFormula = FormulaFactory.or(
+					getIndexStream()
+						.filter(EntityIndex.class::isInstance)
+						.map(EntityIndex.class::cast)
+						.map(EntityIndex::getAllPrimaryKeysFormula)
+						.filter(it -> !(it instanceof EmptyFormula))
+						.toArray(Formula[]::new)
+				);
+			}
+			return this.superSetFormula;
 		}
 	}
 

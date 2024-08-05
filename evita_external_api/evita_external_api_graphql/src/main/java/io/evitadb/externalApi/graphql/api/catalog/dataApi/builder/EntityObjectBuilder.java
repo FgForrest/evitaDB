@@ -39,7 +39,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -54,15 +54,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Ord
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AccompanyingPriceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.*;
@@ -71,7 +63,6 @@ import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfa
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 
 import javax.annotation.Nonnull;
@@ -354,6 +345,15 @@ public class EntityObjectBuilder {
 		return new BuiltFieldDescriptor(
 			GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE
 				.to(fieldBuilderTransformer)
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.PRICE_LISTS
+					.to(argumentBuilderTransformer))
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.CURRENCY
+					.to(argumentBuilderTransformer)
+					.type(typeRef(CURRENCY_ENUM.name())))
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_IN
+					.to(argumentBuilderTransformer))
+				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_NOW
+					.to(argumentBuilderTransformer))
 				.build(),
 			new MultiplePricesForSaleAvailableDataFetcher()
 		);
@@ -579,22 +579,14 @@ public class EntityObjectBuilder {
 				new NonNullBigDecimalFieldDecorator(argumentBuilderTransformer).accept(associatedDataFieldBuilder);
 			}
 
-			associatedDataFieldDataFetcher = new ReadDataFetcher(
-				new BigDecimalDataFetcher(
-					new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema)
-				),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvitaExecutor().orElse(null)
+			associatedDataFieldDataFetcher = new BigDecimalDataFetcher(
+				new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema)
 			);
 		} else {
 			associatedDataFieldBuilder.type(
 				(GraphQLOutputType) DataTypesConverter.getGraphQLScalarType(associatedDataType, !associatedDataSchema.isNullable())
 			);
-			associatedDataFieldDataFetcher = new ReadDataFetcher(
-				new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvitaExecutor().orElse(null)
-			);
+			associatedDataFieldDataFetcher = new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema);
 		}
 
 		associatedDataFieldBuilder
@@ -621,7 +613,7 @@ public class EntityObjectBuilder {
 					default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
 				};
 
-				final ReferenceDataLocator referenceDataLocator = new ReferenceDataLocator(
+				final InlineReferenceDataLocator referenceDataLocator = new InlineReferenceDataLocator(
 					collectionBuildingContext.getSchema().getName(),
 					referenceSchema.getName()
 				);

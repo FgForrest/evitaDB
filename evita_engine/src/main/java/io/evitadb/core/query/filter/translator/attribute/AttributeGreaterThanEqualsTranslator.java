@@ -90,7 +90,6 @@ public class AttributeGreaterThanEqualsTranslator implements FilteringConstraint
 			);
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
-					filterByVisitor,
 					filteringFormula,
 					createAlternativeBitmapFilter(filterByVisitor, attributeName, attributeValue)
 				);
@@ -100,7 +99,6 @@ public class AttributeGreaterThanEqualsTranslator implements FilteringConstraint
 		} else {
 			return new EntityFilteringFormula(
 				"attribute greater than or equals filter",
-				filterByVisitor,
 				createAlternativeBitmapFilter(filterByVisitor, attributeName, attributeValue)
 			);
 		}

@@ -35,7 +35,9 @@ import io.evitadb.core.metric.event.session.KilledEvent;
 import io.evitadb.core.metric.event.session.OpenedEvent;
 import io.evitadb.core.metric.event.storage.*;
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
+import io.evitadb.core.metric.event.system.BackgroundTaskRejectedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
+import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.metric.event.transaction.*;
 import io.evitadb.externalApi.grpc.metric.event.ProcedureCalledEvent;
@@ -103,6 +105,8 @@ public class EvitaJfrEventRegistry {
 		// system events
 		EvitaStartedEvent.class,
 		BackgroundTaskStartedEvent.class,
+		BackgroundTaskRejectedEvent.class,
+		BackgroundTaskTimedOutEvent.class,
 		BackgroundTaskFinishedEvent.class,
 
 		//cache
@@ -110,7 +114,15 @@ public class EvitaJfrEventRegistry {
 		AnteroomWastedEvent.class,
 
 		// api - gRPC
-		ProcedureCalledEvent.class
+		ProcedureCalledEvent.class,
+
+		// api - GraphQL
+		io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.class,
+		io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent.class,
+
+		// api - REST
+		io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent.class,
+		io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent.class
 	);
 	private static final Map<String, Class<? extends CustomMetricsExecutionEvent>> EVENT_MAP;
 	private static final Map<String, Set<Class<? extends CustomMetricsExecutionEvent>>> EVENT_MAP_BY_PACKAGE;

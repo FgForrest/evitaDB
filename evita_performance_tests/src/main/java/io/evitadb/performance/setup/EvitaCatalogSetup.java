@@ -47,10 +47,8 @@ public interface EvitaCatalogSetup extends CatalogSetup, EvitaTestSupport {
 			EvitaConfiguration.builder()
 				.server(
 					ServerOptions.builder()
-						.coreThreadCount(4)
-						.maxThreadCount(16)
-						.threadPriority(5)
-						.queueSize(100)
+						.queryTimeoutInMilliseconds(60_000)
+						.transactionTimeoutInMilliseconds(60_000)
 						.closeSessionsAfterSecondsOfInactivity(60)
 						.build()
 				)

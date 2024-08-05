@@ -23,7 +23,8 @@
 
 package io.evitadb.core.query.sort;
 
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
@@ -46,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 /**
  * This test verifies {@link PreSortedRecordsSorter} behaviour.
@@ -101,7 +103,7 @@ class PreSortedRecordsSorterTest {
 		return new ConstantFormula(new BaseBitmap(recordIds));
 	}
 
-	private static void assertPageIsConsistent(int[] sortedRecordIds, PreSortedRecordsSorter sorter, QueryContext queryContext, int[] recIds, int startIndex, int endIndex) {
+	private static void assertPageIsConsistent(int[] sortedRecordIds, PreSortedRecordsSorter sorter, QueryExecutionContext queryContext, int[] recIds, int startIndex, int endIndex) {
 		final int[] sortedSlice = SortUtilsTest.asResult(theArray -> sorter.sortAndSlice(queryContext, makeFormula(recIds), startIndex, endIndex, theArray, 0));
 		assertEquals(endIndex - startIndex, sortedSlice.length);
 		int lastPosition = -1;
@@ -114,37 +116,41 @@ class PreSortedRecordsSorterTest {
 
 	@BeforeEach
 	void setUp() {
-		final QueryContext bitmapQueryContext = Mockito.mock(QueryContext.class);
-		Mockito.when(bitmapQueryContext.getPrefetchedEntities()).thenReturn(null);
-		Mockito.doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(bitmapQueryContext).borrowBuffer();
-		Mockito.doNothing().when(bitmapQueryContext).returnBuffer(any());
+		final QueryPlanningContext planningContext = Mockito.mock(QueryPlanningContext.class);
+		final QueryExecutionContext executionContext = Mockito.mock(QueryExecutionContext.class);
+		when(planningContext.createExecutionContext()).thenReturn(executionContext);
+		when(executionContext.getPrefetchedEntities()).thenReturn(null);
+		Mockito.doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(executionContext).borrowBuffer();
+		Mockito.doNothing().when(executionContext).returnBuffer(any());
 		bitmapSorter = new PreSortedRecordsSorterWithContext(
 			new PreSortedRecordsSorter(
 				() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(7, 2, 4, 1, 3, 8, 5, 9, 6)}
 			),
-			bitmapQueryContext
+			planningContext
 		);
 	}
 
 	@Test
 	void shouldReturnFullResultInExpectedOrderOnSmallData() {
+		final QueryExecutionContext executionContext = bitmapSorter.context().createExecutionContext();
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3},
-			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(1, 2, 3, 4), 0, 100, theArray, 0))
+			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(executionContext, makeFormula(1, 2, 3, 4), 0, 100, theArray, 0))
 		);
 		assertArrayEquals(
 			new int[]{1, 3},
-			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5, theArray, 0))
+			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(executionContext, makeFormula(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5, theArray, 0))
 		);
 		assertArrayEquals(
 			new int[]{7, 8, 9},
-			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(7, 8, 9), 0, 3, theArray, 0))
+			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(executionContext, makeFormula(7, 8, 9), 0, 3, theArray, 0))
 		);
 	}
 
 	@Test
 	void shouldReturnSortedResultEvenForMissingData() {
-		final int[] actual = SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
+		final QueryExecutionContext executionContext = bitmapSorter.context().createExecutionContext();
+		final int[] actual = SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(executionContext, makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 0, 12, 13},
 			actual
@@ -159,7 +165,8 @@ class PreSortedRecordsSorterTest {
 			)
 		);
 
-		final int[] actual = SortUtilsTest.asResult(theArray -> updatedSorter.sortAndSlice(bitmapSorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
+		final QueryExecutionContext executionContext = bitmapSorter.context().createExecutionContext();
+		final int[] actual = SortUtilsTest.asResult(theArray -> updatedSorter.sortAndSlice(executionContext, makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 13, 0, 12},
 			actual
@@ -179,8 +186,8 @@ class PreSortedRecordsSorterTest {
 		final PreSortedRecordsSorter sorter = new PreSortedRecordsSorter(
 			() -> new SortedRecordsProvider[]{sortedRecordsSupplier}
 		);
-		final QueryContext queryContext = Mockito.mock(QueryContext.class);
-		Mockito.when(queryContext.getPrefetchedEntities()).thenReturn(null);
+		final QueryExecutionContext queryContext = Mockito.mock(QueryExecutionContext.class);
+		when(queryContext.getPrefetchedEntities()).thenReturn(null);
 		Mockito.doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(queryContext).borrowBuffer();
 		Mockito.doNothing().when(queryContext).returnBuffer(any());
 
@@ -194,7 +201,7 @@ class PreSortedRecordsSorterTest {
 
 	private record PreSortedRecordsSorterWithContext(
 		@Nonnull PreSortedRecordsSorter sorter,
-		@Nonnull QueryContext context
+		@Nonnull QueryPlanningContext context
 	) {
 	}
 

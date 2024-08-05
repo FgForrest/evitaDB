@@ -28,17 +28,15 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.CatalogState;
-import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link CatalogHeader} from/to binary format.
@@ -48,14 +46,15 @@ import java.util.Map;
 public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSerializer<CatalogHeader> {
 
 	@Override
-	public void write(Kryo kryo, Output output, CatalogHeader object) {
-		output.writeVarInt(object.storageProtocolVersion(), true);
-		output.writeString(object.catalogName());
-		output.writeVarLong(object.version(), true);
-		output.writeVarInt(object.lastEntityCollectionPrimaryKey(), true);
-		output.writeDouble(object.activeRecordShare());
+	public void write(Kryo kryo, Output output, CatalogHeader catalogHeader) {
+		output.writeVarInt(catalogHeader.storageProtocolVersion(), true);
+		output.writeString(catalogHeader.catalogName());
+		kryo.writeObject(output, catalogHeader.catalogId());
+		output.writeVarLong(catalogHeader.version(), true);
+		output.writeVarInt(catalogHeader.lastEntityCollectionPrimaryKey(), true);
+		output.writeDouble(catalogHeader.activeRecordShare());
 
-		final WalFileReference walFileReference = object.walFileReference();
+		final WalFileReference walFileReference = catalogHeader.walFileReference();
 		if (walFileReference != null) {
 			output.writeBoolean(true);
 			output.writeVarInt(walFileReference.fileIndex(), true);
@@ -65,7 +64,7 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 			output.writeBoolean(false);
 		}
 
-		final Collection<CollectionFileReference> entityTypeFileIndexes = object.getEntityTypeFileIndexes();
+		final Collection<CollectionFileReference> entityTypeFileIndexes = catalogHeader.getEntityTypeFileIndexes();
 		output.writeVarInt(entityTypeFileIndexes.size(), true);
 		for (CollectionFileReference entityTypeFileIndex : entityTypeFileIndexes) {
 			output.writeString(entityTypeFileIndex.entityType());
@@ -75,22 +74,16 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 			output.writeVarInt(entityTypeFileIndex.fileLocation().recordLength(), true);
 		}
 
-		serializeKeys(object.compressedKeys(), output, kryo);
+		serializeKeys(catalogHeader.compressedKeys(), output, kryo);
 
-		kryo.writeObject(output, object.catalogState());
+		kryo.writeObject(output, catalogHeader.catalogState());
 	}
 
 	@Override
 	public CatalogHeader read(Kryo kryo, Input input, Class<? extends CatalogHeader> type) {
 		final int storageProtocolVersion = input.readVarInt(true);
-		Assert.isPremiseValid(
-			storageProtocolVersion == CatalogPersistenceService.STORAGE_PROTOCOL_VERSION,
-			() -> new UnexpectedIOException(
-				"Unexpected storage protocol version: " + storageProtocolVersion,
-				"Unexpected storage protocol version."
-			)
-		);
 		final String catalogName = input.readString();
+		final UUID catalogId = kryo.readObject(input, UUID.class);
 		final long version = input.readVarLong(true);
 		final int lastEntityCollectionPrimaryKey = input.readVarInt(true);
 		final double activeRecordShare = input.readDouble();
@@ -137,6 +130,7 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 			walFileReference,
 			collectionFileIndex,
 			compressedKeys,
+			catalogId,
 			catalogName,
 			catalogState,
 			lastEntityCollectionPrimaryKey,

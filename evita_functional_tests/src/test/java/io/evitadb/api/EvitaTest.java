@@ -26,6 +26,7 @@ package io.evitadb.api;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentInitializationException;
@@ -34,6 +35,7 @@ import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
@@ -50,10 +52,13 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.State;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
@@ -61,6 +66,7 @@ import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -76,26 +82,40 @@ import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.PortManager;
+import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -673,7 +693,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -703,7 +723,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -720,7 +740,7 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -752,7 +772,7 @@ class EvitaTest implements EvitaTestSupport {
 		});
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -858,7 +878,7 @@ class EvitaTest implements EvitaTestSupport {
 				final EntityAttributeSchemaContract firstAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
 				assertInstanceOf(GlobalAttributeSchemaContract.class, firstAttribute);
 				assertTrue(firstAttribute.isLocalized());
-				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG, ((GlobalAttributeSchemaContract)firstAttribute).getGlobalUniquenessType());
+				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG, ((GlobalAttributeSchemaContract) firstAttribute).getGlobalUniquenessType());
 
 				session.getCatalogSchema()
 					.openForWrite()
@@ -872,7 +892,7 @@ class EvitaTest implements EvitaTestSupport {
 				final EntityAttributeSchemaContract secondAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
 				assertInstanceOf(GlobalAttributeSchemaContract.class, secondAttribute);
 				assertTrue(secondAttribute.isLocalized());
-				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, ((GlobalAttributeSchemaContract)secondAttribute).getGlobalUniquenessType());
+				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, ((GlobalAttributeSchemaContract) secondAttribute).getGlobalUniquenessType());
 			}
 		);
 	}
@@ -1056,6 +1076,58 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals(1, secondProductLocales.size());
 				assertTrue(secondProductLocales.contains(Locale.ENGLISH));
 				assertEquals(Locale.ENGLISH, ((EntityDecorator) secondProduct).getImplicitLocale());
+			}
+		);
+	}
+
+	@Test
+	void shouldUpdateExistingPriceInReducedPriceIndexes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withPrice(2)
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, ReferenceSchemaEditor::indexed)
+					.updateVia(session);
+
+				session.createNewEntity(Entities.CATEGORY, 1).upsertVia(session);
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setReference(Entities.CATEGORY, 1)
+					.setPrice(1, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 2)
+					.setReference(Entities.CATEGORY, 1)
+					.setPrice(2, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+					.upsertVia(session);
+
+				session.goLiveAndClose();
+			}
+		);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(Entities.PRODUCT, 1, priceContentAll())
+					.orElseThrow()
+					.openForWrite()
+					.setPrice(1, "basic", CURRENCY_CZK, null, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, false)
+					.upsertVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity sealedEntity = session.getEntity(Entities.PRODUCT, 1, priceContentAll())
+					.orElseThrow();
+
+				assertEquals(BigDecimal.TEN, sealedEntity.getPrice(1, "basic", CURRENCY_CZK).orElseThrow().priceWithTax());
 			}
 		);
 	}
@@ -1373,7 +1445,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -1456,7 +1528,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -1546,7 +1618,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -1666,6 +1738,205 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals(1, shortEntity.getReferences(Entities.PARAMETER).size());
 			}
 		);
+	}
+
+	@Test
+	void shouldCreateBackupAndRestoreCatalog() throws IOException, ExecutionException, InterruptedException {
+		setupCatalogWithProductAndCategory();
+
+		final CompletableFuture<FileForFetch> backupPathFuture = evita.backupCatalog(TEST_CATALOG, null, true);
+		final Path backupPath = backupPathFuture.join().path(evita.getConfiguration().storage().exportDirectory());
+
+		assertTrue(backupPath.toFile().exists());
+
+		final CompletableFuture<Void> future = evita.restoreCatalog(
+			TEST_CATALOG + "_restored",
+			Files.size(backupPath),
+			new BufferedInputStream(new FileInputStream(backupPath.toFile()))
+		).getFutureResult();
+
+		// wait for the restore to finish
+		future.get();
+
+		evita.queryCatalog(TEST_CATALOG,
+			session -> {
+				// compare contents of both catalogs
+				evita.queryCatalog(TEST_CATALOG + "_restored",
+					session2 -> {
+						final Set<String> allEntityTypes1 = session.getAllEntityTypes();
+						final Set<String> allEntityTypes2 = session2.getAllEntityTypes();
+
+						assertEquals(allEntityTypes1, allEntityTypes2);
+
+						for (String entityType : allEntityTypes1) {
+							session.queryList(
+								query(
+									collection(entityType),
+									require(entityFetchAll(), page(1, 100))
+								),
+								SealedEntity.class
+							).forEach(entity -> {
+								final SealedEntity entity2 = session2.getEntity(
+									entityType, entity.getPrimaryKey(), entityFetchAllContent()
+								).orElseThrow();
+								assertEquals(entity, entity2);
+							});
+						}
+					});
+			});
+	}
+
+	@Test
+	void shouldCreateBackupAndRestoreTransactionalCatalog() throws IOException, ExecutionException, InterruptedException {
+		setupCatalogWithProductAndCategory();
+
+		evita.queryCatalog(TEST_CATALOG, session -> {
+			session.goLiveAndClose();
+		});
+
+		final CompletableFuture<FileForFetch> backupPathFuture = evita.backupCatalog(TEST_CATALOG, null, true);
+		final Path backupPath = backupPathFuture.join().path(evita.getConfiguration().storage().exportDirectory());
+
+		assertTrue(backupPath.toFile().exists());
+
+		final CompletableFuture<Void> future = evita.restoreCatalog(
+			TEST_CATALOG + "_restored",
+			Files.size(backupPath),
+			new BufferedInputStream(new FileInputStream(backupPath.toFile()))
+		).getFutureResult();
+
+		// wait for the restore to finish
+		future.get();
+
+		evita.queryCatalog(TEST_CATALOG,
+			session -> {
+				// compare contents of both catalogs
+				evita.queryCatalog(TEST_CATALOG + "_restored",
+					session2 -> {
+						final Set<String> allEntityTypes1 = session.getAllEntityTypes();
+						final Set<String> allEntityTypes2 = session2.getAllEntityTypes();
+
+						assertEquals(allEntityTypes1, allEntityTypes2);
+
+						for (String entityType : allEntityTypes1) {
+							session.queryList(
+								query(
+									collection(entityType),
+									require(entityFetchAll(), page(1, 100))
+								),
+								SealedEntity.class
+							).forEach(entity -> {
+								final SealedEntity entity2 = session2.getEntity(
+									entityType, entity.getPrimaryKey(), entityFetchAllContent()
+								).orElseThrow();
+								assertEquals(entity, entity2);
+							});
+						}
+					});
+			});
+	}
+
+	@Test
+	void shouldListAndCancelTasks() {
+		final int numberOfTasks = 20;
+
+		evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.goLiveAndClose();
+			}
+		);
+
+		ExecutorService executorService = Executors.newFixedThreadPool(numberOfTasks);
+
+		// Step 2: Generate backup tasks using the custom executor
+		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream.generate(
+				() -> CompletableFuture.supplyAsync(
+					() -> evita.backupCatalog(TEST_CATALOG, null, true),
+					executorService
+				)
+			)
+			.limit(numberOfTasks)
+			.toList();
+
+		// Optional: Wait for all tasks to complete
+		CompletableFuture.allOf(backupTasks.toArray(new CompletableFuture[0])).join();
+		executorService.shutdown();
+
+		evita.listTaskStatuses(1, numberOfTasks);
+
+		// cancel 7 of them immediately
+		final List<Boolean> cancellationResult = Stream.concat(
+				evita.listTaskStatuses(1, 1)
+					.getData()
+					.stream()
+					.map(it -> evita.cancelTask(it.taskId())),
+				backupTasks.subList(3, numberOfTasks - 1)
+					.stream()
+					.map(task -> task.getNow(null).cancel(true))
+			)
+			.toList();
+
+		try {
+			// wait for all task to complete
+			CompletableFuture.allOf(
+				backupTasks.stream().map(it -> it.getNow(null)).toArray(CompletableFuture[]::new)
+			).get(3, TimeUnit.MINUTES);
+		} catch (ExecutionException ignored) {
+			// if tasks were cancelled, they will throw exception
+		} catch (InterruptedException | TimeoutException e) {
+			fail(e);
+		}
+
+		final PaginatedList<TaskStatus<?, ?>> taskStatuses = evita.listTaskStatuses(1, numberOfTasks);
+		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
+		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
+		// there is small chance, that cancelled task will finish after all (if it was cancelled in terminal stage)
+		final long finishedTasks = taskStatuses.getData().stream().filter(task -> task.state() == State.FINISHED).count();
+		assertTrue(Math.abs((backupTasks.size() - cancelled) - finishedTasks) < numberOfTasks * 0.1);
+		assertEquals(numberOfTasks - finishedTasks, taskStatuses.getData().stream().filter(task -> task.state() == State.FAILED).count());
+
+		// fetch all tasks by their ids
+		evita.getTaskStatuses(
+			taskStatuses.getData().stream().map(TaskStatus::taskId).toArray(UUID[]::new)
+		).forEach(Assertions::assertNotNull);
+
+		// fetch tasks individually
+		taskStatuses.getData().forEach(task -> assertNotNull(evita.getTaskStatus(task.taskId())));
+
+		// list exported files
+		final PaginatedList<FileForFetch> exportedFiles = evita.listFilesToFetch(1, numberOfTasks, null);
+		// some task might have finished even if cancelled (if they were cancelled in terminal phase)
+		assertTrue(exportedFiles.getTotalRecordCount() >= backupTasks.size() - cancelled);
+		exportedFiles.getData().forEach(file -> assertTrue(file.totalSizeInBytes() > 0));
+
+		// get all files by their ids
+		exportedFiles.getData().forEach(file -> assertNotNull(evita.getFileToFetch(file.fileId())));
+
+		// fetch all of them
+		exportedFiles.getData().forEach(
+			file -> {
+				try (final InputStream inputStream = evita.fetchFile(file.fileId())) {
+					final Path tempFile = Files.createTempFile(String.valueOf(file.fileId()), ".zip");
+					Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+					assertTrue(tempFile.toFile().exists());
+					assertEquals(file.totalSizeInBytes(), Files.size(tempFile));
+					Files.delete(tempFile);
+				} catch (IOException e) {
+					fail(e);
+				}
+			});
+
+		// delete them
+		final Set<UUID> deletedFiles = CollectionUtils.createHashSet(exportedFiles.getData().size());
+		exportedFiles.getData()
+			.forEach(file -> {
+				evita.deleteFile(file.fileId());
+				deletedFiles.add(file.fileId());
+			});
+
+		// list them again and there should be none of them
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = evita.listFilesToFetch(1, numberOfTasks, null);
+		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
 	private void doRenameCatalog(@Nonnull CatalogState catalogState) {
@@ -1867,12 +2138,21 @@ class EvitaTest implements EvitaTestSupport {
 		return EvitaConfiguration.builder()
 			.server(
 				ServerOptions.builder()
+					.serviceThreadPool(
+						ThreadPoolOptions.serviceThreadPoolBuilder()
+							.minThreadCount(1)
+							.maxThreadCount(1)
+							.queueSize(10_000)
+							.build()
+					)
 					.closeSessionsAfterSecondsOfInactivity(inactivityTimeoutInSeconds)
 					.build()
 			)
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getEvitaTestDirectory())
+					.exportDirectory(getEvitaTestDirectory())
+					.timeTravelEnabled(false)
 					.build()
 			)
 			.build();

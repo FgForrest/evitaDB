@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
@@ -151,8 +152,9 @@ public class UnorderedLookup implements Serializable {
 			leadingPosition = computeInsertPositionOfIntInOrderedArray(recordId, this.recordIds);
 			// else signalize error - client wants to add record after non existing record
 		} else {
-			throw new IllegalArgumentException(
-				"Record with id " + previousRecordId + " was not found in the array, cannot add record " + recordId + " after it!"
+			throw new GenericEvitaInternalError(
+				"Record with id " + previousRecordId + " was not found in the array, cannot add record " + recordId + " after it!",
+				"Referenced record was not found in the array! Cannot add record after it."
 			);
 		}
 
@@ -265,7 +267,10 @@ public class UnorderedLookup implements Serializable {
 				}
 			}
 		} else {
-			throw new IllegalArgumentException("Record id " + recordId + " is not part of the array!");
+			throw new GenericEvitaInternalError(
+				"Record id " + recordId + " is not part of the array!",
+				"Record id is not part of the array!"
+			);
 		}
 
 		// we have to reset memoized result - modification has occurred
@@ -317,7 +322,10 @@ public class UnorderedLookup implements Serializable {
 				return this.recordIds[i];
 			}
 		}
-		throw new IllegalArgumentException("Position " + position + " not found!");
+		throw new GenericEvitaInternalError(
+			"Position " + position + " not found!",
+			"Unknown position in the array!"
+		);
 	}
 
 	/**

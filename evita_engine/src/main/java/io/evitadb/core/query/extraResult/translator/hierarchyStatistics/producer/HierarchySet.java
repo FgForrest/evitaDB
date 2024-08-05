@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -39,6 +40,7 @@ import org.roaringbitmap.RoaringBitmapWriter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -49,7 +51,7 @@ import java.util.stream.Collectors;
 /**
  * The hierarchy set envelopes set of computers that relate to the same target hierarchical entity. It allows to
  * compute the sort order in cost-effective way for all of them at once when the final {@link List<LevelInfo>} results
- * are created. See {@link #createStatistics(Locale)} method.
+ * are created. See {@link #createStatistics(QueryExecutionContext, Locale)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -102,7 +104,9 @@ public class HierarchySet {
 				)
 			);
 		} else {
-			return result;
+			return Collections.singletonList(
+				levelInfoToSort[0]
+			);
 		}
 	}
 
@@ -125,14 +129,14 @@ public class HierarchySet {
 	 * If the {@link #sorter} is defined, it uses it to sort all lists in the result map.
 	 */
 	@Nonnull
-	public Map<String, List<LevelInfo>> createStatistics(@Nullable Locale language) {
+	public Map<String, List<LevelInfo>> createStatistics(@Nonnull QueryExecutionContext context, @Nullable Locale language) {
 		// invoke computers and register their output using `outputName`
 		final Map<String, List<LevelInfo>> unsortedResult = computers
 			.stream()
 			.collect(
 				Collectors.toMap(
 					NamedComputer::outputName,
-					it -> it.computer().createStatistics(language)
+					it -> it.computer().createStatistics(context, language)
 				)
 			);
 		// if the sorter is defined, sort them

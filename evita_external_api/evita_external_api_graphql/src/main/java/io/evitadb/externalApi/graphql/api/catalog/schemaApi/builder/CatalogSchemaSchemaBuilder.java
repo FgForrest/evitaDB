@@ -54,7 +54,7 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogEntitySchemasDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogSchemaDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateCatalogSchemaMutatingDataFetcher;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 
 import javax.annotation.Nonnull;
 
@@ -108,10 +108,11 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	private BuiltFieldDescriptor buildCatalogSchemaField() {
 		return new BuiltFieldDescriptor(
 			CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.to(staticEndpointBuilderTransformer).build(),
-			new ReadDataFetcher(
+			new AsyncDataFetcher(
 				new CatalogSchemaDataFetcher(),
+				buildingContext.getConfig(),
 				buildingContext.getTracingContext(),
-				buildingContext.getEvitaExecutor().orElse(null)
+				buildingContext.getEvita()
 			)
 		);
 	}
@@ -285,7 +286,12 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 
 		return new BuiltFieldDescriptor(
 			catalogSchemaField,
-			new UpdateCatalogSchemaMutatingDataFetcher()
+			new AsyncDataFetcher(
+				new UpdateCatalogSchemaMutatingDataFetcher(),
+				buildingContext.getConfig(),
+				buildingContext.getTracingContext(),
+				buildingContext.getEvita()
+			)
 		);
 	}
 }

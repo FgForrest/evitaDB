@@ -207,6 +207,16 @@ public final class GrpcEvitaDataTypes {
   static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataValue_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -355,7 +365,31 @@ public final class GrpcEvitaDataTypes {
       ".externalApi.grpc.generated.GrpcEvitaVal" +
       "ueH\000\022\023\n\tjsonValue\030\002 \001(\tH\000\022,\n\007version\030\003 \001" +
       "(\0132\033.google.protobuf.Int32ValueB\007\n\005value" +
-      "B\014P\001\252\002\007EvitaDBb\006proto3"
+      "\"\265\002\n\010GrpcFile\022?\n\006fileId\030\001 \001(\0132/.io.evita" +
+      "db.externalApi.grpc.generated.GrpcUuid\022\014" +
+      "\n\004name\030\002 \001(\t\0221\n\013description\030\003 \001(\0132\034.goog" +
+      "le.protobuf.StringValue\022\023\n\013contentType\030\004" +
+      " \001(\t\022\030\n\020totalSizeInBytes\030\005 \001(\003\022J\n\007create" +
+      "d\030\006 \001(\01329.io.evitadb.externalApi.grpc.ge" +
+      "nerated.GrpcOffsetDateTime\022,\n\006origin\030\007 \001" +
+      "(\0132\034.google.protobuf.StringValue\"\370\004\n\016Grp" +
+      "cTaskStatus\022\020\n\010taskType\030\001 \001(\t\022\020\n\010taskNam" +
+      "e\030\002 \001(\t\022?\n\006taskId\030\003 \001(\0132/.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcUuid\0221\n\013cata" +
+      "logName\030\004 \001(\0132\034.google.protobuf.StringVa" +
+      "lue\022I\n\006issued\030\005 \001(\01329.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcOffsetDateTime\022J" +
+      "\n\007started\030\006 \001(\01329.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcOffsetDateTime\022K\n\010fi" +
+      "nished\030\007 \001(\01329.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcOffsetDateTime\022\020\n\010progr" +
+      "ess\030\010 \001(\005\022.\n\010settings\030\t \001(\0132\034.google.pro" +
+      "tobuf.StringValue\022,\n\004text\030\n \001(\0132\034.google" +
+      ".protobuf.StringValueH\000\022?\n\004file\030\013 \001(\0132/." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcFileH\000\022/\n\texception\030\014 \001(\0132\034.google.pro" +
+      "tobuf.StringValueB\010\n\006resultB\014P\001\252\002\007EvitaD" +
+      "Bb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -568,6 +602,18 @@ public final class GrpcEvitaDataTypes {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataValue_descriptor,
         new java.lang.String[] { "PrimitiveValue", "JsonValue", "Version", "Value", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_descriptor =
+      getDescriptor().getMessageTypes().get(34);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcFile_descriptor,
+        new java.lang.String[] { "FileId", "Name", "Description", "ContentType", "TotalSizeInBytes", "Created", "Origin", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_descriptor =
+      getDescriptor().getMessageTypes().get(35);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_descriptor,
+        new java.lang.String[] { "TaskType", "TaskName", "TaskId", "CatalogName", "Issued", "Started", "Finished", "Progress", "Settings", "Text", "File", "Exception", "Result", });
     com.google.protobuf.TimestampProto.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();

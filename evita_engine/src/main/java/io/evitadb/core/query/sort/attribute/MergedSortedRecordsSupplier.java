@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package io.evitadb.core.query.sort.attribute;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
@@ -121,7 +121,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	 * Mask also contains record ids not found in presorted record index.
 	 */
 	private static MaskResult getMask(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull SortedRecordsProvider sortedRecordsProvider,
 		@Nonnull RoaringBitmap selectedRecordIds,
 		int selectedRecordCount
@@ -207,7 +207,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
 		final Bitmap selectedRecordIds = input.compute();
 		if (selectedRecordIds.size() < startIndex) {
 			throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + selectedRecordIds.size());
@@ -233,13 +233,13 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	}
 
 	@Override
-	public boolean shouldApply(@Nonnull QueryContext queryContext) {
+	public boolean shouldApply(@Nonnull QueryExecutionContext queryContext) {
 		return queryContext.getPrefetchedEntities() == null;
 	}
 
 	@Nonnull
 	private SortResult collectPartialResults(
-		@Nonnull QueryContext queryContext,
+		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull Bitmap selectedRecordIds,
 		int startIndex,
 		int endIndex,
@@ -304,7 +304,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	}
 
 	/**
-	 * This DTO allows to information collected from {@link #collectPartialResults(QueryContext, Bitmap, int, int, int[], int, int[])}
+	 * This DTO allows to information collected from {@link #collectPartialResults(QueryExecutionContext, Bitmap, int, int, int[], int, int[])}
 	 * method.
 	 *
 	 * @param notSortedRecords roaring bitmap with all records that hasn't been sorted yet

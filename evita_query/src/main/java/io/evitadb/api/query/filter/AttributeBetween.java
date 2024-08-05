@@ -89,7 +89,7 @@ import java.io.Serializable;
 	name = "between",
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute is within the passed range (both ends are inclusive).",
 	userDocsLink = "/documentation/query/filtering/comparable#attribute-between",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
 public class AttributeBetween extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {

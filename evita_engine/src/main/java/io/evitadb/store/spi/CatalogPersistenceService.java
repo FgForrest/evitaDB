@@ -27,20 +27,27 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
@@ -50,12 +57,13 @@ import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -74,22 +82,13 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 *
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
-	int STORAGE_PROTOCOL_VERSION = 1;
+	int STORAGE_PROTOCOL_VERSION = 2;
 	String BOOT_FILE_SUFFIX = ".boot";
 	String CATALOG_FILE_SUFFIX = ".catalog";
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
 	String WAL_FILE_SUFFIX = ".wal";
-
-	/**
-	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
-	 * If we didn't postpone this initialization, events would become lost.
-	 */
-	void emitStartObservabilityEvents();
-
-	/**
-	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
-	 */
-	void emitDeleteObservabilityEvents();
+	String RESTORE_FLAG = ".restored";
+	Pattern GENERIC_ENTITY_COLLECTION_PATTERN = Pattern.compile(".*-(\\d+)_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
 
 	/**
 	 * Returns name of the bootstrap file that contains lead information to fetching the catalog header in fixed record
@@ -120,11 +119,30 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	}
 
 	/**
+	 * Returns the index extracted from the given catalog data store file name.
+	 *
+	 * @param fileName the name of the catalog data store file
+	 * @return the index extracted from the catalog data store file name
+	 */
+	static int getIndexFromCatalogFileName(@Nonnull String fileName) {
+		final Pattern genericCatalogPattern = Pattern.compile(".*_(\\d+)" + CATALOG_FILE_SUFFIX);
+		final Matcher matcher = genericCatalogPattern.matcher(fileName);
+		if (matcher.matches()) {
+			return Integer.parseInt(matcher.group(1));
+		} else {
+			throw new GenericEvitaInternalError(
+				"Catalog file name does not match the expected pattern.",
+				"Catalog file name does not match the expected pattern: " + fileName
+			);
+		}
+	}
+
+	/**
 	 * Returns name of the entity collection data file that contains entity schema, entity indexes and entity bodies.
 	 */
 	@Nonnull
-	static String getEntityCollectionDataStoreFileName(@Nonnull String entityType, int fileIndex) {
-		return StringUtils.toCamelCase(entityType) + '_' + fileIndex + ENTITY_COLLECTION_FILE_SUFFIX;
+	static String getEntityCollectionDataStoreFileName(@Nonnull String entityType, int entityTypePrimaryKey, int fileIndex) {
+		return StringUtils.toCamelCase(entityType) + '-' + entityTypePrimaryKey + '_' + fileIndex + ENTITY_COLLECTION_FILE_SUFFIX;
 	}
 
 	/**
@@ -134,8 +152,30 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @return the compiled pattern for the file name matching the entity collection data store file
 	 */
 	@Nonnull
-	static Pattern getEntityCollectionDataStoreFileNamePattern(@Nonnull String entityType) {
-		return Pattern.compile(StringUtils.toCamelCase(entityType) + "_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
+	static Pattern getEntityCollectionDataStoreFileNamePattern(@Nonnull String entityType, int entityTypePrimaryKey) {
+		return Pattern.compile(StringUtils.toCamelCase(entityType) + "-" + entityTypePrimaryKey + "_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
+	}
+
+	/**
+	 * Returns the index and entity type primary key extracted from the given entity collection data store file name.
+	 *
+	 * @param fileName the name of the entity collection data store file
+	 * @return the index and entity type primary key extracted from the entity collection data store file name
+	 */
+	@Nonnull
+	static EntityTypePrimaryKeyAndFileIndex getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(@Nonnull String fileName) {
+		final Matcher matcher = GENERIC_ENTITY_COLLECTION_PATTERN.matcher(fileName);
+		if (matcher.matches()) {
+			return new EntityTypePrimaryKeyAndFileIndex(
+				Integer.parseInt(matcher.group(1)),
+				Integer.parseInt(matcher.group(2))
+			);
+		} else {
+			throw new GenericEvitaInternalError(
+				"Entity collection file name does not match the expected pattern.",
+				"Entity collection file name does not match the expected pattern: " + fileName
+			);
+		}
 	}
 
 	/**
@@ -147,8 +187,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @return name of the WAL file
 	 */
 	@Nonnull
-	static Path getWalFileName(@Nonnull String catalogName, int fileIndex) {
-		return Path.of(catalogName + '_' + fileIndex + WAL_FILE_SUFFIX);
+	static String getWalFileName(@Nonnull String catalogName, int fileIndex) {
+		return catalogName + '_' + fileIndex + WAL_FILE_SUFFIX;
 	}
 
 	/**
@@ -163,6 +203,17 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 			walFileName.substring(catalogName.length() + 1, walFileName.length() - WAL_FILE_SUFFIX.length())
 		);
 	}
+
+	/**
+	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
+	 * If we didn't postpone this initialization, events would become lost.
+	 */
+	void emitStartObservabilityEvents();
+
+	/**
+	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
+	 */
+	void emitDeleteObservabilityEvents();
 
 	/**
 	 * Retrieves the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}.
@@ -182,7 +233,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 
 	/**
 	 * Returns {@link CatalogHeader} that is used for this service. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}  method call.
+	 * and (because it's immutable) is exchanged with each {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}   method call.
 	 *
 	 * @param catalogVersion the version of the catalog
 	 * @return the header of the catalog
@@ -208,6 +259,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Serializes all {@link EntityCollection} of the catalog to the persistent storage.
 	 *
+	 * @param catalogId                      the id of the catalog which doesn't change with catalog rename
 	 * @param catalogState                   the state of the catalog
 	 * @param catalogVersion                 the version of the catalog
 	 * @param lastEntityCollectionPrimaryKey the last primary key of the entity collection
@@ -218,11 +270,13 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @throws UnexpectedIOException       in case of any unknown IOException
 	 */
 	void storeHeader(
+		@Nonnull UUID catalogId,
 		@Nonnull CatalogState catalogState,
 		long catalogVersion,
 		int lastEntityCollectionPrimaryKey,
 		@Nullable TransactionMutation lastProcessedTransaction,
-		@Nonnull List<EntityCollectionHeader> entityHeaders
+		@Nonnull List<EntityCollectionHeader> entityHeaders,
+		@Nonnull DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreBuffer
 	) throws InvalidStoragePathException, DirectoryNotEmptyException, UnexpectedIOException;
 
 	/**
@@ -250,7 +304,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	Optional<EntityCollectionPersistenceService> flush(
 		long catalogVersion,
 		@Nonnull HeaderInfoSupplier headerInfoSupplier,
-		@Nonnull EntityCollectionHeader entityCollectionHeader
+		@Nonnull EntityCollectionHeader entityCollectionHeader,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> dataStoreBuffer
 	);
 
 	/**
@@ -316,7 +371,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		long catalogVersion,
 		@Nonnull String catalogNameToBeReplaced,
 		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
-		@Nonnull CatalogSchema catalogSchema
+		@Nonnull CatalogSchema catalogSchema,
+		@Nonnull DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreMemoryBuffer
 	);
 
 	/**
@@ -347,7 +403,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * the catalog to the given version. The stream goes through all the mutations in this transaction and continues
 	 * forward with next transaction after that until the end of the WAL.
 	 *
-	 * DO NOT USE THIS METHOD if the WAL is being actively written to. Use {@link #getCommittedLiveMutationStream(long)}
+	 * DO NOT USE THIS METHOD if the WAL is being actively written to. Use {@link #getCommittedLiveMutationStream(long, long)}
 	 *
 	 * @param catalogVersion version of the catalog to start the stream with
 	 * @return a stream containing committed mutations
@@ -371,11 +427,12 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * the catalog to the given version. This method differs from {@link #getCommittedMutationStream(long)} in that
 	 * it expects the WAL is being actively written to and the returned stream may be potentially infinite.
 	 *
-	 * @param catalogVersion version of the catalog to start the stream with
+	 * @param startCatalogVersion             the catalog version to start reading from
+	 * @param requestedCatalogVersion         the minimal catalog version to finish reading
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getCommittedLiveMutationStream(long catalogVersion);
+	Stream<Mutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion);
 
 	/**
 	 * Retrieves the last catalog version written in the WAL stream.
@@ -387,7 +444,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * We need to forget all volatile data when the data written to catalog aren't going to be committed (incorporated
 	 * in the final state). Usually the data written by {@link #getStoragePartPersistenceService(long)}  are immediately
-	 * written to the disk and are volatile until {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}
+	 * written to the disk and are volatile until {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}
 	 * is called. But those data can be read within particular transaction from the volatile storage and we need to
 	 * forget them when the transaction is rolled back.
 	 */
@@ -425,13 +482,39 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	void purgeAllObsoleteFiles();
 
 	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 *
+	 * @param pastMoment      leave null for creating backup for actual dataset, or specify past moment to create backup for
+	 *                        the dataset as it was at that moment
+	 * @param includingWAL    if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
+	 *                        restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @return path to the file where the backup was created
+	 * @throws TemporalDataNotAvailableException when the past data is not available
+	 */
+	@Nonnull
+	ServerTask<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+
+	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *
-	 * You need to call {@link #storeHeader(CatalogState, long, int, TransactionMutation, List)}  or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
-	 * before this method is called, or you will lose your data in memory buffers.
+	 * You need to call {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}
+	 * or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)} before this method is called, or you will lose your
+	 * data in memory buffers.
 	 */
 	@Override
 	void close();
+
+	/**
+	 * Tuple for returning multiple values from {@link #getEntityPrimaryKeyAndIndexFromEntityCollectionFileName} method.
+	 *
+	 * @param entityTypePrimaryKey the primary key of the entity type
+	 * @param fileIndex            the index of the file
+	 */
+	record EntityTypePrimaryKeyAndFileIndex(
+		int entityTypePrimaryKey,
+		int fileIndex
+	) {
+	}
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -38,7 +39,7 @@ import java.util.Collection;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class CatalogsDataFetcher implements DataFetcher<Collection<CatalogContract>> {
+public class CatalogsDataFetcher implements DataFetcher<Collection<CatalogContract>>, ReadDataFetcher {
 
     @Nonnull private final Evita evita;
 

@@ -27,8 +27,8 @@ import com.esotericsoftware.kryo.io.Input;
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.scheduling.Scheduler;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
@@ -38,6 +38,8 @@ import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
+import io.evitadb.store.offsetIndex.model.RecordKey;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -54,9 +56,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
+import org.opentest4j.AssertionFailedError;
 
 import javax.annotation.Nonnull;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
@@ -82,7 +87,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		Locale.ENGLISH, Locale.FRENCH, Locale.GERMAN, new Locale("cs", "CZ")
 	};
 	private final Path targetFile = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "fileOffsetIndex.kryo");
-	private final OffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry = new OffsetIndexRecordTypeRegistry();
+	private final OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 	private final StorageOptions options = StorageOptions.temporary();
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, options, Mockito.mock(Scheduler.class));
 
@@ -192,7 +197,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				1.0, 0L
 			),
 			limitedBufferOptions,
-			fileOffsetIndexRecordTypeRegistry,
+			offsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
@@ -214,7 +219,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				1.0, 0L
 			),
 			limitedBufferOptions,
-			fileOffsetIndexRecordTypeRegistry,
+			offsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
@@ -224,19 +229,25 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final Path snapshotPath = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "snapshot.kryo");
 		try {
 			final long finalCatalogVersion = nextCatalogVersion + 1;
-			final OffsetIndexDescriptor snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(snapshotPath, finalCatalogVersion);
+			final OffsetIndexDescriptor snapshotBootstrapDescriptor;
+			try (final FileOutputStream fos = new FileOutputStream(snapshotPath.toFile())) {
+				snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(fos, null, finalCatalogVersion);
+			} catch (IOException e) {
+				throw new AssertionFailedError("IO exception!", e);
+			}
+
 			final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
 				snapshotBootstrapDescriptor.version(),
 				snapshotBootstrapDescriptor,
 				limitedBufferOptions,
-				fileOffsetIndexRecordTypeRegistry,
+				offsetIndexRecordTypeRegistry,
 				new WriteOnlyFileHandle(snapshotPath, observableOutputKeeper),
 				nonFlushedBlock -> {},
 				oldestRecordTimestamp -> {}
 			);
 
 			assertEquals(purgedSourceOffsetIndex.count(finalCatalogVersion), loadedFileOffsetIndex.count(finalCatalogVersion));
-			assertEquals(purgedSourceOffsetIndex.getTotalSize(), loadedFileOffsetIndex.getTotalSize());
+			assertEquals(purgedSourceOffsetIndex.getTotalSizeBytes(), loadedFileOffsetIndex.getTotalSizeBytes());
 			for (int i = 2; i <= recordCount; i = i + 2) {
 				final EntityBodyStoragePart actual = loadedFileOffsetIndex.get(finalCatalogVersion, i, EntityBodyStoragePart.class);
 				assertEquals(
@@ -271,7 +282,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				1.0, 0L
 			),
 			options,
-			fileOffsetIndexRecordTypeRegistry,
+			offsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
@@ -315,11 +326,18 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				1.0, 0L
 			),
 			options,
-			fileOffsetIndexRecordTypeRegistry,
+			offsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
 		);
+
+		final VersionedKryo kryo = createKryo()
+			.apply(
+				new VersionedKryoKeyInputs(
+					loadedFileOffsetIndex.getReadOnlyKeyCompressor(), 1
+				)
+			);
 
 		for (int i = 1; i <= recordCount * iterationCount; i++) {
 			final byte[] actualBinary = loadedFileOffsetIndex.getBinary(insertionResult.catalogVersion(), i, EntityBodyStoragePart.class);
@@ -327,12 +345,6 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				assertNull(actualBinary);
 			} else {
 				assertNotNull(actualBinary);
-				final VersionedKryo kryo = createKryo()
-					.apply(
-						new VersionedKryoKeyInputs(
-							loadedFileOffsetIndex.getReadOnlyKeyCompressor(), 1
-						)
-					);
 				assertEquals(
 					new EntityBodyStoragePart(i),
 					kryo.readObject(new Input(actualBinary), EntityBodyStoragePart.class)
@@ -343,6 +355,54 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		assertTrue(insertionResult.fileOffsetIndex().fileOffsetIndexEquals(loadedFileOffsetIndex));
 		/* 300 records +6 record for th OffsetIndex itself */
 		assertEquals(306, loadedFileOffsetIndex.verifyContents().getRecordCount());
+	}
+
+	@Test
+	void shouldReadSingleRecordAndUsingManualDeserialization() {
+		// store 300 records in multiple chunks,
+		final int recordCount = 50;
+		final int removedRecords = 10;
+		final int iterationCount = 6;
+
+		final InsertionOutput insertionResult = createRecordsInFileOffsetIndex(
+			options, observableOutputKeeper, recordCount, removedRecords, iterationCount
+		);
+
+		final OffsetIndexDescriptor offsetIndexDescriptor = insertionResult.descriptor();
+
+		final VersionedKryo kryo = createKryo()
+			.apply(
+				new VersionedKryoKeyInputs(
+					offsetIndexDescriptor.getReadOnlyKeyCompressor(), 1
+				)
+			);
+
+		for (int i = 1; i <= recordCount * iterationCount; i++) {
+			final RecordKey key = new RecordKey(
+				offsetIndexRecordTypeRegistry.idFor(EntityBodyStoragePart.class),
+				i
+			);
+
+			final EntityBodyStoragePart entityBody = OffsetIndex.readSingleRecord(
+				targetFile,
+				offsetIndexDescriptor.fileLocation(),
+				key,
+				(offsetIndexBuilder, input) -> offsetIndexBuilder.getFileLocationFor(key)
+					.map(fileLocation -> StorageRecord.read(
+						input, fileLocation, (theInput, length) -> kryo.readObject(theInput, EntityBodyStoragePart.class)
+					).payload())
+					.orElse(null)
+			);
+			if (i < recordCount * (iterationCount - 1) && i % recordCount < removedRecords && i % recordCount > 0) {
+				assertNull(entityBody);
+			} else {
+				assertNotNull(entityBody);
+				assertEquals(
+					new EntityBodyStoragePart(i),
+					entityBody
+				);
+			}
+		}
 	}
 
 	@DisplayName("No operation should be allowed after close")
@@ -356,7 +416,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				1.0, 0L
 			),
 			options,
-			fileOffsetIndexRecordTypeRegistry,
+			offsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
@@ -386,7 +446,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 					1.0, 0L
 				),
 				buildOptionsWithLimitedBuffer(),
-				fileOffsetIndexRecordTypeRegistry,
+				offsetIndexRecordTypeRegistry,
 				new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
 				nonFlushedBlock -> {},
 				oldestRecordTimestamp -> {}
@@ -460,7 +520,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 						1.0, 0L
 					),
 					options,
-					fileOffsetIndexRecordTypeRegistry,
+					offsetIndexRecordTypeRegistry,
 					new WriteOnlyFileHandle(currentFilePath.get(), observableOutputKeeper),
 					nonFlushedBlock -> {},
 					oldestRecordTimestamp -> {}
@@ -548,7 +608,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 							1.0, 0L
 						),
 						options,
-						fileOffsetIndexRecordTypeRegistry,
+						offsetIndexRecordTypeRegistry,
 						new WriteOnlyFileHandle(newPath, observableOutputKeeper),
 						nonFlushedBlock -> {},
 						oldestRecordTimestamp -> {}
@@ -591,7 +651,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				1.0, 0L
 			),
 			storageOptions,
-			fileOffsetIndexRecordTypeRegistry,
+			offsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
@@ -613,7 +673,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				1.0, 0L
 			),
 			storageOptions,
-			fileOffsetIndexRecordTypeRegistry,
+			offsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
@@ -633,7 +693,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		assertTrue(fileOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
 		/* 600 records +1 record for the OffsetIndex itself */
 		assertEquals(
-			recordCount + computeExpectedRecordCount(storageOptions, recordCount).getFragments(),
+			recordCount + computeExpectedRecordCount(storageOptions, recordCount).fragments(),
 			fileOffsetIndex.verifyContents().getRecordCount()
 		);
 		log.info("Average reads: " + StringUtils.formatRequestsPerSec(recordCount, duration));
@@ -656,7 +716,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				1.0, 0L
 			),
 			options,
-			fileOffsetIndexRecordTypeRegistry,
+			offsetIndexRecordTypeRegistry,
 			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}

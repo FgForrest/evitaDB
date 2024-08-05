@@ -30,13 +30,15 @@ import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import io.evitadb.api.observability.annotation.ExportMetric;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.evitadb.api.observability.annotation.HistogramSettings;
+import io.evitadb.api.task.ServerTask;
+import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
+import io.evitadb.core.async.ClientRunnableTask;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import io.evitadb.core.scheduling.BackgroundTask;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
 import io.evitadb.function.ChainableConsumer;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
 import io.prometheus.metrics.core.metrics.Counter;
@@ -52,8 +54,8 @@ import jdk.jfr.Label;
 import jdk.jfr.Name;
 import jdk.jfr.consumer.RecordedEvent;
 import jdk.jfr.consumer.RecordingStream;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.jboss.threads.EnhancedQueueExecutor;
 
 import javax.annotation.Nonnull;
 import java.lang.annotation.Annotation;
@@ -68,7 +70,8 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -130,6 +133,48 @@ public class MetricHandler {
 	private final ObservabilityConfig observabilityConfig;
 
 	/**
+	 * Composes the name of the metric from the event class, export metric and field name.
+	 *
+	 * @param eventClass   event class
+	 * @param exportMetric export metric annotation
+	 * @param fieldName    name of the field in the JFR event
+	 * @return composed name of the metric
+	 */
+	@Nonnull
+	public static String composeMetricName(
+		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
+		@Nonnull ExportMetric exportMetric,
+		@Nonnull String fieldName
+	) {
+		final String metricName = of(exportMetric.metricName())
+			.filter(it -> !it.isBlank())
+			.orElse(fieldName);
+
+		// if the metric contains dots, it means it's already fully composed
+		return metricName.contains(".") ?
+			metricName : composeMetricName(eventClass, metricName);
+	}
+
+	/**
+	 * Creates name of the metric from the event class and metric name.
+	 *
+	 * @param eventClass event class
+	 * @param metricName name of the metric itself
+	 * @return composed name of the metric
+	 */
+	@Nonnull
+	public static String composeMetricName(
+		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
+		@Nonnull String metricName
+	) {
+		return StringUtils.toSnakeCase(
+			EvitaJfrEventRegistry.getMetricsGroup(eventClass) +
+				"." + EVENT.matcher(eventClass.getSimpleName()).replaceFirst("") + "." +
+				metricName
+		);
+	}
+
+	/**
 	 * Converts the getter method into the exporter of the metric label.
 	 *
 	 * @param getter getter method
@@ -158,48 +203,6 @@ public class MetricHandler {
 		return new MetricLabelExporter(
 			of(exportMetricLabel.value()).filter(it -> !it.isBlank()).orElse(fieldName),
 			recordedEvent -> recordedEvent.getString(fieldName)
-		);
-	}
-
-	/**
-	 * Composes the name of the metric from the event class, export metric and field name.
-	 *
-	 * @param eventClass   event class
-	 * @param exportMetric export metric annotation
-	 * @param fieldName    name of the field in the JFR event
-	 * @return composed name of the metric
-	 */
-	@Nonnull
-	private static String composeMetricName(
-		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
-		@Nonnull ExportMetric exportMetric,
-		@Nonnull String fieldName
-	) {
-		final String metricName = of(exportMetric.metricName())
-			.filter(it -> !it.isBlank())
-			.orElse(fieldName);
-
-		// if the metric contains dots, it means it's already fully composed
-		return metricName.contains(".") ?
-			metricName : composeMetricName(eventClass, metricName);
-	}
-
-	/**
-	 * Creates name of the metric from the event class and metric name.
-	 *
-	 * @param eventClass event class
-	 * @param metricName name of the metric itself
-	 * @return composed name of the metric
-	 */
-	@Nonnull
-	private static String composeMetricName(
-		@Nonnull Class<? extends CustomMetricsExecutionEvent> eventClass,
-		@Nonnull String metricName
-	) {
-		return StringUtils.toSnakeCase(
-			EvitaJfrEventRegistry.getMetricsGroup(eventClass) +
-				"." + EVENT.matcher(eventClass.getSimpleName()).replaceFirst("") + "." +
-				metricName
 		);
 	}
 
@@ -308,7 +311,7 @@ public class MetricHandler {
 								}
 							},
 							() -> builder.classicExponentialUpperBounds(1, 2.0, 14)
-									.unit(new Unit("milliseconds")));
+								.unit(new Unit("milliseconds")));
 					yield builder
 						.labelNames(metric.labels())
 						.help(metric.helpMessage())
@@ -342,16 +345,88 @@ public class MetricHandler {
 	 * @param evita evita instance
 	 */
 	public void registerHandlers(@Nonnull Evita evita) {
-		EnhancedQueueExecutor executor = evita.getExecutor();
+		Scheduler scheduler = evita.getServiceExecutor();
 
 		registerJvmMetrics();
 		final Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics = getAllowedEventSet();
 
-		final AtomicLong initializedTime = new AtomicLong(Long.MAX_VALUE);
-		executor.execute(
-			new BackgroundTask(
+		final MetricTask metricTask = new MetricTask(allowedMetrics);
+		scheduler.submit((ServerTask<?,?>) metricTask);
+
+		try {
+			metricTask.getInitialized()
+				.thenAccept(unused -> {
+					// emit the start event
+					evita.emitStartObservabilityEvents();
+				}).get(1, TimeUnit.MINUTES);
+		} catch (Exception e) {
+			log.error("Failed to initialize metric handler in time. Metrics might not work. Start events are not emitted.");
+		}
+	}
+
+	/**
+	 * Registers JVM metrics based on the configuration.
+	 */
+	private void registerJvmMetrics() {
+		final List<String> allowedEventsFromConfig = observabilityConfig.getAllowedEvents();
+
+		if (allowedEventsFromConfig != null && allowedEventsFromConfig.stream().noneMatch(DEFAULT_JVM_METRICS_NAME::equals)) {
+			allowedEventsFromConfig
+				.stream()
+				.filter(it -> !MetricHandler.isCustomEventClassName(it))
+				.map(DEFAULT_JVM_METRICS::get)
+				.filter(Objects::nonNull)
+				.forEach(Runnable::run);
+		} else {
+			DEFAULT_JVM_METRICS.get(DEFAULT_JVM_METRICS_NAME).run();
+		}
+	}
+
+	/**
+	 * Method calculates the index of allowed events that should be logged and metrics that should be created.
+	 *
+	 * @return index of allowed events and metrics
+	 */
+	@Nonnull
+	private Set<Class<? extends CustomMetricsExecutionEvent>> getAllowedEventSet() {
+		final List<String> allowedEventsFromConfig = observabilityConfig.getAllowedEvents();
+		final Set<Class<? extends CustomMetricsExecutionEvent>> knownEvents = EvitaJfrEventRegistry.getEventClasses();
+
+		final Set<String> configuredEvents = new HashSet<>(16);
+		configuredEvents.addAll(
+			Objects.requireNonNullElseGet(
+				allowedEventsFromConfig,
+				() -> knownEvents.stream().map(Class::getName).toList()
+			)
+		);
+
+		final Set<Class<? extends CustomMetricsExecutionEvent>> allowedEventSet = new HashSet<>(16);
+		for (String loggingEvent : configuredEvents) {
+			if (loggingEvent.endsWith(".*")) {
+				final String packageName = loggingEvent.substring(0, loggingEvent.length() - 2);
+				final Set<Class<? extends CustomMetricsExecutionEvent>> classes = EvitaJfrEventRegistry.getEventClassesFromPackage(packageName);
+				allowedEventSet.addAll(classes);
+			} else {
+				ofNullable(EvitaJfrEventRegistry.getEventClass(loggingEvent))
+					.ifPresent(allowedEventSet::add);
+			}
+		}
+		return allowedEventSet;
+	}
+
+	/**
+	 * Task that listens for JFR events and transforms them into Prometheus metrics.
+	 */
+	private static class MetricTask extends ClientRunnableTask<Void> implements Task<Void, Void> {
+		@Getter private final CompletableFuture<Boolean> initialized = new CompletableFuture<>();
+
+		public MetricTask(
+			@Nonnull Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics
+		) {
+			super(
 				"Metric handler",
-				() -> {
+				null,
+				theTask -> {
 					final ReflectionLookup lookup = ReflectionLookup.NO_CACHE_INSTANCE;
 					try (var recordingStream = new RecordingStream()) {
 						for (Class<? extends CustomMetricsExecutionEvent> eventClass : allowedMetrics) {
@@ -486,74 +561,12 @@ public class MetricHandler {
 							}
 						}
 
-						initializedTime.set(System.currentTimeMillis());
+						((MetricTask) theTask).initialized.complete(true);
 						recordingStream.start();
 					}
 				}
-			)
-		);
-
-		final long waitStart = System.currentTimeMillis();
-		while (System.currentTimeMillis() - initializedTime.get() < 500 && System.currentTimeMillis() - waitStart < 5000) {
-			Thread.onSpinWait();
+			);
 		}
-
-		Assert.isPremiseValid(
-			initializedTime.get() != Long.MAX_VALUE,
-			"Failed to initialize the metric handler within the specified time."
-		);
-		// emit the start event
-		evita.emitStartObservabilityEvents();
-	}
-
-	/**
-	 * Registers JVM metrics based on the configuration.
-	 */
-	private void registerJvmMetrics() {
-		final List<String> allowedEventsFromConfig = observabilityConfig.getAllowedEvents();
-
-		if (allowedEventsFromConfig != null && allowedEventsFromConfig.stream().noneMatch(DEFAULT_JVM_METRICS_NAME::equals)) {
-			allowedEventsFromConfig
-				.stream()
-				.filter(it -> !MetricHandler.isCustomEventClassName(it))
-				.map(DEFAULT_JVM_METRICS::get)
-				.filter(Objects::nonNull)
-				.forEach(Runnable::run);
-		} else {
-			DEFAULT_JVM_METRICS.get(DEFAULT_JVM_METRICS_NAME).run();
-		}
-	}
-
-	/**
-	 * Method calculates the index of allowed events that should be logged and metrics that should be created.
-	 *
-	 * @return index of allowed events and metrics
-	 */
-	@Nonnull
-	private Set<Class<? extends CustomMetricsExecutionEvent>> getAllowedEventSet() {
-		final List<String> allowedEventsFromConfig = observabilityConfig.getAllowedEvents();
-		final Set<Class<? extends CustomMetricsExecutionEvent>> knownEvents = EvitaJfrEventRegistry.getEventClasses();
-
-		final Set<String> configuredEvents = new HashSet<>(16);
-		configuredEvents.addAll(
-			Objects.requireNonNullElseGet(
-				allowedEventsFromConfig,
-				() -> knownEvents.stream().map(Class::getName).toList()
-			)
-		);
-
-		final Set<Class<? extends CustomMetricsExecutionEvent>> allowedEventSet = new HashSet<>(16);
-		for (String loggingEvent : configuredEvents) {
-			if (loggingEvent.endsWith(".*")) {
-				final String packageName = loggingEvent.substring(0, loggingEvent.length() - 2);
-				final Set<Class<? extends CustomMetricsExecutionEvent>> classes = EvitaJfrEventRegistry.getEventClassesFromPackage(packageName);
-				allowedEventSet.addAll(classes);
-			} else {
-				ofNullable(EvitaJfrEventRegistry.getEventClass(loggingEvent))
-					.ifPresent(allowedEventSet::add);
-			}
-		}
-		return allowedEventSet;
 	}
 
 	/**

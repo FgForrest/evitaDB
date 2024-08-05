@@ -60,7 +60,6 @@ import static io.evitadb.api.EntityByAttributeFilteringFunctionalTest.assertSort
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
-import static io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.extension.DataCarrier.tuple;
@@ -586,8 +585,7 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EvitaResponse<SealedEntity> result = doWithCustomPrefetchCostEstimator(
-					() -> session.query(
+				final EvitaResponse<SealedEntity> result = session.query(
 							query(
 								collection(Entities.PRODUCT),
 								filterBy(
@@ -599,6 +597,7 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 									)
 								),
 								require(
+									debug(DebugMode.PREFER_PREFETCHING),
 									entityFetch(
 										referenceContentWithAttributes(
 											Entities.STORE,
@@ -622,9 +621,7 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 								)
 							),
 							SealedEntity.class
-						),
-					(prefetchedEntityCount, requirementCount) -> Long.MIN_VALUE
-				);
+						);
 				assertEquals(1, result.getRecordData().size());
 				return null;
 			}

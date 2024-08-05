@@ -141,14 +141,13 @@ public interface FilteredPriceRecords extends Serializable {
 			.map(LazyEvaluatedEntityPriceRecords.class::cast)
 			.flatMap(it -> Arrays.stream(it.getPriceIndexes()))
 			.toArray(PriceListAndCurrencyPriceIndex[]::new);
-		final Optional<LazyEvaluatedEntityPriceRecords> lazyEvaluatedEntityPriceRecords = ArrayUtils.isEmpty(priceIndexes) ?
+		return ArrayUtils.isEmpty(priceIndexes) ?
 			empty() :
 			of(
 				new LazyEvaluatedEntityPriceRecords(
 					priceIndexes
 				)
 			);
-		return lazyEvaluatedEntityPriceRecords;
 	}
 
 	@Nonnull

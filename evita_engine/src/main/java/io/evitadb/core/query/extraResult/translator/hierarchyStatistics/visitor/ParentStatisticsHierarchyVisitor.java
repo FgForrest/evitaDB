@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.SiblingsStatisticsTravelingComputer;
@@ -56,6 +57,11 @@ import java.util.stream.Stream;
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
+	/**
+	 * Execution context to be used for entity fetch.
+	 */
+	@Nonnull
+	private final QueryExecutionContext executionContext;
 	/**
 	 * Predicate that will mark the produced {@link LevelInfo} as requested.
 	 */
@@ -97,6 +103,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 	private final boolean omitSiblings;
 
 	public ParentStatisticsHierarchyVisitor(
+		@Nonnull QueryExecutionContext executionContext,
 		@Nonnull IntPredicate requestedPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate,
@@ -105,6 +112,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 		@Nullable SiblingsStatisticsTravelingComputer siblingsStatisticsComputer,
 		boolean omitSiblings
 	) {
+		this.executionContext = executionContext;
 		this.requestedPredicate = requestedPredicate;
 		this.scopePredicate = scopePredicate;
 		this.filterPredicate = filterPredicate;
@@ -124,6 +132,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 			next.add(current);
 			if (siblingsStatisticsComputer != null) {
 				final List<Accumulator> siblings = siblingsStatisticsComputer.createStatistics(
+					executionContext,
 					filterPredicate,
 					next.getEntity().getPrimaryKey(),
 					current.getEntity().getPrimaryKey()
@@ -145,6 +154,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 		} else {
 			return Stream.concat(
 					siblingsStatisticsComputer.createStatistics(
+						executionContext,
 						filterPredicate, null,
 						current.getEntity().getPrimaryKey()
 					).stream(),
@@ -170,8 +180,9 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 				// and create element in accumulator that will be filled in
 				accumulator.push(
 					new Accumulator(
+						executionContext,
 						requestedPredicate.test(entityPrimaryKey),
-						entityFetcher.apply(entityPrimaryKey),
+						entityFetcher.apply(executionContext, entityPrimaryKey),
 						() -> queriedEntityComputer.apply(node.entityPrimaryKey())
 					)
 				);

@@ -38,7 +38,8 @@ import javax.annotation.Nonnull;
 public enum GraphQLContextKey {
 
     EVITA_SESSION("evitaSession"),
-    OPERATION_TRACING_BLOCK("operationTracingBlock");
+    OPERATION_TRACING_BLOCK("operationTracingBlock"),
+    METRIC_EXECUTED_EVENT("metricExecutedEvent");
 
     @Nonnull
     private final String key;
