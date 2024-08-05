@@ -36,7 +36,7 @@ class RemoveAssociatedDataMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new RemoveAssociatedDataMutationConverter();
+		converter = RemoveAssociatedDataMutationConverter.INSTANCE;
 	}
 
 	@Test

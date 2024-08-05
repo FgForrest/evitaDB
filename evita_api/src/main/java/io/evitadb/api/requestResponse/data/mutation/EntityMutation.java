@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 
 import javax.annotation.Nonnull;
@@ -65,7 +65,7 @@ public non-sealed interface EntityMutation extends Mutation {
 	 * @param catalogSchema to check entity against
 	 */
 	@Nonnull
-	static Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
+	static Optional<LocalEntitySchemaMutation[]> verifyOrEvolveSchema(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull SealedEntitySchema entitySchema,
 		@Nonnull Collection<? extends LocalMutation<?, ?>> localMutations
@@ -117,7 +117,7 @@ public non-sealed interface EntityMutation extends Mutation {
 	 * @param entityCollectionEmpty TRUE if entire collection is empty
 	 */
 	@Nonnull
-	Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
+	Optional<LocalEntitySchemaMutation[]> verifyOrEvolveSchema(
 		@Nonnull SealedCatalogSchema catalogSchema,
 		@Nonnull SealedEntitySchema entitySchema,
 		boolean entityCollectionEmpty

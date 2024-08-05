@@ -103,6 +103,12 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	@Override
 	public String toString() {
 		return "Modify catalog description='" + description + '\'';

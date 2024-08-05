@@ -35,7 +35,7 @@ class SetAttributeSchemaSortableMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetAttributeSchemaSortableMutationConverter();
+		converter = SetAttributeSchemaSortableMutationConverter.INSTANCE;
 	}
 
 	@Test

@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -243,6 +244,12 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 
 	@Nonnull
 	@Override
+	public Optional<PriceForSaleContext> getPriceForSaleContext() {
+		return Optional.empty();
+	}
+
+	@Nonnull
+	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
 		throw new ContextMissingException();
 	}
@@ -270,7 +277,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	@Nonnull
 	public Collection<PriceContract> getPrices() {
 		Assert.isTrue(
-			withPrice,
+			this.withPrice || this.entitySchema.allows(EvolutionMode.ADDING_PRICES),
 			() -> new EntityHasNoPricesException(entitySchema.getName())
 		);
 		return priceIndex.values();
@@ -281,14 +288,14 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	 */
 	@Nonnull
 	public Map<PriceKey, PriceContract> getPriceIndex() {
-		return priceIndex;
+		return this.priceIndex;
 	}
 
 	/**
 	 * Returns true when there is no single price defined.
 	 */
 	public boolean isEmpty() {
-		return priceIndex.isEmpty();
+		return this.priceIndex.isEmpty();
 	}
 
 	/**

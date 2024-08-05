@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -36,7 +38,9 @@ import javax.annotation.Nonnull;
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class RemoveAttributeMutationConverter extends AttributeMutationConverter<RemoveAttributeMutation, GrpcRemoveAttributeMutation> {
+	public static final RemoveAttributeMutationConverter INSTANCE = new RemoveAttributeMutationConverter();
 
 	@Override
 	@Nonnull

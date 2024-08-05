@@ -29,6 +29,8 @@ import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateGlobalAttributeSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -37,7 +39,9 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutationConverter<CreateGlobalAttributeSchemaMutation, GrpcCreateGlobalAttributeSchemaMutation> {
+	public static final CreateGlobalAttributeSchemaMutationConverter INSTANCE = new CreateGlobalAttributeSchemaMutationConverter();
 
 	@Nonnull
 	public CreateGlobalAttributeSchemaMutation convert(@Nonnull GrpcCreateGlobalAttributeSchemaMutation mutation) {

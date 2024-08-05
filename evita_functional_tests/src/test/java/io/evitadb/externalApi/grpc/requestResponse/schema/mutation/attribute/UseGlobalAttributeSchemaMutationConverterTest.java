@@ -35,7 +35,7 @@ class UseGlobalAttributeSchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new UseGlobalAttributeSchemaMutationConverter();
+		converter = UseGlobalAttributeSchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

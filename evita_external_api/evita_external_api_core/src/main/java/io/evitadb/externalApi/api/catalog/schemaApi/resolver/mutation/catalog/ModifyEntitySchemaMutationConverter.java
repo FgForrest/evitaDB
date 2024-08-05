@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
@@ -73,9 +73,9 @@ public class ModifyEntitySchemaMutationConverter extends LocalCatalogSchemaMutat
 				return (List<Object>) m;
 			})
 			.get();
-		final EntitySchemaMutation[] entitySchemaMutations = inputEntitySchemaMutations.stream()
+		final LocalEntitySchemaMutation[] entitySchemaMutations = inputEntitySchemaMutations.stream()
 			.flatMap(m -> entitySchemaMutationAggregateResolver.convertFromInput(m).stream())
-			.toArray(EntitySchemaMutation[]::new);
+			.toArray(LocalEntitySchemaMutation[]::new);
 
 		return new ModifyEntitySchemaMutation(
 			input.getProperty(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE),

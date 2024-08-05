@@ -38,6 +38,8 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.Creat
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutationConverter;
 import io.evitadb.utils.Assert;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -55,21 +57,23 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DelegatingTopLevelCatalogSchemaMutationConverter implements SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> {
+	public static final DelegatingTopLevelCatalogSchemaMutationConverter INSTANCE = new DelegatingTopLevelCatalogSchemaMutationConverter();
 
 	private static final Map<Class<? extends TopLevelCatalogSchemaMutation>, ToGrpc> TO_GRPC_CONVERTERS;
 	private static final Map<MutationCase, ToJava> TO_JAVA_CONVERTERS;
 
 	static {
 		TO_GRPC_CONVERTERS = createHashMap(5);
-		TO_GRPC_CONVERTERS.put(CreateCatalogSchemaMutation.class, new ToGrpc((b, m) -> b.setCreateCatalogSchemaMutation((GrpcCreateCatalogSchemaMutation) m), new CreateCatalogSchemaMutationConverter()));
-		TO_GRPC_CONVERTERS.put(ModifyCatalogSchemaNameMutation.class, new ToGrpc((b, m) -> b.setModifyCatalogSchemaNameMutation((GrpcModifyCatalogSchemaNameMutation) m), new ModifyCatalogSchemaNameMutationConverter()));
-		TO_GRPC_CONVERTERS.put(RemoveCatalogSchemaMutation.class, new ToGrpc((b, m) -> b.setRemoveCatalogSchemaMutation((GrpcRemoveCatalogSchemaMutation) m), new RemoveCatalogSchemaMutationConverter()));
+		TO_GRPC_CONVERTERS.put(CreateCatalogSchemaMutation.class, new ToGrpc((b, m) -> b.setCreateCatalogSchemaMutation((GrpcCreateCatalogSchemaMutation) m), CreateCatalogSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(ModifyCatalogSchemaNameMutation.class, new ToGrpc((b, m) -> b.setModifyCatalogSchemaNameMutation((GrpcModifyCatalogSchemaNameMutation) m), ModifyCatalogSchemaNameMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveCatalogSchemaMutation.class, new ToGrpc((b, m) -> b.setRemoveCatalogSchemaMutation((GrpcRemoveCatalogSchemaMutation) m), RemoveCatalogSchemaMutationConverter.INSTANCE));
 
 		TO_JAVA_CONVERTERS = createHashMap(5);
-		TO_JAVA_CONVERTERS.put(CREATECATALOGSCHEMAMUTATION, new ToJava(GrpcTopLevelCatalogSchemaMutation::getCreateCatalogSchemaMutation, new CreateCatalogSchemaMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MODIFYCATALOGSCHEMANAMEMUTATION, new ToJava(GrpcTopLevelCatalogSchemaMutation::getModifyCatalogSchemaNameMutation, new ModifyCatalogSchemaNameMutationConverter()));
-		TO_JAVA_CONVERTERS.put(REMOVECATALOGSCHEMAMUTATION, new ToJava(GrpcTopLevelCatalogSchemaMutation::getRemoveCatalogSchemaMutation, new RemoveCatalogSchemaMutationConverter()));
+		TO_JAVA_CONVERTERS.put(CREATECATALOGSCHEMAMUTATION, new ToJava(GrpcTopLevelCatalogSchemaMutation::getCreateCatalogSchemaMutation, CreateCatalogSchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MODIFYCATALOGSCHEMANAMEMUTATION, new ToJava(GrpcTopLevelCatalogSchemaMutation::getModifyCatalogSchemaNameMutation, ModifyCatalogSchemaNameMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(REMOVECATALOGSCHEMAMUTATION, new ToJava(GrpcTopLevelCatalogSchemaMutation::getRemoveCatalogSchemaMutation, RemoveCatalogSchemaMutationConverter.INSTANCE));
 	}
 
 	@SuppressWarnings("unchecked")

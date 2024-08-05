@@ -88,6 +88,12 @@ public class RemoveAttributeMutation extends AttributeMutation {
 		return PRIORITY_REMOVAL;
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.REMOVE;
+	}
+
 	@Override
 	public String toString() {
 		return "remove attribute `" + attributeKey + "`";

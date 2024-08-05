@@ -35,7 +35,7 @@ class RemoveAttributeSchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new RemoveAttributeSchemaMutationConverter();
+		converter = RemoveAttributeSchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

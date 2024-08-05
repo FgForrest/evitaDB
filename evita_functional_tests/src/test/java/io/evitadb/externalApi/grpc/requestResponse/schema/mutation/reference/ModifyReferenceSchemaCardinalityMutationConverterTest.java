@@ -36,7 +36,7 @@ class ModifyReferenceSchemaCardinalityMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifyReferenceSchemaCardinalityMutationConverter();
+		converter = ModifyReferenceSchemaCardinalityMutationConverter.INSTANCE;
 	}
 
 	@Test

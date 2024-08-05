@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.price;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -206,6 +207,12 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 	@Override
 	public long getPriority() {
 		return PRICE_UPSERT_PRIORITY;
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

@@ -37,7 +37,7 @@ class ReferenceAttributeMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ReferenceAttributeMutationConverter();
+		converter = ReferenceAttributeMutationConverter.INSTANCE;
 	}
 
 	@Test

@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcAttributeElement;
@@ -401,7 +402,9 @@ public class EntitySchemaConverter {
 			.setCardinality(toGrpcCardinality(referenceSchema.getCardinality()))
 			.setEntityType(referenceSchema.getReferencedEntityType())
 			.setEntityTypeRelatesToEntity(referenceSchema.isReferencedEntityTypeManaged())
+			.setReferencedEntityTypeManaged(referenceSchema.isReferencedEntityTypeManaged())
 			.setGroupTypeRelatesToEntity(referenceSchema.isReferencedGroupTypeManaged())
+			.setReferencedGroupTypeManaged(referenceSchema.isReferencedGroupTypeManaged())
 			.setIndexed(referenceSchema.isIndexed())
 			.setFaceted(referenceSchema.isFaceted())
 			.putAllAttributes(toGrpcAttributeSchemas(referenceSchema.getAttributes(), includeNameVariants))
@@ -422,6 +425,26 @@ public class EntitySchemaConverter {
 				.forEach(
 					(namingConvention, nameVariant) -> builder.addNameVariant(toGrpcNameVariant(namingConvention, nameVariant))
 				);
+			if (!referenceSchema.isReferencedEntityTypeManaged()) {
+				referenceSchema.getEntityTypeNameVariants(
+						referencedEntityType -> {
+							throw new GenericEvitaInternalError("Should not be called!");
+						}
+					)
+					.forEach(
+						(namingConvention, nameVariant) -> builder.addEntityTypeNameVariant(toGrpcNameVariant(namingConvention, nameVariant))
+					);
+			}
+			if (referenceSchema.getReferencedGroupType() != null && !referenceSchema.isReferencedGroupTypeManaged()) {
+				referenceSchema.getGroupTypeNameVariants(
+						referencedEntityType -> {
+							throw new GenericEvitaInternalError("Should not be called!");
+						}
+					)
+					.forEach(
+						(namingConvention, nameVariant) -> builder.addGroupTypeNameVariant(toGrpcNameVariant(namingConvention, nameVariant))
+					);
+			}
 		}
 
 		return builder.build();
@@ -526,16 +549,16 @@ public class EntitySchemaConverter {
 			referenceSchema.hasDescription() ? referenceSchema.getDescription().getValue() : null,
 			referenceSchema.hasDeprecationNotice() ? referenceSchema.getDeprecationNotice().getValue() : null,
 			referenceSchema.getEntityType(),
-			referenceSchema.getEntityTypeRelatesToEntity()
+			referenceSchema.getReferencedEntityTypeManaged()
 				? Collections.emptyMap()
 				: NamingConvention.generate(referenceSchema.getEntityType()),
-			referenceSchema.getEntityTypeRelatesToEntity(),
+			referenceSchema.getReferencedEntityTypeManaged(),
 			toCardinality(referenceSchema.getCardinality()),
 			referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
-			referenceSchema.getGroupTypeRelatesToEntity()
+			referenceSchema.getReferencedGroupTypeManaged()
 				? Collections.emptyMap()
 				: NamingConvention.generate(referenceSchema.getGroupType().getValue()),
-			referenceSchema.getGroupTypeRelatesToEntity(),
+			referenceSchema.getReferencedGroupTypeManaged(),
 			referenceSchema.getIndexed(),
 			referenceSchema.getFaceted(),
 			referenceSchema.getAttributesMap()

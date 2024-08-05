@@ -25,6 +25,11 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -42,6 +47,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for setting up a new {@link EntitySchemaContract} - or more precisely
@@ -76,6 +82,35 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 			mutationEntitySchemaAccessor.addUpsertedEntitySchema(EntitySchema._internalBuild(entityType));
 		}
 		return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull CaptureContent content
+	) {
+		if (predicate.test(this)) {
+			final MutationPredicateContext context = predicate.getContext();
+			context.advance();
+			context.setEntityType(name);
+
+			return Stream.of(
+				ChangeCatalogCapture.schemaCapture(
+					context,
+					operation(),
+					content == CaptureContent.BODY ? this : null
+				)
+			);
+		} else {
+			return Stream.empty();
+		}
 	}
 
 	@Override

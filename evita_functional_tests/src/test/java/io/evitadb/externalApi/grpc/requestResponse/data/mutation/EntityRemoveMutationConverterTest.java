@@ -34,7 +34,7 @@ class EntityRemoveMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new EntityRemoveMutationConverter();
+		converter = EntityRemoveMutationConverter.INSTANCE;
 	}
 
 	@Test

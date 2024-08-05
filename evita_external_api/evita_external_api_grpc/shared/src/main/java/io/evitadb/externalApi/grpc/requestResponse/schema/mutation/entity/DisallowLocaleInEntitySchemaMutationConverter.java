@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowLocaleInEnt
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
@@ -36,7 +38,9 @@ import java.util.Locale;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DisallowLocaleInEntitySchemaMutationConverter implements SchemaMutationConverter<DisallowLocaleInEntitySchemaMutation, GrpcDisallowLocaleInEntitySchemaMutation> {
+	public static final DisallowLocaleInEntitySchemaMutationConverter INSTANCE = new DisallowLocaleInEntitySchemaMutationConverter();
 
 	@Nonnull
 	public DisallowLocaleInEntitySchemaMutation convert(@Nonnull GrpcDisallowLocaleInEntitySchemaMutation mutation) {

@@ -35,7 +35,7 @@ class RemoveSortableAttributeCompoundSchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new RemoveSortableAttributeCompoundSchemaMutationConverter();
+		converter = RemoveSortableAttributeCompoundSchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

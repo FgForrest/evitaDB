@@ -38,7 +38,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -61,7 +61,7 @@ import java.util.stream.Stream;
 /**
  * Mutation is responsible for setting up a new {@link GlobalAttributeSchemaContract} in the {@link CatalogSchemaContract}.
  * Mutation can be used for altering also the existing {@link GlobalAttributeSchemaContract} alone.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with
  * {@link RemoveAttributeSchemaMutation} mutation (if such is found in mutation pipeline).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -262,6 +262,12 @@ public class CreateGlobalAttributeSchemaMutation
 					" has different definition. To alter existing attribute schema you need to use different mutations."
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

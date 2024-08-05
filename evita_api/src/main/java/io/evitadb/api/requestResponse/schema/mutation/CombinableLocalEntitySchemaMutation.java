@@ -33,7 +33,7 @@ import javax.annotation.Nullable;
 
 /**
  * Implementations of this interface signalize that they might conflict with other {@link EntitySchemaMutation} in
- * the pipeline. Method {@link #combineWith(CatalogSchemaContract, EntitySchemaContract, EntitySchemaMutation)}
+ * the pipeline. Method {@link #combineWith(CatalogSchemaContract, EntitySchemaContract, LocalEntitySchemaMutation)}
  * allows to examine each of the pipeline mutation and react to it.
  *
  * The interface was created mainly for the needs of {@link EntitySchemaEditor.EntitySchemaBuilder} where it's in our
@@ -46,7 +46,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface CombinableEntitySchemaMutation extends EntitySchemaMutation {
+public interface CombinableLocalEntitySchemaMutation extends LocalEntitySchemaMutation {
 
 	/**
 	 * Method checks the passed `existingMutation` in the mutation pipeline and optionally creates
@@ -60,10 +60,10 @@ public interface CombinableEntitySchemaMutation extends EntitySchemaMutation {
 	 * @see MutationCombinationResult
 	 */
 	@Nullable
-	MutationCombinationResult<EntitySchemaMutation> combineWith(
+	MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
 		@Nonnull CatalogSchemaContract currentCatalogSchema,
 		@Nonnull EntitySchemaContract currentEntitySchema,
-		@Nonnull EntitySchemaMutation existingMutation
+		@Nonnull LocalEntitySchemaMutation existingMutation
 	);
 
 }

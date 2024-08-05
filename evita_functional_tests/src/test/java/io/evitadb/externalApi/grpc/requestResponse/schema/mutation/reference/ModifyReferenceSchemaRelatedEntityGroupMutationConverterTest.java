@@ -35,7 +35,7 @@ class ModifyReferenceSchemaRelatedEntityGroupMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifyReferenceSchemaRelatedEntityGroupMutationConverter();
+		converter = ModifyReferenceSchemaRelatedEntityGroupMutationConverter.INSTANCE;
 	}
 
 	@Test

@@ -99,6 +99,12 @@ public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey
 		return PRIORITY_REMOVAL * 2;
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.REMOVE;
+	}
+
 	@Override
 	public ReferenceKey getComparableKey() {
 		return referenceKey;

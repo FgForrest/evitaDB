@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.schema;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -69,7 +69,7 @@ public class EntitySchemaDecorator implements SealedEntitySchema {
 
 	@Nonnull
 	@Override
-	public EntitySchemaBuilder withMutations(@Nonnull EntitySchemaMutation... schemaMutations) {
+	public EntitySchemaBuilder withMutations(@Nonnull LocalEntitySchemaMutation... schemaMutations) {
 		final CatalogSchemaContract catalogSchema = catalogSchemaSupplier.get();
 		return new InternalEntitySchemaBuilder(
 			catalogSchema,
@@ -80,7 +80,7 @@ public class EntitySchemaDecorator implements SealedEntitySchema {
 
 	@Nonnull
 	@Override
-	public EntitySchemaBuilder withMutations(@Nonnull Collection<EntitySchemaMutation> schemaMutations) {
+	public EntitySchemaBuilder withMutations(@Nonnull Collection<LocalEntitySchemaMutation> schemaMutations) {
 		final CatalogSchemaContract catalogSchema = catalogSchemaSupplier.get();
 		return new InternalEntitySchemaBuilder(
 			catalogSchema,

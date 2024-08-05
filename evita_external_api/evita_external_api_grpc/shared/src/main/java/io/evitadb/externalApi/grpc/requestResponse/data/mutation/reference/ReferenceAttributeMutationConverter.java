@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingAttributeMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.LocalMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -37,10 +39,9 @@ import javax.annotation.Nonnull;
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReferenceAttributeMutationConverter implements LocalMutationConverter<ReferenceAttributeMutation, GrpcReferenceAttributeMutation> {
-
-	@Nonnull
-	private static final DelegatingAttributeMutationConverter ATTRIBUTE_MUTATION_CONVERTER = new DelegatingAttributeMutationConverter();
+	public static final ReferenceAttributeMutationConverter INSTANCE = new ReferenceAttributeMutationConverter();
 
 	@Override
 	@Nonnull
@@ -50,7 +51,7 @@ public class ReferenceAttributeMutationConverter implements LocalMutationConvert
 				mutation.getReferenceName(),
 				mutation.getReferencePrimaryKey()
 			),
-			ATTRIBUTE_MUTATION_CONVERTER.convert(mutation.getAttributeMutation())
+			DelegatingAttributeMutationConverter.INSTANCE.convert(mutation.getAttributeMutation())
 		);
 	}
 
@@ -60,7 +61,7 @@ public class ReferenceAttributeMutationConverter implements LocalMutationConvert
 		return GrpcReferenceAttributeMutation.newBuilder()
 			.setReferenceName(mutation.getReferenceKey().referenceName())
 			.setReferencePrimaryKey(mutation.getReferenceKey().primaryKey())
-			.setAttributeMutation(ATTRIBUTE_MUTATION_CONVERTER.convert(mutation.getAttributeMutation()))
+			.setAttributeMutation(DelegatingAttributeMutationConverter.INSTANCE.convert(mutation.getAttributeMutation()))
 			.build();
 	}
 }

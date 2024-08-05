@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -50,7 +50,7 @@ class RemoveAssociatedDataSchemaMutationTest {
 		CreateAssociatedDataSchemaMutation previousMutation = new CreateAssociatedDataSchemaMutation(
 			ASSOCIATED_DATA_NAME, "description", "deprecationNotice", String.class, true, true
 		);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
 			Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), previousMutation
 		);
 		assertNotNull(result);

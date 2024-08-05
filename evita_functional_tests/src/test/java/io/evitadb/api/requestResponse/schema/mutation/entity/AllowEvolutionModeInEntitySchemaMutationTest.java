@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -48,7 +48,7 @@ public class AllowEvolutionModeInEntitySchemaMutationTest {
 		AllowEvolutionModeInEntitySchemaMutation mutation = new AllowEvolutionModeInEntitySchemaMutation(EvolutionMode.ADDING_LOCALES, EvolutionMode.ADDING_CURRENCIES);
 		AllowEvolutionModeInEntitySchemaMutation existingMutation = new AllowEvolutionModeInEntitySchemaMutation(EvolutionMode.ADDING_REFERENCES);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
@@ -63,7 +63,7 @@ public class AllowEvolutionModeInEntitySchemaMutationTest {
 		AllowEvolutionModeInEntitySchemaMutation mutation = new AllowEvolutionModeInEntitySchemaMutation(EvolutionMode.ADDING_LOCALES, EvolutionMode.ADDING_CURRENCIES);
 		DisallowEvolutionModeInEntitySchemaMutation existingMutation = new DisallowEvolutionModeInEntitySchemaMutation(EvolutionMode.ADDING_LOCALES);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
@@ -78,7 +78,7 @@ public class AllowEvolutionModeInEntitySchemaMutationTest {
 		AllowEvolutionModeInEntitySchemaMutation mutation = new AllowEvolutionModeInEntitySchemaMutation(EvolutionMode.ADDING_LOCALES, EvolutionMode.ADDING_CURRENCIES);
 		DisallowEvolutionModeInEntitySchemaMutation existingMutation = new DisallowEvolutionModeInEntitySchemaMutation(EvolutionMode.ADDING_LOCALES, EvolutionMode.ADDING_REFERENCES);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNotNull(result.origin());
 		assertInstanceOf(DisallowEvolutionModeInEntitySchemaMutation.class, result.origin());
@@ -97,7 +97,7 @@ public class AllowEvolutionModeInEntitySchemaMutationTest {
 		AllowEvolutionModeInEntitySchemaMutation mutation = new AllowEvolutionModeInEntitySchemaMutation(EvolutionMode.ADDING_LOCALES, EvolutionMode.ADDING_CURRENCIES);
 		DisallowEvolutionModeInEntitySchemaMutation existingMutation = new DisallowEvolutionModeInEntitySchemaMutation(EvolutionMode.ADDING_REFERENCES);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNotNull(result.origin());
 		assertInstanceOf(DisallowEvolutionModeInEntitySchemaMutation.class, result.origin());

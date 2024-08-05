@@ -39,7 +39,7 @@ class ApplyDeltaAttributeMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ApplyDeltaAttributeMutationConverter();
+		converter = ApplyDeltaAttributeMutationConverter.INSTANCE;
 	}
 
 	@Test

@@ -98,6 +98,12 @@ public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalo
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	@Override
 	public String toString() {
 		return "Disallow: evolutionModes=" + evolutionModes;

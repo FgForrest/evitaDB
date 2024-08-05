@@ -39,6 +39,11 @@ public class TemporalDataNotAvailableException extends EvitaInvalidUsageExceptio
 	@Serial private static final long serialVersionUID = 2157655513551186466L;
 	@Getter private final OffsetDateTime offsetDateTime;
 
+	public TemporalDataNotAvailableException() {
+		super("No historical data is available.");
+		this.offsetDateTime = null;
+	}
+
 	public TemporalDataNotAvailableException(@Nonnull OffsetDateTime offsetDateTime) {
 		super("The latest data available is from " + offsetDateTime + ".");
 		this.offsetDateTime = offsetDateTime;

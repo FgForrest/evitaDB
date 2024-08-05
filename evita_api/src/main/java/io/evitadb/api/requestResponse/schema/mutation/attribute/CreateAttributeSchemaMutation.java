@@ -38,8 +38,8 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -63,7 +63,7 @@ import java.util.stream.Stream;
 /**
  * Mutation is responsible for setting up a new {@link AttributeSchemaContract} in the {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link AttributeSchemaContract} alone.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with
  * {@link RemoveAttributeSchemaMutation} mutation (if such is found in mutation pipeline).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -71,7 +71,7 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMutation, CombinableEntitySchemaMutation {
+public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMutation, CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -7082514745878566818L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
@@ -138,10 +138,10 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
 		@Nonnull CatalogSchemaContract currentCatalogSchema,
 		@Nonnull EntitySchemaContract currentEntitySchema,
-		@Nonnull EntitySchemaMutation existingMutation
+		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
 		// when the attribute schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
@@ -203,7 +203,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 					)
 				)
 				.filter(Objects::nonNull)
-				.toArray(EntitySchemaMutation[]::new)
+				.toArray(LocalEntitySchemaMutation[]::new)
 			);
 		} else {
 			return null;
@@ -329,6 +329,12 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 					" it has different definition. To alter existing attribute schema you need to use different mutations."
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

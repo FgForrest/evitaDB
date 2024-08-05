@@ -36,7 +36,7 @@ class SetAttributeSchemaUniqueMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetAttributeSchemaUniqueMutationConverter();
+		converter = SetAttributeSchemaUniqueMutationConverter.INSTANCE;
 	}
 
 	@Test

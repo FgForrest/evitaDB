@@ -35,7 +35,7 @@ class RemoveEntitySchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new RemoveEntitySchemaMutationConverter();
+		converter = RemoveEntitySchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

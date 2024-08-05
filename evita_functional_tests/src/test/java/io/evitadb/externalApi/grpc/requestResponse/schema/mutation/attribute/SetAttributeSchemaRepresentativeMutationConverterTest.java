@@ -35,7 +35,7 @@ class SetAttributeSchemaRepresentativeMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetAttributeSchemaRepresentativeMutationConverter();
+		converter = SetAttributeSchemaRepresentativeMutationConverter.INSTANCE;
 	}
 
 	@Test

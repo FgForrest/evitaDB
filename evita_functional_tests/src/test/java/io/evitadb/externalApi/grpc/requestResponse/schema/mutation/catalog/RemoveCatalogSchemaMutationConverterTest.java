@@ -35,7 +35,7 @@ class RemoveCatalogSchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new RemoveCatalogSchemaMutationConverter();
+		converter = RemoveCatalogSchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

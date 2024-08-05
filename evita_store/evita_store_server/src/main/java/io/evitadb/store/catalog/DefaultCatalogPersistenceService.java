@@ -1664,11 +1664,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion) {
+	public Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
 		if (this.catalogWal == null) {
 			return Stream.empty();
 		} else {
-			return this.catalogWal.getCommittedReversedMutationStream(catalogVersion);
+			return this.catalogWal.getCommittedReversedMutationStream(getLastCatalogVersion());
 		}
 	}
 
@@ -1698,6 +1698,23 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		for (DefaultEntityCollectionPersistenceService collectionPersistenceServices : this.entityCollectionPersistenceServices.values()) {
 			collectionPersistenceServices.getStoragePartPersistenceService().forgetVolatileData();
 		}
+	}
+
+	@Nonnull
+	@Override
+	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+		final CatalogBootstrap bootstrap;
+		if (moment == null) {
+			bootstrap = DefaultCatalogPersistenceService.getFirstCatalogBootstrap(
+				this.catalogName, this.storageOptions
+			)
+				.orElseThrow(TemporalDataNotAvailableException::new);
+		} else {
+			bootstrap = DefaultCatalogPersistenceService.getCatalogBootstrapForSpecificMoment(
+				this.catalogName, this.storageOptions, moment
+			);
+		}
+		return new CatalogVersion(bootstrap.catalogVersion(), bootstrap.timestamp());
 	}
 
 	@Nonnull
@@ -1765,7 +1782,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				Arrays.stream(catalogVersion)
 					.mapToObj(
 						cv -> ofNullable(catalogVersionPreviousVersions.get(cv))
-							.map(it -> this.catalogWal.getCatalogVersionDescriptor(cv, it.version(), it.timestamp()))
+							.map(it -> this.catalogWal.getCatalogVersionDescriptor(cv, it.version(), it.introducedAt()))
 							.orElse(null))
 					.filter(Objects::nonNull);
 		} else {
@@ -2473,7 +2490,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				if (previousVersion != null) {
 					catalogVersionPreviousVersions.put(
 						cv.version(),
-						new CatalogVersion(previousVersion.version(), cv.timestamp())
+						new CatalogVersion(previousVersion.version(), cv.introducedAt())
 					);
 				}
 				previousVersion = cv;

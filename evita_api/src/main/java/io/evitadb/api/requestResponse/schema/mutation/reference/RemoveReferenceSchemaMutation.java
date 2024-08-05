@@ -29,8 +29,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.AllArgsConstructor;
@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
  * Mutation is responsible for removing an existing {@link ReferenceSchemaContract} in the
  * {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link ReferenceSchemaContract} alone.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with
  * {@link CreateReferenceSchemaMutation} mutation (if such is found in mutation pipeline).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableEntitySchemaMutation {
+public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -7746714314557968775L;
 	@Getter @Nonnull private final String name;
 
@@ -72,7 +72,11 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
 		if (existingMutation instanceof ReferenceSchemaMutation referenceSchemaMutation && Objects.equals(name, referenceSchemaMutation.getName())) {
 			return new MutationCombinationResult<>(true, null, this);
 		} else {
@@ -124,6 +128,12 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 				entitySchema.getSortableAttributeCompounds()
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.REMOVE;
 	}
 
 	@Override

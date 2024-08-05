@@ -36,7 +36,7 @@ class RemoveReferenceGroupMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new RemoveReferenceGroupMutationConverter();
+		converter = RemoveReferenceGroupMutationConverter.INSTANCE;
 	}
 
 	@Test

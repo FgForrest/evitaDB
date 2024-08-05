@@ -50,6 +50,8 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -63,6 +65,7 @@ import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.AnalysisResult;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -72,8 +75,10 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.async.Interruptible;
+import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
@@ -1182,6 +1187,22 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Nonnull
+	@Override
+	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+		assertActive();
+		return getCatalog().getCatalogVersionAt(moment);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ChangeCatalogCapture> getMutationsHistory(@Nonnull ChangeCatalogCaptureRequest criteria) {
+		final MutationPredicate mutationPredicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(criteria);
+		return getCatalog()
+			.getReversedCommittedMutationStream(criteria.sinceVersion())
+			.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()));
+	}
+
 	@Interruptible
 	@Traced
 	@Nonnull
@@ -1341,6 +1362,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				return null;
 			}
 		);
+	}
+
+	@Override
+	public String toString() {
+		return (isTransactionOpen() ? "Read-write session:" : "Read-only session: ") + id + (isActive() ? "" : " (terminated)");
 	}
 
 	/**

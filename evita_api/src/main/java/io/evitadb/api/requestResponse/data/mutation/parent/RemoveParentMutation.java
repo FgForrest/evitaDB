@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.parent;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.Assert;
@@ -61,6 +62,12 @@ public class RemoveParentMutation extends ParentMutation {
 	@Override
 	public Integer getComparableKey() {
 		return Integer.MIN_VALUE;
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.REMOVE;
 	}
 
 	@Override

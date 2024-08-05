@@ -35,7 +35,7 @@ class ModifyAttributeSchemaDeprecationNoticeMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifyAttributeSchemaDeprecationNoticeMutationConverter();
+		converter = ModifyAttributeSchemaDeprecationNoticeMutationConverter.INSTANCE;
 	}
 
 	@Test

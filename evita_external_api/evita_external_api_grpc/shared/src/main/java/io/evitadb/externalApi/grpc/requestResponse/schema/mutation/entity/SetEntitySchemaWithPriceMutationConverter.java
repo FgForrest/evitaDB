@@ -26,6 +26,8 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.entity;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithPriceMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -34,7 +36,9 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class SetEntitySchemaWithPriceMutationConverter implements SchemaMutationConverter<SetEntitySchemaWithPriceMutation, GrpcSetEntitySchemaWithPriceMutation> {
+	public static final SetEntitySchemaWithPriceMutationConverter INSTANCE = new SetEntitySchemaWithPriceMutationConverter();
 
 	@Nonnull
 	public SetEntitySchemaWithPriceMutation convert(@Nonnull GrpcSetEntitySchemaWithPriceMutation mutation) {

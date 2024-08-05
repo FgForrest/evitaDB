@@ -91,7 +91,7 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
 	@Override
-	DataCarrier setUp(Evita evita) {
+	protected DataCarrier setUp(Evita evita) {
 		return super.setUp(evita);
 	}
 

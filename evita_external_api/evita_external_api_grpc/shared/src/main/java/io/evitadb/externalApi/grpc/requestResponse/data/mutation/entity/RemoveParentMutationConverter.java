@@ -26,6 +26,8 @@ package io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity;
 import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.LocalMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -35,7 +37,9 @@ import javax.annotation.Nonnull;
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class RemoveParentMutationConverter implements LocalMutationConverter<RemoveParentMutation, GrpcRemoveParentMutation> {
+	public static final RemoveParentMutationConverter INSTANCE = new RemoveParentMutationConverter();
 
 	@Override
 	@Nonnull

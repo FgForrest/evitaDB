@@ -26,6 +26,8 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -34,7 +36,9 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class SetReferenceSchemaFacetedMutationConverter implements SchemaMutationConverter<SetReferenceSchemaFacetedMutation, GrpcSetReferenceSchemaFacetedMutation> {
+	public static final SetReferenceSchemaFacetedMutationConverter INSTANCE = new SetReferenceSchemaFacetedMutationConverter();
 
 	@Nonnull
 	public SetReferenceSchemaFacetedMutation convert(@Nonnull GrpcSetReferenceSchemaFacetedMutation mutation) {

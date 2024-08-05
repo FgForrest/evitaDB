@@ -64,7 +64,6 @@ cache:                                            # [see Cache configuration](#c
 api:                                              # [see API configuration](#api-configuration)
   exposedOn: null
   workerGroupThreads: 4
-  serviceWorkerGroupThreads: 4
   idleTimeoutInMillis: 2K
   requestTimeoutInMillis: 2K
   keepAlive: true
@@ -619,12 +618,6 @@ This section of the configuration allows you to selectively enable, disable, and
     <dd>
         <p>**Default:** `number of CPUs`</p>
         <p>Defines the number of IO threads that will be used by Armeria for accept and send HTTP payload.</p>
-    </dd>
-    <dt>serviceWorkerGroupThreads</dt>
-    <dd>
-        <p>**Default:** `number of CPUs * 2`</p>
-        <p>Defines the number of service threads used by Armeria to handle requests. The main logic usually does not run
-        within these threads, but within evitaDB's internal thread pools.</p>
     </dd>
     <dt>idleTimeoutInMillis</dt>
     <dd>

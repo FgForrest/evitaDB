@@ -31,6 +31,8 @@ import io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaM
 import io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingSortableAttributeCompoundSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -39,16 +41,16 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter
 	implements SchemaMutationConverter<ModifyReferenceSortableAttributeCompoundSchemaMutation, GrpcModifyReferenceSortableAttributeCompoundSchemaMutation> {
-
-	private static final DelegatingSortableAttributeCompoundSchemaMutationConverter SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION_CONVERTER = new DelegatingSortableAttributeCompoundSchemaMutationConverter();
+	public static final ModifyReferenceSortableAttributeCompoundSchemaMutationConverter INSTANCE = new ModifyReferenceSortableAttributeCompoundSchemaMutationConverter();
 
 	@Nonnull
 	public ModifyReferenceSortableAttributeCompoundSchemaMutation convert(@Nonnull GrpcModifyReferenceSortableAttributeCompoundSchemaMutation mutation) {
 		return new ModifyReferenceSortableAttributeCompoundSchemaMutation(
 			mutation.getName(),
-			(ReferenceSchemaMutation) SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION_CONVERTER.convert(mutation.getSortableAttributeCompoundSchemaMutation())
+			(ReferenceSchemaMutation) DelegatingSortableAttributeCompoundSchemaMutationConverter.INSTANCE.convert(mutation.getSortableAttributeCompoundSchemaMutation())
 		);
 	}
 
@@ -56,7 +58,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter
 	public GrpcModifyReferenceSortableAttributeCompoundSchemaMutation convert(@Nonnull ModifyReferenceSortableAttributeCompoundSchemaMutation mutation) {
 		return GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.newBuilder()
 			.setName(mutation.getName())
-			.setSortableAttributeCompoundSchemaMutation(SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION_CONVERTER.convert((SortableAttributeCompoundSchemaMutation) mutation.getSortableAttributeCompoundSchemaMutation()))
+			.setSortableAttributeCompoundSchemaMutation(DelegatingSortableAttributeCompoundSchemaMutationConverter.INSTANCE.convert((SortableAttributeCompoundSchemaMutation) mutation.getSortableAttributeCompoundSchemaMutation()))
 			.build();
 	}
 }

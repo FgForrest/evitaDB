@@ -35,7 +35,7 @@ class SetAttributeSchemaLocalizedMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetAttributeSchemaLocalizedMutationConverter();
+		converter = SetAttributeSchemaLocalizedMutationConverter.INSTANCE;
 	}
 
 	@Test

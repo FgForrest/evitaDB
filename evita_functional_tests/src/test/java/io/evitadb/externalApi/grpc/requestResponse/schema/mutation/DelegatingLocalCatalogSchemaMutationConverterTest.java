@@ -40,7 +40,7 @@ class DelegatingLocalCatalogSchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new DelegatingLocalCatalogSchemaMutationConverter();
+		converter = DelegatingLocalCatalogSchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

@@ -35,7 +35,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetEntitySchemaWithPriceMutationConverter();
+		converter = SetEntitySchemaWithPriceMutationConverter.INSTANCE;
 	}
 
 	@Test

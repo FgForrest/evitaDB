@@ -35,7 +35,7 @@ class RemoveParentMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new RemoveParentMutationConverter();
+		converter = RemoveParentMutationConverter.INSTANCE;
 	}
 
 	@Test

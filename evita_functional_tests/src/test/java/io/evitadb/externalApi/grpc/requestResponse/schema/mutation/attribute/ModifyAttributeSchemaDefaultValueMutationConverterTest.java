@@ -35,7 +35,7 @@ class ModifyAttributeSchemaDefaultValueMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifyAttributeSchemaDefaultValueMutationConverter();
+		converter = ModifyAttributeSchemaDefaultValueMutationConverter.INSTANCE;
 	}
 
 	@Test

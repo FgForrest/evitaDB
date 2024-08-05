@@ -35,7 +35,7 @@ class ModifyAttributeSchemaNameMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifyAttributeSchemaNameMutationConverter();
+		converter = ModifyAttributeSchemaNameMutationConverter.INSTANCE;
 	}
 
 	@Test

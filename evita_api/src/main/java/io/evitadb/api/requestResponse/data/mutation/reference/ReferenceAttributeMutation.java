@@ -211,6 +211,12 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	@Override
 	public String toString() {
 		return "reference `" + referenceKey + "` attribute mutation: " + attributeMutation;

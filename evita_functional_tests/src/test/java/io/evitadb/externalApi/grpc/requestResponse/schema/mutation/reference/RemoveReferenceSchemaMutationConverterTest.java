@@ -35,7 +35,7 @@ class RemoveReferenceSchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new RemoveReferenceSchemaMutationConverter();
+		converter = RemoveReferenceSchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

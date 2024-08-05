@@ -32,6 +32,8 @@ import io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.MutationCase;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation;
 import io.evitadb.utils.Assert;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -48,19 +50,21 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DelegatingEntityMutationConverter implements EntityMutationConverter<EntityMutation, GrpcEntityMutation> {
+	public static final DelegatingEntityMutationConverter INSTANCE = new DelegatingEntityMutationConverter();
 
 	private static final Map<Class<? extends EntityMutation>, ToGrpc> TO_GRPC_CONVERTERS;
 	private static final Map<MutationCase, ToJava> TO_JAVA_CONVERTERS;
 
 	static {
 		TO_GRPC_CONVERTERS = createHashMap(5);
-		TO_GRPC_CONVERTERS.put(EntityUpsertMutation.class, new ToGrpc((b, m) -> b.setEntityUpsertMutation((GrpcEntityUpsertMutation) m), new EntityUpsertMutationConverter()));
-		TO_GRPC_CONVERTERS.put(EntityRemoveMutation.class, new ToGrpc((b, m) -> b.setEntityRemoveMutation((GrpcEntityRemoveMutation) m), new EntityRemoveMutationConverter()));
+		TO_GRPC_CONVERTERS.put(EntityUpsertMutation.class, new ToGrpc((b, m) -> b.setEntityUpsertMutation((GrpcEntityUpsertMutation) m), EntityUpsertMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(EntityRemoveMutation.class, new ToGrpc((b, m) -> b.setEntityRemoveMutation((GrpcEntityRemoveMutation) m), EntityRemoveMutationConverter.INSTANCE));
 
 		TO_JAVA_CONVERTERS = createHashMap(5);
-		TO_JAVA_CONVERTERS.put(ENTITYUPSERTMUTATION, new ToJava(GrpcEntityMutation::getEntityUpsertMutation, new EntityUpsertMutationConverter()));
-		TO_JAVA_CONVERTERS.put(ENTITYREMOVEMUTATION, new ToJava(GrpcEntityMutation::getEntityRemoveMutation, new EntityRemoveMutationConverter()));
+		TO_JAVA_CONVERTERS.put(ENTITYUPSERTMUTATION, new ToJava(GrpcEntityMutation::getEntityUpsertMutation, EntityUpsertMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(ENTITYREMOVEMUTATION, new ToJava(GrpcEntityMutation::getEntityRemoveMutation, EntityRemoveMutationConverter.INSTANCE));
 	}
 
 	@SuppressWarnings("unchecked")

@@ -40,7 +40,7 @@ import javax.annotation.concurrent.ThreadSafe;
  */
 @Immutable
 @ThreadSafe
-public interface ReferenceSchemaMutation extends SchemaMutation {
+public interface ReferenceSchemaMutation extends LocalEntitySchemaMutation {
 
 	/**
 	 * Returns the name of the reference the mutation is targeting.

@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -50,7 +50,7 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-abstract class AbstractModifyAssociatedDataSchemaMutation implements EntitySchemaMutation, AssociatedDataSchemaMutation {
+abstract class AbstractModifyAssociatedDataSchemaMutation implements LocalEntitySchemaMutation, AssociatedDataSchemaMutation {
 	@Serial private static final long serialVersionUID = -4384492921045013953L;
 	@Getter @Nonnull protected final String name;
 
@@ -103,4 +103,11 @@ abstract class AbstractModifyAssociatedDataSchemaMutation implements EntitySchem
 			);
 		}
 	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 }

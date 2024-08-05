@@ -37,7 +37,7 @@ class AllowCurrencyInEntitySchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new AllowCurrencyInEntitySchemaMutationConverter();
+		converter = AllowCurrencyInEntitySchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

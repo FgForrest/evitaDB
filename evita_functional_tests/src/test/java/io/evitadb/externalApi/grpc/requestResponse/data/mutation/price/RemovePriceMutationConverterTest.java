@@ -37,7 +37,7 @@ class RemovePriceMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new RemovePriceMutationConverter();
+		converter = RemovePriceMutationConverter.INSTANCE;
 	}
 
 	@Test

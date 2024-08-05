@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -37,7 +39,9 @@ import java.io.Serializable;
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutationConverter<UpsertAssociatedDataMutation, GrpcUpsertAssociatedDataMutation> {
+	public static final UpsertAssociatedDataMutationConverter INSTANCE = new UpsertAssociatedDataMutationConverter();
 
 	@Override
 	@Nonnull

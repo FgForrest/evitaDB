@@ -48,7 +48,6 @@ import static java.util.Optional.ofNullable;
  * @param endpoints                 contains specific configuration for all the API endpoints
  * @param certificate               defines the certificate settings that will be used to secure connections to the web servers providing APIs
  * @param workerGroupThreads        defines the number of IO threads
- * @param serviceWorkerGroupThreads defines the number of threads for execution of service logic
  * @param idleTimeoutInMillis       The amount of time a connection can be idle for before it is timed out. An idle connection is a
  *                                  connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
  *                                  grained approach, and small values will cause problems for requests with a long processing time.
@@ -64,7 +63,6 @@ import static java.util.Optional.ofNullable;
 public record ApiOptions(
 	@Nonnull String exposedOn,
 	@Nullable Integer workerGroupThreads,
-	@Nullable Integer serviceWorkerGroupThreads,
 	int idleTimeoutInMillis,
 	int requestTimeoutInMillis,
 	boolean keepAlive,
@@ -74,7 +72,6 @@ public record ApiOptions(
 	@Nonnull Map<String, AbstractApiConfiguration> endpoints
 ) {
 	public static final int DEFAULT_WORKER_GROUP_THREADS = Runtime.getRuntime().availableProcessors();
-	public static final int DEFAULT_SERVICE_WORKER_GROUP_THREADS = Runtime.getRuntime().availableProcessors() << 1;
 	public static final int DEFAULT_IDLE_TIMEOUT = 20 * 1000;
 	public static final int DEFAULT_REQUEST_TIMEOUT = 1000;
 	public static final boolean DEFAULT_KEEP_ALIVE = true;
@@ -90,7 +87,6 @@ public record ApiOptions(
 	public ApiOptions(
 		@Nonnull String exposedOn,
 		@Nullable Integer workerGroupThreads,
-		@Nullable Integer serviceWorkerGroupThreads,
 		int idleTimeoutInMillis, int requestTimeoutInMillis,
 		boolean keepAlive, long maxEntitySizeInBytes, boolean accessLog,
 		@Nonnull CertificateSettings certificate,
@@ -98,7 +94,6 @@ public record ApiOptions(
 	) {
 		this.exposedOn = exposedOn;
 		this.workerGroupThreads = ofNullable(workerGroupThreads).orElse(DEFAULT_WORKER_GROUP_THREADS);
-		this.serviceWorkerGroupThreads = ofNullable(serviceWorkerGroupThreads).orElse(DEFAULT_SERVICE_WORKER_GROUP_THREADS);
 		this.idleTimeoutInMillis = idleTimeoutInMillis <= 0 ? DEFAULT_IDLE_TIMEOUT : idleTimeoutInMillis;
 		this.requestTimeoutInMillis = requestTimeoutInMillis <= 0 ? DEFAULT_REQUEST_TIMEOUT : requestTimeoutInMillis;
 		this.keepAlive = keepAlive;
@@ -111,7 +106,7 @@ public record ApiOptions(
 
 	public ApiOptions() {
 		this(
-			null, DEFAULT_WORKER_GROUP_THREADS, DEFAULT_SERVICE_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT,
+			null, DEFAULT_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT,
 			DEFAULT_KEEP_ALIVE, DEFAULT_MAX_ENTITY_SIZE, false,
 			new CertificateSettings(), new HashMap<>(8)
 		);
@@ -133,15 +128,6 @@ public record ApiOptions(
 		return ofNullable(workerGroupThreads)
 			// double the value of available processors (recommended by Netty configuration)
 			.orElse(DEFAULT_WORKER_GROUP_THREADS);
-	}
-
-	/**
-	 * Returns set {@link #serviceWorkerGroupThreads} or returns a default value.
-	 */
-	public int serviceWorkerGroupThreadsAsInt() {
-		return ofNullable(serviceWorkerGroupThreads)
-			// double the value of available processors (recommended by Netty configuration)
-			.orElse(DEFAULT_SERVICE_WORKER_GROUP_THREADS);
 	}
 
 	/**
@@ -201,7 +187,6 @@ public record ApiOptions(
 		private CertificateSettings certificate;
 		@Nullable private String exposedOn;
 		private int workerGroupThreads = DEFAULT_WORKER_GROUP_THREADS;
-		private int serviceWorkerGroupThreads = DEFAULT_SERVICE_WORKER_GROUP_THREADS;
 		private boolean accessLog;
 
 		Builder() {
@@ -227,12 +212,6 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions.Builder workerGroupThreads(int workerGroupThreads) {
 			this.workerGroupThreads = workerGroupThreads;
-			return this;
-		}
-
-		@Nonnull
-		public ApiOptions.Builder serviceWorkerGroupThreads(int serviceWorkerGroupThreads) {
-			this.serviceWorkerGroupThreads = serviceWorkerGroupThreads;
 			return this;
 		}
 
@@ -306,7 +285,7 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions build() {
 			return new ApiOptions(
-				exposedOn, workerGroupThreads, serviceWorkerGroupThreads,
+				exposedOn, workerGroupThreads,
 				idleTimeoutInMillis, requestTimeoutInMillis,
 				keepAlive, maxEntitySizeInBytes, accessLog, certificate, enabledProviders
 			);

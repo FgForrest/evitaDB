@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.schema.mutation.entity;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -48,7 +48,7 @@ public class AllowCurrencyInEntitySchemaMutationTest {
 		AllowCurrencyInEntitySchemaMutation mutation = new AllowCurrencyInEntitySchemaMutation(Currency.getInstance("CZK"), Currency.getInstance("EUR"));
 		AllowCurrencyInEntitySchemaMutation existingMutation = new AllowCurrencyInEntitySchemaMutation(Currency.getInstance("USD"));
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
@@ -63,7 +63,7 @@ public class AllowCurrencyInEntitySchemaMutationTest {
 		AllowCurrencyInEntitySchemaMutation mutation = new AllowCurrencyInEntitySchemaMutation(Currency.getInstance("CZK"), Currency.getInstance("EUR"));
 		DisallowCurrencyInEntitySchemaMutation existingMutation = new DisallowCurrencyInEntitySchemaMutation(Currency.getInstance("CZK"));
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
@@ -78,7 +78,7 @@ public class AllowCurrencyInEntitySchemaMutationTest {
 		AllowCurrencyInEntitySchemaMutation mutation = new AllowCurrencyInEntitySchemaMutation(Currency.getInstance("CZK"), Currency.getInstance("EUR"));
 		DisallowCurrencyInEntitySchemaMutation existingMutation = new DisallowCurrencyInEntitySchemaMutation(Currency.getInstance("CZK"), Currency.getInstance("USD"));
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNotNull(result.origin());
 		assertInstanceOf(DisallowCurrencyInEntitySchemaMutation.class, result.origin());
@@ -97,7 +97,7 @@ public class AllowCurrencyInEntitySchemaMutationTest {
 		AllowCurrencyInEntitySchemaMutation mutation = new AllowCurrencyInEntitySchemaMutation(Currency.getInstance("CZK"), Currency.getInstance("EUR"));
 		DisallowCurrencyInEntitySchemaMutation existingMutation = new DisallowCurrencyInEntitySchemaMutation(Currency.getInstance("USD"));
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNotNull(result.origin());
 		assertInstanceOf(DisallowCurrencyInEntitySchemaMutation.class, result.origin());

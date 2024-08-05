@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.AllowCurrencyInEnti
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -37,7 +39,9 @@ import java.util.Currency;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AllowCurrencyInEntitySchemaMutationConverter implements SchemaMutationConverter<AllowCurrencyInEntitySchemaMutation, GrpcAllowCurrencyInEntitySchemaMutation> {
+	public static final AllowCurrencyInEntitySchemaMutationConverter INSTANCE = new AllowCurrencyInEntitySchemaMutationConverter();
 
 	@Nonnull
 	public AllowCurrencyInEntitySchemaMutation convert(@Nonnull GrpcAllowCurrencyInEntitySchemaMutation mutation) {

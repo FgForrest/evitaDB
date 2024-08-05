@@ -36,7 +36,7 @@ class RemoveReferenceMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new RemoveReferenceMutationConverter();
+		converter = RemoveReferenceMutationConverter.INSTANCE;
 	}
 
 	@Test

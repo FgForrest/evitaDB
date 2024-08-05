@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -142,7 +142,7 @@ class CreateAttributeSchemaMutationTest {
 				of(createExistingEntityAttributeSchema())
 			);
 		RemoveAttributeSchemaMutation removeMutation = new RemoveAttributeSchemaMutation(ATTRIBUTE_NAME);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
 			Mockito.mock(CatalogSchemaContract.class),
 			entitySchema,
 			removeMutation

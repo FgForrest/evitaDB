@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -81,7 +81,7 @@ class CreateAssociatedDataSchemaMutationTest {
 				of(createExistingAssociatedDataSchema())
 			);
 		RemoveAssociatedDataSchemaMutation removeMutation = new RemoveAssociatedDataSchemaMutation(ASSOCIATED_DATA_NAME);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation);
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation);
 		assertNotNull(result);
 		assertFalse(result.discarded());
 		assertEquals(5, result.current().length);

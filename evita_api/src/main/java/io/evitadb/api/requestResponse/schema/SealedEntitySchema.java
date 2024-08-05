@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -64,7 +65,7 @@ public interface SealedEntitySchema extends EntitySchemaContract {
 	 * based on the version that is represented by this sealed entity.
 	 */
 	@Nonnull
-	EntitySchemaBuilder withMutations(@Nonnull EntitySchemaMutation... schemaMutations);
+	EntitySchemaBuilder withMutations(@Nonnull LocalEntitySchemaMutation... schemaMutations);
 
 	/**
 	 * Opens entity for update - returns {@link EntitySchemaBuilder} and incorporates the passed collection
@@ -76,6 +77,6 @@ public interface SealedEntitySchema extends EntitySchemaContract {
 	 * based on the version that is represented by this sealed entity.
 	 */
 	@Nonnull
-	EntitySchemaBuilder withMutations(@Nonnull Collection<EntitySchemaMutation> schemaMutations);
+	EntitySchemaBuilder withMutations(@Nonnull Collection<LocalEntitySchemaMutation> schemaMutations);
 
 }

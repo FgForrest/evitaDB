@@ -35,7 +35,7 @@ class ModifyEntitySchemaDescriptionMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifyEntitySchemaDescriptionMutationConverter();
+		converter = ModifyEntitySchemaDescriptionMutationConverter.INSTANCE;
 	}
 
 	@Test

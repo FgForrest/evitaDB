@@ -27,6 +27,8 @@ import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -35,7 +37,9 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ModifyEntitySchemaDescriptionMutationConverter implements SchemaMutationConverter<ModifyEntitySchemaDescriptionMutation, GrpcModifyEntitySchemaDescriptionMutation> {
+	public static final ModifyEntitySchemaDescriptionMutationConverter INSTANCE = new ModifyEntitySchemaDescriptionMutationConverter();
 
 	@Nonnull
 	public ModifyEntitySchemaDescriptionMutation convert(@Nonnull GrpcModifyEntitySchemaDescriptionMutation mutation) {

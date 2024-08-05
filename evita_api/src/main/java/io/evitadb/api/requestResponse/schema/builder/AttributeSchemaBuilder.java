@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
@@ -52,7 +52,7 @@ public final class AttributeSchemaBuilder
 	extends AbstractAttributeSchemaBuilder<AttributeSchemaEditor.AttributeSchemaBuilder, AttributeSchemaContract>
 	implements AttributeSchemaEditor.AttributeSchemaBuilder {
 	@Serial private static final long serialVersionUID = 3063509427974161687L;
-	private final List<EntitySchemaMutation> mutations = new LinkedList<>();
+	private final List<LocalEntitySchemaMutation> mutations = new LinkedList<>();
 
 	AttributeSchemaBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -93,13 +93,13 @@ public final class AttributeSchemaBuilder
 	@Override
 	protected MutationImpact addMutations(@Nonnull AttributeSchemaMutation mutation) {
 		return addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations, (EntitySchemaMutation) mutation
+			this.catalogSchema, this.entitySchema, this.mutations, (LocalEntitySchemaMutation) mutation
 		);
 	}
 
 	@Override
 	@Nonnull
-	public Collection<EntitySchemaMutation> toMutation() {
+	public Collection<LocalEntitySchemaMutation> toMutation() {
 		return this.mutations;
 	}
 

@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 
 import javax.annotation.Nonnull;
@@ -251,7 +252,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 		 * {@link #toAttributeMutation()} identically.
 		 */
 		@Nonnull
-		Collection<EntitySchemaMutation> toMutation();
+		Collection<LocalEntitySchemaMutation> toMutation();
 
 		/**
 		 * Returns collection of {@link AttributeSchemaMutation} instances describing what changes occurred in the builder

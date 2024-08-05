@@ -125,6 +125,12 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	@Override
 	public String toString() {
 		return "Use global attribute schema: " +

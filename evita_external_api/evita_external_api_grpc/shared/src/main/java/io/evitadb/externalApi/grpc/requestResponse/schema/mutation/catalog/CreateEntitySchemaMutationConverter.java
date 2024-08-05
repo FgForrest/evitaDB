@@ -26,6 +26,8 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -34,7 +36,9 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CreateEntitySchemaMutationConverter implements SchemaMutationConverter<CreateEntitySchemaMutation, GrpcCreateEntitySchemaMutation> {
+	public static final CreateEntitySchemaMutationConverter INSTANCE = new CreateEntitySchemaMutationConverter();
 
 	@Nonnull
 	public CreateEntitySchemaMutation convert(@Nonnull GrpcCreateEntitySchemaMutation mutation) {

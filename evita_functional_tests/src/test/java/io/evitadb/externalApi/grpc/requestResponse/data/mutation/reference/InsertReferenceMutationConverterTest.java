@@ -37,7 +37,7 @@ class InsertReferenceMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new InsertReferenceMutationConverter();
+		converter = InsertReferenceMutationConverter.INSTANCE;
 	}
 
 	@Test

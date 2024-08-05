@@ -36,7 +36,7 @@ class ModifyReferenceSortableAttributeCompoundSchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifyReferenceSortableAttributeCompoundSchemaMutationConverter();
+		converter = ModifyReferenceSortableAttributeCompoundSchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

@@ -36,7 +36,7 @@ class DisallowEvolutionModeInCatalogSchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new DisallowEvolutionModeInCatalogSchemaMutationConverter();
+		converter = DisallowEvolutionModeInCatalogSchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

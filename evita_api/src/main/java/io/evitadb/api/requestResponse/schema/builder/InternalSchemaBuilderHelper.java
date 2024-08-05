@@ -36,9 +36,9 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder.AttributeNamingConventionConflict;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -85,7 +85,7 @@ public interface InternalSchemaBuilderHelper {
 		MutationImpact schemaUpdated = MutationImpact.NO_IMPACT;
 		// go through all new mutations
 		for (T newMutation : newMutations) {
-			if (newMutation instanceof CombinableEntitySchemaMutation || newMutation instanceof CombinableCatalogSchemaMutation) {
+			if (newMutation instanceof CombinableLocalEntitySchemaMutation || newMutation instanceof CombinableCatalogSchemaMutation) {
 				final List<MutationReplacement<T>> replacements = new LinkedList<>();
 				// for each - traverse all existing mutations
 				@SuppressWarnings("unchecked")
@@ -201,12 +201,12 @@ public interface InternalSchemaBuilderHelper {
 	default MutationImpact addMutations(
 		@Nonnull CatalogSchemaContract currentCatalogSchema,
 		@Nonnull EntitySchemaContract currentEntitySchema,
-		@Nonnull List<EntitySchemaMutation> existingMutations,
-		@Nonnull EntitySchemaMutation... newMutations
+		@Nonnull List<LocalEntitySchemaMutation> existingMutations,
+		@Nonnull LocalEntitySchemaMutation... newMutations
 	) {
 		return addMutations(
-			EntitySchemaMutation.class,
-			(existingMutation, newMutation) -> ((CombinableEntitySchemaMutation) newMutation)
+			LocalEntitySchemaMutation.class,
+			(existingMutation, newMutation) -> ((CombinableLocalEntitySchemaMutation) newMutation)
 				.combineWith(currentCatalogSchema, currentEntitySchema, existingMutation),
 			existingMutations,
 			newMutations

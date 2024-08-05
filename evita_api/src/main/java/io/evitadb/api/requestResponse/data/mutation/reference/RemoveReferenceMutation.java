@@ -93,6 +93,12 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 		return referenceKey;
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.REMOVE;
+	}
+
 	@Override
 	public String toString() {
 		return "Remove reference `" + referenceKey + "`";

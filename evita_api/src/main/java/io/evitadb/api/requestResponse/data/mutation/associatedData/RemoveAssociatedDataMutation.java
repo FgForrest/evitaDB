@@ -82,6 +82,12 @@ public class RemoveAssociatedDataMutation extends AssociatedDataMutation {
 		return PRIORITY_REMOVAL;
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.REMOVE;
+	}
+
 	@Override
 	public String toString() {
 		return "remove associated data: `" + associatedDataKey + "`";

@@ -46,6 +46,12 @@ import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -68,10 +74,12 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
@@ -112,6 +120,7 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -1983,6 +1992,28 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveCatalogVersionAtTheMoment(EvitaClient evitaClient) {
+		final long lastCatalogVersion = Arrays.stream(evitaClient.management().getCatalogStatistics())
+			.filter(it -> TEST_CATALOG.equals(it.catalogName()))
+			.map(CatalogStatistics::catalogVersion)
+			.findFirst()
+			.orElseThrow();
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final CatalogVersion catalogVersionAt = session.getCatalogVersionAt(OffsetDateTime.now());
+				assertEquals(lastCatalogVersion, catalogVersionAt.version());
+				assertNotNull(catalogVersionAt.introducedAt());
+
+				final CatalogVersion firstCatalogVersionAt = session.getCatalogVersionAt(null);
+				assertEquals(0, firstCatalogVersionAt.version());
+				assertNotNull(firstCatalogVersionAt.introducedAt());
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldRetrieveCollectionSize(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final Integer productCount = evitaClient.queryCatalog(
 			TEST_CATALOG,
@@ -2445,6 +2476,49 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				assertFalse(session.getEntity(Entities.CATEGORY, 51, entityFetchAllContent()).isPresent());
 				assertFalse(session.getEntity(Entities.CATEGORY, 52, entityFetchAllContent()).isPresent());
 				assertFalse(session.getEntity(Entities.CATEGORY, 53, entityFetchAllContent()).isPresent());
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldGetMutationsHistory(EvitaClient evitaClient) {
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createSomeNewCategory(session, 50, null);
+				createSomeNewCategory(session, 51, 50);
+				createSomeNewCategory(session, 52, 51);
+				createSomeNewCategory(session, 53, 50);
+
+				final DeletedHierarchy<CategoryInterface> deletedHierarchy = session.deleteEntityAndItsHierarchy(
+					CategoryInterface.class, 50, entityFetchAllContent()
+				);
+				assertNotNull(deletedHierarchy);
+			}
+		);
+
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Stream<ChangeCatalogCapture> mutationsHistory = session.getMutationsHistory(
+					ChangeCatalogCaptureRequest.builder()
+						.criteria(
+							ChangeCatalogCaptureCriteria.builder()
+								.area(CaptureArea.DATA)
+								.site(
+									DataSite.builder()
+										.containerType(ContainerType.ENTITY)
+										.build()
+								)
+								.build()
+						)
+						.content(CaptureContent.BODY)
+						.build()
+				);
+
+				final List<ChangeCatalogCapture> mutations = mutationsHistory.toList();
+				assertTrue(mutations.size() > 10);
 			}
 		);
 	}

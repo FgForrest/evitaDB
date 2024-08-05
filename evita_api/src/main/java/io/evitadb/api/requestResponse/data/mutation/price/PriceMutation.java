@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
-import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.ContainerType;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -67,6 +67,12 @@ public abstract class PriceMutation implements LocalMutation<PriceContract, Pric
 	@Override
 	public PriceKey getComparableKey() {
 		return priceKey;
+	}
+
+	@Nonnull
+	@Override
+	public ContainerType containerType() {
+		return ContainerType.PRICE;
 	}
 
 }

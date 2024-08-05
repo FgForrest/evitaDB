@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssoc
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -36,7 +38,9 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CreateAssociatedDataSchemaMutationConverter implements SchemaMutationConverter<CreateAssociatedDataSchemaMutation, GrpcCreateAssociatedDataSchemaMutation> {
+	public static final CreateAssociatedDataSchemaMutationConverter INSTANCE = new CreateAssociatedDataSchemaMutationConverter();
 
 	@Nonnull
 	public CreateAssociatedDataSchemaMutation convert(@Nonnull GrpcCreateAssociatedDataSchemaMutation mutation) {

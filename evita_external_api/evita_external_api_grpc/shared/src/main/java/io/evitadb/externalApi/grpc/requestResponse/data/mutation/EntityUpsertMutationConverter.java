@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcLocalMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.List;
@@ -37,16 +39,16 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class EntityUpsertMutationConverter implements EntityMutationConverter<EntityUpsertMutation, GrpcEntityUpsertMutation> {
-
-	private static final DelegatingLocalMutationConverter ENTITY_LOCAL_MUTATION_CONVERTER = new DelegatingLocalMutationConverter();
+	public static final EntityUpsertMutationConverter INSTANCE = new EntityUpsertMutationConverter();
 
 	@Nonnull
 	@Override
 	public GrpcEntityUpsertMutation convert(@Nonnull EntityUpsertMutation mutation) {
 		final List<GrpcLocalMutation> grpcLocalMutations = mutation.getLocalMutations()
 			.stream()
-			.map(ENTITY_LOCAL_MUTATION_CONVERTER::convert)
+			.map(DelegatingLocalMutationConverter.INSTANCE::convert)
 			.toList();
 
 		final GrpcEntityUpsertMutation.Builder builder = GrpcEntityUpsertMutation.newBuilder()
@@ -70,7 +72,7 @@ public class EntityUpsertMutationConverter implements EntityMutationConverter<En
 			EvitaEnumConverter.toEntityExistence(mutation.getEntityExistence()),
 			mutation.getMutationsList()
 				.stream()
-				.map(ENTITY_LOCAL_MUTATION_CONVERTER::convert)
+				.map(DelegatingLocalMutationConverter.INSTANCE::convert)
 				.toList()
 		);
 	}

@@ -26,6 +26,8 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -34,7 +36,9 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class SetAttributeSchemaSortableMutationConverter implements SchemaMutationConverter<SetAttributeSchemaSortableMutation, GrpcSetAttributeSchemaSortableMutation> {
+	public static final SetAttributeSchemaSortableMutationConverter INSTANCE = new SetAttributeSchemaSortableMutationConverter();
 
 	@Nonnull
 	public SetAttributeSchemaSortableMutation convert(@Nonnull GrpcSetAttributeSchemaSortableMutation mutation) {

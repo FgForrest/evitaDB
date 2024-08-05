@@ -41,7 +41,7 @@ class UpsertPriceMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new UpsertPriceMutationConverter();
+		converter = UpsertPriceMutationConverter.INSTANCE;
 	}
 
 	@Test

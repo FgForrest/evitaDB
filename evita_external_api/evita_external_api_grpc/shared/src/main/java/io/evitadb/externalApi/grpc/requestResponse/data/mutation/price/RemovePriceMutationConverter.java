@@ -26,6 +26,8 @@ package io.evitadb.externalApi.grpc.requestResponse.data.mutation.price;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -35,7 +37,9 @@ import javax.annotation.Nonnull;
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class RemovePriceMutationConverter extends PriceMutationConverter<RemovePriceMutation, GrpcRemovePriceMutation> {
+	public static final RemovePriceMutationConverter INSTANCE = new RemovePriceMutationConverter();
 
 	@Nonnull
 	public RemovePriceMutation convert(@Nonnull GrpcRemovePriceMutation mutation) {

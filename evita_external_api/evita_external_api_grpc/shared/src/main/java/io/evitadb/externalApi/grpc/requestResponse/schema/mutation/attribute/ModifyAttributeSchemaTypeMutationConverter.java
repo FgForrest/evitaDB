@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeS
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -35,7 +37,9 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ModifyAttributeSchemaTypeMutationConverter implements SchemaMutationConverter<ModifyAttributeSchemaTypeMutation, GrpcModifyAttributeSchemaTypeMutation> {
+	public static final ModifyAttributeSchemaTypeMutationConverter INSTANCE = new ModifyAttributeSchemaTypeMutationConverter();
 
 	@Nonnull
 	public ModifyAttributeSchemaTypeMutation convert(@Nonnull GrpcModifyAttributeSchemaTypeMutation mutation) {

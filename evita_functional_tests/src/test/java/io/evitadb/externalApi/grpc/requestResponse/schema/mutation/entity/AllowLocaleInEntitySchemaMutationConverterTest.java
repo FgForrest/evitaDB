@@ -37,7 +37,7 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new AllowLocaleInEntitySchemaMutationConverter();
+		converter = AllowLocaleInEntitySchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

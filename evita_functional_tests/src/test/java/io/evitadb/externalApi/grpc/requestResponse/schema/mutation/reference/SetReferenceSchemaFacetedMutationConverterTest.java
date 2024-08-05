@@ -35,7 +35,7 @@ class SetReferenceSchemaFacetedMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetReferenceSchemaFacetedMutationConverter();
+		converter = SetReferenceSchemaFacetedMutationConverter.INSTANCE;
 	}
 
 	@Test

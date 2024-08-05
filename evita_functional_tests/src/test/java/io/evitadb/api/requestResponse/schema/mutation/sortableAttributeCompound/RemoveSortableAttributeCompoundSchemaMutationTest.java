@@ -32,7 +32,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -59,7 +59,7 @@ public class RemoveSortableAttributeCompoundSchemaMutationTest {
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
 			Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), previousMutation
 		);
 		assertNotNull(result);

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowLocaleInEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInEntitySchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -65,7 +66,7 @@ class EntitySchemaMutationAggregateConverterTest {
 			new DisallowCurrencyInEntitySchemaMutation(Currency.getInstance("EUR"))
 		);
 
-		final List<EntitySchemaMutation> convertedMutations1 = converter.convertFromInput(
+		final List<LocalEntitySchemaMutation> convertedMutations1 = converter.convert(
 			map()
 				.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(Locale.ENGLISH))
@@ -77,7 +78,7 @@ class EntitySchemaMutationAggregateConverterTest {
 		);
 		assertEquals(expectedMutations, convertedMutations1);
 
-		final List<EntitySchemaMutation> convertedMutations2 = converter.convertFromInput(
+		final List<LocalEntitySchemaMutation> convertedMutations2 = converter.convert(
 			map()
 				.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of("en"))
@@ -91,7 +92,7 @@ class EntitySchemaMutationAggregateConverterTest {
 	}
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<EntitySchemaMutation> convertedMutations = converter.convertFromInput(Map.of());
+		final List<LocalEntitySchemaMutation> convertedMutations = converter.convert(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 

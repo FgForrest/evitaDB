@@ -35,7 +35,7 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetEntitySchemaWithHierarchyMutationConverter();
+		converter = SetEntitySchemaWithHierarchyMutationConverter.INSTANCE;
 	}
 
 	@Test

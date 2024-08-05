@@ -40,7 +40,7 @@ class DelegatingAttributeSchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new DelegatingAttributeSchemaMutationConverter();
+		converter = DelegatingAttributeSchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

@@ -93,6 +93,12 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	@Override
 	public String toString() {
 		return "Allow: evolutionModes=" + Arrays.toString(evolutionModes);

@@ -36,7 +36,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new CreateSortableAttributeCompoundSchemaMutationConverter();
+		converter = CreateSortableAttributeCompoundSchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

@@ -35,7 +35,7 @@ class ModifyCatalogSchemaDescriptionMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifyCatalogSchemaDescriptionMutationConverter();
+		converter = ModifyCatalogSchemaDescriptionMutationConverter.INSTANCE;
 	}
 
 	@Test

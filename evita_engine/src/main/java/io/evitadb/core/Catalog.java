@@ -852,14 +852,20 @@ public final class Catalog
 
 	@Nonnull
 	@Override
-	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
-		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
+	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+		return this.persistenceService.getCatalogVersionAt(moment);
 	}
 
 	@Nonnull
 	@Override
 	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
 		return this.persistenceService.getCatalogVersionDescriptors(catalogVersion);
+	}
+
+	@Nonnull
+	@Override
+	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
 	}
 
 	@Override
@@ -870,7 +876,7 @@ public final class Catalog
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion) {
+	public Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
 		return this.persistenceService.getReversedCommittedMutationStream(catalogVersion);
 	}
 
@@ -1525,7 +1531,7 @@ public final class Catalog
 		final SealedEntitySchema currentEntitySchema = entityCollection.getSchema();
 		if (!ArrayUtils.isEmpty(modifyEntitySchemaMutation.getSchemaMutations())) {
 			// validate the new schema version before any changes are applied
-			currentEntitySchema.withMutations(modifyEntitySchemaMutation)
+			currentEntitySchema.withMutations(modifyEntitySchemaMutation.getSchemaMutations())
 				.toInstance()
 				.validate(catalogSchema);
 			entityCollection.updateSchema(catalogSchema, modifyEntitySchemaMutation.getSchemaMutations());

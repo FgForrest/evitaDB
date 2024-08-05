@@ -23,8 +23,12 @@
 
 package io.evitadb.api.requestResponse.transaction;
 
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -32,6 +36,7 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * This transaction mutation delimits mutations of one transaction from another. It contains data that allow to recognize
@@ -79,9 +84,26 @@ public non-sealed class TransactionMutation implements Mutation {
 
 	@Nonnull
 	@Override
-	public Operation getOperation() {
-		/* TODO JNO - added when merging Armeria branch, verify whether is this expected enum constant */
-		return Operation.TRANSACTION_BEGIN;
+	public Operation operation() {
+		return Operation.TRANSACTION;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull CaptureContent content
+	) {
+		if (predicate.test(this)) {
+			final MutationPredicateContext context = predicate.getContext();
+			context.setVersion(this.catalogVersion, this.mutationCount);
+
+			return Stream.of(
+				ChangeCatalogCapture.infrastructureCapture(context, operation(), content == CaptureContent.BODY ? this : null)
+			);
+		} else {
+			return Stream.empty();
+		}
 	}
 
 	@Override

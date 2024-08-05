@@ -76,7 +76,7 @@ public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 
 	@Nonnull
 	@Override
-	public Operation getOperation() {
+	public Operation operation() {
 		return Operation.REMOVE;
 	}
 

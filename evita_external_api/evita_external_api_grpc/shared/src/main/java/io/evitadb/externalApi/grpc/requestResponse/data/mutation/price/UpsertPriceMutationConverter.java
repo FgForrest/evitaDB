@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -37,7 +39,9 @@ import javax.annotation.Nonnull;
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertPriceMutation, GrpcUpsertPriceMutation> {
+	public static final UpsertPriceMutationConverter INSTANCE = new UpsertPriceMutationConverter();
 
 	@Override
 	@Nonnull

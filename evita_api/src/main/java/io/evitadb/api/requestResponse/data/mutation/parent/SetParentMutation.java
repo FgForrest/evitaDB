@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.mutation.parent;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import lombok.EqualsAndHashCode;
@@ -64,6 +65,12 @@ public class SetParentMutation extends ParentMutation {
 	@Override
 	public Integer getComparableKey() {
 		return parentPrimaryKey;
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

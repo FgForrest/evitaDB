@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
@@ -72,10 +73,10 @@ import static java.util.Optional.ofNullable;
  */
 public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, InternalSchemaBuilderHelper {
 	@Serial private static final long serialVersionUID = -2643204562100111998L;
-	private static final EntitySchemaMutation[] EMPTY_ARRAY = new EntitySchemaMutation[0];
+	private static final LocalEntitySchemaMutation[] EMPTY_ARRAY = new LocalEntitySchemaMutation[0];
 
 	private final EntitySchemaContract baseSchema;
-	private final List<EntitySchemaMutation> mutations = new LinkedList<>();
+	private final List<LocalEntitySchemaMutation> mutations = new LinkedList<>();
 	private Supplier<CatalogSchemaContract> catalogSchemaAccessor;
 	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
 	private int lastMutationReflectedInSchema = 0;
@@ -84,7 +85,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	public InternalEntitySchemaBuilder(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull EntitySchemaContract baseSchema,
-		@Nonnull Collection<EntitySchemaMutation> schemaMutations
+		@Nonnull Collection<LocalEntitySchemaMutation> schemaMutations
 	) {
 		this.catalogSchemaAccessor = () -> catalogSchema;
 		this.baseSchema = baseSchema;

@@ -35,7 +35,7 @@ class SetReferenceSchemaFilterableMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetReferenceSchemaFilterableMutationConverter();
+		converter = SetReferenceSchemaFilterableMutationConverter.INSTANCE;
 	}
 
 	@Test

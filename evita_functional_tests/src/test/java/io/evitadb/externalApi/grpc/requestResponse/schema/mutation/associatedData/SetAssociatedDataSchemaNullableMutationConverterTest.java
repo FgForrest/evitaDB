@@ -35,7 +35,7 @@ class SetAssociatedDataSchemaNullableMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetAssociatedDataSchemaNullableMutationConverter();
+		converter = SetAssociatedDataSchemaNullableMutationConverter.INSTANCE;
 	}
 
 	@Test

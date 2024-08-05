@@ -26,7 +26,7 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EntitySchemaMutationAggregateConverter;
 import io.evitadb.externalApi.http.EndpointResponse;
@@ -79,7 +79,7 @@ public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 				requestExecutedEvent.finishInputDeserialization();
 
 				final ModifyEntitySchemaMutation entitySchemaMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
-					final List<EntitySchemaMutation> convertedSchemaMutations = new LinkedList<>();
+					final List<LocalEntitySchemaMutation> convertedSchemaMutations = new LinkedList<>();
 					final JsonNode inputMutations = requestData.getMutations()
 						.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
 					for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
@@ -87,7 +87,7 @@ public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 					}
 					return new ModifyEntitySchemaMutation(
 						restHandlingContext.getEntityType(),
-						convertedSchemaMutations.toArray(EntitySchemaMutation[]::new)
+						convertedSchemaMutations.toArray(LocalEntitySchemaMutation[]::new)
 					);
 				});
 

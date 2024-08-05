@@ -43,7 +43,7 @@ class DelegatingLocalMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new DelegatingLocalMutationConverter();
+		converter = DelegatingLocalMutationConverter.INSTANCE;
 	}
 
 	@Test

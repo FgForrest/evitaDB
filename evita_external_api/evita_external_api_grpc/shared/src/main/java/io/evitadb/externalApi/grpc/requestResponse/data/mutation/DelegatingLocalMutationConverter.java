@@ -58,6 +58,8 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.reference.Remov
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.reference.RemoveReferenceMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.reference.SetReferenceGroupMutationConverter;
 import io.evitadb.utils.Assert;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -73,7 +75,9 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DelegatingLocalMutationConverter implements LocalMutationConverter<LocalMutation<?, ?>, GrpcLocalMutation> {
+	public static final DelegatingLocalMutationConverter INSTANCE = new DelegatingLocalMutationConverter();
 
 	@SuppressWarnings("rawtypes")
 	private static final Map<Class<? extends LocalMutation>, ToGrpc> TO_GRPC_CONVERTERS;
@@ -81,38 +85,38 @@ public class DelegatingLocalMutationConverter implements LocalMutationConverter<
 
 	static {
 		TO_GRPC_CONVERTERS = createHashMap(20);
-		TO_GRPC_CONVERTERS.put(ApplyDeltaAttributeMutation.class, new ToGrpc((b, m) -> b.setApplyDeltaAttributeMutation((GrpcApplyDeltaAttributeMutation) m), new ApplyDeltaAttributeMutationConverter()));
-		TO_GRPC_CONVERTERS.put(UpsertAttributeMutation.class, new ToGrpc((b, m) -> b.setUpsertAttributeMutation((GrpcUpsertAttributeMutation) m), new UpsertAttributeMutationConverter()));
-		TO_GRPC_CONVERTERS.put(RemoveAttributeMutation.class, new ToGrpc((b, m) -> b.setRemoveAttributeMutation((GrpcRemoveAttributeMutation) m), new RemoveAttributeMutationConverter()));
-		TO_GRPC_CONVERTERS.put(UpsertAssociatedDataMutation.class, new ToGrpc((b, m) -> b.setUpsertAssociatedDataMutation((GrpcUpsertAssociatedDataMutation) m), new UpsertAssociatedDataMutationConverter()));
-		TO_GRPC_CONVERTERS.put(RemoveAssociatedDataMutation.class, new ToGrpc((b, m) -> b.setRemoveAssociatedDataMutation((GrpcRemoveAssociatedDataMutation) m), new RemoveAssociatedDataMutationConverter()));
-		TO_GRPC_CONVERTERS.put(UpsertPriceMutation.class, new ToGrpc((b, m) -> b.setUpsertPriceMutation((GrpcUpsertPriceMutation) m), new UpsertPriceMutationConverter()));
-		TO_GRPC_CONVERTERS.put(RemovePriceMutation.class, new ToGrpc((b, m) -> b.setRemovePriceMutation((GrpcRemovePriceMutation) m), new RemovePriceMutationConverter()));
-		TO_GRPC_CONVERTERS.put(SetPriceInnerRecordHandlingMutation.class, new ToGrpc((b, m) -> b.setSetPriceInnerRecordHandlingMutation((GrpcSetPriceInnerRecordHandlingMutation) m), new SetPriceInnerRecordHandlingMutationConverter()));
-		TO_GRPC_CONVERTERS.put(SetParentMutation.class, new ToGrpc((b, m) -> b.setSetParentMutation((GrpcSetParentMutation) m), new SetParentMutationConverter()));
-		TO_GRPC_CONVERTERS.put(RemoveParentMutation.class, new ToGrpc((b, m) -> b.setRemoveParentMutation((GrpcRemoveParentMutation) m), new RemoveParentMutationConverter()));
-		TO_GRPC_CONVERTERS.put(InsertReferenceMutation.class, new ToGrpc((b, m) -> b.setInsertReferenceMutation((GrpcInsertReferenceMutation) m), new InsertReferenceMutationConverter()));
-		TO_GRPC_CONVERTERS.put(RemoveReferenceMutation.class, new ToGrpc((b, m) -> b.setRemoveReferenceMutation((GrpcRemoveReferenceMutation) m), new RemoveReferenceMutationConverter()));
-		TO_GRPC_CONVERTERS.put(SetReferenceGroupMutation.class, new ToGrpc((b, m) -> b.setSetReferenceGroupMutation((GrpcSetReferenceGroupMutation) m), new SetReferenceGroupMutationConverter()));
-		TO_GRPC_CONVERTERS.put(RemoveReferenceGroupMutation.class, new ToGrpc((b, m) -> b.setRemoveReferenceGroupMutation((GrpcRemoveReferenceGroupMutation) m), new RemoveReferenceGroupMutationConverter()));
-		TO_GRPC_CONVERTERS.put(ReferenceAttributeMutation.class, new ToGrpc((b, m) -> b.setReferenceAttributeMutation((GrpcReferenceAttributeMutation) m), new ReferenceAttributeMutationConverter()));
+		TO_GRPC_CONVERTERS.put(ApplyDeltaAttributeMutation.class, new ToGrpc((b, m) -> b.setApplyDeltaAttributeMutation((GrpcApplyDeltaAttributeMutation) m), ApplyDeltaAttributeMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(UpsertAttributeMutation.class, new ToGrpc((b, m) -> b.setUpsertAttributeMutation((GrpcUpsertAttributeMutation) m), UpsertAttributeMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveAttributeMutation.class, new ToGrpc((b, m) -> b.setRemoveAttributeMutation((GrpcRemoveAttributeMutation) m), RemoveAttributeMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(UpsertAssociatedDataMutation.class, new ToGrpc((b, m) -> b.setUpsertAssociatedDataMutation((GrpcUpsertAssociatedDataMutation) m), UpsertAssociatedDataMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveAssociatedDataMutation.class, new ToGrpc((b, m) -> b.setRemoveAssociatedDataMutation((GrpcRemoveAssociatedDataMutation) m), RemoveAssociatedDataMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(UpsertPriceMutation.class, new ToGrpc((b, m) -> b.setUpsertPriceMutation((GrpcUpsertPriceMutation) m), UpsertPriceMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemovePriceMutation.class, new ToGrpc((b, m) -> b.setRemovePriceMutation((GrpcRemovePriceMutation) m), RemovePriceMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(SetPriceInnerRecordHandlingMutation.class, new ToGrpc((b, m) -> b.setSetPriceInnerRecordHandlingMutation((GrpcSetPriceInnerRecordHandlingMutation) m), SetPriceInnerRecordHandlingMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(SetParentMutation.class, new ToGrpc((b, m) -> b.setSetParentMutation((GrpcSetParentMutation) m), SetParentMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveParentMutation.class, new ToGrpc((b, m) -> b.setRemoveParentMutation((GrpcRemoveParentMutation) m), RemoveParentMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(InsertReferenceMutation.class, new ToGrpc((b, m) -> b.setInsertReferenceMutation((GrpcInsertReferenceMutation) m), InsertReferenceMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveReferenceMutation.class, new ToGrpc((b, m) -> b.setRemoveReferenceMutation((GrpcRemoveReferenceMutation) m), RemoveReferenceMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(SetReferenceGroupMutation.class, new ToGrpc((b, m) -> b.setSetReferenceGroupMutation((GrpcSetReferenceGroupMutation) m), SetReferenceGroupMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveReferenceGroupMutation.class, new ToGrpc((b, m) -> b.setRemoveReferenceGroupMutation((GrpcRemoveReferenceGroupMutation) m), RemoveReferenceGroupMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(ReferenceAttributeMutation.class, new ToGrpc((b, m) -> b.setReferenceAttributeMutation((GrpcReferenceAttributeMutation) m), ReferenceAttributeMutationConverter.INSTANCE));
 
 		TO_JAVA_CONVERTERS = createHashMap(20);
-		TO_JAVA_CONVERTERS.put(MutationCase.APPLYDELTAATTRIBUTEMUTATION, new ToJava(GrpcLocalMutation::getApplyDeltaAttributeMutation, new ApplyDeltaAttributeMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.UPSERTATTRIBUTEMUTATION, new ToJava(GrpcLocalMutation::getUpsertAttributeMutation, new UpsertAttributeMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEATTRIBUTEMUTATION, new ToJava(GrpcLocalMutation::getRemoveAttributeMutation, new RemoveAttributeMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.UPSERTASSOCIATEDDATAMUTATION, new ToJava(GrpcLocalMutation::getUpsertAssociatedDataMutation, new UpsertAssociatedDataMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEASSOCIATEDDATAMUTATION, new ToJava(GrpcLocalMutation::getRemoveAssociatedDataMutation, new RemoveAssociatedDataMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.UPSERTPRICEMUTATION, new ToJava(GrpcLocalMutation::getUpsertPriceMutation, new UpsertPriceMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEPRICEMUTATION, new ToJava(GrpcLocalMutation::getRemovePriceMutation, new RemovePriceMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.SETPRICEINNERRECORDHANDLINGMUTATION, new ToJava(GrpcLocalMutation::getSetPriceInnerRecordHandlingMutation, new SetPriceInnerRecordHandlingMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.SETPARENTMUTATION, new ToJava(GrpcLocalMutation::getSetParentMutation, new SetParentMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEPARENTMUTATION, new ToJava(GrpcLocalMutation::getRemoveParentMutation, new RemoveParentMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.INSERTREFERENCEMUTATION, new ToJava(GrpcLocalMutation::getInsertReferenceMutation, new InsertReferenceMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEREFERENCEMUTATION, new ToJava(GrpcLocalMutation::getRemoveReferenceMutation, new RemoveReferenceMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.SETREFERENCEGROUPMUTATION, new ToJava(GrpcLocalMutation::getSetReferenceGroupMutation, new SetReferenceGroupMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEREFERENCEGROUPMUTATION, new ToJava(GrpcLocalMutation::getRemoveReferenceGroupMutation, new RemoveReferenceGroupMutationConverter()));
-		TO_JAVA_CONVERTERS.put(MutationCase.REFERENCEATTRIBUTEMUTATION, new ToJava(GrpcLocalMutation::getReferenceAttributeMutation, new ReferenceAttributeMutationConverter()));
+		TO_JAVA_CONVERTERS.put(MutationCase.APPLYDELTAATTRIBUTEMUTATION, new ToJava(GrpcLocalMutation::getApplyDeltaAttributeMutation, ApplyDeltaAttributeMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.UPSERTATTRIBUTEMUTATION, new ToJava(GrpcLocalMutation::getUpsertAttributeMutation, UpsertAttributeMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEATTRIBUTEMUTATION, new ToJava(GrpcLocalMutation::getRemoveAttributeMutation, RemoveAttributeMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.UPSERTASSOCIATEDDATAMUTATION, new ToJava(GrpcLocalMutation::getUpsertAssociatedDataMutation, UpsertAssociatedDataMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEASSOCIATEDDATAMUTATION, new ToJava(GrpcLocalMutation::getRemoveAssociatedDataMutation, RemoveAssociatedDataMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.UPSERTPRICEMUTATION, new ToJava(GrpcLocalMutation::getUpsertPriceMutation, UpsertPriceMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEPRICEMUTATION, new ToJava(GrpcLocalMutation::getRemovePriceMutation, RemovePriceMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.SETPRICEINNERRECORDHANDLINGMUTATION, new ToJava(GrpcLocalMutation::getSetPriceInnerRecordHandlingMutation, SetPriceInnerRecordHandlingMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.SETPARENTMUTATION, new ToJava(GrpcLocalMutation::getSetParentMutation, SetParentMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEPARENTMUTATION, new ToJava(GrpcLocalMutation::getRemoveParentMutation, RemoveParentMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.INSERTREFERENCEMUTATION, new ToJava(GrpcLocalMutation::getInsertReferenceMutation, InsertReferenceMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEREFERENCEMUTATION, new ToJava(GrpcLocalMutation::getRemoveReferenceMutation, RemoveReferenceMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.SETREFERENCEGROUPMUTATION, new ToJava(GrpcLocalMutation::getSetReferenceGroupMutation, SetReferenceGroupMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEREFERENCEGROUPMUTATION, new ToJava(GrpcLocalMutation::getRemoveReferenceGroupMutation, RemoveReferenceGroupMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.REFERENCEATTRIBUTEMUTATION, new ToJava(GrpcLocalMutation::getReferenceAttributeMutation, ReferenceAttributeMutationConverter.INSTANCE));
 	}
 
 	@SuppressWarnings("unchecked")

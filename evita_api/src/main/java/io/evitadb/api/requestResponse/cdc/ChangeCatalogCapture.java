@@ -51,4 +51,74 @@ public record ChangeCatalogCapture(
 	@Nonnull Operation operation,
 	@Nullable Mutation body
 ) implements ChangeCapture {
+
+	/**
+	 * Creates a new {@link ChangeCatalogCapture} instance of data capture.
+	 * @param context the context of the mutation
+	 * @param operation the operation that was performed
+	 * @param mutation the mutation that was performed
+	 * @return the new instance of {@link ChangeCatalogCapture}
+	 */
+	@Nonnull
+	public static ChangeCatalogCapture dataCapture(
+		@Nonnull MutationPredicateContext context,
+		@Nonnull Operation operation,
+		@Nonnull Mutation mutation
+	) {
+		return new ChangeCatalogCapture(
+			context.getVersion(),
+			context.getIndex(),
+			CaptureArea.DATA,
+			context.getEntityType(),
+			operation,
+			mutation
+		);
+	}
+
+	/**
+	 * Creates a new {@link ChangeCatalogCapture} instance of schema capture.
+	 * @param context the context of the mutation
+	 * @param operation the operation that was performed
+	 * @param mutation the mutation that was performed
+	 * @return the new instance of {@link ChangeCatalogCapture}
+	 */
+	@Nonnull
+	public static ChangeCatalogCapture schemaCapture(
+		@Nonnull MutationPredicateContext context,
+		@Nonnull Operation operation,
+		@Nonnull Mutation mutation
+	) {
+		return new ChangeCatalogCapture(
+			context.getVersion(),
+			context.getIndex(),
+			CaptureArea.SCHEMA,
+			context.getEntityType(),
+			operation,
+			mutation
+		);
+	}
+
+	/**
+	 * Creates a new {@link ChangeCatalogCapture} instance of infrastructure capture.
+	 * @param context the context of the mutation
+	 * @param operation the operation that was performed
+	 * @param mutation the mutation that was performed
+	 * @return the new instance of {@link ChangeCatalogCapture}
+	 */
+	@Nonnull
+	public static ChangeCatalogCapture infrastructureCapture(
+		@Nonnull MutationPredicateContext context,
+		@Nonnull Operation operation,
+		@Nonnull Mutation mutation
+	) {
+		return new ChangeCatalogCapture(
+			context.getVersion(),
+			context.getIndex(),
+			CaptureArea.INFRASTRUCTURE,
+			context.getEntityType(),
+			operation,
+			mutation
+		);
+	}
+
 }

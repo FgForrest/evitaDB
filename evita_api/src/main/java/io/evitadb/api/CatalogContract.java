@@ -266,6 +266,18 @@ public interface CatalogContract {
 	void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalog);
 
 	/**
+	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
+	 * specified method returns first version known to the catalog mutation history.
+	 *
+	 * @param moment the moment in time for which the catalog version should be returned
+	 * @return catalog version that was valid at the specified moment in time, or first version known to the catalog
+	 * mutation history if no moment was specified
+	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 */
+	@Nonnull
+	CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+
+	/**
 	 * Returns a paginated list of catalog versions based on the provided time flow, page number, and page size.
 	 * It returns only versions that are known in history - there may be a lot of other versions for which we don't have
 	 * information anymore, because the data were purged to save space.
@@ -310,11 +322,12 @@ public interface CatalogContract {
 	 *
 	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
 	 *
-	 * @param catalogVersion version of the catalog to start the stream with
+	 * @param catalogVersion version of the catalog to start the stream with, if null is provided the stream will start
+	 *                       with the last committed transaction
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion);
+	Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
 
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.

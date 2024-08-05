@@ -23,6 +23,11 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -37,7 +42,9 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Mutation is a holder for a set of {@link LocalCatalogSchemaMutation} that affect a internal contents of the catalog
@@ -78,6 +85,52 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 			}
 		}
 		return new CatalogSchemaWithImpactOnEntitySchemas(alteredSchema.updatedCatalogSchema(), aggregatedMutations);
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull CaptureContent content) {
+		final MutationPredicateContext context = predicate.getContext();
+		context.advance();
+
+		final Stream<ChangeCatalogCapture> catalogMutation;
+		if (predicate.test(this)) {
+			catalogMutation = Stream.of(ChangeCatalogCapture.schemaCapture(
+					context,
+					operation(),
+					content == CaptureContent.BODY ? this : null
+				)
+			);
+		} else {
+			catalogMutation = Stream.empty();
+		}
+		if (context.getDirection() == StreamDirection.FORWARD) {
+			return Stream.concat(
+				catalogMutation,
+				Arrays.stream(this.schemaMutations)
+					.filter(predicate)
+					.flatMap(m -> m.toChangeCatalogCapture(predicate, content))
+			);
+		} else {
+			final AtomicInteger index = new AtomicInteger(this.schemaMutations.length);
+			return Stream.concat(
+				Stream.generate(() -> null)
+					.takeWhile(x -> index.get() > 0)
+					.map(x -> this.schemaMutations[index.decrementAndGet()])
+					.filter(predicate)
+					.flatMap(x -> x.toChangeCatalogCapture(predicate, content)),
+				catalogMutation
+			);
+
+		}
 	}
 
 	@Override

@@ -37,7 +37,7 @@ class UpsertAssociatedDataMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new UpsertAssociatedDataMutationConverter();
+		converter = UpsertAssociatedDataMutationConverter.INSTANCE;
 	}
 
 	@Test

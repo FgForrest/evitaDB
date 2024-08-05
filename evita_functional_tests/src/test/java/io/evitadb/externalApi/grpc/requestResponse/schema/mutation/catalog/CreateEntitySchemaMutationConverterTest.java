@@ -35,7 +35,7 @@ class CreateEntitySchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new CreateEntitySchemaMutationConverter();
+		converter = CreateEntitySchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

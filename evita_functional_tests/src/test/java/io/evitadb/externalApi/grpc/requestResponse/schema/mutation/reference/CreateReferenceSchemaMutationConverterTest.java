@@ -36,7 +36,7 @@ class CreateReferenceSchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new CreateReferenceSchemaMutationConverter();
+		converter = CreateReferenceSchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

@@ -29,8 +29,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -48,7 +48,7 @@ import java.util.stream.Stream;
 /**
  * Mutation is responsible for adding one or more evolution modes to a {@link EntitySchemaContract#getEvolutionMode()}
  * in {@link EntitySchemaContract}.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * or negative mutation {@link AllowEvolutionModeInEntitySchemaMutation} if those mutation are present in the mutation pipeline
  * multiple times.
  *
@@ -57,7 +57,7 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class AllowEvolutionModeInEntitySchemaMutation implements CombinableEntitySchemaMutation {
+public class AllowEvolutionModeInEntitySchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 4888804452076108103L;
 	@Getter private final EvolutionMode[] evolutionModes;
 
@@ -73,7 +73,11 @@ public class AllowEvolutionModeInEntitySchemaMutation implements CombinableEntit
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
 		if (existingMutation instanceof AllowEvolutionModeInEntitySchemaMutation allowEvolutionModeInEntitySchema) {
 			return new MutationCombinationResult<>(
 				null,
@@ -135,6 +139,12 @@ public class AllowEvolutionModeInEntitySchemaMutation implements CombinableEntit
 				entitySchema.getSortableAttributeCompounds()
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

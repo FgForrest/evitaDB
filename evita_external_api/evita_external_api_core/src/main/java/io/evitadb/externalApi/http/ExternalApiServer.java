@@ -60,6 +60,7 @@ import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.NetworkUtils;
 import io.evitadb.utils.StringUtils;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
 import io.netty.handler.ssl.ClientAuth;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -533,7 +534,10 @@ public class ExternalApiServer implements AutoCloseable {
 
 		// in tests we don't wait for shutdowns
 		final boolean gracefulShutdown = !"true".equals(System.getProperty(DevelopmentConstants.TEST_RUN));
-
+		// we share worker group both for I/O and service processing, all computations are done in separate executors
+		// and having different worker groups for I/O and service processing only slows down the server
+		// due to context switching between threads and branch misses
+		final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt());
 		serverBuilder
 			.blockingTaskExecutor(evita.getServiceExecutor(), gracefulShutdown)
 			.childChannelOption(ChannelOption.SO_REUSEADDR, true)
@@ -554,10 +558,10 @@ public class ExternalApiServer implements AutoCloseable {
 			.gracefulShutdownTimeout(gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO, gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO)
 			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
-			.serviceWorkerGroup(EventLoopGroups.newEventLoopGroup(apiOptions.serviceWorkerGroupThreadsAsInt()), gracefulShutdown)
+			.serviceWorkerGroup(workerGroup, gracefulShutdown)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.verboseResponses(false)
-			.workerGroup(EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt()), gracefulShutdown);
+			.workerGroup(workerGroup, gracefulShutdown);
 
 		if (apiOptions.accessLog()) {
 			serverBuilder.accessLogWriter(AccessLogWriter.combined(), gracefulShutdown);

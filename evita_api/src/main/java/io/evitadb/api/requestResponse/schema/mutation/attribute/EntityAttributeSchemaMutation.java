@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 
 import javax.annotation.Nonnull;
 import java.util.function.Function;
@@ -40,7 +40,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, EntitySchemaMutation {
+public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, LocalEntitySchemaMutation {
 
 	/**
 	 * Replaces existing attribute schema with updated one but only when those schemas differ. Otherwise,

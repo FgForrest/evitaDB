@@ -35,7 +35,7 @@ class ModifyAssociatedDataSchemaDescriptionMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifyAssociatedDataSchemaDescriptionMutationConverter();
+		converter = ModifyAssociatedDataSchemaDescriptionMutationConverter.INSTANCE;
 	}
 
 	@Test

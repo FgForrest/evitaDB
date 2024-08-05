@@ -35,7 +35,7 @@ class SetReferenceGroupMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetReferenceGroupMutationConverter();
+		converter = SetReferenceGroupMutationConverter.INSTANCE;
 	}
 
 	@Test

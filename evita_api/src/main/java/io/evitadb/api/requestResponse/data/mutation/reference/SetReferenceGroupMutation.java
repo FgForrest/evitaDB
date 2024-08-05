@@ -234,6 +234,12 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 		return referenceKey;
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	@Override
 	public String toString() {
 		return "Set reference group to `" + referenceKey + "`: " + groupPrimaryKey +

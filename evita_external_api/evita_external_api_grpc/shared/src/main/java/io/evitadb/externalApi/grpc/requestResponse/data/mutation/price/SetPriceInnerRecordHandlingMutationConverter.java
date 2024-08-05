@@ -29,6 +29,8 @@ import io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling;
 import io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.LocalMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -38,7 +40,9 @@ import javax.annotation.Nonnull;
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class SetPriceInnerRecordHandlingMutationConverter implements LocalMutationConverter<SetPriceInnerRecordHandlingMutation, GrpcSetPriceInnerRecordHandlingMutation> {
+	public static final SetPriceInnerRecordHandlingMutationConverter INSTANCE = new SetPriceInnerRecordHandlingMutationConverter();
 
 	@Override
 	@Nonnull

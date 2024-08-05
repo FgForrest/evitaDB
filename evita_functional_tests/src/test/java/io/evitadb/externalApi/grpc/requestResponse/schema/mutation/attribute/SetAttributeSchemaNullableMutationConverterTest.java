@@ -35,7 +35,7 @@ class SetAttributeSchemaNullableMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetAttributeSchemaNullableMutationConverter();
+		converter = SetAttributeSchemaNullableMutationConverter.INSTANCE;
 	}
 
 	@Test

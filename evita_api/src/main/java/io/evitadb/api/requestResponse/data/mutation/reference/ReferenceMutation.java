@@ -24,10 +24,10 @@
 package io.evitadb.api.requestResponse.data.mutation.reference;
 
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.NamedLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
-import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.ContainerType;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -43,7 +43,7 @@ import java.io.Serial;
  */
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 @EqualsAndHashCode
-public abstract class ReferenceMutation<T extends Comparable<T>> implements LocalMutation<ReferenceContract, T> {
+public abstract class ReferenceMutation<T extends Comparable<T>> implements NamedLocalMutation<ReferenceContract, T> {
 	@Serial private static final long serialVersionUID = -4870057553122671488L;
 	/**
 	 * Identification of the reference that is being manipulated by this mutation.
@@ -56,7 +56,14 @@ public abstract class ReferenceMutation<T extends Comparable<T>> implements Loca
 
 	@Nonnull
 	@Override
-	public ClassifierType getClassifierType() {
-		return ClassifierType.REFERENCE;
+	public ContainerType containerType() {
+		return ContainerType.REFERENCE;
 	}
+
+	@Nonnull
+	@Override
+	public String classifierName() {
+		return referenceKey.referenceName();
+	}
+
 }

@@ -36,7 +36,7 @@ class AllowEvolutionModeInEntitySchemaMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new AllowEvolutionModeInEntitySchemaMutationConverter();
+		converter = AllowEvolutionModeInEntitySchemaMutationConverter.INSTANCE;
 	}
 
 	@Test

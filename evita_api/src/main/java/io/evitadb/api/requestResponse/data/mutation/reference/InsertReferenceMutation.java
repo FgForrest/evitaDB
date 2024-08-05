@@ -204,6 +204,12 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 		return referenceKey;
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	@Override
 	public String toString() {
 		return "insert reference `" + referenceKey + "` " +

@@ -31,13 +31,9 @@ package io.evitadb.api.requestResponse.cdc;
 public enum Operation {
 
 	/**
-	 * Create operation - i.e. there was no data with such identity before, and it was created.
+	 * Create or update operation - i.e. there was data with such identity before, and it was updated.
 	 */
-	CREATE,
-	/**
-	 * Update operation - i.e. there was data with such identity before, and it was updated.
-	 */
-	UPDATE,
+	UPSERT,
 	/**
 	 * Remove operation - i.e. there was data with such identity before, and it was removed.
 	 */
@@ -45,10 +41,6 @@ public enum Operation {
 	/**
 	 * Delimiting operation signaling the beginning of a transaction.
 	 */
-	TRANSACTION_BEGIN,
-	/**
-	 * Delimiting operation signaling the end of a transaction.
-	 */
-	TRANSACTION_END
+	TRANSACTION
 
 }

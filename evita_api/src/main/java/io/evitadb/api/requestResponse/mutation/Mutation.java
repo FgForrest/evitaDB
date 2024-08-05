@@ -24,6 +24,9 @@
 package io.evitadb.api.requestResponse.mutation;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
@@ -33,6 +36,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serializable;
+import java.util.stream.Stream;
 
 /**
  * This interface denotes all mutation operations that can be cast on Evita data objects.
@@ -49,6 +53,29 @@ public sealed interface Mutation extends Serializable permits EntityMutation, Lo
 	 * Returns operation classification.
 	 */
 	@Nonnull
-	Operation getOperation();
+	Operation operation();
+
+	/**
+	 * Transforms mutation to the stream of change catalog capture item matching the input predicate.
+	 *
+	 * @param predicate the predicate to be used for filtering the {@link LocalMutation} mutation items if any
+	 *                  are present
+	 * @param content   the requested content of the capture
+	 * @return the change catalog capture item
+	 */
+	@Nonnull
+	Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull CaptureContent content
+	);
+
+	/**
+	 * Direction of the change catalog capture stream.
+	 */
+	enum StreamDirection {
+
+		FORWARD, REVERSE;
+
+	}
 
 }

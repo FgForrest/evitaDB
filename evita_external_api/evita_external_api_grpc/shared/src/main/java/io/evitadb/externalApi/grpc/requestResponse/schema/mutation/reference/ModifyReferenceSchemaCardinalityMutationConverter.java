@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceS
 import io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -35,7 +37,9 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ModifyReferenceSchemaCardinalityMutationConverter implements SchemaMutationConverter<ModifyReferenceSchemaCardinalityMutation, GrpcModifyReferenceSchemaCardinalityMutation> {
+	public static final ModifyReferenceSchemaCardinalityMutationConverter INSTANCE = new ModifyReferenceSchemaCardinalityMutationConverter();
 
 	@Nonnull
 	public ModifyReferenceSchemaCardinalityMutation convert(@Nonnull GrpcModifyReferenceSchemaCardinalityMutation mutation) {

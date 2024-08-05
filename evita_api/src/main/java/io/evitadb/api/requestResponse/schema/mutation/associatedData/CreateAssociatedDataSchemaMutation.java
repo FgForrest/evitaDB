@@ -34,8 +34,8 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -61,7 +61,7 @@ import java.util.stream.Stream;
 /**
  * Mutation is responsible for setting up a new {@link AssociatedDataSchemaContract} in the {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link AssociatedDataSchemaContract} alone.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with
  * {@link RemoveAssociatedDataSchemaMutation} mutation (if such is found in mutation pipeline).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -70,7 +70,7 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateAssociatedDataSchemaMutation
-	implements AssociatedDataSchemaMutation, CombinableEntitySchemaMutation {
+	implements AssociatedDataSchemaMutation, CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -7368528015832499968L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
@@ -107,7 +107,11 @@ public class CreateAssociatedDataSchemaMutation
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
 		// when the associated schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
 		if (existingMutation instanceof RemoveAssociatedDataSchemaMutation removeAssociatedDataSchema && Objects.equals(removeAssociatedDataSchema.getName(), name)) {
@@ -145,7 +149,7 @@ public class CreateAssociatedDataSchemaMutation
 						)
 				)
 					.filter(Objects::nonNull)
-					.toArray(EntitySchemaMutation[]::new)
+					.toArray(LocalEntitySchemaMutation[]::new)
 			);
 		} else {
 			return null;
@@ -153,11 +157,11 @@ public class CreateAssociatedDataSchemaMutation
 	}
 
 	@Nullable
-	private static <T> EntitySchemaMutation makeMutationIfDifferent(
+	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
 		@Nonnull AssociatedDataSchemaContract createdVersion,
 		@Nonnull AssociatedDataSchemaContract existingVersion,
 		@Nonnull Function<AssociatedDataSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, EntitySchemaMutation> mutationCreator
+		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
 	) {
 		final T newValue = propertyRetriever.apply(createdVersion);
 		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
@@ -216,6 +220,12 @@ public class CreateAssociatedDataSchemaMutation
 					" has different definition. To alter existing associated data schema you need to use different mutations."
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

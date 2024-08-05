@@ -92,6 +92,12 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 		return PRIORITY_UPSERT;
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;

@@ -26,6 +26,8 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 import io.evitadb.api.requestResponse.schema.mutation.reference.RemoveReferenceSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -34,7 +36,9 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class RemoveReferenceSchemaMutationConverter implements SchemaMutationConverter<RemoveReferenceSchemaMutation, GrpcRemoveReferenceSchemaMutation> {
+	public static final RemoveReferenceSchemaMutationConverter INSTANCE = new RemoveReferenceSchemaMutationConverter();
 
 	@Nonnull
 	public RemoveReferenceSchemaMutation convert(@Nonnull GrpcRemoveReferenceSchemaMutation mutation) {

@@ -35,7 +35,7 @@ class SetAssociatedDataSchemaLocalizedMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetAssociatedDataSchemaLocalizedMutationConverter();
+		converter = SetAssociatedDataSchemaLocalizedMutationConverter.INSTANCE;
 	}
 
 	@Test

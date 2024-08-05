@@ -35,7 +35,7 @@ class ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverterTes
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter();
+		converter = ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter.INSTANCE;
 	}
 
 	@Test

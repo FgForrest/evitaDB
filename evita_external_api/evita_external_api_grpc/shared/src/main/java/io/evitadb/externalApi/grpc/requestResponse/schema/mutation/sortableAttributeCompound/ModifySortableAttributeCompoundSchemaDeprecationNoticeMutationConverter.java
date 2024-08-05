@@ -27,6 +27,8 @@ import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -35,7 +37,9 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter implements SchemaMutationConverter<ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation, GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation> {
+	public static final ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter INSTANCE = new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter();
 
 	@Nonnull
 	public ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation convert(@Nonnull GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation mutation) {

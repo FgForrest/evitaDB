@@ -36,7 +36,7 @@ class SetPriceInnerRecordHandlingMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetPriceInnerRecordHandlingMutationConverter();
+		converter = SetPriceInnerRecordHandlingMutationConverter.INSTANCE;
 	}
 
 	@Test

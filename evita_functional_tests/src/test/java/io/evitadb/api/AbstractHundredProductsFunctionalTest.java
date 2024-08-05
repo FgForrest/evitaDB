@@ -63,7 +63,7 @@ public class AbstractHundredProductsFunctionalTest {
 	public static final String ATTRIBUTE_OPTIONAL_AVAILABILITY = "optionalAvailability";
 	public static final String ASSOCIATED_DATA_MARKETS = "markets";
 	private static final int SEED = 40;
-	private final DataGenerator dataGenerator = new DataGenerator();
+	protected final DataGenerator dataGenerator = new DataGenerator();
 
 	@Nonnull
 	protected BiFunction<String, Faker, Integer> getRandomEntityPicker(EvitaSessionContract session) {
@@ -74,7 +74,7 @@ public class AbstractHundredProductsFunctionalTest {
 		};
 	}
 
-	DataCarrier setUp(Evita evita) {
+	protected DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = getRandomEntityPicker(session);
 

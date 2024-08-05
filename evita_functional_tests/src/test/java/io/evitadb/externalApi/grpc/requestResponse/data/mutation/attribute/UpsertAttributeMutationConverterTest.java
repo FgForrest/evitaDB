@@ -38,7 +38,7 @@ class UpsertAttributeMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new UpsertAttributeMutationConverter();
+		converter = UpsertAttributeMutationConverter.INSTANCE;
 	}
 
 	@Test

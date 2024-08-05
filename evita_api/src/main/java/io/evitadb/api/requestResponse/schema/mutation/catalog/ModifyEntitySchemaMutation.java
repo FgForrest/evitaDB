@@ -23,6 +23,11 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -32,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -44,7 +50,9 @@ import java.io.Serial;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Mutation is a holder for a set of {@link EntitySchemaMutation} that affect a single entity schema within
@@ -58,9 +66,9 @@ import java.util.stream.Collectors;
 public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutation, EntitySchemaMutation, InternalSchemaBuilderHelper, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 7843689721519035513L;
 	@Getter @Nonnull private final String entityType;
-	@Nonnull @Getter private final EntitySchemaMutation[] schemaMutations;
+	@Nonnull @Getter private final LocalEntitySchemaMutation[] schemaMutations;
 
-	public ModifyEntitySchemaMutation(@Nonnull String entityType, @Nonnull EntitySchemaMutation... schemaMutations) {
+	public ModifyEntitySchemaMutation(@Nonnull String entityType, @Nonnull LocalEntitySchemaMutation... schemaMutations) {
 		this.entityType = entityType;
 		this.schemaMutations = schemaMutations;
 	}
@@ -75,7 +83,7 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
 		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation && entityType.equals(modifyEntitySchemaMutation.getEntityType())) {
-			final List<EntitySchemaMutation> mutations = new ArrayList<>(schemaMutations.length);
+			final List<LocalEntitySchemaMutation> mutations = new ArrayList<>(schemaMutations.length);
 			mutations.addAll(Arrays.asList(schemaMutations));
 			final MutationImpact updated = addMutations(
 				currentCatalogSchema,
@@ -85,7 +93,7 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 			);
 			if (updated != MutationImpact.NO_IMPACT) {
 				final ModifyEntitySchemaMutation combinedMutation = new ModifyEntitySchemaMutation(
-					entityType, mutations.toArray(EntitySchemaMutation[]::new)
+					entityType, mutations.toArray(LocalEntitySchemaMutation[]::new)
 				);
 				return new MutationCombinationResult<>(null, combinedMutation);
 			} else {
@@ -123,6 +131,56 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 			alteredSchema = schemaMutation.mutate(catalogSchema, alteredSchema);
 		}
 		return alteredSchema;
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull CaptureContent content
+	) {
+		final MutationPredicateContext context = predicate.getContext();
+		context.advance();
+		context.setEntityType(entityType);
+
+		final Stream<ChangeCatalogCapture> entitySchemaCapture;
+		if (predicate.test(this)) {
+			entitySchemaCapture = Stream.of(
+				ChangeCatalogCapture.schemaCapture(
+					context,
+					operation(),
+					content == CaptureContent.BODY ? this : null
+				)
+			);
+		} else {
+			entitySchemaCapture = Stream.empty();
+		}
+
+		if (context.getDirection() == StreamDirection.FORWARD) {
+			return Stream.concat(
+				entitySchemaCapture,
+				Arrays.stream(this.schemaMutations)
+					.filter(predicate)
+					.flatMap(m -> m.toChangeCatalogCapture(predicate, content))
+			);
+		} else {
+			final AtomicInteger index = new AtomicInteger(this.schemaMutations.length);
+			return Stream.concat(
+				Stream.generate(() -> null)
+					.takeWhile(x -> index.get() > 0)
+					.map(x -> this.schemaMutations[index.decrementAndGet()])
+					.filter(predicate)
+					.flatMap(x -> x.toChangeCatalogCapture(predicate, content)),
+				entitySchemaCapture
+			);
+
+		}
 	}
 
 	@Override

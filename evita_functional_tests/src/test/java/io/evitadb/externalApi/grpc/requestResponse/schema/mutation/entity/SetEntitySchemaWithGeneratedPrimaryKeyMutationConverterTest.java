@@ -35,7 +35,7 @@ class SetEntitySchemaWithGeneratedPrimaryKeyMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetEntitySchemaWithGeneratedPrimaryKeyMutationConverter();
+		converter = SetEntitySchemaWithGeneratedPrimaryKeyMutationConverter.INSTANCE;
 	}
 
 	@Test

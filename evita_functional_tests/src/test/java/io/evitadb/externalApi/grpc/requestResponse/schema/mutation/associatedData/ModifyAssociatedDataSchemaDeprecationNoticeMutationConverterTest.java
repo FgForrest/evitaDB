@@ -35,7 +35,7 @@ class ModifyAssociatedDataSchemaDeprecationNoticeMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifyAssociatedDataSchemaDeprecationNoticeMutationConverter();
+		converter = ModifyAssociatedDataSchemaDeprecationNoticeMutationConverter.INSTANCE;
 	}
 
 	@Test

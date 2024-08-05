@@ -35,7 +35,7 @@ class SetHierarchicalParentTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetParentMutationConverter();
+		converter = SetParentMutationConverter.INSTANCE;
 	}
 
 	@Test

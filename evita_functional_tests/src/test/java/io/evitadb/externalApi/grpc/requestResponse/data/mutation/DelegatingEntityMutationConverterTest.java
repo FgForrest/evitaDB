@@ -41,7 +41,7 @@ class DelegatingEntityMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new DelegatingEntityMutationConverter();
+		converter = DelegatingEntityMutationConverter.INSTANCE;
 	}
 
 	@Test

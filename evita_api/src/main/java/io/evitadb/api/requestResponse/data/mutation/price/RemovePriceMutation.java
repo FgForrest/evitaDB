@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.price;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
@@ -77,6 +78,12 @@ public class RemovePriceMutation extends PriceMutation {
 	@Override
 	public long getPriority() {
 		return PRIORITY_REMOVAL;
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.REMOVE;
 	}
 
 	@Override

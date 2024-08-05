@@ -35,7 +35,7 @@ class ModifyReferenceSchemaNameMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new ModifyReferenceSchemaNameMutationConverter();
+		converter = ModifyReferenceSchemaNameMutationConverter.INSTANCE;
 	}
 
 	@Test

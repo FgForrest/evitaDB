@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.ClassifierType;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
@@ -53,14 +54,8 @@ public abstract class ParentMutation implements SchemaEvolvingLocalMutation<Opti
 
 	@Nonnull
 	@Override
-	public ClassifierType getClassifierType() {
-		return ClassifierType.ENTITY;
-	}
-
-	@Nonnull
-	@Override
-	public Operation getOperation() {
-		return Operation.UPDATE;
+	public ContainerType containerType() {
+		return ContainerType.ENTITY;
 	}
 
 	@Nonnull

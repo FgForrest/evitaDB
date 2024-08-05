@@ -39,7 +39,7 @@ class EntityUpsertMutationConverterTest {
 
 	@BeforeAll
 	static void setup() {
-		converter = new EntityUpsertMutationConverter();
+		converter = EntityUpsertMutationConverter.INSTANCE;
 	}
 
 	@Test

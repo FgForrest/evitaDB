@@ -162,6 +162,12 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 		return PRIORITY_UPSERT;
 	}
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	@Override
 	public String toString() {
 		return "apply delta " + delta + " to attribute `" + attributeKey + "`";
