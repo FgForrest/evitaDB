@@ -50,6 +50,6 @@ public class ContainerNamePredicate extends MutationPredicate {
 	@Override
 	public boolean test(Mutation mutation) {
 		return !(mutation instanceof NamedLocalMutation<?, ?> localMutation) ||
-			this.classifierName.contains(localMutation.classifierName());
+			this.classifierName.contains(localMutation.containerName());
 	}
 }

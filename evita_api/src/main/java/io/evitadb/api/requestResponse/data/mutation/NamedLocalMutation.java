@@ -37,6 +37,6 @@ public interface NamedLocalMutation<T, S extends Comparable<S>> extends LocalMut
 	 * @return the name of the container that this mutation is targeting
 	 */
 	@Nonnull
-	String classifierName();
+	String containerName();
 
 }

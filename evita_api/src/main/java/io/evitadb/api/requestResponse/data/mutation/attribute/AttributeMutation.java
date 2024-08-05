@@ -80,7 +80,7 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 
 	@Nonnull
 	@Override
-	public String classifierName() {
+	public String containerName() {
 		return attributeKey.attributeName();
 	}
 
