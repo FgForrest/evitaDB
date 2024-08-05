@@ -74,6 +74,7 @@ import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.security.KeyFactory;
 import java.security.KeyStore;
@@ -616,11 +617,19 @@ public class ExternalApiServer implements AutoCloseable {
 					// if the host allows non-TLS interface, set it up
 					final TlsMode tlsMode = configuration.getTlsMode();
 					if (tlsMode == TlsMode.FORCE_NO_TLS || tlsMode == TlsMode.RELAXED) {
-						serverBuilder.http(host.port());
+						if (host.localhost()) {
+							serverBuilder.http(host.port());
+						} else {
+							serverBuilder.http(new InetSocketAddress(host.host(), host.port()));
+						}
 					}
 					// if the host allows TLS interface, set it up
 					if (tlsMode == TlsMode.FORCE_TLS || tlsMode == TlsMode.RELAXED) {
-						serverBuilder.https(host.port());
+						if (host.localhost()) {
+							serverBuilder.https(host.port());
+						} else {
+							serverBuilder.https(new InetSocketAddress(host.host(), host.port()));
+						}
 					}
 
 					// now provide implementation for the host services
