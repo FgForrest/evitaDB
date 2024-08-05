@@ -75,8 +75,14 @@ public abstract class AssociatedDataMutation implements NamedLocalMutation<Assoc
 
 	@Nonnull
 	@Override
-	public ClassifierType getClassifierType() {
-		return ClassifierType.ASSOCIATED_DATA;
+	public String containerName() {
+		return associatedDataKey.associatedDataName();
+	}
+
+	@Nonnull
+	@Override
+	public ContainerType containerType() {
+		return ContainerType.ASSOCIATED_DATA;
 	}
 
 	@Override

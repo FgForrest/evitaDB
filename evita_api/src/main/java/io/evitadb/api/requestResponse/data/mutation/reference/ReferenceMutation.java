@@ -62,7 +62,7 @@ public abstract class ReferenceMutation<T extends Comparable<T>> implements Name
 
 	@Nonnull
 	@Override
-	public String classifierName() {
+	public String containerName() {
 		return referenceKey.referenceName();
 	}
 

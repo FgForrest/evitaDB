@@ -46,6 +46,6 @@ public class SingleContainerNamePredicate extends MutationPredicate {
 	@Override
 	public boolean test(Mutation mutation) {
 		return !(mutation instanceof NamedLocalMutation<?, ?> localMutation) ||
-			this.classifierName.equals(localMutation.classifierName());
+			this.classifierName.equals(localMutation.containerName());
 	}
 }

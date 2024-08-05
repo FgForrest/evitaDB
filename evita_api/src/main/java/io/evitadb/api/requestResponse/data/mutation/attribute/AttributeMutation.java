@@ -81,8 +81,14 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 
 	@Nonnull
 	@Override
-	public ClassifierType getClassifierType() {
-		return ClassifierType.ATTRIBUTE;
+	public String containerName() {
+		return attributeKey.attributeName();
+	}
+
+	@Nonnull
+	@Override
+	public ContainerType containerType() {
+		return ContainerType.ATTRIBUTE;
 	}
 
 	@Override
