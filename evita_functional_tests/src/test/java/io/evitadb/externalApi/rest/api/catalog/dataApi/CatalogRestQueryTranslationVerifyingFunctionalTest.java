@@ -27,6 +27,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -46,6 +47,7 @@ class CatalogRestQueryTranslationVerifyingFunctionalTest extends CatalogRestData
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should accept and process large query")
+	@Disabled
 	void shouldAcceptAndProcessLargeQuery(Evita evita) throws IOException {
 		new RestTester("https://demo.evitadb.io:5555/rest").test("evita")
 			.urlPathSuffix("/Product/query")

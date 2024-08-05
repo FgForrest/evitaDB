@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 import io.evitadb.core.Evita;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.GraphQLTester;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -46,6 +47,7 @@ public class CatalogGraphQLQueryTranslationVerifyingFunctionTest extends Catalog
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should accept and process large query")
+	@Disabled
 	void shouldAcceptAndProcessLargeQuery(Evita evita) throws IOException {
 		new GraphQLTester("https://demo.evitadb.io:5555/gql").test("evita")
 			.document(readFromClasspath("testData/CatalogGraphQLQueryTranslationVerifyingFunctionTest_query.graphql"))
