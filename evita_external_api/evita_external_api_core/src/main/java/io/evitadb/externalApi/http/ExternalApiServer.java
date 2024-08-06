@@ -339,7 +339,7 @@ public class ExternalApiServer implements AutoCloseable {
 	 * Customizes TLS settings for the server. Sets up a mutual TLS verification if requested.
 	 */
 	private static void customizeTls(
-		@Nonnull VirtualHostBuilder virtualHostBuilder,
+		@Nonnull ServerBuilder virtualHostBuilder,
 		@Nonnull ApiOptions apiOptions,
 		@Nullable MtlsConfiguration mtlsConfiguration
 	) {
@@ -532,7 +532,8 @@ public class ExternalApiServer implements AutoCloseable {
 		@Nonnull CertificatePath certificatePath,
 		@Nonnull ApiOptions apiOptions
 	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
-
+		/* TODO JNO - remove? */
+		final PathHandlingService pathHandlingService = new PathHandlingService();
 		// in tests we don't wait for shutdowns
 		final boolean gracefulShutdown = !"true".equals(System.getProperty(DevelopmentConstants.TEST_RUN));
 		// we share worker group both for I/O and service processing, all computations are done in separate executors
@@ -665,9 +666,6 @@ public class ExternalApiServer implements AutoCloseable {
 								servicePath, httpServiceDefinition.service()
 							);*/
 
-							final PathHandlingService pathHandlingService = new PathHandlingService();
-							serverBuilder.service("glob:/**", pathHandlingService)
-										.decorator(LoggingService.newDecorator());
 							pathHandlingService.addPrefixPath(servicePath, httpServiceDefinition.service());
 						}
 					}
@@ -675,6 +673,25 @@ public class ExternalApiServer implements AutoCloseable {
 				logStatusToConsole(apiOptions, registeredApiProvider);
 			}
 		}
+
+		/* TODO JNO - Hack */
+		if (apiOptions.atLeastOneEndpointRequiresTls()) {
+			// configure TLS
+			serverBuilder.tls(
+				// key manager factory is created only once and shared
+				keyFactoryRef.updateAndGet(
+					it -> it == null ? createKeyManagerFactory(certificatePath) : it
+				)
+			);
+			// customize TLS settings
+			customizeTls(
+				serverBuilder, apiOptions,
+				null
+			);
+		}
+
+		serverBuilder.service("glob:/**", pathHandlingService)
+			.decorator(LoggingService.newDecorator());
 	}
 
 	/**
