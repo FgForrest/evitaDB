@@ -561,7 +561,10 @@ public class ExternalApiServer implements AutoCloseable {
 			.workerGroup(workerGroup, gracefulShutdown);
 
 		if (apiOptions.accessLog()) {
-			serverBuilder.accessLogWriter(AccessLogWriter.combined(), gracefulShutdown);
+			serverBuilder
+				.accessLogWriter(AccessLogWriter.combined(), gracefulShutdown)
+				/* remote IP, remote host, remote logname, remote user, timestamp, request line, status code, length, header: Referer, header: User-Agent */
+				.accessLogFormat("%a %h %l %u %t %r %s %b %{Referer}i %{User-Agent}i");
 		}
 
 		final List<FixedPathService> fixedPathHandlingServices = new LinkedList<>();
