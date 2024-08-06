@@ -569,7 +569,7 @@ public class ExternalApiServer implements AutoCloseable {
 
 		final List<FixedPathService> fixedPathHandlingServices = new LinkedList<>();
 		// objects lazily initialized on first use
-		PathHandlingService pathHandlingService = null;
+		PathHandlingService dynamicPathHandlingService = null;
 		MtlsConfiguration mtlsConfiguration = null;
 
 		// for each API provider do
@@ -619,16 +619,17 @@ public class ExternalApiServer implements AutoCloseable {
 								.orElse("");
 
 						if (httpServiceDefinition.pathHandlingMode() == PathHandlingMode.FIXED_PATH_HANDLING) {
-							// if the service handles base path pathHandlingMode on its own then configure it for all hosts
+							// if the service knows by itself how to route requests (HttpServiceWithRoutes), collect it
+							// for later registration
 							fixedPathHandlingServices.add(
 								new FixedPathService(servicePath, httpServiceDefinition.service())
 							);
 						} else {
-							// else use path handling service to route requests to the service
-							if (pathHandlingService == null) {
-								pathHandlingService = new PathHandlingService();
+							// else use path handling service to route requests to the service's own custom router
+							if (dynamicPathHandlingService == null) {
+								dynamicPathHandlingService = new PathHandlingService();
 							}
-							pathHandlingService.addPrefixPath(servicePath, httpServiceDefinition.service());
+							dynamicPathHandlingService.addPrefixPath(servicePath, httpServiceDefinition.service());
 						}
 					}
 				}
@@ -652,8 +653,8 @@ public class ExternalApiServer implements AutoCloseable {
 		}
 
 		// if path handling service is set, use it for all requests
-		if (pathHandlingService != null) {
-			serverBuilder.service("glob:/**", pathHandlingService)
+		if (dynamicPathHandlingService != null) {
+			serverBuilder.service("glob:/**", dynamicPathHandlingService)
 				.decorator(LoggingService.newDecorator());
 		}
 	}

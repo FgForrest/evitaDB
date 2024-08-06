@@ -115,4 +115,9 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 				.toArray(String[]::new);
 		}
 	}
+
+	@Override
+	public boolean isMtlsEnabled() {
+		return mtlsConfiguration.enabled();
+	}
 }

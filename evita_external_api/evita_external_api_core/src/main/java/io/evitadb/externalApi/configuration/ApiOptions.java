@@ -164,7 +164,7 @@ public record ApiOptions(
 			.anyMatch(it -> {
 				if (it.isMtlsEnabled()) {
 					Assert.isPremiseValid(
-						it.getTlsMode() == TlsMode.FORCE_NO_TLS, "mTLS cannot be enabled without enabled TLS!"
+						it.getTlsMode() != TlsMode.FORCE_NO_TLS, "mTLS cannot be enabled without enabled TLS!"
 					);
 					return true;
 				} else {
