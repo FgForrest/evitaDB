@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,35 +23,26 @@
 
 package io.evitadb.documentation.java;
 
-import io.evitadb.core.Evita;
 import io.evitadb.documentation.UserDocumentationTest;
 import io.evitadb.documentation.UserDocumentationTest.CodeSnippet;
+import io.evitadb.documentation.java.JavaTestContext.InvocationResult;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import jdk.jshell.JShell;
 import jdk.jshell.Snippet;
-import jdk.jshell.Snippet.Status;
-import jdk.jshell.SnippetEvent;
 import jdk.jshell.SourceCodeAnalysis;
 import jdk.jshell.SourceCodeAnalysis.CompletionInfo;
-import jdk.jshell.VarSnippet;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -100,62 +91,6 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 	}
 
 	/**
-	 * Method executes the list of {@link Snippet} in passed {@link JShell} instance a verifies that the execution
-	 * finished without an error.
-	 */
-	@Nonnull
-	static InvocationResult executeJShellCommands(@Nonnull JShell jShell, @Nonnull List<String> snippets) {
-		final List<RuntimeException> exceptions = new LinkedList<>();
-		final ArrayList<Snippet> executedSnippets = new ArrayList<>(snippets.size() << 1);
-
-		// iterate over snippets and execute them
-		for (String snippet : snippets) {
-			final List<SnippetEvent> events = jShell.eval(snippet);
-			// verify the output events triggered by the execution
-			for (SnippetEvent event : events) {
-				// if the snippet is not active
-				if (!event.status().isActive()) {
-					// collect the compilation error and the problematic position and register exception
-					exceptions.add(
-						new JavaCompilationException(
-							jShell.diagnostics(event.snippet())
-								.map(it ->
-									"\n- [" + it.getStartPosition() + "-" + it.getEndPosition() + "] " +
-										it.getMessage(Locale.ENGLISH)
-								)
-								.collect(Collectors.joining()),
-							event.snippet().source()
-						)
-					);
-					// it the event contains exception
-				} else if (event.exception() != null) {
-					// it means, that code was successfully compiled, but threw exception upon evaluation
-					exceptions.add(
-						new JavaExecutionException(event.exception())
-					);
-					// add the snippet to the list of executed ones
-					if (event.status() == Status.VALID) {
-						executedSnippets.add(event.snippet());
-					}
-				} else {
-					// it means, that code was successfully compiled and executed without exception
-					executedSnippets.add(event.snippet());
-				}
-			}
-			// if the exception is not null, fail fast and report the exception
-			if (!exceptions.isEmpty()) {
-				break;
-			}
-		}
-
-		// return all snippets that has been executed and report exception if occurred
-		return new InvocationResult(
-			executedSnippets,
-			exceptions.isEmpty() ? null : exceptions.get(0)
-		);
-	}
-
-	/**
 	 * Method reads the {@link #requiredResources} from the file system and returns their contents as a list of
 	 * {@link JShell} commands.
 	 *
@@ -190,26 +125,6 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 	}
 
 	/**
-	 * Method clears the tear down snippet and deletes {@link Evita} directory if it was accessed in
-	 * test.
-	 */
-	static void clearOnTearDown(@Nonnull JShell jShell, @Nonnull Snippet tearDownSnippet) {
-		if (tearDownSnippet instanceof VarSnippet pathDeclaration && "evitaStoragePathToClear".equals(pathDeclaration.name())) {
-			final String stringValue = jShell.varValue(pathDeclaration);
-			final String pathToClear = stringValue.substring(1, stringValue.length() - 1);
-			if (!pathToClear.isBlank()) {
-				// finally we clear the test directory itself, so that each test starts with empty one
-				try {
-					FileUtils.deleteDirectory(Path.of(pathToClear).toFile());
-				} catch (IOException ex) {
-					// ignore
-				}
-			}
-		}
-		jShell.drop(tearDownSnippet);
-	}
-
-	/**
 	 * Method creates list of source code snippets that could be passed to {@link JShell} instance for compilation and
 	 * execution. If the code snippet declares another code snippet via {@link #requiredResources} as predecessor,
 	 * the executable of such predecessor code snippet is prepended to the list of snippets. If such block is not found
@@ -238,39 +153,11 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 
 	@Override
 	public void execute() throws Throwable {
-		final JShell jShell = testContextAccessor.get().getJShell();
+		final JavaTestContext javaTestContext = testContextAccessor.get();
+
 		// the code block must be successfully compiled and executed without an error
 		// to mark it as ok
-		final InvocationResult result = executeJShellCommands(jShell, getSnippets());
-
-		// clean up - we travel from the most recent (last) snippet to the first
-		final List<Snippet> snippets = result.snippets();
-		for (int i = snippets.size() - 1; i >= 0; i--) {
-			final Snippet snippet = snippets.get(i);
-			// if the snippet declared an AutoCloseable variable, we need to close it
-			if (snippet instanceof VarSnippet varSnippet) {
-				// there is no way how to get the reference of the variable - so the clean up
-				// must be performed by another snippet
-				executeJShellCommands(
-					jShell,
-					Arrays.asList(
-						// instanceof / cast throws a compiler exception, so that we need to
-						// work around it by runtime evaluation
-						"if (AutoCloseable.class.isInstance(" + varSnippet.name() + ")) {\n\t" +
-							"AutoCloseable.class.cast(" + varSnippet.name() + ").close();\n" +
-							"}\n",
-						// retrieve the folder location
-						"String evitaStoragePathToClear = Evita.class.isInstance(" + varSnippet.name() + ") ? " +
-							"Evita.class.cast(" + varSnippet.name() + ").getConfiguration().storage()" +
-							".storageDirectory().toAbsolutePath().toString() : \"\";\n"
-					)
-				)
-					.snippets()
-					.forEach(it -> clearOnTearDown(jShell, it));
-			}
-			// each snippet is "dropped" by the JShell instance (undone)
-			jShell.drop(snippet);
-		}
+		final InvocationResult result = javaTestContext.executeJShellCommands(getSnippets());
 
 		if (result.exception() != null) {
 			throw result.exception();
@@ -288,15 +175,6 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 			);
 		}
 		return parsedSnippets;
-	}
-
-	/**
-	 * Record contains result of the Java code execution.
-	 */
-	record InvocationResult(
-		@Nonnull List<Snippet> snippets,
-		@Nullable Exception exception
-	) {
 	}
 
 }
