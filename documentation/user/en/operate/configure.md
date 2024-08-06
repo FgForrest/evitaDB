@@ -79,23 +79,23 @@ api:                                              # [see API configuration](#api
   endpoints:
     system:                                       # [see System API configuration](#system-api-configuration)
       enabled: true
-      host: localhost:5555
+      host: ":5555"
       tlsMode: FORCE_NO_TLS
       allowedOrigins: null
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
       enabled: true
-      host: localhost:5555
+      host: ":5555"
       tlsMode: FORCE_TLS
       allowedOrigins: null
       parallelize: true
     rest:                                         # [see REST API configuration](#rest-api-configuration)
       enabled: true
-      host: localhost:5555
+      host: ":5555"
       tlsMode: FORCE_TLS
       allowedOrigins: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
       enabled: true
-      host: localhost:5555
+      host: ":5555"
       tlsMode: FORCE_TLS
       exposeDocsService: false
       mTLS:
@@ -103,7 +103,7 @@ api:                                              # [see API configuration](#api
         allowedClientCertificatePaths: []
     lab:                                          # [see evitaLab configuration](#evitalab-configuration)
       enabled: true
-      host: localhost:5555
+      host: ":5555"
       tlsMode: FORCE_TLS
       allowedOrigins: null
       gui:
@@ -112,7 +112,7 @@ api:                                              # [see API configuration](#api
         preconfiguredConnections: null
     observability:                                # [see Observability configuration](#observability-configuration)
       enabled: true
-      host: localhost:5555
+      host: ":5555"
       exposedHost: null
       tlsMode: FORCE_NO_TLS
       allowedOrigins: null
@@ -723,9 +723,12 @@ provide an unsecured connection for security reasons.
     </dd>
     <dt>host</dt>
     <dd>
-        <p>**Default:** `localhost:5555`</p>
-        <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the REST 
-        API, but not to the gRPC or System API.</p>
+        <p>**Default:** `:5555`</p>
+        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
+        the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
+        IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
+        DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
+        logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
     </dd>
     <dt>exposedHost</dt>
     <dd>
@@ -766,11 +769,13 @@ provide an unsecured connection for security reasons.
         <p>**Default:** `true`</p>
         <p>It enables / disables REST web API.</p>
     </dd>
-    <dt>host</dt>
     <dd>
-        <p>**Default:** `localhost:5555`</p>
-        <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the GraphQL 
-        API, but not to the gRPC or System API.</p>
+        <p>**Default:** `:5555`</p>
+        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
+        the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
+        IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
+        DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
+        logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
     </dd>
     <dt>exposedHost</dt>
     <dd>
@@ -806,11 +811,13 @@ provide an unsecured connection for security reasons.
         <p>**Default:** `true`</p>
         <p>It enables / disables gRPC web API.</p>
     </dd>
-    <dt>host</dt>
     <dd>
-        <p>**Default:** `localhost:5555`</p>
-        <p>It specifies the host and port that the GraphQL API should listen on. The value must be different from all 
-        other APIs because gRPC internally uses completely different web server.</p>
+        <p>**Default:** `:5555`</p>
+        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
+        the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
+        IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
+        DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
+        logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
     </dd>
     <dt>exposedHost</dt>
     <dd>
@@ -869,14 +876,17 @@ more information.
         <p>**Default:** `true`</p>
         <p>It enables / disables system web API.</p>
     </dd>
-    <dt>host</dt>
     <dd>
-        <p>**Default:** `localhost:5555`</p>
-        <p>It specifies the host and port on which the system API should listen. The value must be different from all 
-        other APIs because the system API needs to run on the insecure HTTP protocol while the other APIs use the secure one.</p>
+        <p>**Default:** `:5555`</p>
+        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
+        the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
+        IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
+        DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
+        logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
         <p>The system endpoint allows anyone to view public <Term location="/documentation/user/en/operate/tls.md">certificate authority</Term> 
         <Term location="/documentation/user/en/operate/tls.md">certificate</Term> and it also provides information for 
-        [default `mTLS` implementation](tls.md#default-mtls-behaviour-not-secure).</p>
+        [default `mTLS` implementation](tls.md#default-mtls-behaviour-not-secure) and therefore it's always provided
+        on plain (insecure) HTTP protocol.</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
@@ -910,11 +920,13 @@ Besides that, it can also serve an entire evitaLab web client as its copy is bui
         <p>**Default:** `true`</p>
         <p>It enables / disables evitaLab API.</p>
     </dd>
-    <dt>host</dt>
     <dd>
-        <p>**Default:** `localhost:5555`</p>
-        <p>It specifies the host and port that the evitaLab API/evitaLab web client should listen on.
-        The value may be identical to the GraphQL API and REST API, but not to the gRPC or System API.</p>
+        <p>**Default:** `:5555`</p>
+        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
+        the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
+        IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
+        DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
+        logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
     </dd>
     <dt>exposedHost</dt>
     <dd>
@@ -1001,11 +1013,13 @@ pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
         <p>**Default:** `true`</p>
         <p>It enables / disables observability API.</p>
     </dd>
-    <dt>host</dt>
     <dd>
-        <p>**Default:** `localhost:5555`</p>
-        <p>It specifies the host and port that the evitaLab API/evitaLab web client should listen on.
-        The value may be identical to the GraphQL API and REST API, but not to the gRPC or System API.</p>
+        <p>**Default:** `:5555`</p>
+        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
+        the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
+        IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
+        DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
+        logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
     </dd>
     <dt>exposedHost</dt>
     <dd>
