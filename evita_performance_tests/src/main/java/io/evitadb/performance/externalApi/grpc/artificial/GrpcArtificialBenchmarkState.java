@@ -27,7 +27,6 @@ import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
@@ -47,7 +46,7 @@ import java.util.function.Supplier;
  */
 public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBenchmarkState<EvitaSessionServiceBlockingStub> {
 
-	private static final String HOST = AbstractApiConfiguration.LOCALHOST;
+	private static final String HOST = "localhost";
 	private static final int PORT = GrpcConfig.DEFAULT_GRPC_PORT;
 
 	private ClientCertificateManager clientCertificateManager;

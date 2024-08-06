@@ -47,11 +47,9 @@ public abstract class AbstractApiConfiguration {
 	 */
 	public static final int DEFAULT_PORT = 5555;
 	/**
-	 * Localhost constant represents a loop-back host (self) that will enable endpoints on all hosts that are discovered
-	 * by Java as localhost addresses.
+	 * Pattern for host / port parsing.
 	 */
-	public static final String LOCALHOST = "localhost";
-	private static final Pattern HOST_PATTERN = Pattern.compile("([\\w.:]+):(\\d+)");
+	private static final Pattern HOST_PATTERN = Pattern.compile("([\\w.:]*):(\\d+)");
 	/**
 	 * Defines the port API endpoint will listen on.
 	 */
@@ -83,7 +81,7 @@ public abstract class AbstractApiConfiguration {
 		Assert.isTrue(matcher.matches(), "Invalid host definition: " + host);
 		final String parsedHost = matcher.group(1);
 		final int port = Integer.parseInt(matcher.group(2));
-		if (LOCALHOST.equalsIgnoreCase(parsedHost)) {
+		if (parsedHost.isEmpty()) {
 			return new HostDefinition[] {
 				new HostDefinition(NetworkUtils.getByName("0.0.0.0"), true, port)
 			};

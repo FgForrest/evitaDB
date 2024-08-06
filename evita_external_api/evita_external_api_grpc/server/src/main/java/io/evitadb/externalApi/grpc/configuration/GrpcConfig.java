@@ -76,7 +76,7 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 	@Getter private final String prefix;
 
 	public GrpcConfig() {
-		super(true, LOCALHOST + ":" + DEFAULT_GRPC_PORT);
+		super(true, ":" + DEFAULT_GRPC_PORT);
 		this.exposeDocsService = false;
 		this.mtlsConfiguration = new MtlsConfiguration(false, List.of());
 		this.prefix = BASE_GRPC_PATH;

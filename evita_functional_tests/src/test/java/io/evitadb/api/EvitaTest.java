@@ -70,7 +70,6 @@ import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
@@ -1471,9 +1470,9 @@ class EvitaTest implements EvitaTestSupport {
 							.folderPath(getEvitaTestDirectory() + "-certificates")
 							.build()
 					)
-					.enable(GraphQLProvider.CODE, new GraphQLConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[1]))
-					.enable(RestProvider.CODE, new RestConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[2]))
+					.enable(GraphQLProvider.CODE, new GraphQLConfig(":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcConfig(":" + ports[1]))
+					.enable(RestProvider.CODE, new RestConfig(":" + ports[2]))
 					.build()
 			)) {
 				externalApiServer.start();
@@ -1583,9 +1582,9 @@ class EvitaTest implements EvitaTestSupport {
 							.folderPath(getEvitaTestDirectory() + "-certificates")
 							.build()
 					)
-					.enable(GraphQLProvider.CODE, new GraphQLConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[1]))
-					.enable(RestProvider.CODE, new RestConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[2]))
+					.enable(GraphQLProvider.CODE, new GraphQLConfig(":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcConfig(":" + ports[1]))
+					.enable(RestProvider.CODE, new RestConfig(":" + ports[2]))
 					.build()
 			)) {
 				externalApiServer.start();
@@ -1673,9 +1672,9 @@ class EvitaTest implements EvitaTestSupport {
 							.folderPath(getEvitaTestDirectory() + "-certificates")
 							.build()
 					)
-					.enable(GraphQLProvider.CODE, new GraphQLConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[1]))
-					.enable(RestProvider.CODE, new RestConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[2]))
+					.enable(GraphQLProvider.CODE, new GraphQLConfig(":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcConfig(":" + ports[1]))
+					.enable(RestProvider.CODE, new RestConfig(":" + ports[2]))
 					.build()
 			)) {
 				externalApiServer.start();

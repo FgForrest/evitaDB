@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.GrpcProviderRegistrar;
@@ -92,7 +91,7 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 		server = new ExternalApiServer(
 			this.evita,
 			ApiOptions.builder()
-				.enable(SystemProvider.CODE, new SystemConfig(AbstractApiConfiguration.LOCALHOST + ":" + SystemConfig.DEFAULT_SYSTEM_PORT))
+				.enable(SystemProvider.CODE, new SystemConfig(":" + SystemConfig.DEFAULT_SYSTEM_PORT))
 				.enable(GrpcProvider.CODE, new GrpcConfig())
 				.build(),
 			List.of(new SystemProviderRegistrar(), new GrpcProviderRegistrar())
@@ -101,7 +100,6 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 
 		this.driver = new EvitaClient(
 			EvitaClientConfiguration.builder()
-				.host(AbstractApiConfiguration.LOCALHOST)
 				.port(GrpcConfig.DEFAULT_GRPC_PORT)
 				.systemApiPort(SystemConfig.DEFAULT_SYSTEM_PORT)
 				.mtlsEnabled(false)
