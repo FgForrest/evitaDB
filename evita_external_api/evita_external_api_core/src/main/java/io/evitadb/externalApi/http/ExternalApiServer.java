@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.common.SessionProtocol;
 import com.linecorp.armeria.common.util.EventLoopGroups;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.Server;
@@ -618,17 +619,17 @@ public class ExternalApiServer implements AutoCloseable {
 					final TlsMode tlsMode = configuration.getTlsMode();
 					if (tlsMode == TlsMode.FORCE_NO_TLS || tlsMode == TlsMode.RELAXED) {
 						if (host.localhost()) {
-							serverBuilder.http(host.port());
+							serverBuilder.port(host.port(), SessionProtocol.HTTP, SessionProtocol.PROXY);
 						} else {
-							serverBuilder.http(new InetSocketAddress(host.host(), host.port()));
+							serverBuilder.port(new InetSocketAddress(host.host(), host.port()), SessionProtocol.HTTP, SessionProtocol.PROXY);
 						}
 					}
 					// if the host allows TLS interface, set it up
 					if (tlsMode == TlsMode.FORCE_TLS || tlsMode == TlsMode.RELAXED) {
 						if (host.localhost()) {
-							serverBuilder.https(host.port());
+							serverBuilder.port(host.port(), SessionProtocol.HTTPS, SessionProtocol.PROXY);
 						} else {
-							serverBuilder.https(new InetSocketAddress(host.host(), host.port()));
+							serverBuilder.port(new InetSocketAddress(host.host(), host.port()), SessionProtocol.HTTPS, SessionProtocol.PROXY);
 						}
 					}
 
