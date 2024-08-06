@@ -69,7 +69,7 @@ public class GraphQLClient extends ApiClient {
 				validateResponseBody(document, responseBody);
 
 				final JsonNode data = responseBody.get("data");
-				if (data != null && !data.isNull()) {
+				if (data == null || data.isNull()) {
 					return Optional.empty();
 				}
 
