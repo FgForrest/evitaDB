@@ -67,26 +67,26 @@ api:
   endpoints:
     system:
       enabled: ${api.endpoints.system.enabled:true}
-      host: ${api.endpoints.system.host:localhost:5555}
+      host: ${api.endpoints.system.host:":5555"}
       exposedHost: ${api.endpoints.system.exposedHost:null}
       tlsMode: ${api.endpoints.system.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.system.allowedOrigins:null}
     graphQL:
       enabled: ${api.endpoints.graphQL.enabled:true}
-      host: ${api.endpoints.graphQL.host:localhost:5555}
+      host: ${api.endpoints.graphQL.host:":5555"}
       exposedHost: ${api.endpoints.graphQL.exposedHost:null}
       tlsMode: ${api.endpoints.graphQL.tlsMode:FORCE_TLS}
       allowedOrigins: ${api.endpoints.graphQL.allowedOrigins:null}
       parallelize: ${api.endpoints.graphQL.parallelize:true}
     rest:
       enabled: ${api.endpoints.rest.enabled:true}
-      host: ${api.endpoints.rest.host:localhost:5555}
+      host: ${api.endpoints.rest.host:":5555"}
       exposedHost: ${api.endpoints.rest.exposedHost:null}
       tlsMode: ${api.endpoints.rest.tlsMode:FORCE_TLS}
       allowedOrigins: ${api.endpoints.rest.allowedOrigins:null}
     gRPC:
       enabled: ${api.endpoints.gRPC.enabled:true}
-      host: ${api.endpoints.gRPC.host:localhost:5555}
+      host: ${api.endpoints.gRPC.host:":5555"}
       exposedHost: ${api.endpoints.gRPC.exposedHost:null}
       tlsMode: ${api.endpoints.gRPC.tlsMode:FORCE_TLS}
       exposeDocsService: ${api.endpoints.gRPC.exposeDocsService:false}
@@ -96,7 +96,7 @@ api:
         allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:[]}
     lab:
       enabled: ${api.endpoints.lab.enabled:true}
-      host: ${api.endpoints.lab.host:localhost:5555}
+      host: ${api.endpoints.lab.host:":5555"}
       tlsMode: ${api.endpoints.lab.tlsMode:FORCE_TLS}
       allowedOrigins: ${api.endpoints.lab.allowedOrigins:null}
       gui:
@@ -105,7 +105,7 @@ api:
         preconfiguredConnections: !include ${api.endpoints.lab.gui.preconfiguredConnections:null}
     observability:
       enabled: ${api.endpoints.observability.enabled:true}
-      host: ${api.endpoints.observability.host:localhost:5555}
+      host: ${api.endpoints.observability.host:":5555"}
       exposedHost: ${api.endpoints.observability.exposedHost:null}
       tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
