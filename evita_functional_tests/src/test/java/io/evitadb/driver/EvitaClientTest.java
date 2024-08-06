@@ -179,7 +179,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertTrue(lastDash > 0, "Dash not found! Look at the evita-configuration.yml in test resources!");
 		final Path clientCertificates = Path.of(serverCertificates.substring(0, lastDash) + "-client");
 		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration.builder()
-			.host(grpcHost.hostName())
+			.host(grpcHost.hostAddress())
 			.port(grpcHost.port())
 			.systemApiPort(systemHost.port())
 			.mtlsEnabled(false)

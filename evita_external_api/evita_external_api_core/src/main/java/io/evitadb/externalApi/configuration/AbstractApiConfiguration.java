@@ -142,7 +142,7 @@ public abstract class AbstractApiConfiguration {
 							.stream()
 					),
 				Arrays.stream(getHost())
-					.map(it -> it.hostName() + ":" + it.port())
+					.map(HostDefinition::hostAddressWithPort)
 			)
 			.map(it -> (getTlsMode() == TlsMode.FORCE_NO_TLS ? "http://" : "https://") + it +
 				(this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))

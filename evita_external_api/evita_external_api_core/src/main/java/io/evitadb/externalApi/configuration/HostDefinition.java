@@ -23,8 +23,6 @@
 
 package io.evitadb.externalApi.configuration;
 
-import io.evitadb.utils.NetworkUtils;
-
 import javax.annotation.Nonnull;
 import java.net.InetAddress;
 
@@ -44,27 +42,20 @@ public record HostDefinition(
 ) {
 
 	/**
+	 * Returns IP address as a string.
+	 * @return IP address as a string
+	 */
+	@Nonnull
+	public String hostAddress() {
+		return host.getHostAddress();
+	}
+
+	/**
 	 * Returns IP address with port as a single string.
 	 */
 	@Nonnull
-	public String hostWithPort() {
+	public String hostAddressWithPort() {
 		return host.getHostAddress() + ":" + port;
-	}
-
-	/**
-	 * Returns human comprehensible host name of the configured host.
-	 */
-	@Nonnull
-	public String hostName() {
-		return NetworkUtils.getHostName(host);
-	}
-
-	/**
-	 * Returns human comprehensible host name of the configured host and port.
-	 */
-	@Nonnull
-	public String hostNameWithPort() {
-		return hostName() + ":" + port;
 	}
 
 }

@@ -33,8 +33,8 @@ import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.TlsMode;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager.Builder;
+import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.utils.Assert;
@@ -69,7 +69,7 @@ public class TestGrpcClientBuilderCreator {
 		if (certificate.generateAndUseSelfSigned()) {
 			final AbstractApiConfiguration systemEndpoint = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
 			Assert.notNull(systemEndpoint, "System endpoint is not enabled!");
-			builder.useGeneratedCertificate(true, systemEndpoint.getHost()[0].hostName(), systemEndpoint.getHost()[0].port());
+			builder.useGeneratedCertificate(true, systemEndpoint.getHost()[0].hostAddress(), systemEndpoint.getHost()[0].port());
 		}
 
 		final GrpcConfig grpcConfig = apiOptions.getEndpointConfiguration(GrpcProvider.CODE);

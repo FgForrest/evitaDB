@@ -29,7 +29,6 @@ import com.linecorp.armeria.common.util.EventLoopGroups;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.Server;
 import com.linecorp.armeria.server.ServerBuilder;
-import com.linecorp.armeria.server.VirtualHostBuilder;
 import com.linecorp.armeria.server.encoding.DecodingService;
 import com.linecorp.armeria.server.encoding.EncodingService;
 import com.linecorp.armeria.server.logging.AccessLogWriter;
@@ -41,6 +40,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.ApiConfigurationWithMutualTls;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.CertificatePath;
@@ -57,7 +57,6 @@ import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
-import io.evitadb.utils.NetworkUtils;
 import io.evitadb.utils.StringUtils;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
@@ -93,13 +92,10 @@ import java.util.ServiceLoader.Provider;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -443,7 +439,8 @@ public class ExternalApiServer implements AutoCloseable {
 						) : null
 				);
 			configureArmeria(evita, serverBuilder, certificatePath, apiOptions);
-		} catch (CertificateException | UnrecoverableKeyException | KeyStoreException | IOException | NoSuchAlgorithmException e) {
+		} catch (CertificateException | UnrecoverableKeyException | KeyStoreException | IOException |
+		         NoSuchAlgorithmException e) {
 			throw new GenericEvitaInternalError(
 				"Failed to configure Armeria server with provided certificate and private key: " + e.getMessage(),
 				"Failed to configure Armeria server with provided certificate and private key.",
@@ -532,8 +529,6 @@ public class ExternalApiServer implements AutoCloseable {
 		@Nonnull CertificatePath certificatePath,
 		@Nonnull ApiOptions apiOptions
 	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
-		/* TODO JNO - remove? */
-		final PathHandlingService pathHandlingService = new PathHandlingService();
 		// in tests we don't wait for shutdowns
 		final boolean gracefulShutdown = !"true".equals(System.getProperty(DevelopmentConstants.TEST_RUN));
 		// we share worker group both for I/O and service processing, all computations are done in separate executors
@@ -569,75 +564,43 @@ public class ExternalApiServer implements AutoCloseable {
 			serverBuilder.accessLogWriter(AccessLogWriter.combined(), gracefulShutdown);
 		}
 
-		final AtomicReference<KeyManagerFactory> keyFactoryRef = new AtomicReference<>();
-		/* TODO JNO - commented out */
-		/*final Map<HostDefinition, VirtualHostDefinition> hosts = createHashMap(8);*/
+		final List<FixedPathService> fixedPathHandlingServices = new LinkedList<>();
+		// objects lazily initialized on first use
+		PathHandlingService pathHandlingService = null;
+		MtlsConfiguration mtlsConfiguration = null;
 
-		// we need to process APIs with PathHandlingMode.FIXED_PATH_HANDLING first,
-		// because the DYNAMIC_PATH_HANDLING catches all other requests on the same '/' route
-		final List<ExternalApiProvider<?>> sortedRegisteredApiProviders = registeredApiProviders.values()
-			.stream()
-			.sorted(Comparator.comparing(api ->
-				Arrays.stream(api.getHttpServiceDefinitions()).anyMatch(it -> it.pathHandlingMode() == PathHandlingMode.FIXED_PATH_HANDLING) ? -1 : 1)
-			).toList();
 		// for each API provider do
-		for (ExternalApiProvider<?> registeredApiProvider : sortedRegisteredApiProviders) {
+		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
 			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
 			// ok, only for those that are actually enabled ;)
 			if (configuration.isEnabled()) {
-				for (HostDefinition host : configuration.getHost()) {
-					/* TODO JNO - commented out */
-					/*final VirtualHostDefinition hostDefinitionVirtualHosts;*/
-					// get existing host configuration or set up new one
-					/* TODO JNO - commented out */
-					/*hostDefinitionVirtualHosts = hosts.computeIfAbsent(
-						host,
-						theHost -> {
-							final VirtualHostDefinition definition = new VirtualHostDefinition(serverBuilder, host);
-							// if at least one host on this virtual host allows TLS
-							if (apiOptions.atLeastOneEndpointRequiresTls(host)) {
-								definition.applyToAllHostSetups(
-									virtualHostBuilder -> {
-										// configure TLS
-										virtualHostBuilder.tls(
-											// key manager factory is created only once and shared
-											keyFactoryRef.updateAndGet(
-												it -> it == null ? createKeyManagerFactory(certificatePath) : it
-											)
-										);
-										// customize TLS settings
-										customizeTls(
-											virtualHostBuilder, apiOptions,
-											configuration instanceof ApiConfigurationWithMutualTls apiWithMutualTls ?
-												apiWithMutualTls.getMtlsConfiguration() : null
-										);
-									}
-								);
-							}
-							return definition;
-						}
-					);*/
+				// if the API allows MTLS, retrieve its configuration
+				if (configuration instanceof ApiConfigurationWithMutualTls apiWithMutualTls) {
+					/* actually only gRPC API allows mTLS */
+					Assert.isPremiseValid(
+						mtlsConfiguration == null || mtlsConfiguration.equals(apiWithMutualTls.getMtlsConfiguration()),
+						"Multiple APIs with different mutual TLS configuration found. Only one API can have mutual TLS enabled."
+					);
+					mtlsConfiguration = apiWithMutualTls.getMtlsConfiguration();
+				}
 
+				for (HostDefinition host : configuration.getHost()) {
 					// if the host allows non-TLS interface, set it up
 					final TlsMode tlsMode = configuration.getTlsMode();
 					if (tlsMode == TlsMode.FORCE_NO_TLS || tlsMode == TlsMode.RELAXED) {
-						/* TODO JNO - commented out */
-						/*if (host.localhost()) {
+						if (host.localhost()) {
 							serverBuilder.port(host.port(), SessionProtocol.HTTP, SessionProtocol.PROXY);
 						} else {
 							serverBuilder.port(new InetSocketAddress(host.host(), host.port()), SessionProtocol.HTTP, SessionProtocol.PROXY);
-						}*/
-						serverBuilder.port(new InetSocketAddress("127.0.0.1", host.port()), SessionProtocol.HTTP, SessionProtocol.PROXY);
+						}
 					}
 					// if the host allows TLS interface, set it up
 					if (tlsMode == TlsMode.FORCE_TLS || tlsMode == TlsMode.RELAXED) {
-						/* TODO JNO - commented out */
-						/*if (host.localhost()) {
+						if (host.localhost()) {
 							serverBuilder.port(host.port(), SessionProtocol.HTTPS, SessionProtocol.PROXY);
 						} else {
 							serverBuilder.port(new InetSocketAddress(host.host(), host.port()), SessionProtocol.HTTPS, SessionProtocol.PROXY);
-						}*/
-						serverBuilder.port(new InetSocketAddress("127.0.0.1", host.port()), SessionProtocol.HTTPS, SessionProtocol.PROXY);
+						}
 					}
 
 					// now provide implementation for the host services
@@ -654,18 +617,14 @@ public class ExternalApiServer implements AutoCloseable {
 
 						if (httpServiceDefinition.pathHandlingMode() == PathHandlingMode.FIXED_PATH_HANDLING) {
 							// if the service handles base path pathHandlingMode on its own then configure it for all hosts
-							serverBuilder.serviceUnder(servicePath, httpServiceDefinition.service());
-							/* TODO JNO - commented out */
-							/*hostDefinitionVirtualHosts.setupFixedPathHandling(
-								servicePath, httpServiceDefinition.service()
-							);*/
+							fixedPathHandlingServices.add(
+								new FixedPathService(servicePath, httpServiceDefinition.service())
+							);
 						} else {
 							// else use path handling service to route requests to the service
-							/* TODO JNO - commented out */
-							/*hostDefinitionVirtualHosts.setupDynamicPathHandling(
-								servicePath, httpServiceDefinition.service()
-							);*/
-
+							if (pathHandlingService == null) {
+								pathHandlingService = new PathHandlingService();
+							}
 							pathHandlingService.addPrefixPath(servicePath, httpServiceDefinition.service());
 						}
 					}
@@ -674,108 +633,38 @@ public class ExternalApiServer implements AutoCloseable {
 			}
 		}
 
-		/* TODO JNO - Hack */
+		// initialize and customize TLS settings if at least one endpoint requires / allows TLS protocol
 		if (apiOptions.atLeastOneEndpointRequiresTls()) {
+			final KeyManagerFactory keyFactory = createKeyManagerFactory(certificatePath);
 			// configure TLS
-			serverBuilder.tls(
-				// key manager factory is created only once and shared
-				keyFactoryRef.updateAndGet(
-					it -> it == null ? createKeyManagerFactory(certificatePath) : it
-				)
-			);
+			serverBuilder.tls(keyFactory);
 			// customize TLS settings
-			customizeTls(
-				serverBuilder, apiOptions,
-				null
-			);
+			customizeTls(serverBuilder, apiOptions, mtlsConfiguration);
 		}
 
-		serverBuilder.service("glob:/**", pathHandlingService)
-			.decorator(LoggingService.newDecorator());
+		// we need to process APIs with PathHandlingMode.FIXED_PATH_HANDLING first,
+		// because the DYNAMIC_PATH_HANDLING catches all other requests on the same route
+		for (FixedPathService fixedPathHandlingService : fixedPathHandlingServices) {
+			serverBuilder.serviceUnder(fixedPathHandlingService.servicePath(), fixedPathHandlingService.service());
+		}
+
+		// if path handling service is set, use it for all requests
+		if (pathHandlingService != null) {
+			serverBuilder.service("glob:/**", pathHandlingService)
+				.decorator(LoggingService.newDecorator());
+		}
 	}
 
 	/**
-	 * Class encapsulates one or more virtual hosts with shared router. All virtual hosts share the same port, but may
-	 * listen on multiple internet addresses.
+	 * Fixed path services must be initialized prior to dynamic path handling service.
+	 *
+	 * @param servicePath fixed path of the service
+	 * @param service     service to be handled
 	 */
-	private static class VirtualHostDefinition {
-		/**
-		 * Contains setup for one or more virtual hosts with shared router.
-		 */
-		private final Map<String, VirtualHostBuilder> hostSetup = createHashMap(10);
-		/**
-		 * Contains shared path handling service for all virtual hosts.
-		 * Instance is unique per virtual host definition.
-		 */
-		private PathHandlingService pathHandlingService;
-
-		public VirtualHostDefinition(
-			@Nonnull ServerBuilder serverBuilder,
-			@Nonnull HostDefinition hostDefinition
-		) {
-			setupHost(hostDefinition.hostNameWithPort(), serverBuilder);
-			setupHost(hostDefinition.hostWithPort(), serverBuilder);
-			if (hostDefinition.localhost()) {
-				Arrays.stream(
-					new String[]{
-						"127.0.0.1:" + hostDefinition.port(),
-						"localhost:" + hostDefinition.port(),
-						NetworkUtils.getHostName(NetworkUtils.getByName("localhost")) + ":" + hostDefinition.port()
-					}
-				).forEach(host -> setupHost(host, serverBuilder));
-			}
-		}
-
-		/**
-		 * Applies given function to all virtual host builders.
-		 */
-		public void applyToAllHostSetups(@Nonnull Consumer<VirtualHostBuilder> function) {
-			this.hostSetup.values().forEach(function);
-		}
-
-		/**
-		 * Registers the service as service with fixed path handling that doesn't change in runtime.
-		 *
-		 * @param servicePath base path
-		 * @param service the service to register
-		 */
-		public void setupFixedPathHandling(@Nonnull String servicePath, @Nonnull HttpService service) {
-			applyToAllHostSetups(
-				virtualHostBuilder -> virtualHostBuilder.serviceUnder(servicePath, service)
-			);
-		}
-
-		/**
-		 * Registers the service as service with dynamic path handling that changes during runtime - i.e. new paths
-		 * may be set-up, old ones removed. For this reasons our internal {@link PathHandlingService} exists.
-		 *
-		 * @param servicePath base path
-		 * @param service the service to register
-		 */
-		public void setupDynamicPathHandling(@Nonnull String servicePath, @Nonnull HttpService service) {
-			if (this.pathHandlingService == null) {
-				this.pathHandlingService = new PathHandlingService();
-				applyToAllHostSetups(
-					virtualHostBuilder -> virtualHostBuilder
-						.service("glob:/**", pathHandlingService)
-						.decorator(LoggingService.newDecorator())
-				);
-			}
-			this.pathHandlingService.addPrefixPath(servicePath, service);
-		}
-
-		/**
-		 * Registers virtual host with given host name and port.
-		 */
-		private void setupHost(
-			@Nonnull String hostNameWithPort,
-			@Nonnull ServerBuilder serverBuilder
-		) {
-			this.hostSetup.put(
-				hostNameWithPort,
-				serverBuilder.virtualHost(hostNameWithPort)
-			);
-		}
+	private record FixedPathService(
+		@Nonnull String servicePath,
+		@Nonnull HttpService service
+	) {
 	}
 
 }

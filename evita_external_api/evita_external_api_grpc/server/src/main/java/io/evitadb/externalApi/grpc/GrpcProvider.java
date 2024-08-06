@@ -109,7 +109,7 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 		for (HostDefinition hostDefinition : this.configuration.getHost()) {
 			final String uriScheme = configuration.getTlsMode() != TlsMode.FORCE_NO_TLS ? "https" : "http";
 
-			final String uri = uriScheme + "://" + hostDefinition.hostWithPort() + "/";
+			final String uri = uriScheme + "://" + hostDefinition.hostAddressWithPort() + "/";
 			if (!uri.equals(reachableUrl) && checkReachable(uri)) {
 				return true;
 			}
