@@ -41,7 +41,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
-import io.evitadb.externalApi.configuration.ApiConfigurationWithMutualTls;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.CertificatePath;
@@ -570,7 +569,8 @@ public class ExternalApiServer implements AutoCloseable {
 		}
 
 		final AtomicReference<KeyManagerFactory> keyFactoryRef = new AtomicReference<>();
-		final Map<HostDefinition, VirtualHostDefinition> hosts = createHashMap(8);
+		/* TODO JNO - commented out */
+		/*final Map<HostDefinition, VirtualHostDefinition> hosts = createHashMap(8);*/
 
 		// we need to process APIs with PathHandlingMode.FIXED_PATH_HANDLING first,
 		// because the DYNAMIC_PATH_HANDLING catches all other requests on the same '/' route
@@ -585,9 +585,11 @@ public class ExternalApiServer implements AutoCloseable {
 			// ok, only for those that are actually enabled ;)
 			if (configuration.isEnabled()) {
 				for (HostDefinition host : configuration.getHost()) {
-					final VirtualHostDefinition hostDefinitionVirtualHosts;
+					/* TODO JNO - commented out */
+					/*final VirtualHostDefinition hostDefinitionVirtualHosts;*/
 					// get existing host configuration or set up new one
-					hostDefinitionVirtualHosts = hosts.computeIfAbsent(
+					/* TODO JNO - commented out */
+					/*hostDefinitionVirtualHosts = hosts.computeIfAbsent(
 						host,
 						theHost -> {
 							final VirtualHostDefinition definition = new VirtualHostDefinition(serverBuilder, host);
@@ -613,24 +615,28 @@ public class ExternalApiServer implements AutoCloseable {
 							}
 							return definition;
 						}
-					);
+					);*/
 
 					// if the host allows non-TLS interface, set it up
 					final TlsMode tlsMode = configuration.getTlsMode();
 					if (tlsMode == TlsMode.FORCE_NO_TLS || tlsMode == TlsMode.RELAXED) {
-						if (host.localhost()) {
+						/* TODO JNO - commented out */
+						/*if (host.localhost()) {
 							serverBuilder.port(host.port(), SessionProtocol.HTTP, SessionProtocol.PROXY);
 						} else {
 							serverBuilder.port(new InetSocketAddress(host.host(), host.port()), SessionProtocol.HTTP, SessionProtocol.PROXY);
-						}
+						}*/
+						serverBuilder.port(new InetSocketAddress("127.0.0.1", host.port()), SessionProtocol.HTTP, SessionProtocol.PROXY);
 					}
 					// if the host allows TLS interface, set it up
 					if (tlsMode == TlsMode.FORCE_TLS || tlsMode == TlsMode.RELAXED) {
-						if (host.localhost()) {
+						/* TODO JNO - commented out */
+						/*if (host.localhost()) {
 							serverBuilder.port(host.port(), SessionProtocol.HTTPS, SessionProtocol.PROXY);
 						} else {
 							serverBuilder.port(new InetSocketAddress(host.host(), host.port()), SessionProtocol.HTTPS, SessionProtocol.PROXY);
-						}
+						}*/
+						serverBuilder.port(new InetSocketAddress("127.0.0.1", host.port()), SessionProtocol.HTTPS, SessionProtocol.PROXY);
 					}
 
 					// now provide implementation for the host services
@@ -647,14 +653,22 @@ public class ExternalApiServer implements AutoCloseable {
 
 						if (httpServiceDefinition.pathHandlingMode() == PathHandlingMode.FIXED_PATH_HANDLING) {
 							// if the service handles base path pathHandlingMode on its own then configure it for all hosts
-							hostDefinitionVirtualHosts.setupFixedPathHandling(
+							serverBuilder.serviceUnder(servicePath, httpServiceDefinition.service());
+							/* TODO JNO - commented out */
+							/*hostDefinitionVirtualHosts.setupFixedPathHandling(
 								servicePath, httpServiceDefinition.service()
-							);
+							);*/
 						} else {
 							// else use path handling service to route requests to the service
-							hostDefinitionVirtualHosts.setupDynamicPathHandling(
+							/* TODO JNO - commented out */
+							/*hostDefinitionVirtualHosts.setupDynamicPathHandling(
 								servicePath, httpServiceDefinition.service()
-							);
+							);*/
+
+							final PathHandlingService pathHandlingService = new PathHandlingService();
+							serverBuilder.service("glob:/**", pathHandlingService)
+										.decorator(LoggingService.newDecorator());
+							pathHandlingService.addPrefixPath(servicePath, httpServiceDefinition.service());
 						}
 					}
 				}
