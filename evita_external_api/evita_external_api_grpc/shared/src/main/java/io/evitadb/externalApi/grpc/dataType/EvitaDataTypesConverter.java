@@ -339,7 +339,8 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static GrpcEvitaAssociatedDataValue toGrpcEvitaAssociatedDataValue(@Nullable Serializable value, @Nullable Integer version) {
-		final GrpcEvitaAssociatedDataValue.Builder builder = GrpcEvitaAssociatedDataValue.newBuilder();
+		final GrpcEvitaAssociatedDataValue.Builder builder = GrpcEvitaAssociatedDataValue.newBuilder()
+			.setType(toGrpcEvitaAssociatedDataDataType(value.getClass()));
 
 		if (value instanceof ComplexDataObject complexDataObject) {
 			builder.setJsonValue(ComplexDataObjectConverter.convertComplexDataObjectToJson(complexDataObject).toString());

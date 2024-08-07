@@ -304,6 +304,8 @@ message GrpcEvitaAssociatedDataValue {
     // JSON string value.
     string jsonValue = 2;
   }
+  // The type of the stored value.
+  GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;
   // Contains version of this value and gets increased with any entity type update. Allows to execute
   //			optimistic locking i.e. avoiding parallel modifications.
   google.protobuf.Int32Value version = 3;

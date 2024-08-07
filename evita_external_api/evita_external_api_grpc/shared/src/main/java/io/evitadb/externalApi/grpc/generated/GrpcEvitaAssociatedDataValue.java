@@ -44,6 +44,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcEvitaAssociatedDataValue() {
+    type_ = 0;
   }
 
   @java.lang.Override
@@ -107,6 +108,12 @@ private static final long serialVersionUID = 0L;
               version_ = subBuilder.buildPartial();
             }
 
+            break;
+          }
+          case 800: {
+            int rawValue = input.readEnum();
+
+            type_ = rawValue;
             break;
           }
           default: {
@@ -289,6 +296,33 @@ private static final long serialVersionUID = 0L;
     }
   }
 
+  public static final int TYPE_FIELD_NUMBER = 100;
+  private int type_;
+  /**
+   * <pre>
+   * The type of the stored value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
+   * @return The enum numeric value on the wire for type.
+   */
+  @java.lang.Override public int getTypeValue() {
+    return type_;
+  }
+  /**
+   * <pre>
+   * The type of the stored value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
+   * @return The type.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType getType() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType result = io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.valueOf(type_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.UNRECOGNIZED : result;
+  }
+
   public static final int VERSION_FIELD_NUMBER = 3;
   private com.google.protobuf.Int32Value version_;
   /**
@@ -353,6 +387,9 @@ private static final long serialVersionUID = 0L;
     if (version_ != null) {
       output.writeMessage(3, getVersion());
     }
+    if (type_ != io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.STRING.getNumber()) {
+      output.writeEnum(100, type_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -373,6 +410,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getVersion());
     }
+    if (type_ != io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.STRING.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(100, type_);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -388,6 +429,7 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue other = (io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue) obj;
 
+    if (type_ != other.type_) return false;
     if (hasVersion() != other.hasVersion()) return false;
     if (hasVersion()) {
       if (!getVersion()
@@ -417,6 +459,8 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
+    hash = (37 * hash) + TYPE_FIELD_NUMBER;
+    hash = (53 * hash) + type_;
     if (hasVersion()) {
       hash = (37 * hash) + VERSION_FIELD_NUMBER;
       hash = (53 * hash) + getVersion().hashCode();
@@ -571,6 +615,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
+      type_ = 0;
+
       if (versionBuilder_ == null) {
         version_ = null;
       } else {
@@ -615,6 +661,7 @@ private static final long serialVersionUID = 0L;
       if (valueCase_ == 2) {
         result.value_ = value_;
       }
+      result.type_ = type_;
       if (versionBuilder_ == null) {
         result.version_ = version_;
       } else {
@@ -669,6 +716,9 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.getDefaultInstance()) return this;
+      if (other.type_ != 0) {
+        setTypeValue(other.getTypeValue());
+      }
       if (other.hasVersion()) {
         mergeVersion(other.getVersion());
       }
@@ -1025,6 +1075,80 @@ private static final long serialVersionUID = 0L;
   checkByteStringIsUtf8(value);
       valueCase_ = 2;
       value_ = value;
+      onChanged();
+      return this;
+    }
+
+    private int type_ = 0;
+    /**
+     * <pre>
+     * The type of the stored value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
+     * @return The enum numeric value on the wire for type.
+     */
+    @java.lang.Override public int getTypeValue() {
+      return type_;
+    }
+    /**
+     * <pre>
+     * The type of the stored value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
+     * @param value The enum numeric value on the wire for type to set.
+     * @return This builder for chaining.
+     */
+    public Builder setTypeValue(int value) {
+
+      type_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The type of the stored value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
+     * @return The type.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType getType() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType result = io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.valueOf(type_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * The type of the stored value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
+     * @param value The type to set.
+     * @return This builder for chaining.
+     */
+    public Builder setType(io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+
+      type_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The type of the stored value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearType() {
+
+      type_ = 0;
       onChanged();
       return this;
     }

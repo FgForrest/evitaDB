@@ -88,6 +88,25 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
 
   /**
    * <pre>
+   * The type of the stored value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
+   * @return The enum numeric value on the wire for type.
+   */
+  int getTypeValue();
+  /**
+   * <pre>
+   * The type of the stored value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
+   * @return The type.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType getType();
+
+  /**
+   * <pre>
    * Contains version of this value and gets increased with any entity type update. Allows to execute
    *			optimistic locking i.e. avoiding parallel modifications.
    * </pre>
