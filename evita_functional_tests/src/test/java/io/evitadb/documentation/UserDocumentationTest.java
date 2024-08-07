@@ -451,7 +451,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
 			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/use/connectors/grpc.md"),
+			getRootDirectory().resolve("documentation/user/en/use/api/query-data.md"),
 			new ExampleFilter[]{
 				ExampleFilter.CSHARP,
 				ExampleFilter.JAVA,
