@@ -21,42 +21,32 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.query.serializer.require;
+package io.evitadb.store.query.serializer.orderBy;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.require.Debug;
-import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.order.AttributeSetInFilter;
 import lombok.RequiredArgsConstructor;
 
-import java.io.Serializable;
-
 /**
- * This {@link Serializer} implementation reads/writes {@link Debug} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link AttributeSetInFilter} from/to binary format.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class DebugSerializer extends Serializer<Debug> {
+public class AttributeSetInFilterSerializer extends Serializer<AttributeSetInFilter> {
 
 	@Override
-	public void write(Kryo kryo, Output output, Debug object) {
-		final Serializable[] modes = object.getArguments();
-		output.writeVarInt(modes.length, true);
-		for (Serializable mode : modes) {
-			kryo.writeObject(output, mode);
-		}
+	public void write(Kryo kryo, Output output, AttributeSetInFilter object) {
+		output.writeString(object.getAttributeName());
 	}
 
 	@Override
-	public Debug read(Kryo kryo, Input input, Class<? extends Debug> type) {
-		final DebugMode[] modes = new DebugMode[input.readVarInt(true)];
-		for (int i = 0; i < modes.length; i++) {
-			modes[i] = kryo.readObject(input, DebugMode.class);
-		}
-		return new Debug(modes);
+	public AttributeSetInFilter read(Kryo kryo, Input input, Class<? extends AttributeSetInFilter> type) {
+		final String attributeName = input.readString();
+		return new AttributeSetInFilter(attributeName);
 	}
 
 }

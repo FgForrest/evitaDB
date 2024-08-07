@@ -21,44 +21,40 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.query.serializer.require;
+package io.evitadb.store.query.serializer.OrderGroupBy;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.require.PriceContent;
-import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.order.OrderGroupBy;
 import lombok.RequiredArgsConstructor;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link PriceContent} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link OrderGroupBy} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class PriceContentSerializer extends Serializer<PriceContent> {
+public class OrderGroupBySerializer extends Serializer<OrderGroupBy> {
 
 	@Override
-	public void write(Kryo kryo, Output output, PriceContent object) {
-		kryo.writeObject(output, object.getFetchMode());
-
-		final String[] additionalPriceListsToFetch = object.getAdditionalPriceListsToFetch();
-		output.writeVarInt(additionalPriceListsToFetch.length, true);
-		for (String priceList : additionalPriceListsToFetch) {
-			output.writeString(priceList);
+	public void write(Kryo kryo, Output output, OrderGroupBy object) {
+		output.writeVarInt(object.getChildrenCount(), true);
+		for (OrderConstraint child : object.getChildren()) {
+			kryo.writeClassAndObject(output, child);
 		}
 	}
 
 	@Override
-	public PriceContent read(Kryo kryo, Input input, Class<? extends PriceContent> type) {
-		final PriceContentMode contentMode = kryo.readObject(input, PriceContentMode.class);
-		final int additionalPriceListCount = input.readVarInt(true);
-		final String[] additionalPriceListsToFetch = new String[additionalPriceListCount];
-		for (int i = 0; i < additionalPriceListCount; i++) {
-			additionalPriceListsToFetch[i] = input.readString();
+	public OrderGroupBy read(Kryo kryo, Input input, Class<? extends OrderGroupBy> type) {
+		final int childrenCount = input.readVarInt(true);
+		final OrderConstraint[] children = new OrderConstraint[childrenCount];
+		for (int i = 0; i < childrenCount; i++) {
+			children[i] = (OrderConstraint) kryo.readClassAndObject(input);
 		}
-		return new PriceContent(contentMode, additionalPriceListsToFetch);
+		return new OrderGroupBy(children);
 	}
 
 }

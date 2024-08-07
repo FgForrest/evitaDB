@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,42 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.query.serializer.require;
+package io.evitadb.store.query.serializer.orderBy;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.require.Debug;
-import io.evitadb.api.query.require.DebugMode;
-import lombok.RequiredArgsConstructor;
-
-import java.io.Serializable;
+import io.evitadb.api.query.order.EntityPrimaryKeyInFilter;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link Debug} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link EntityPrimaryKeyInFilter} from/to binary format.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
-public class DebugSerializer extends Serializer<Debug> {
+public class EntityPrimaryKeyInFilterSerializer extends Serializer<EntityPrimaryKeyInFilter> {
 
 	@Override
-	public void write(Kryo kryo, Output output, Debug object) {
-		final Serializable[] modes = object.getArguments();
-		output.writeVarInt(modes.length, true);
-		for (Serializable mode : modes) {
-			kryo.writeObject(output, mode);
-		}
+	public void write(Kryo kryo, Output output, EntityPrimaryKeyInFilter object) {
+
 	}
 
 	@Override
-	public Debug read(Kryo kryo, Input input, Class<? extends Debug> type) {
-		final DebugMode[] modes = new DebugMode[input.readVarInt(true)];
-		for (int i = 0; i < modes.length; i++) {
-			modes[i] = kryo.readObject(input, DebugMode.class);
-		}
-		return new Debug(modes);
+	public EntityPrimaryKeyInFilter read(Kryo kryo, Input input, Class<? extends EntityPrimaryKeyInFilter> type) {
+		return new EntityPrimaryKeyInFilter();
 	}
 
 }

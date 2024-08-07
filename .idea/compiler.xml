@@ -42,7 +42,6 @@
         <module name="evita_java_driver_observability" />
         <module name="evita_external_api_observability" />
         <module name="evita_test_support" />
-        <module name="evita_common" />
         <module name="evita_store_common" />
         <module name="evita_java_driver" />
         <module name="evita_functional_tests" />
@@ -59,6 +58,16 @@
         <module name="evita_external_api_lab" />
         <module name="evita_store_entity" />
         <module name="evita_external_api_core" />
+      </profile>
+      <profile name="Annotation profile for evita_common" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$USER_HOME$/.m2/repository/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
+          <entry name="$USER_HOME$/.m2/repository/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
+        </processorPath>
+        <module name="evita_common" />
       </profile>
     </annotationProcessing>
   </component>

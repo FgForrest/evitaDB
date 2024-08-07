@@ -41,12 +41,20 @@ public class RequireSerializer extends Serializer<Require> {
 
 	@Override
 	public void write(Kryo kryo, Output output, Require object) {
-		kryo.writeClassAndObject(output, object.getChildren()[0]);
+		final RequireConstraint[] children = object.getChildren();
+		output.writeVarInt(children.length, true);
+		for (RequireConstraint child : children) {
+			kryo.writeClassAndObject(output, child);
+		}
 	}
 
 	@Override
 	public Require read(Kryo kryo, Input input, Class<? extends Require> type) {
-		return new Require((RequireConstraint) kryo.readClassAndObject(input));
+		final RequireConstraint[] children = new RequireConstraint[input.readVarInt(true)];
+		for (int i = 0; i < children.length; i++) {
+			children[i] = (RequireConstraint) kryo.readClassAndObject(input);
+		}
+		return new Require(children);
 	}
 
 }

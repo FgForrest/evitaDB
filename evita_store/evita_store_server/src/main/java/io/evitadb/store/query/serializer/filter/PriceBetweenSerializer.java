@@ -42,15 +42,15 @@ public class PriceBetweenSerializer extends Serializer<PriceBetween> {
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceBetween object) {
-		kryo.writeObject(output, object.getFrom());
-		kryo.writeObject(output, object.getTo());
+		kryo.writeObjectOrNull(output, object.getFrom(), BigDecimal.class);
+		kryo.writeObjectOrNull(output, object.getTo(), BigDecimal.class);
 	}
 
 	@Override
 	public PriceBetween read(Kryo kryo, Input input, Class<? extends PriceBetween> type) {
 		return new PriceBetween(
-			kryo.readObject(input, BigDecimal.class),
-			kryo.readObject(input, BigDecimal.class)
+			kryo.readObjectOrNull(input, BigDecimal.class),
+			kryo.readObjectOrNull(input, BigDecimal.class)
 		);
 	}
 

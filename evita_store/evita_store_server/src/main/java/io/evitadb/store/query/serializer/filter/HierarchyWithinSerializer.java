@@ -69,7 +69,7 @@ public class HierarchyWithinSerializer extends Serializer<HierarchyWithin> {
 		}
 		final FilterConstraint[] children = new FilterConstraint[input.readVarInt(true)];
 		for (int i = 0; i < children.length; i++) {
-			children[i] = (HierarchySpecificationFilterConstraint) kryo.readClassAndObject(input);
+			children[i] = (FilterConstraint) kryo.readClassAndObject(input);
 		}
 
 		final FilterConstraint parentFilter = Arrays.stream(children)

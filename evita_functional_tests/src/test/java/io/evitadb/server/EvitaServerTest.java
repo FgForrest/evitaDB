@@ -412,7 +412,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					      }
 					   ]
 					}""",
-				output
+				output,
+				"Original output: " + status.get()
 			);
 
 		} catch (Exception ex) {
