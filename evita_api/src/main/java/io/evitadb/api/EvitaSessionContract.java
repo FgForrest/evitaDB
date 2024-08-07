@@ -558,7 +558,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 					query.getOrderBy(),
 					(Require) query.getRequire().getCopyWithNewChildren(
 						ArrayUtils.mergeArrays(
-							new RequireConstraint[]{require(entityFetch())},
+							new RequireConstraint[]{entityFetch()},
 							query.getRequire().getChildren()
 						),
 						query.getRequire().getAdditionalChildren()

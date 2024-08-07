@@ -41,7 +41,6 @@ import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -198,7 +197,7 @@ class EvitaServiceFunctionalTest {
 									.setCatalogName(TEST_CATALOG)
 									.build()
 							);
-						makeSessionCall(TEST_CATALOG, response.getSessionId(), clientBuilder);
+						makeSessionCall(response.getSessionId(), clientBuilder);
 					}
 					latch.countDown();
 				} catch (Exception ex) {
@@ -384,8 +383,8 @@ class EvitaServiceFunctionalTest {
 		assertArrayEquals(evita.getCatalogNames().toArray(), catalogNamesList.toArray());
 	}
 
-	private void makeSessionCall(@Nonnull String catalogName, @Nonnull String sessionId, @Nonnull GrpcClientBuilder clientBuilder) {
-		SessionIdHolder.setSessionId(catalogName, sessionId);
+	private static void makeSessionCall(@Nonnull String sessionId, @Nonnull GrpcClientBuilder clientBuilder) {
+		SessionIdHolder.setSessionId(sessionId);
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
 
 		final AtomicReference<GrpcEntityTypesResponse> response = new AtomicReference<>();

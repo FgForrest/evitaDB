@@ -140,6 +140,9 @@ import io.netty.handler.ssl.ApplicationProtocolConfig.SelectorFailureBehavior;
 import io.netty.handler.ssl.ApplicationProtocolNames;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import com.linecorp.armeria.client.grpc.GrpcClients;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.filter.AttributeSpecialValue.*;

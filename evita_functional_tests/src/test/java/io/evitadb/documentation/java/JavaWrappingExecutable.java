@@ -25,6 +25,7 @@ package io.evitadb.documentation.java;
 
 import io.evitadb.documentation.UserDocumentationTest.CodeSnippet;
 import io.evitadb.documentation.java.JavaTestContext.InvocationResult;
+import io.evitadb.documentation.java.JavaTestContext.SideEffect;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.function.Executable;
@@ -59,6 +60,10 @@ public class JavaWrappingExecutable implements Executable, EvitaTestSupport {
 	 */
 	private final @Nullable Path[] requiredResources;
 	/**
+	 * Contains information about the executable side effects.
+	 */
+	private final @Nonnull SideEffect sideEffect;
+	/**
 	 * Contains index of all (so-far) identified code snippets in this document so that we can reuse their source codes.
 	 */
 	private final @Nonnull Map<Path, CodeSnippet> codeSnippetIndex;
@@ -68,12 +73,22 @@ public class JavaWrappingExecutable implements Executable, EvitaTestSupport {
 		final JavaTestContext javaTestContext = testContextAccessor.get();
 
 		final InvocationResult result = javaTestContext.executeJShellCommands(
-			composeRequiredBlocks(javaTestContext.getJShell(), getRootDirectory(), requiredResources, codeSnippetIndex)
+			composeRequiredBlocks(javaTestContext.getJShell(), getRootDirectory(), requiredResources, codeSnippetIndex),
+			sideEffect,
+			invocationResult -> {
+				if (invocationResult.exception() == null) {
+					try {
+						delegate.execute();
+					} catch (Throwable e) {
+						return new InvocationResult(
+							invocationResult.snippets(),
+							new RuntimeException(e)
+						);
+					}
+				}
+				return invocationResult;
+			}
 		);
-
-		if (result.exception() == null) {
-			delegate.execute();
-		}
 
 		if (result.exception() != null) {
 			throw result.exception();

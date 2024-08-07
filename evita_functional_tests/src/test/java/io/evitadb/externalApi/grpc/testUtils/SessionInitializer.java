@@ -32,7 +32,6 @@ import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
-import io.grpc.ManagedChannel;
 import io.grpc.Metadata;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -84,6 +83,6 @@ public class SessionInitializer {
 				.setCatalogName(TEST_CATALOG)
 				.build());
 		}
-		SessionIdHolder.setSessionId(TEST_CATALOG, response.getSessionId());
+		SessionIdHolder.setSessionId(response.getSessionId());
 	}
 }

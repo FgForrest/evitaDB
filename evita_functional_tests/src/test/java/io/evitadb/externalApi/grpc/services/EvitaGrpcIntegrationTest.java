@@ -44,7 +44,6 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -118,7 +117,7 @@ public class EvitaGrpcIntegrationTest {
 		assertEquals(GrpcSessionType.READ_ONLY, response.getSessionType());
 
 		//set the session id to the holder
-		SessionIdHolder.setSessionId(TEST_CATALOG, response.getSessionId());
+		SessionIdHolder.setSessionId(response.getSessionId());
 
 		final AtomicReference<GrpcEntityResponse> sessionResponse = new AtomicReference<>();
 

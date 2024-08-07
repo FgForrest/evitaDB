@@ -31,6 +31,7 @@ import io.evitadb.documentation.evitaql.EvitaTestContextFactory;
 import io.evitadb.documentation.graphql.GraphQLExecutable;
 import io.evitadb.documentation.graphql.GraphQLTestContextFactory;
 import io.evitadb.documentation.java.JavaExecutable;
+import io.evitadb.documentation.java.JavaTestContext.SideEffect;
 import io.evitadb.documentation.java.JavaTestContextFactory;
 import io.evitadb.documentation.java.JavaWrappingExecutable;
 import io.evitadb.documentation.rest.RestExecutable;
@@ -89,7 +90,6 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 
-	/* TODO JNO - u javy by bylo super vymyslet nějaký způsob, kde by se dropovaly jen snippety (requires), které nepotřebuje další příklad v Javě - tj. něco jako lazy drop?! */
 	/**
 	 * Pattern for searching for <SourceCodeTabs> blocks.
 	 */
@@ -232,6 +232,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		@Nullable Path resource,
 		@Nullable Path[] setupResources,
 		@Nullable Path[] requiredResources,
+		@Nonnull SideEffect sideEffect,
 		@Nonnull TestContextProvider contextAccessor,
 		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex,
 		@Nullable List<OutputSnippet> outputSnippet,
@@ -246,6 +247,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							ofNullable(setupResources).stream().flatMap(Arrays::stream),
 							ofNullable(requiredResources).stream().flatMap(Arrays::stream).filter(x -> x.toString().endsWith(".java"))
 					).toArray(Path[]::new),
+					sideEffect,
 					codeSnippetIndex
 				);
 			}
@@ -274,6 +276,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						contextAccessor.get(profile, JavaTestContextFactory.class),
 						graphQLExecutable,
 						setupResources,
+						sideEffect,
 						codeSnippetIndex
 					);
 			}
@@ -292,6 +295,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						contextAccessor.get(profile, JavaTestContextFactory.class),
 						restExecutable,
 						setupResources,
+						sideEffect,
 						codeSnippetIndex
 					);
 			}
@@ -313,6 +317,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						contextAccessor.get(profile, JavaTestContextFactory.class),
 						csharpExecutable,
 						setupResources,
+						sideEffect,
 						codeSnippetIndex
 					);
 			}
@@ -410,7 +415,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				.filter(path -> path.toString().endsWith(".md"))
 				.map(it -> {
 					final List<DynamicTest> tests = this.createTests(
-						Environment.LOCALHOST,
+						Environment.DEMO_SERVER,
 						it,
 						new ExampleFilter[]{
 							ExampleFilter.CSHARP,
@@ -445,8 +450,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			Environment.LOCALHOST,
-			getRootDirectory().resolve("documentation/user/en/use/api/write-data.md"),
+			Environment.DEMO_SERVER,
+			getRootDirectory().resolve("documentation/user/en/use/connectors/grpc.md"),
 			new ExampleFilter[]{
 				ExampleFilter.CSHARP,
 				ExampleFilter.JAVA,
@@ -518,6 +523,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							null,
 							null,
 							null,
+							SideEffect.WITH_SIDE_EFFECT,
 							contextAccessor,
 							codeSnippetIndex,
 							Collections.emptyList()
@@ -557,6 +563,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				continue;
 			}
 			final Environment environment = attributes.isLocal() ? Environment.LOCALHOST : profile;
+			final SideEffect sideEffect = attributes.isLocal() ? SideEffect.WITH_SIDE_EFFECT : SideEffect.WITHOUT_SIDE_EFFECT;
 
 			if (profile == Environment.LOCALHOST && attributes.isLocal()) {
 				// we need to skip the local tests when profile is localhost and the example is local
@@ -591,6 +598,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									relatedFile,
 									setupScripts,
 									requiredScripts,
+									sideEffect,
 									contextAccessor,
 									codeSnippetIndex,
 									ofNullable(
@@ -611,6 +619,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						referencedFile,
 						setupScripts,
 						requiredScripts,
+						sideEffect,
 						contextAccessor,
 						codeSnippetIndex,
 						outputSnippet,
@@ -629,6 +638,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final Attributes attributes = new Attributes(sourceAlternativeTabsMatcher.group(1));
 			final Path[] setupScripts = attributes.getSetupScripts(rootDirectory);
 			final Path[] requiredScripts = attributes.getRequiredScripts(rootDirectory);
+			final SideEffect sideEffect = attributes.isLocal() ? SideEffect.WITH_SIDE_EFFECT : SideEffect.WITHOUT_SIDE_EFFECT;
 			final String[] variants = attributes.getVariants();
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				alreadyUsedPaths.add(referencedFile);
@@ -655,6 +665,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									relatedFile,
 									setupScripts,
 									requiredScripts,
+									sideEffect,
 									contextAccessor,
 									codeSnippetIndex,
 									ofNullable(
@@ -675,6 +686,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						referencedFile,
 						setupScripts,
 						requiredScripts,
+						sideEffect,
 						contextAccessor,
 						codeSnippetIndex,
 						outputSnippet,

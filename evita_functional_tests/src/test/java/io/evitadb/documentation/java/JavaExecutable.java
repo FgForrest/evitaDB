@@ -26,6 +26,7 @@ package io.evitadb.documentation.java;
 import io.evitadb.documentation.UserDocumentationTest;
 import io.evitadb.documentation.UserDocumentationTest.CodeSnippet;
 import io.evitadb.documentation.java.JavaTestContext.InvocationResult;
+import io.evitadb.documentation.java.JavaTestContext.SideEffect;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -65,6 +66,10 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 	 * Contains paths of Java files that needs to be executed prior to {@link #sourceContent}
 	 */
 	private final @Nullable Path[] requiredResources;
+	/**
+	 * Contains information about the executable side effects.
+	 */
+	private final @Nonnull SideEffect sideEffect;
 	/**
 	 * Contains index of all (so-far) identified code snippets in this document so that we can reuse their source codes.
 	 */
@@ -157,7 +162,7 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 
 		// the code block must be successfully compiled and executed without an error
 		// to mark it as ok
-		final InvocationResult result = javaTestContext.executeJShellCommands(getSnippets());
+		final InvocationResult result = javaTestContext.executeJShellCommands(getSnippets(), this.sideEffect);
 
 		if (result.exception() != null) {
 			throw result.exception();

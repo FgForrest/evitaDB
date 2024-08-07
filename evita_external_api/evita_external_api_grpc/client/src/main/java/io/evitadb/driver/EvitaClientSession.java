@@ -1701,7 +1701,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull AsyncCallFunction<S, T> lambda, @Nonnull S stub
 	) {
 		try {
-			SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
+			SessionIdHolder.setSessionId(getId().toString());
 			return lambda.apply(stub);
 		} catch (StatusRuntimeException statusRuntimeException) {
 			throw transformStatusRuntimeException(statusRuntimeException);

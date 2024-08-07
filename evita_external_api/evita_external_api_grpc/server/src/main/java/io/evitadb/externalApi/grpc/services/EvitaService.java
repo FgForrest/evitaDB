@@ -100,14 +100,16 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 			.executeWithinBlock(
 				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
 				metadata,
-				() -> {
-					try {
-						executor.execute(lambda);
-					} catch (RuntimeException exception) {
-						// Delegate exception handling to GlobalExceptionHandlerInterceptor
-						GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
+				() -> executor.execute(
+					() -> {
+						try {
+							lambda.run();
+						} catch (RuntimeException exception) {
+							// Delegate exception handling to GlobalExceptionHandlerInterceptor
+							GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
+						}
 					}
-				}
+				)
 			);
 	}
 

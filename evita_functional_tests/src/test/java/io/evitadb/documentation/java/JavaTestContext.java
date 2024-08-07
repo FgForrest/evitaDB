@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -138,9 +139,24 @@ public class JavaTestContext implements TestContext {
 	/**
 	 * Method executes the list of {@link Snippet} in passed {@link JShell} instance a verifies that the execution
 	 * finished without an error.
+	 *
+	 * Method reuses the last JShell instance including its state and rolls back only those snippets which differ
+	 * in comparison to a passed set of snippets.
 	 */
 	@Nonnull
-	public InvocationResult executeJShellCommands(@Nonnull List<String> snippets) {
+	public InvocationResult executeJShellCommands(@Nonnull List<String> snippets, @Nonnull SideEffect sideEffect) {
+		return executeJShellCommands(snippets, sideEffect, null);
+	}
+
+	/**
+	 * Method executes the list of {@link Snippet} in passed {@link JShell} instance a verifies that the execution
+ 	 * finished without an error.
+	 *
+	 * Method reuses the last JShell instance including its state and rolls back only those snippets which differ
+	 * in comparison to a passed set of snippets.
+	 */
+	@Nonnull
+	public InvocationResult executeJShellCommands(@Nonnull List<String> snippets, @Nonnull SideEffect sideEffect, @Nullable UnaryOperator<InvocationResult> lambda) {
 		int index = 0;
 		if (this.lastInvocationResult != null) {
 			final int leastSize = Math.min(this.lastInvocationResult.snippets.size(), snippets.size());
@@ -151,22 +167,33 @@ public class JavaTestContext implements TestContext {
 			}
 			cleanJShell(this.lastInvocationResult.snippets().subList(index, this.lastInvocationResult.snippets.size()));
 		}
+
+		InvocationResult invocationResult;
 		if (index > 0) {
-			final InvocationResult invocationResult = executeJShellCommandsInternal(snippets.subList(index, snippets.size()));
-			final InvocationResult mergedResult = new InvocationResult(
+			final InvocationResult intermediateResult = executeJShellCommandsInternal(snippets.subList(index, snippets.size()));
+			invocationResult = new InvocationResult(
 				Streams.concat(
 					this.lastInvocationResult.snippets().subList(0, index).stream(),
-					invocationResult.snippets().stream()
+					intermediateResult.snippets().stream()
 				).toList(),
-				invocationResult.exception()
+				intermediateResult.exception()
 			);
-			this.lastInvocationResult = mergedResult;
-			return mergedResult;
 		} else {
-			final InvocationResult invocationResult = executeJShellCommandsInternal(snippets);
-			this.lastInvocationResult = invocationResult;
-			return invocationResult;
+			invocationResult = executeJShellCommandsInternal(snippets);
 		}
+
+		if (lambda != null) {
+			invocationResult = lambda.apply(invocationResult);
+		}
+
+		// if there was exception - clean context entirely and reset last invocation result
+		if (invocationResult.exception() != null || sideEffect == SideEffect.WITH_SIDE_EFFECT) {
+			cleanJShell(invocationResult.snippets());
+			this.lastInvocationResult = null;
+		} else {
+			this.lastInvocationResult = invocationResult;
+		}
+		return invocationResult;
 	}
 
 	/**
@@ -203,6 +230,16 @@ public class JavaTestContext implements TestContext {
 				jShell.drop(snippet);
 			}
 		}
+	}
+
+	/**
+	 * Cleans context and closes JShell instance.
+	 */
+	public void tearDown() {
+		if (this.lastInvocationResult != null) {
+			cleanJShell(this.lastInvocationResult.snippets());
+		}
+		this.jShell.close();
 	}
 
 	/**
@@ -284,6 +321,16 @@ public class JavaTestContext implements TestContext {
 		@Nonnull String source,
 		@Nonnull List<Snippet> snippets
 	) {
+	}
+
+	/**
+	 * Specifies whether the test has side effects and therefore must be completely rolled back after execution.
+	 */
+	public enum SideEffect {
+
+		WITHOUT_SIDE_EFFECT,
+		WITH_SIDE_EFFECT;
+
 	}
 
 }
