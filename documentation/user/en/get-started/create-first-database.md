@@ -16,6 +16,7 @@ We assume you already have the following snippet of the code from the [previous 
 <SourceCodeTabs local>
 
 [Example of starting the evitaDB server](/documentation/user/en/get-started/example/complete-startup.java)
+
 </SourceCodeTabs>
 
 So the evitaDB instance is now up and running and ready to communicate.
