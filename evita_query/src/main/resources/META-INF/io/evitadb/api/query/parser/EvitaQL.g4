@@ -145,6 +145,11 @@ requireConstraint
     | 'dataInLocales'                       args = valueListArgs                                            # dataInLocalesConstraint
     | 'facetSummary'                        (emptyArgs | args = facetSummary1Args)                          # facetSummary1Constraint
     | 'facetSummary'                        args = facetSummary2Args                                        # facetSummary2Constraint
+    | 'facetSummary'                        args = facetSummary3Args                                        # facetSummary3Constraint
+    | 'facetSummary'                        args = facetSummary4Args                                        # facetSummary4Constraint
+    | 'facetSummary'                        args = facetSummary5Args                                        # facetSummary5Constraint
+    | 'facetSummary'                        args = facetSummary6Args                                        # facetSummary6Constraint
+    | 'facetSummary'                        args = facetSummary7Args                                        # facetSummary7Constraint
     | 'facetSummaryOfReference'             args = classifierArgs                                           # facetSummaryOfReference1Constraint
     | 'facetSummaryOfReference'             args = facetSummaryOfReference2Args                             # facetSummaryOfReference2Constraint
     | 'facetGroupsConjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsConjunctionConstraint
@@ -296,9 +301,19 @@ allRequiresHierarchyContentArgs :                   argsOpening stopAt = require
 
 facetSummary1Args :                                 argsOpening depth = valueToken argsClosing ;
 
-facetSummary2Args :                                 argsOpening depth = valueToken (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
+facetSummary2Args :                                 argsOpening depth = valueToken ARGS_DELIMITER filter = facetSummaryFilterArgs (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
 
-facetSummaryOfReference2Args :                      argsOpening referenceName = valueToken ARGS_DELIMITER depth = valueToken (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
+facetSummary3Args :                                 argsOpening depth = valueToken ARGS_DELIMITER order = facetSummaryOrderArgs (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
+
+facetSummary4Args :                                 argsOpening depth = valueToken ARGS_DELIMITER requirements = facetSummaryRequirementsArgs argsClosing ;
+
+facetSummary5Args :                                 argsOpening filter = facetSummaryFilterArgs (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
+
+facetSummary6Args :                                 argsOpening order = facetSummaryOrderArgs (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
+
+facetSummary7Args :                                 argsOpening requirements = facetSummaryRequirementsArgs argsClosing ;
+
+facetSummaryOfReference2Args :                      argsOpening referenceName = valueToken (ARGS_DELIMITER depth = valueToken)? (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
 
 facetSummaryRequirementsArgs :                      (
                                                         (requirement = requireConstraint) |

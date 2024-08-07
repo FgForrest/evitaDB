@@ -1271,48 +1271,96 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitFacetSummary2Constraint(FacetSummary2ConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> {
-				final FacetStatisticsDepth depth = ctx.args.depth.accept(facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class);
+			() -> visitFacetSummaryConstraint(ctx, ctx.args.depth, ctx.args.filter, ctx.args.order, ctx.args.requirements)
+		);
+	}
 
-				final FilterConstraint filterBy1 = ofNullable(ctx.args.filter)
-					.map(filter -> filter.filterBy)
-					.map(c -> (FilterConstraint) visitChildConstraint(filterConstraintVisitor, c, FilterBy.class, FilterGroupBy.class))
-					.orElse(null);
-				final FilterGroupBy filterBy2 = ofNullable(ctx.args.filter)
-					.flatMap(filter -> ofNullable(filter.filterGroupBy))
-					.map(c -> visitChildConstraint(filterConstraintVisitor, c, FilterGroupBy.class))
-					.orElse(null);
-				if (filterBy2 != null) {
-					Assert.isTrue(
-						filterBy1 instanceof FilterBy,
-						() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
-					);
-				}
+	@Override
+	public RequireConstraint visitFacetSummary3Constraint(FacetSummary3ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitFacetSummaryConstraint(ctx, ctx.args.depth, null, ctx.args.order, ctx.args.requirements)
+		);
+	}
 
-				final OrderConstraint orderBy1 = ofNullable(ctx.args.order)
-					.map(order -> order.orderBy)
-					.map(c -> (OrderConstraint) visitChildConstraint(orderConstraintVisitor, c, OrderBy.class, OrderGroupBy.class))
-					.orElse(null);
-				final OrderGroupBy orderBy2 = ofNullable(ctx.args.order)
-					.flatMap(order -> ofNullable(order.orderGroupBy))
-					.map(c -> visitChildConstraint(orderConstraintVisitor, c, OrderGroupBy.class))
-					.orElse(null);
-				if (orderBy2 != null) {
-					Assert.isTrue(
-						orderBy1 instanceof OrderBy,
-						() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
-					);
-				}
+	@Override
+	public RequireConstraint visitFacetSummary4Constraint(FacetSummary4ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitFacetSummaryConstraint(ctx, ctx.args.depth, null, null, ctx.args.requirements)
+		);
+	}
 
-				return new FacetSummary(
-					depth,
-					filterBy1 instanceof FilterBy f ? f : null,
-					filterBy1 instanceof FilterGroupBy f ? f : filterBy2,
-					orderBy1 instanceof OrderBy o ? o : null,
-					orderBy1 instanceof OrderGroupBy o ? o : orderBy2,
-					parseFacetSummaryRequirementsArgs(ctx.args.requirements)
-				);
-			}
+	@Override
+	public RequireConstraint visitFacetSummary5Constraint(FacetSummary5ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitFacetSummaryConstraint(ctx, null, ctx.args.filter, ctx.args.order, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFacetSummary6Constraint(FacetSummary6ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitFacetSummaryConstraint(ctx, null, null, ctx.args.order, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFacetSummary7Constraint(FacetSummary7ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitFacetSummaryConstraint(ctx, null, null, null, ctx.args.requirements)
+		);
+	}
+
+	private RequireConstraint visitFacetSummaryConstraint(@Nonnull RequireConstraintContext ctx,
+	                                                      @Nullable ValueTokenContext depthArg,
+	                                                      @Nullable FacetSummaryFilterArgsContext filterArg,
+	                                                      @Nullable FacetSummaryOrderArgsContext orderArg,
+	                                                      @Nullable FacetSummaryRequirementsArgsContext requirementsArg) {
+		final FacetStatisticsDepth depth = ofNullable(depthArg)
+			.map(it -> it.accept(facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class))
+			.orElse(FacetStatisticsDepth.COUNTS);
+
+		final FilterConstraint filterBy1 = ofNullable(filterArg)
+			.map(filter -> filter.filterBy)
+			.map(c -> (FilterConstraint) visitChildConstraint(filterConstraintVisitor, c, FilterBy.class, FilterGroupBy.class))
+			.orElse(null);
+		final FilterGroupBy filterBy2 = ofNullable(filterArg)
+			.flatMap(filter -> ofNullable(filter.filterGroupBy))
+			.map(c -> visitChildConstraint(filterConstraintVisitor, c, FilterGroupBy.class))
+			.orElse(null);
+		if (filterBy2 != null) {
+			Assert.isTrue(
+				filterBy1 instanceof FilterBy,
+				() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
+			);
+		}
+
+		final OrderConstraint orderBy1 = ofNullable(orderArg)
+			.map(order -> order.orderBy)
+			.map(c -> (OrderConstraint) visitChildConstraint(orderConstraintVisitor, c, OrderBy.class, OrderGroupBy.class))
+			.orElse(null);
+		final OrderGroupBy orderBy2 = ofNullable(orderArg)
+			.flatMap(order -> ofNullable(order.orderGroupBy))
+			.map(c -> visitChildConstraint(orderConstraintVisitor, c, OrderGroupBy.class))
+			.orElse(null);
+		if (orderBy2 != null) {
+			Assert.isTrue(
+				orderBy1 instanceof OrderBy,
+				() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
+			);
+		}
+
+		return new FacetSummary(
+			depth,
+			filterBy1 instanceof FilterBy f ? f : null,
+			filterBy1 instanceof FilterGroupBy f ? f : filterBy2,
+			orderBy1 instanceof OrderBy o ? o : null,
+			orderBy1 instanceof OrderGroupBy o ? o : orderBy2,
+			parseFacetSummaryRequirementsArgs(requirementsArg)
 		);
 	}
 
@@ -1332,7 +1380,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> {
 				final String referenceName = ctx.args.referenceName.accept(stringValueTokenVisitor).asString();
-				final FacetStatisticsDepth depth = ctx.args.depth.accept(facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class);
+				final FacetStatisticsDepth depth = ofNullable(ctx.args.depth)
+					.map(it -> it.accept(facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class))
+					.orElse(FacetStatisticsDepth.COUNTS);
 
 				final FilterConstraint filterBy1 = ofNullable(ctx.args.filter)
 					.map(filter -> filter.filterBy)
