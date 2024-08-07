@@ -23,6 +23,7 @@
 
 package io.evitadb.performance;
 
+import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
@@ -37,13 +38,15 @@ public class ArtificialTestRunner {
 
 	public static void main(String[] args) throws Exception {
 		Options opt = new OptionsBuilder()
-			.include("io.evitadb.artificial.ArtificialEntitiesLatencyBenchmark.paginatedEntityRead")
+			.include("io.evitadb.performance.externalApi.*")
 			.threads(12)
 			.forks(1)
-			.warmupTime(TimeValue.seconds(20))
+			.warmupTime(TimeValue.seconds(60))
 			.measurementTime(TimeValue.seconds(60))
 			.warmupIterations(1)
 			.measurementIterations(1)
+			.resultFormat(ResultFormatType.JSON)
+			.result("result.json")
 			.build();
 
 		new Runner(opt).run();
