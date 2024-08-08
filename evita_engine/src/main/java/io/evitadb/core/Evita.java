@@ -66,6 +66,7 @@ import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -907,7 +908,15 @@ public final class Evita implements EvitaContract {
 			sessionTraits.catalogName(),
 			theCatalogName -> new SessionRegistry(
 				this.tracingContext,
-				() -> (Catalog) this.catalogs.get(sessionTraits.catalogName()),
+				() -> {
+					final Catalog theCatalogToReturn = (Catalog) this.catalogs.get(sessionTraits.catalogName());
+					if (theCatalogToReturn == null) {
+						throw new GenericEvitaInternalError(
+							"Failed to find catalog `" + sessionTraits.catalogName() + "` in the catalog map. " +
+								"Existing catalogs: " + String.join(", ", this.catalogs.keySet())
+						);
+					}
+				},
 				this.sessionRegistryDataStore
 			)
 		);

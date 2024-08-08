@@ -425,7 +425,6 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 			} catch (Throwable e) {
 				this.future.completeExceptionally(e);
 				ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
-				throw e;
 			}
 		}
 	}

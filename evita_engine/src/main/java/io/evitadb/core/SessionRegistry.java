@@ -202,9 +202,14 @@ final class SessionRegistry {
 			if (finalizationResult.lastReader()) {
 				// notify listeners that the catalog version is no longer used
 				final Catalog theCatalog = this.catalog.get();
-				theCatalog.catalogVersionBeyondTheHorizon(
-					finalizationResult.minimalActiveCatalogVersion()
-				);
+				if (theCatalog != null) {
+					theCatalog.catalogVersionBeyondTheHorizon(
+						finalizationResult.minimalActiveCatalogVersion()
+					);
+				} else {
+					/* TODO JNO - remove me eventually */
+					log.error("Catalog is not available for the session finalization.", new IllegalStateException());
+				}
 			}
 
 			// emit event
