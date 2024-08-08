@@ -121,6 +121,7 @@ whether the entity should be inserted as a new entity or whether an existing ent
 <NoteTitle toggles="true">
 
 ##### Why the limited `int` type was chosen for the primary key?
+
 </NoteTitle>
 
 All primary keys are stored in data structure called "[RoaringBitmap](https://github.com/RoaringBitmap/RoaringBitmap)".
