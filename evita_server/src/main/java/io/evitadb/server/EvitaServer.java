@@ -77,6 +77,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
@@ -90,6 +93,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.externalApi.configuration.TlsMode.FORCE_NO_TLS;
+import static io.evitadb.externalApi.configuration.TlsMode.FORCE_TLS;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -301,11 +306,9 @@ public class EvitaServer {
 
 		try {
 			// iterate over all files in the directory and merge them into a single configuration
-			Map<String, Object> finalYaml = yamlParser.get().load(
-				readerFactory.apply(EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION))
-			);
+			Map<String, Object> finalYaml = loadYamlContents(readerFactory.apply(EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION)), yamlParser.get());
 			for (Path file : files) {
-				final Map<String, Object> loadedYaml = yamlParser.get().load(readerFactory.apply(new FileInputStream(file.toFile())));
+				final Map<String, Object> loadedYaml = loadYamlContents(readerFactory.apply(new FileInputStream(file.toFile())), yamlParser.get());
 				finalYaml = combine(finalYaml, loadedYaml);
 			}
 
@@ -325,6 +328,49 @@ public class EvitaServer {
 				"Failed to parse configuration files in folder `" + configDirLocation + "` due to: " + e.getMessage() + ".",
 				"Failed to parse configuration files.", e
 			);
+		}
+	}
+
+	/**
+	 * Method loads the contents of the YAML file into a map.
+	 * @param reader reader to read the contents of the file
+	 * @param yaml YAML parser to use
+	 * @return map with the contents of the YAML file
+	 */
+	@Nonnull
+	private static Map<String, Object> loadYamlContents(@Nonnull Reader reader, @Nonnull Yaml yaml) {
+		final Map<String, Object> values = yaml.load(reader);
+		// backward compatibility with the old configuration format
+		replaceDeprecatedSettings(values);
+		return values;
+	}
+
+	/**
+	 * Method replaces deprecated settings in the configuration.
+	 * TOBEDONE #538 - remove in the future
+	 * @param values
+	 */
+	private static void replaceDeprecatedSettings(@Nonnull Map<String, Object> values) {
+		final List<Object[]> itemsToAdd = new LinkedList<>();
+		final Iterator<Entry<String, Object>> entryIterator = values.entrySet().iterator();
+		while (entryIterator.hasNext()) {
+			final Entry<String, Object> entry = entryIterator.next();
+			//noinspection rawtypes
+			if (entry.getValue() instanceof Map map) {
+				//noinspection unchecked
+				replaceDeprecatedSettings(map);
+			} else if (entry.getKey().equals("tlsEnabled")) {
+				entryIterator.remove();
+				itemsToAdd.add(
+					new Object[]{
+						"tlsMode",
+						entry.getValue().equals(Boolean.TRUE) ? FORCE_TLS : FORCE_NO_TLS
+					}
+				);
+			}
+		}
+		for (Object[] replacedValues : itemsToAdd) {
+			values.put((String) replacedValues[0], replacedValues[1]);
 		}
 	}
 

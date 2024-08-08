@@ -30,6 +30,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaManagementServiceBlockingStub;
@@ -469,6 +470,45 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertNull(externalApiServer.getExternalApiProviderByCode(RestProvider.CODE));
 			assertNull(externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE));
 			assertNull(externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE));
+
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			try {
+				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
+				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
+			} catch (Exception ex) {
+				fail(ex.getMessage(), ex);
+			}
+		}
+	}
+
+	@Test
+	void shouldLoadDeprecatedConfiguration() {
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-deprecated.yaml",
+			"evita-configuration-deprecated.yaml"
+		);
+
+		//noinspection unchecked
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			createHashMap(
+				Stream.of(
+					property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString())
+				).toArray(Property[]::new)
+			)
+		);
+		try {
+			evitaServer.run();
+
+			final ExternalApiServer externalApiServer = evitaServer.getExternalApiServer();
+			assertEquals(TlsMode.FORCE_NO_TLS, externalApiServer.getExternalApiProviderByCode(SystemProvider.CODE).getConfiguration().getTlsMode());
+			assertEquals(TlsMode.FORCE_NO_TLS, externalApiServer.getExternalApiProviderByCode(GraphQLProvider.CODE).getConfiguration().getTlsMode());
+			assertEquals(TlsMode.FORCE_NO_TLS, externalApiServer.getExternalApiProviderByCode(RestProvider.CODE).getConfiguration().getTlsMode());
+			assertEquals(TlsMode.FORCE_NO_TLS, externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE).getConfiguration().getTlsMode());
+			assertEquals(TlsMode.FORCE_TLS, externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE).getConfiguration().getTlsMode());
 
 		} catch (Exception ex) {
 			fail(ex);
