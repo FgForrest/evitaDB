@@ -42,6 +42,7 @@ import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils.Property;
 import io.evitadb.utils.NetworkUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +51,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -74,6 +76,18 @@ import static org.junit.jupiter.api.Assertions.*;
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
 
+	@Nonnull
+	private static String replaceVariables(@Nonnull String status) {
+		String output = status;
+		output = Pattern.compile("(\"serverName\": \"evitaDB-)(.+?)\"").matcher(output).replaceAll("$1RANDOM\"");
+		output = Pattern.compile("(\"version\": \")((?:\\?)|(?:\\d{4}\\.\\d{1,2}(-SNAPSHOT)?))\"").matcher(output).replaceAll("$1VARIABLE\"");
+		output = Pattern.compile("(\"startedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
+		output = Pattern.compile("(\"uptime\": )(.+?),").matcher(output).replaceAll("$1VARIABLE,");
+		output = Pattern.compile("(\"uptimeForHuman\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
+		output = Pattern.compile("(//)(.+:[0-9]+)(/)").matcher(output).replaceAll("$1VARIABLE$3");
+		return output;
+	}
+
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(DIR_EVITA_SERVER_TEST);
@@ -86,32 +100,10 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldStartAndStopTlsServerCorrectly() {
-		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
-			.stream()
-			.map(ExternalApiProviderRegistrar::getExternalApiCode)
-			.collect(Collectors.toSet());
-
-		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, apis.size());
-		final AtomicInteger index = new AtomicInteger();
 		final Map<String, Integer> servicePorts = new HashMap<>();
-		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
 			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
-			createHashMap(
-				Stream.concat(
-						Stream.of(
-							property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
-							property("cache.enabled", "false")
-						),
-						apis.stream()
-							.map(it -> {
-								final int port = ports[index.getAndIncrement()];
-								servicePorts.put(it, port);
-								return property("api.endpoints." + it + ".host", "localhost:" + port);
-							})
-					)
-					.toArray(Property[]::new)
-			)
+			constructTestArguments(servicePorts)
 		);
 		try {
 			evitaServer.run();
@@ -151,37 +143,10 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldBeAbleToGetGrpcWebResponse() {
-		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
-			.stream()
-			.map(ExternalApiProviderRegistrar::getExternalApiCode)
-			.collect(Collectors.toSet());
-		final List<String> enabledApis = List.of(GrpcProvider.CODE, SystemProvider.CODE);
-		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, enabledApis.size());
-		final AtomicInteger index = new AtomicInteger();
 		final Map<String, Integer> servicePorts = new HashMap<>();
-		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
 			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
-			createHashMap(
-				Stream.concat(
-						Stream.of(
-							property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
-							property("cache.enabled", "false")
-						),
-						Stream.concat(
-							apis.stream()
-								.filter(it -> !enabledApis.contains(it))
-								.map(it -> property("api.endpoints." + it + ".enabled", "false")),
-							enabledApis.stream()
-								.map(it -> {
-									final int port = ports[index.getAndIncrement()];
-									servicePorts.put(it, port);
-									return property("api.endpoints." + it + ".host", "localhost:" + port);
-								})
-						)
-					)
-					.toArray(Property[]::new)
-			)
+			constructTestArguments(servicePorts, GrpcProvider.CODE, SystemProvider.CODE)
 		);
 		try {
 			evitaServer.run();
@@ -211,33 +176,10 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldStartAndStopPlainServerCorrectly() {
-		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
-			.stream()
-			.map(ExternalApiProviderRegistrar::getExternalApiCode)
-			.collect(Collectors.toSet());
-
-		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, apis.size());
-		final AtomicInteger index = new AtomicInteger();
 		final Map<String, Integer> servicePorts = new HashMap<>();
-		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
 			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
-			createHashMap(
-				Stream.concat(
-						Stream.of(
-							property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
-							property("cache.enabled", "false"),
-							property("api.endpoints.gRPC.tlsMode", "FORCE_NO_TLS")
-						),
-						apis.stream()
-							.map(it -> {
-								final int port = ports[index.getAndIncrement()];
-								servicePorts.put(it, port);
-								return property("api.endpoints." + it + ".host", "localhost:" + port);
-							})
-					)
-					.toArray(Property[]::new)
-			)
+			constructTestArguments(servicePorts, List.of(property("api.endpoints.gRPC.tlsMode", "FORCE_NO_TLS")))
 		);
 		try {
 			evitaServer.run();
@@ -274,32 +216,9 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldSignalizeReadinessAndHealthinessCorrectly() {
-		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
-			.stream()
-			.map(ExternalApiProviderRegistrar::getExternalApiCode)
-			.collect(Collectors.toSet());
-
-		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, apis.size());
-		final AtomicInteger index = new AtomicInteger();
-		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
 			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
-			createHashMap(
-				Stream.concat(
-						Stream.of(
-							property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
-							property("cache.enabled", "false")
-						),
-						apis.stream()
-							.flatMap(
-								it -> Stream.of(
-									property("api.endpoints." + it + ".host", "localhost:" + ports[index.getAndIncrement()]),
-									property("api.endpoints." + it + ".enabled", "true")
-								)
-							)
-					)
-					.toArray(Property[]::new)
-			)
+			constructTestArguments()
 		);
 		try {
 			evitaServer.run();
@@ -423,18 +342,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
-	@Nonnull
-	private static String replaceVariables(@Nonnull String status) {
-		String output = status;
-		output = Pattern.compile("(\"serverName\": \"evitaDB-)(.+?)\"").matcher(output).replaceAll("$1RANDOM\"");
-		output = Pattern.compile("(\"version\": \")((?:\\?)|(?:\\d{4}\\.\\d{1,2}(-SNAPSHOT)?))\"").matcher(output).replaceAll("$1VARIABLE\"");
-		output = Pattern.compile("(\"startedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
-		output = Pattern.compile("(\"uptime\": )(.+?),").matcher(output).replaceAll("$1VARIABLE,");
-		output = Pattern.compile("(\"uptimeForHuman\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
-		output = Pattern.compile("(//)(.+:[0-9]+)(/)").matcher(output).replaceAll("$1VARIABLE$3");
-		return output;
-	}
-
 	@Test
 	void shouldMergeMultipleYamlConfigurationTogether() {
 		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
@@ -448,14 +355,9 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			"evita-configuration-two.yaml"
 		);
 
-		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
 			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
-			createHashMap(
-				Stream.of(
-					property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString())
-				).toArray(Property[]::new)
-			)
+			constructTestArguments()
 		);
 		try {
 			evitaServer.run();
@@ -491,14 +393,9 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			"evita-configuration-deprecated.yaml"
 		);
 
-		//noinspection unchecked
 		final EvitaServer evitaServer = new EvitaServer(
 			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
-			createHashMap(
-				Stream.of(
-					property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString())
-				).toArray(Property[]::new)
-			)
+			constructTestArguments()
 		);
 		try {
 			evitaServer.run();
@@ -520,5 +417,62 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				fail(ex.getMessage(), ex);
 			}
 		}
+	}
+
+	@Nonnull
+	private Map<String, String> constructTestArguments(
+		@Nonnull String... enabledApis
+	) {
+		return constructTestArguments(null, null, enabledApis);
+	}
+
+	@Nonnull
+	private Map<String, String> constructTestArguments(
+		@Nullable Map<String, Integer> servicePorts,
+		@Nonnull String... enabledApis
+	) {
+		return constructTestArguments(servicePorts, null, enabledApis);
+	}
+
+	@Nonnull
+	private Map<String, String> constructTestArguments(
+		@Nullable Map<String, Integer> servicePorts,
+		@Nullable List<Property> properties,
+		@Nonnull String... enabledApis
+	) {
+		final Set<String> apis = ArrayUtils.isEmpty(enabledApis) ?
+			ExternalApiServer.gatherExternalApiProviders()
+				.stream()
+				.map(ExternalApiProviderRegistrar::getExternalApiCode)
+				.collect(Collectors.toSet()) :
+			Set.of(enabledApis);
+		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, apis.size());
+		final AtomicInteger index = new AtomicInteger();
+		//noinspection unchecked
+		return createHashMap(
+			Stream.concat(
+					Stream.concat(
+						Stream.of(
+							property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
+							property("cache.enabled", "false")
+						),
+						apis.stream()
+							.flatMap(
+								it -> {
+									final int allocatedPort = ports[index.getAndIncrement()];
+									if (servicePorts != null) {
+										servicePorts.put(it, allocatedPort);
+									}
+									return Stream.of(
+										property("api.endpoints." + it + ".host", "localhost:" + allocatedPort),
+										property("api.endpoints." + it + ".enabled", "true")
+									);
+								}
+							)
+					),
+					properties == null ? Stream.empty() : properties.stream()
+				)
+				.toArray(Property[]::new)
+		);
 	}
 }
