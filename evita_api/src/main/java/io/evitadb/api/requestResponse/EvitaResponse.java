@@ -59,14 +59,19 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	protected final DataChunk<T> recordPage;
 	protected final Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults = new HashMap<>();
 
-	protected EvitaResponse(@Nonnull Query sourceQuery, @Nonnull DataChunk<T> recordPage) {
+	protected EvitaResponse(
+		@Nonnull Query sourceQuery,
+		@Nonnull DataChunk<T> recordPage
+	) {
 		this.sourceQuery = sourceQuery;
 		this.recordPage = recordPage;
 	}
 
-	protected EvitaResponse(@Nonnull Query sourceQuery,
-	                        @Nonnull DataChunk<T> recordPage,
-	                        @Nonnull EvitaResponseExtraResult... extraResults) {
+	protected EvitaResponse(
+		@Nonnull Query sourceQuery,
+		@Nonnull DataChunk<T> recordPage,
+		@Nonnull EvitaResponseExtraResult... extraResults
+	) {
 		this.sourceQuery = sourceQuery;
 		this.recordPage = recordPage;
 		for (EvitaResponseExtraResult extraResult : extraResults) {
@@ -81,6 +86,13 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	public Query getSourceQuery() {
 		return sourceQuery;
 	}
+
+	/**
+	 * Returns array of primary keys of the entities in {@link #getRecordData()}.
+	 * @return array of primary keys
+	 */
+	@Nonnull
+	public abstract int[] getPrimaryKeys();
 
 	/**
 	 * Returns page of records according to pagination rules in input query. If no pagination was defined in input

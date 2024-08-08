@@ -422,6 +422,8 @@ message GrpcDeleteEntityAndItsHierarchyResponse {
     // The deleted root entity.
     GrpcSealedEntity deletedRootEntity = 3;
   }
+  // Deleted entity primary keys.
+  repeated int32 deletedEntityPrimaryKeys = 4;
 }
 
 // Response to DeleteEntities request that deletes all entities that match the sent query..

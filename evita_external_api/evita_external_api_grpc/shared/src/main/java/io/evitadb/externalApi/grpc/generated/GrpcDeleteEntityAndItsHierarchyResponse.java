@@ -43,6 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcDeleteEntityAndItsHierarchyResponse() {
+    deletedEntityPrimaryKeys_ = emptyIntList();
   }
 
   @java.lang.Override
@@ -65,6 +66,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -108,6 +110,27 @@ private static final long serialVersionUID = 0L;
             responseCase_ = 3;
             break;
           }
+          case 32: {
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              deletedEntityPrimaryKeys_ = newIntList();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            deletedEntityPrimaryKeys_.addInt(input.readInt32());
+            break;
+          }
+          case 34: {
+            int length = input.readRawVarint32();
+            int limit = input.pushLimit(length);
+            if (!((mutable_bitField0_ & 0x00000001) != 0) && input.getBytesUntilLimit() > 0) {
+              deletedEntityPrimaryKeys_ = newIntList();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            while (input.getBytesUntilLimit() > 0) {
+              deletedEntityPrimaryKeys_.addInt(input.readInt32());
+            }
+            input.popLimit(limit);
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -123,6 +146,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        deletedEntityPrimaryKeys_.makeImmutable(); // C
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -282,6 +308,46 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance();
   }
 
+  public static final int DELETEDENTITYPRIMARYKEYS_FIELD_NUMBER = 4;
+  private com.google.protobuf.Internal.IntList deletedEntityPrimaryKeys_;
+  /**
+   * <pre>
+   * Deleted entity primary keys.
+   * </pre>
+   *
+   * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+   * @return A list containing the deletedEntityPrimaryKeys.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+      getDeletedEntityPrimaryKeysList() {
+    return deletedEntityPrimaryKeys_;
+  }
+  /**
+   * <pre>
+   * Deleted entity primary keys.
+   * </pre>
+   *
+   * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+   * @return The count of deletedEntityPrimaryKeys.
+   */
+  public int getDeletedEntityPrimaryKeysCount() {
+    return deletedEntityPrimaryKeys_.size();
+  }
+  /**
+   * <pre>
+   * Deleted entity primary keys.
+   * </pre>
+   *
+   * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+   * @param index The index of the element to return.
+   * @return The deletedEntityPrimaryKeys at the given index.
+   */
+  public int getDeletedEntityPrimaryKeys(int index) {
+    return deletedEntityPrimaryKeys_.getInt(index);
+  }
+  private int deletedEntityPrimaryKeysMemoizedSerializedSize = -1;
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -296,6 +362,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (deletedEntities_ != 0) {
       output.writeInt32(1, deletedEntities_);
     }
@@ -304,6 +371,13 @@ private static final long serialVersionUID = 0L;
     }
     if (responseCase_ == 3) {
       output.writeMessage(3, (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_);
+    }
+    if (getDeletedEntityPrimaryKeysList().size() > 0) {
+      output.writeUInt32NoTag(34);
+      output.writeUInt32NoTag(deletedEntityPrimaryKeysMemoizedSerializedSize);
+    }
+    for (int i = 0; i < deletedEntityPrimaryKeys_.size(); i++) {
+      output.writeInt32NoTag(deletedEntityPrimaryKeys_.getInt(i));
     }
     unknownFields.writeTo(output);
   }
@@ -326,6 +400,20 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_);
     }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < deletedEntityPrimaryKeys_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeInt32SizeNoTag(deletedEntityPrimaryKeys_.getInt(i));
+      }
+      size += dataSize;
+      if (!getDeletedEntityPrimaryKeysList().isEmpty()) {
+        size += 1;
+        size += com.google.protobuf.CodedOutputStream
+            .computeInt32SizeNoTag(dataSize);
+      }
+      deletedEntityPrimaryKeysMemoizedSerializedSize = dataSize;
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -343,6 +431,8 @@ private static final long serialVersionUID = 0L;
 
     if (getDeletedEntities()
         != other.getDeletedEntities()) return false;
+    if (!getDeletedEntityPrimaryKeysList()
+        .equals(other.getDeletedEntityPrimaryKeysList())) return false;
     if (!getResponseCase().equals(other.getResponseCase())) return false;
     switch (responseCase_) {
       case 2:
@@ -369,6 +459,10 @@ private static final long serialVersionUID = 0L;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + DELETEDENTITIES_FIELD_NUMBER;
     hash = (53 * hash) + getDeletedEntities();
+    if (getDeletedEntityPrimaryKeysCount() > 0) {
+      hash = (37 * hash) + DELETEDENTITYPRIMARYKEYS_FIELD_NUMBER;
+      hash = (53 * hash) + getDeletedEntityPrimaryKeysList().hashCode();
+    }
     switch (responseCase_) {
       case 2:
         hash = (37 * hash) + DELETEDROOTENTITYREFERENCE_FIELD_NUMBER;
@@ -520,6 +614,8 @@ private static final long serialVersionUID = 0L;
       super.clear();
       deletedEntities_ = 0;
 
+      deletedEntityPrimaryKeys_ = emptyIntList();
+      bitField0_ = (bitField0_ & ~0x00000001);
       responseCase_ = 0;
       response_ = null;
       return this;
@@ -548,6 +644,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse result = new io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse(this);
+      int from_bitField0_ = bitField0_;
       result.deletedEntities_ = deletedEntities_;
       if (responseCase_ == 2) {
         if (deletedRootEntityReferenceBuilder_ == null) {
@@ -563,6 +660,11 @@ private static final long serialVersionUID = 0L;
           result.response_ = deletedRootEntityBuilder_.build();
         }
       }
+      if (((bitField0_ & 0x00000001) != 0)) {
+        deletedEntityPrimaryKeys_.makeImmutable();
+        bitField0_ = (bitField0_ & ~0x00000001);
+      }
+      result.deletedEntityPrimaryKeys_ = deletedEntityPrimaryKeys_;
       result.responseCase_ = responseCase_;
       onBuilt();
       return result;
@@ -614,6 +716,16 @@ private static final long serialVersionUID = 0L;
       if (other == io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse.getDefaultInstance()) return this;
       if (other.getDeletedEntities() != 0) {
         setDeletedEntities(other.getDeletedEntities());
+      }
+      if (!other.deletedEntityPrimaryKeys_.isEmpty()) {
+        if (deletedEntityPrimaryKeys_.isEmpty()) {
+          deletedEntityPrimaryKeys_ = other.deletedEntityPrimaryKeys_;
+          bitField0_ = (bitField0_ & ~0x00000001);
+        } else {
+          ensureDeletedEntityPrimaryKeysIsMutable();
+          deletedEntityPrimaryKeys_.addAll(other.deletedEntityPrimaryKeys_);
+        }
+        onChanged();
       }
       switch (other.getResponseCase()) {
         case DELETEDROOTENTITYREFERENCE: {
@@ -671,6 +783,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private int bitField0_;
 
     private int deletedEntities_ ;
     /**
@@ -695,7 +808,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setDeletedEntities(int value) {
-
+      
       deletedEntities_ = value;
       onChanged();
       return this;
@@ -709,7 +822,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearDeletedEntities() {
-
+      
       deletedEntities_ = 0;
       onChanged();
       return this;
@@ -874,7 +987,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
         getDeletedRootEntityReferenceFieldBuilder() {
       if (deletedRootEntityReferenceBuilder_ == null) {
         if (!(responseCase_ == 2)) {
@@ -1051,7 +1164,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
         getDeletedRootEntityFieldBuilder() {
       if (deletedRootEntityBuilder_ == null) {
         if (!(responseCase_ == 3)) {
@@ -1067,6 +1180,113 @@ private static final long serialVersionUID = 0L;
       responseCase_ = 3;
       onChanged();;
       return deletedRootEntityBuilder_;
+    }
+
+    private com.google.protobuf.Internal.IntList deletedEntityPrimaryKeys_ = emptyIntList();
+    private void ensureDeletedEntityPrimaryKeysIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        deletedEntityPrimaryKeys_ = mutableCopy(deletedEntityPrimaryKeys_);
+        bitField0_ |= 0x00000001;
+       }
+    }
+    /**
+     * <pre>
+     * Deleted entity primary keys.
+     * </pre>
+     *
+     * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+     * @return A list containing the deletedEntityPrimaryKeys.
+     */
+    public java.util.List<java.lang.Integer>
+        getDeletedEntityPrimaryKeysList() {
+      return ((bitField0_ & 0x00000001) != 0) ?
+               java.util.Collections.unmodifiableList(deletedEntityPrimaryKeys_) : deletedEntityPrimaryKeys_;
+    }
+    /**
+     * <pre>
+     * Deleted entity primary keys.
+     * </pre>
+     *
+     * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+     * @return The count of deletedEntityPrimaryKeys.
+     */
+    public int getDeletedEntityPrimaryKeysCount() {
+      return deletedEntityPrimaryKeys_.size();
+    }
+    /**
+     * <pre>
+     * Deleted entity primary keys.
+     * </pre>
+     *
+     * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+     * @param index The index of the element to return.
+     * @return The deletedEntityPrimaryKeys at the given index.
+     */
+    public int getDeletedEntityPrimaryKeys(int index) {
+      return deletedEntityPrimaryKeys_.getInt(index);
+    }
+    /**
+     * <pre>
+     * Deleted entity primary keys.
+     * </pre>
+     *
+     * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+     * @param index The index to set the value at.
+     * @param value The deletedEntityPrimaryKeys to set.
+     * @return This builder for chaining.
+     */
+    public Builder setDeletedEntityPrimaryKeys(
+        int index, int value) {
+      ensureDeletedEntityPrimaryKeysIsMutable();
+      deletedEntityPrimaryKeys_.setInt(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Deleted entity primary keys.
+     * </pre>
+     *
+     * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+     * @param value The deletedEntityPrimaryKeys to add.
+     * @return This builder for chaining.
+     */
+    public Builder addDeletedEntityPrimaryKeys(int value) {
+      ensureDeletedEntityPrimaryKeysIsMutable();
+      deletedEntityPrimaryKeys_.addInt(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Deleted entity primary keys.
+     * </pre>
+     *
+     * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+     * @param values The deletedEntityPrimaryKeys to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllDeletedEntityPrimaryKeys(
+        java.lang.Iterable<? extends java.lang.Integer> values) {
+      ensureDeletedEntityPrimaryKeysIsMutable();
+      com.google.protobuf.AbstractMessageLite.Builder.addAll(
+          values, deletedEntityPrimaryKeys_);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Deleted entity primary keys.
+     * </pre>
+     *
+     * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearDeletedEntityPrimaryKeys() {
+      deletedEntityPrimaryKeys_ = emptyIntList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

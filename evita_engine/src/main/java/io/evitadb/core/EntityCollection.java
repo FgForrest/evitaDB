@@ -39,7 +39,6 @@ import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -144,7 +143,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
+import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.core.Transaction.getTransactionalLayerMaintainer;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -628,24 +629,6 @@ public final class EntityCollection implements
 	}
 
 	@Override
-	public int deleteEntityAndItsHierarchy(int primaryKey, @Nonnull EvitaSessionContract session) {
-		return deleteEntityAndItsHierarchy(
-			new EvitaRequest(
-				Query.query(
-					collection(getSchema().getName()),
-					filterBy(entityPrimaryKeyInSet(primaryKey)),
-					require(entityFetchAll())
-				),
-				OffsetDateTime.now(),
-				EntityReference.class,
-				null,
-				EvitaRequest.CONVERSION_NOT_SUPPORTED
-			),
-			session
-		).deletedEntities();
-	}
-
-	@Override
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 		if (globalIndex != null) {
@@ -672,6 +655,7 @@ public final class EntityCollection implements
 			//noinspection unchecked
 			return new DeletedHierarchy<>(
 				removedEntities.size(),
+				removedEntities.stream().mapToInt(Entity::getPrimaryKey).toArray(),
 				removedEntities.stream()
 					.findFirst()
 					.map(it -> (T) applyReferenceFetcherInternal(
@@ -682,66 +666,7 @@ public final class EntityCollection implements
 					.orElse(null)
 			);
 		}
-		return new DeletedHierarchy<>(0, null);
-	}
-
-	@Override
-	public int deleteEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
-		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
-
-		final EvitaEntityReferenceResponse result = tracingContext.executeWithinBlockIfParentContextAvailable(
-			"delete - " + queryPlan.getDescription(),
-			(Supplier<EvitaEntityReferenceResponse>) queryPlan::execute,
-			queryPlan::getSpanAttributes
-		);
-
-		return result
-			.getRecordData()
-			.stream()
-			.mapToInt(EntityReference::getPrimaryKey)
-			.map(it -> this.deleteEntity(it) ? 1 : 0)
-			.sum();
-	}
-
-	@Override
-	@Nonnull
-	public SealedEntity[] deleteEntitiesAndReturnThem(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
-		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
-
-		final EvitaResponse<? extends Serializable> result = tracingContext.executeWithinBlockIfParentContextAvailable(
-			"delete - " + queryPlan.getDescription(),
-			() -> queryPlan.execute(),
-			queryPlan::getSpanAttributes
-		);
-
-		final List<EntityWithFetchCount> entitiesToRemove = result.getRecordData()
-			.stream()
-			.map(it -> getFullEntityById(getPrimaryKey(it)))
-			.filter(Objects::nonNull)
-			.toList();
-		final IntMap<EntityWithFetchCount> entitiesToRemoveMap = new IntMap<>(entitiesToRemove.size());
-		for (EntityWithFetchCount entityWithFetchCount : entitiesToRemove) {
-			entitiesToRemoveMap.put(entityWithFetchCount.entity().getPrimaryKey(), entityWithFetchCount);
-		}
-
-		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-		final List<Entity> removedEntities = referenceFetcher.initReferenceIndex(
-			entitiesToRemove.stream().map(EntityWithFetchCount::entity).toList(),
-			this
-		);
-		for (EntityWithFetchCount entityToRemove : entitiesToRemove) {
-			internalDeleteEntity(entityToRemove.entity());
-		}
-
-		return removedEntities.stream()
-			.map(it -> applyReferenceFetcherInternal(
-				wrapToDecorator(evitaRequest, entitiesToRemoveMap.get(it.getPrimaryKey()), false),
-				referenceFetcher
-			))
-			.toArray(SealedEntity[]::new);
-
+		return new DeletedHierarchy<>(0, new int[0], null);
 	}
 
 	@Override

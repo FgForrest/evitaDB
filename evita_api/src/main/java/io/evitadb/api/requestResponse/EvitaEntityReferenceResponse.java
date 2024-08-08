@@ -36,15 +36,48 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public final class EvitaEntityReferenceResponse extends EvitaResponse<EntityReference> {
+	private int[] primaryKeys;
 
-	public EvitaEntityReferenceResponse(@Nonnull Query sourceQuery, @Nonnull DataChunk<EntityReference> recordPage) {
+	public EvitaEntityReferenceResponse(
+		@Nonnull Query sourceQuery,
+		@Nonnull DataChunk<EntityReference> recordPage
+	) {
 		super(sourceQuery, recordPage);
 	}
 
-	public EvitaEntityReferenceResponse(@Nonnull Query sourceQuery,
-	                                    @Nonnull DataChunk<EntityReference> recordPage,
-	                                    @Nonnull EvitaResponseExtraResult... extraResults) {
+	public EvitaEntityReferenceResponse(
+		@Nonnull Query sourceQuery,
+		@Nonnull DataChunk<EntityReference> recordPage,
+		@Nonnull EvitaResponseExtraResult... extraResults
+	) {
 		super(sourceQuery, recordPage, extraResults);
 	}
 
+	public EvitaEntityReferenceResponse(
+		@Nonnull Query sourceQuery,
+		@Nonnull DataChunk<EntityReference> recordPage,
+		@Nonnull int[] primaryKeys
+	) {
+		super(sourceQuery, recordPage);
+		this.primaryKeys = primaryKeys;
+	}
+
+	public EvitaEntityReferenceResponse(
+		@Nonnull Query sourceQuery,
+		@Nonnull DataChunk<EntityReference> recordPage,
+		@Nonnull int[] primaryKeys,
+		@Nonnull EvitaResponseExtraResult... extraResults
+	) {
+		super(sourceQuery, recordPage, extraResults);
+		this.primaryKeys = primaryKeys;
+	}
+
+	@Nonnull
+	@Override
+	public int[] getPrimaryKeys() {
+		if (this.primaryKeys == null) {
+			this.primaryKeys = recordPage.stream().mapToInt(EntityReference::getPrimaryKey).toArray();
+		}
+		return this.primaryKeys;
+	}
 }

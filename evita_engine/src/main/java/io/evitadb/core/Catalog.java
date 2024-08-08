@@ -88,6 +88,9 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
+import io.evitadb.core.traffic.MemoryBufferTrafficRecorder;
+import io.evitadb.core.traffic.NoOpTrafficRecorder;
+import io.evitadb.core.traffic.TrafficRecorder;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -260,6 +263,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	private final TransactionManager transactionManager;
 	/**
+	 * Traffic recorder used for recording the traffic in the catalog.
+	 */
+	@Getter private final TrafficRecorder trafficRecorder;
+	/**
 	 * Last persisted schema version of the catalog.
 	 */
 	private long lastPersistedSchemaVersion;
@@ -344,6 +351,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.transactionManager = new TransactionManager(
 			this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
 		);
+		this.trafficRecorder = evitaConfiguration.server().trafficRecording() ?
+			new MemoryBufferTrafficRecorder(evitaConfiguration.server().trafficMemoryBufferSizeInBytes()) : NoOpTrafficRecorder.INSTANCE;
 
 		this.persistenceService.storeHeader(
 			this.catalogId, CatalogState.WARMING_UP, catalogVersion, 0, null,
@@ -396,6 +405,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this);
 		this.catalogIndex.attachToCatalog(null, this);
 		this.cacheSupervisor = cacheSupervisor;
+		this.trafficRecorder = evitaConfiguration.server().trafficRecording() ?
+			new MemoryBufferTrafficRecorder(evitaConfiguration.server().trafficMemoryBufferSizeInBytes()) : NoOpTrafficRecorder.INSTANCE;
 		this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
 			new WarmUpDataStoreMemoryBuffer<>(storagePartPersistenceService) :
 			new TransactionalDataStoreMemoryBuffer<>(this, storagePartPersistenceService);
@@ -497,6 +508,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.catalogIndex = catalogIndex;
 		this.persistenceService = persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
+		this.trafficRecorder = previousCatalogVersion.trafficRecorder;
 		this.entityTypeSequence = previousCatalogVersion.entityTypeSequence;
 		this.proxyFactory = previousCatalogVersion.proxyFactory;
 		this.evitaConfiguration = previousCatalogVersion.evitaConfiguration;

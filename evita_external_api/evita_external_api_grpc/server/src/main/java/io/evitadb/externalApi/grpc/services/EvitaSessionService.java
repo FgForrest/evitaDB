@@ -1035,7 +1035,6 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				final String entityType = request.getEntityType();
 				final int primaryKey = request.getPrimaryKey().getValue();
 				final String require = request.getRequire();
-				final DeletedHierarchy<SealedEntity> deletedHierarchy;
 				final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
 					new EntityContentRequire[0] :
 					QueryUtil.parseEntityRequiredContents(
@@ -1045,17 +1044,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						responseObserver
 					);
 
-				if (ArrayUtils.isEmpty(entityContentRequires)) {
-					deletedHierarchy = new DeletedHierarchy<>(
-						session.deleteEntityAndItsHierarchy(entityType, primaryKey),
-						null
-					);
-				} else {
-					deletedHierarchy = session.deleteEntityAndItsHierarchy(entityType, primaryKey, entityContentRequires);
-				}
+				final DeletedHierarchy<SealedEntity> deletedHierarchy = session.deleteEntityAndItsHierarchy(entityType, primaryKey, entityContentRequires);
 
 				final GrpcDeleteEntityAndItsHierarchyResponse.Builder response = GrpcDeleteEntityAndItsHierarchyResponse
 					.newBuilder()
+					.addAllDeletedEntityPrimaryKeys(Arrays.stream(deletedHierarchy.deletedEntityPrimaryKeys()).boxed().toList())
 					.setDeletedEntities(deletedHierarchy.deletedEntities());
 				ofNullable(deletedHierarchy.deletedRootEntity())
 					.ifPresent(it -> response.setDeletedRootEntity(EntityConverter.toGrpcSealedEntity(it)));
@@ -1065,7 +1058,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onCompleted();
 			},
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 	/**

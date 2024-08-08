@@ -1887,6 +1887,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 			return new DeletedHierarchy<>(
 				grpcResponse.getDeletedEntities(),
+				grpcResponse.getDeletedEntityPrimaryKeysList().stream().mapToInt(Integer::intValue).toArray(),
 				grpcResponse.hasDeletedRootEntity() ?
 					EntityConverter.toEntity(
 						entity -> schemaCache.getEntitySchemaOrThrow(

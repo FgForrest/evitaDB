@@ -218,6 +218,7 @@ public class QueryPlan {
 							result = (T) new EvitaBinaryEntityResponse(
 								evitaRequest.getQuery(),
 								dataChunk,
+								this.primaryKeys,
 								// fabricate extra results
 								fabricateExtraResults(executionContext, dataChunk)
 							);
@@ -233,6 +234,7 @@ public class QueryPlan {
 							result = (T) new EvitaEntityResponse<>(
 								evitaRequest.getQuery(),
 								dataChunk,
+								this.primaryKeys,
 								// fabricate extra results
 								fabricateExtraResults(executionContext, dataChunk)
 							);
@@ -257,6 +259,7 @@ public class QueryPlan {
 					result = (T) new EvitaEntityReferenceResponse(
 						evitaRequest.getQuery(),
 						dataChunk,
+						this.primaryKeys,
 						// fabricate extra results
 						fabricateExtraResults(executionContext, dataChunk)
 					);

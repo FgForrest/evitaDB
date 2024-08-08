@@ -91,7 +91,7 @@ public interface GetMutationsHistoryRequestOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria> 
       getCriteriaList();
   /**
    * <pre>
@@ -116,7 +116,7 @@ public interface GetMutationsHistoryRequestOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder> 
       getCriteriaOrBuilderList();
   /**
    * <pre>

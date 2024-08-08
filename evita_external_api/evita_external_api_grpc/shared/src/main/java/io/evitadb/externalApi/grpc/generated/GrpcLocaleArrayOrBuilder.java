@@ -37,7 +37,7 @@ public interface GrpcLocaleArrayOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> 
       getValueList();
   /**
    * <pre>
@@ -62,7 +62,7 @@ public interface GrpcLocaleArrayOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
       getValueOrBuilderList();
   /**
    * <pre>
