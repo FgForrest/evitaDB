@@ -440,38 +440,46 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		@Nullable List<Property> properties,
 		@Nonnull String... enabledApis
 	) {
+		final Set<String> allApis = ExternalApiServer.gatherExternalApiProviders()
+			.stream()
+			.map(ExternalApiProviderRegistrar::getExternalApiCode)
+			.collect(Collectors.toSet());
 		final Set<String> apis = ArrayUtils.isEmpty(enabledApis) ?
-			ExternalApiServer.gatherExternalApiProviders()
-				.stream()
-				.map(ExternalApiProviderRegistrar::getExternalApiCode)
-				.collect(Collectors.toSet()) :
+			allApis :
 			Set.of(enabledApis);
 		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, apis.size());
 		final AtomicInteger index = new AtomicInteger();
 		//noinspection unchecked
 		return createHashMap(
-			Stream.concat(
-					Stream.concat(
-						Stream.of(
-							property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
-							property("cache.enabled", "false")
-						),
-						apis.stream()
-							.flatMap(
-								it -> {
-									final int allocatedPort = ports[index.getAndIncrement()];
-									if (servicePorts != null) {
-										servicePorts.put(it, allocatedPort);
-									}
-									return Stream.of(
-										property("api.endpoints." + it + ".host", "localhost:" + allocatedPort),
-										property("api.endpoints." + it + ".enabled", "true")
-									);
-								}
-							)
+			Stream.of(
+					Stream.of(
+						property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
+						property("cache.enabled", "false")
 					),
+					allApis.stream()
+						.filter(apis::contains)
+						.flatMap(
+							it -> {
+								final int allocatedPort = ports[index.getAndIncrement()];
+								if (servicePorts != null) {
+									servicePorts.put(it, allocatedPort);
+								}
+								return Stream.of(
+									property("api.endpoints." + it + ".host", "localhost:" + allocatedPort),
+									property("api.endpoints." + it + ".enabled", "true")
+								);
+							}
+						),
+					allApis.stream()
+						.filter(it -> !apis.contains(it))
+						.flatMap(
+							it -> Stream.of(
+								property("api.endpoints." + it + ".enabled", "false")
+							)
+						),
 					properties == null ? Stream.empty() : properties.stream()
 				)
+				.flatMap(it -> it)
 				.toArray(Property[]::new)
 		);
 	}
