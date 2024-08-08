@@ -916,6 +916,7 @@ public final class Evita implements EvitaContract {
 								"Existing catalogs: " + String.join(", ", this.catalogs.keySet())
 						);
 					}
+					return theCatalogToReturn;
 				},
 				this.sessionRegistryDataStore
 			)
