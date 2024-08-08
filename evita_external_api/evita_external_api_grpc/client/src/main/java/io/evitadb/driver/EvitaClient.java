@@ -75,7 +75,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -239,7 +238,6 @@ public class EvitaClient implements EvitaContract {
 		final GrpcClientBuilder grpcClientBuilder = GrpcClients.builder(uriScheme + "://" + configuration.host() + ":" + configuration.port() + "/")
 			.factory(clientFactory)
 			.serializationFormat(GrpcSerializationFormats.PROTO)
-			.responseTimeoutMillis(Duration.of(configuration.timeout(), configuration.timeoutUnit().toChronoUnit()).toMillis())
 			.intercept(new ClientSessionInterceptor(configuration));
 
 		final ClientTracingContext context = getClientTracingContext(configuration);
