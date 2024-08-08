@@ -187,18 +187,6 @@ public class EvitaClient implements EvitaContract {
 		@Nullable Consumer<GrpcClientBuilder> grpcConfigurator
 	) {
 		this.configuration = configuration;
-		final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
-			.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
-			.usingTrustedRootCaCertificate(configuration.trustCertificate())
-			.trustStorePassword(configuration.trustStorePassword())
-			.mtls(configuration.mtlsEnabled())
-			.certificateClientFolderPath(configuration.certificateFolderPath())
-			.rootCaCertificateFilePath(configuration.rootCaCertificatePath())
-			.clientCertificateFilePath(configuration.certificateFileName())
-			.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
-			.clientPrivateKeyPassword(configuration.certificateKeyPassword())
-			.build();
-
 		final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
 			.workerGroup(Runtime.getRuntime().availableProcessors())
 			.idleTimeoutMillis(10000, true)
@@ -208,6 +196,19 @@ public class EvitaClient implements EvitaContract {
 		final String uriScheme;
 		if (configuration.tlsEnabled()) {
 			uriScheme = "https";
+
+			final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
+				.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
+				.usingTrustedRootCaCertificate(configuration.trustCertificate())
+				.trustStorePassword(configuration.trustStorePassword())
+				.mtls(configuration.mtlsEnabled())
+				.certificateClientFolderPath(configuration.certificateFolderPath())
+				.rootCaCertificateFilePath(configuration.rootCaCertificatePath())
+				.clientCertificateFilePath(configuration.certificateFileName())
+				.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
+				.clientPrivateKeyPassword(configuration.certificateKeyPassword())
+				.build();
+
 			clientFactoryBuilder.tlsCustomizer(tlsCustomizer -> {
 				clientCertificateManager.buildClientSslContext(
 					(certificateType, certificate) -> {
