@@ -23,12 +23,14 @@
 
 package io.evitadb.core.traffic;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
@@ -42,7 +44,12 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 	public static final NoOpTrafficRecorder INSTANCE = new NoOpTrafficRecorder();
 
 	@Override
-	public void createSession(@Nonnull UUID sessionId, long catalogId) {
+	public void init(@Nonnull ServerOptions serverOptions) {
+		// no-op
+	}
+
+	@Override
+	public void createSession(@Nonnull UUID sessionId, long catalogId, @Nonnull OffsetDateTime created) {
 		// no-op
 	}
 

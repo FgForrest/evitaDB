@@ -33,6 +33,7 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
@@ -88,7 +89,6 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
-import io.evitadb.core.traffic.MemoryBufferTrafficRecorder;
 import io.evitadb.core.traffic.NoOpTrafficRecorder;
 import io.evitadb.core.traffic.TrafficRecorder;
 import io.evitadb.core.transaction.TransactionManager;
@@ -96,6 +96,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -280,6 +281,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 * @param inputStream        the input stream with the catalog data
 	 * @return future that will be completed with path where the content of the catalog was restored
 	 */
+	@Nonnull
 	public static ServerTask<?, Void> createRestoreCatalogTask(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
@@ -290,6 +292,27 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			.findFirst()
 			.map(it -> it.restoreCatalogTo(catalogName, storageOptions, totalBytesExpected, inputStream))
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
+	}
+
+	/**
+	 * Method initializes traffic recorder instance based on the server options.
+	 *
+	 * @param serverOptions options containing the configuration for the traffic recorder
+	 * @return traffic recorder instance
+	 */
+	@Nonnull
+	private static TrafficRecorder getTrafficRecorder(@Nonnull ServerOptions serverOptions) {
+		if (serverOptions.trafficRecording()) {
+			final TrafficRecorder trafficRecorderInstance = ServiceLoader.load(TrafficRecorder.class)
+				.stream()
+				.findFirst()
+				.orElseThrow(() -> new EvitaInvalidUsageException("Traffic recorder implementation is not available!"))
+				.get();
+			trafficRecorderInstance.init(serverOptions);
+			return trafficRecorderInstance;
+		} else {
+			return NoOpTrafficRecorder.INSTANCE;
+		}
 	}
 
 	public Catalog(
@@ -351,8 +374,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.transactionManager = new TransactionManager(
 			this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
 		);
-		this.trafficRecorder = evitaConfiguration.server().trafficRecording() ?
-			new MemoryBufferTrafficRecorder(evitaConfiguration.server().trafficMemoryBufferSizeInBytes()) : NoOpTrafficRecorder.INSTANCE;
+		this.trafficRecorder = getTrafficRecorder(evitaConfiguration.server());
 
 		this.persistenceService.storeHeader(
 			this.catalogId, CatalogState.WARMING_UP, catalogVersion, 0, null,
@@ -405,8 +427,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this);
 		this.catalogIndex.attachToCatalog(null, this);
 		this.cacheSupervisor = cacheSupervisor;
-		this.trafficRecorder = evitaConfiguration.server().trafficRecording() ?
-			new MemoryBufferTrafficRecorder(evitaConfiguration.server().trafficMemoryBufferSizeInBytes()) : NoOpTrafficRecorder.INSTANCE;
+		this.trafficRecorder = getTrafficRecorder(evitaConfiguration.server());
 		this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
 			new WarmUpDataStoreMemoryBuffer<>(storagePartPersistenceService) :
 			new TransactionalDataStoreMemoryBuffer<>(this, storagePartPersistenceService);
@@ -850,14 +871,14 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 	@Nonnull
 	@Override
-	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
-		return this.persistenceService.getCatalogVersionDescriptors(catalogVersion);
+	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
 	}
 
 	@Nonnull
 	@Override
-	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
-		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
+	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
+		return this.persistenceService.getCatalogVersionDescriptors(catalogVersion);
 	}
 
 	@Override
@@ -878,6 +899,26 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(pastMoment, includingWAL);
 		this.scheduler.submit(backupTask);
 		return backupTask;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStatistics getStatistics() {
+		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
+			.stream()
+			.map(EntityCollection::getStatistics)
+			.toArray(EntityCollectionStatistics[]::new);
+		return new CatalogStatistics(
+			getCatalogId(),
+			getName(),
+			false,
+			getCatalogState(),
+			getVersion(),
+			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::totalRecords).sum(),
+			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::indexCount).sum() + 1,
+			this.persistenceService.getSizeOnDiskInBytes(),
+			collectionStatistics
+		);
 	}
 
 	@Override
@@ -1248,26 +1289,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		if (this.persistenceService instanceof CatalogVersionBeyondTheHorizonListener cvbthl) {
 			cvbthl.catalogVersionBeyondTheHorizon(minimalActiveCatalogVersion);
 		}
-	}
-
-	@Nonnull
-	@Override
-	public CatalogStatistics getStatistics() {
-		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
-			.stream()
-			.map(EntityCollection::getStatistics)
-			.toArray(EntityCollectionStatistics[]::new);
-		return new CatalogStatistics(
-			getCatalogId(),
-			getName(),
-			false,
-			getCatalogState(),
-			getVersion(),
-			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::totalRecords).sum(),
-			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::indexCount).sum() + 1,
-			this.persistenceService.getSizeOnDiskInBytes(),
-			collectionStatistics
-		);
 	}
 
 	/**

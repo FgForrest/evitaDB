@@ -21,43 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.traffic;
-
-import io.evitadb.api.query.Query;
-import io.evitadb.api.requestResponse.mutation.Mutation;
-
-import javax.annotation.Nonnull;
-import java.util.UUID;
+package io.evitadb.store.traffic.data;
 
 /**
  * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class MemoryBufferTrafficRecorder implements TrafficRecorder {
-	private final long trafficMemoryBufferSizeInBytes;
-
-	public MemoryBufferTrafficRecorder(long trafficMemoryBufferSizeInBytes) {
-		this.trafficMemoryBufferSizeInBytes = trafficMemoryBufferSizeInBytes;
-	}
-
-	@Override
-	public void createSession(@Nonnull UUID sessionId, long catalogId) {
-		// no-op
-	}
-
-	@Override
-	public void closeSession(@Nonnull UUID sessionId) {
-		// no-op
-	}
-
-	@Override
-	public void recordQuery(@Nonnull UUID sessionId, @Nonnull Query query, int totalRecordCount, @Nonnull int[] primaryKeys) {
-		// no-op
-	}
-
-	@Override
-	public void recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation... mutation) {
-		// no-op
-	}
+public class QueryContainer {
 }

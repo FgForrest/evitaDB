@@ -289,6 +289,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		} else {
 			this.transactionFinalizationFuture = null;
 		}
+		this.catalog.getTrafficRecorder().createSession(this.id, this.catalog.getVersion(), this.created);
 	}
 
 	@Nonnull
@@ -375,6 +376,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					this.beingClosed= true;
 					ofNullable(terminationCallback)
 						.ifPresent(it -> it.onTermination(this));
+					this.catalog.getTrafficRecorder().closeSession(this.id);
 				} finally {
 					this.beingClosed = false;
 				}

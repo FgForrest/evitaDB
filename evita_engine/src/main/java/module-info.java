@@ -22,6 +22,7 @@
  */
 
 import io.evitadb.api.CatalogStructuralChangeObserver;
+import io.evitadb.core.traffic.TrafficRecorder;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
 /**
@@ -51,6 +52,7 @@ module evita.engine {
 	exports io.evitadb.core.query.algebra;
 	exports io.evitadb.core.query.extraResult.translator.histogram.cache;
 	exports io.evitadb.core.sequence;
+	exports io.evitadb.core.traffic;
 	exports io.evitadb.core.transaction;
 	exports io.evitadb.core.transaction.memory;
 	exports io.evitadb.index;
@@ -78,6 +80,7 @@ module evita.engine {
 
 	uses CatalogStructuralChangeObserver;
 	uses CatalogPersistenceServiceFactory;
+	uses TrafficRecorder;
 
 	requires static lombok;
 	requires static jsr305;

@@ -23,10 +23,12 @@
 
 package io.evitadb.core.traffic;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
@@ -39,12 +41,20 @@ import java.util.UUID;
 public interface TrafficRecorder {
 
 	/**
+	 * Initializes traffic recorder with server options. Method is guaranteed to be called before any other method.
+	 *
+	 * @param serverOptions server options
+	 */
+	void init(@Nonnull ServerOptions serverOptions);
+
+	/**
 	 * Function is called when a new session is created.
 	 *
 	 * @param sessionId      unique identifier of the session
 	 * @param catalogVersion snapshot version of the catalog this session is working with
+	 * @param created        timestamp when the session was created
 	 */
-	void createSession(@Nonnull UUID sessionId, long catalogVersion);
+	void createSession(@Nonnull UUID sessionId, long catalogVersion, @Nonnull OffsetDateTime created);
 
 	/**
 	 * Function is called when a session is closed.
