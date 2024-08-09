@@ -23,10 +23,21 @@
 
 package io.evitadb.store.traffic.data;
 
+import io.evitadb.api.query.Query;
+
+import javax.annotation.Nonnull;
+import java.util.UUID;
+
 /**
- * TODO JNO - document me
+ * Container for a query and its metadata.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class QueryContainer {
+public record QueryContainer(
+	@Nonnull UUID sessionId,
+	@Nonnull Query query,
+	int totalRecordCount,
+	@Nonnull int[] primaryKeys
+) {
+
 }
