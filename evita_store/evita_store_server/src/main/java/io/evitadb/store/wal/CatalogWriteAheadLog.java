@@ -30,6 +30,7 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTooBigException;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -660,6 +661,14 @@ public class CatalogWriteAheadLog implements Closeable {
 					"for maximum WAL file size in evitaDB settings."
 			)
 		);
+		Assert.isPremiseValid(
+			walReference.getContentLength() == transactionMutation.getWalSizeInBytes(),
+			() -> new TransactionException(
+				"Transaction size (`" + transactionMutation.getWalSizeInBytes() + "B`) does not match the WAL reference size (`" + walReference.getContentLength() + "B`)!",
+				"Transaction size does not match the WAL reference size!"
+			)
+		);
+
 		if (this.currentWalFileSize + transactionMutation.getWalSizeInBytes() + 4 > this.maxWalFileSizeBytes) {
 			// rotate the WAL file
 			rotateWalFile();

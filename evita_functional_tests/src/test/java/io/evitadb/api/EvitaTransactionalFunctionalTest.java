@@ -1123,6 +1123,32 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		evita.close();
 	}
 
+	@DisplayName("Should handle large transaction.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Tag(LONG_RUNNING_TEST)
+	@Test
+	void shouldHandleLargeTransaction(EvitaContract evita, SealedEntitySchema productSchema) {
+		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_INDEX_PROPAGATION, SessionFlags.READ_WRITE));
+
+		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+		final int entityCount = 500;
+		dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+			.limit(entityCount)
+			.map(InstanceEditor::toMutation)
+			.flatMap(Optional::stream)
+			.forEach(session::upsertEntity);
+
+		session.close();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			theNewSession -> {
+				final int productCount = theNewSession.getEntityCollectionSize(productSchema.getName());
+				assertEquals(entityCount, productCount);
+			}
+		);
+	}
+
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Tag(LONG_RUNNING_TEST)
