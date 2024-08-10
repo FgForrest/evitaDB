@@ -101,7 +101,6 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 
 		this.driver = new EvitaClient(
 			EvitaClientConfiguration.builder()
-				.host(AbstractApiConfiguration.LOCALHOST)
 				.port(GrpcConfig.DEFAULT_GRPC_PORT)
 				.systemApiPort(SystemConfig.DEFAULT_SYSTEM_PORT)
 				.mtlsEnabled(false)

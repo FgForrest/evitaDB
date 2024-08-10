@@ -498,7 +498,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       fileContents_ = value;
       onChanged();
       return this;
@@ -512,7 +512,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearFileContents() {
-
+      
       fileContents_ = getDefaultInstance().getFileContents();
       onChanged();
       return this;
@@ -541,7 +541,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setTotalSizeInBytes(long value) {
-
+      
       totalSizeInBytes_ = value;
       onChanged();
       return this;
@@ -555,7 +555,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearTotalSizeInBytes() {
-
+      
       totalSizeInBytes_ = 0L;
       onChanged();
       return this;

@@ -57,7 +57,7 @@ public interface GrpcFilesToFetchResponseOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFile>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFile> 
       getFilesToFetchList();
   /**
    * <pre>
@@ -82,7 +82,7 @@ public interface GrpcFilesToFetchResponseOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder> 
       getFilesToFetchOrBuilderList();
   /**
    * <pre>

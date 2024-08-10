@@ -592,7 +592,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getFileIdBuilder() {
-
+      
       onChanged();
       return getFileIdFieldBuilder().getBuilder();
     }
@@ -619,7 +619,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
         getFileIdFieldBuilder() {
       if (fileIdBuilder_ == null) {
         fileIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

@@ -31,7 +31,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Optional;
@@ -57,8 +56,13 @@ public class ConstraintParameterValueResolver {
 		final Object parameterValue;
 		try {
 			parameterValue = getter.invoke(constraint);
-		} catch (IllegalAccessException | InvocationTargetException e) {
-			throw new GenericEvitaInternalError("Could not invoke getter for parameter `" + parameter.name() + "` in constraint `" + constraintClass.getSimpleName() + "`.", e);
+		} catch (Exception e) {
+			throw new GenericEvitaInternalError(
+				"Could not invoke getter (`" + getter.toGenericString() + "`) " +
+					"for parameter `" + parameter.name() + "` " +
+					"in constraint `" + constraintClass.getName() + "`.",
+				e
+			);
 		}
 
 		if (parameterValue instanceof Optional<?> optionalParameterValue) {
@@ -68,9 +72,9 @@ public class ConstraintParameterValueResolver {
 	}
 
 	@Nonnull
-	private Optional<Method> findGetter(@Nonnull Method[] methods, @Nonnull String parameterName) {
+	private static Optional<Method> findGetter(@Nonnull Method[] methods, @Nonnull String parameterName) {
 		return Arrays.stream(methods)
-			.filter(it -> it.getName().equals("get" + StringUtils.capitalize(parameterName)))
+			.filter(it -> it.getName().equals("get" + StringUtils.capitalize(parameterName)) && it.getParameterCount() == 0)
 			.findFirst()
 			.or(() -> Arrays.stream(methods)
 				.filter(it -> it.getAnnotation(AliasForParameter.class) != null &&
