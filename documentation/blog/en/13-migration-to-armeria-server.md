@@ -61,7 +61,7 @@ thanks to the gRPC web proxy embedded in Armeria. There is also "automated" gRPC
 API provided by Armeria, which is very useful for development and testing. We are considering to integrate this service 
 directly into our evitaLab, so that we have all testing tools for all our APIs in one place.
 
-![Armeria gRPC documentation viewer](https://armeria.dev/static/07425b49e3908d0a974b067ff0a964eb/f594a/docservice-carousel-1.webp)
+![Armeria gRPC documentation viewer](assets/images/13-armeria-grpc-documentation.webp)
 
 We've also rewritten our Java client to use the Armeria client instead of the plain Java gRPC client. Its API is much 
 simpler and more powerful than the original. We're looking forward to discovering all the possibilities it offers, 
