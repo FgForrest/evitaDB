@@ -5,7 +5,7 @@ perex: |
   use. However, due to the gRPC API, we still had to run a separate Netty server under the hood. This was far from ideal,
   and we hoped that with Undertow 3.0, which promised to move to Netty, we could unify all APIs under one server. 
   Unfortunately, the development of Undertow 3.0 has not progressed in years and we had to look for alternatives.
-date: '12.7.2024'
+date: '10.8.2024'
 author: 'Jan Novotný'
 motive: assets/images/13-armeria-motive.png
 proofreading: 'done'
@@ -78,6 +78,14 @@ we originally implemented for Undertow, but the [Armeria team helped us out](htt
 The key to solving this problem is to use `HttpResponse.of(CompletableFuture<> lambda)`, which allows you to defer 
 request processing to a point when the request body is available, and chain the processing logic in a non-blocking way.
 
+A similar trap was waiting for us in the gRPC protocol implementation. Unlike the standard gRPC implementation you're 
+used to from the standard Java gRPC server, you need to delegate method handling to a separate thread pool. 
+Unfortunately, you cannot read this in the available documentation and you have to go to 
+[Armeria gRPC examples](https://github.com/line/armeria-examples/blob/414fe5aedd0cba7a3e24c57437a622e7a8d76fed/grpc/src/main/java/example/armeria/grpc/HelloServiceImpl.java#L53-L59) where you can dig it out from one of the examples.
+
+Armeria's documentation on the web is [very short](https://armeria.dev/docs) and we recommend that you go through 
+the examples in the [Armeria GitHub repository](https://github.com/line/armeria-examples/) to learn more details.
+
 ## Dynamic routing
 
 Another problem we had to solve was dynamic routing. We have a lot of endpoints that are not known at compile time, 
@@ -102,6 +110,41 @@ It's unfortunate that Jigsaw is still a problem in libraries and tools in 2024 -
 
 Although the migration brings some incompatible changes in server configuration, we believe Armeria has a great future
 and is the right choice for evitaDB and it's development. The new version is already merged into the `dev` branch and 
-will be released as version `2024.9` next month.
+will be released as version `2024.10` next month.
 
-TODO PERFORMANCE RESULTS
+We've also done a round of [performance testing](https://jmh.morethan.io/?gists=12e66215ecb97d9517c9c1307155691d,fe5d763616a5ef11be471d771a8d6d0b&topBar=Armeria%20vs.%20Undertow%20evitaDB%20API%20performance%20results) where 
+the Armeria implementation was slightly slower (except for REST) than the original Undertow implementation. We need to
+investigate this further, as the REST results are quite surprising and there's a chance we may have missed something in 
+other API implementations. The performance penalty is not significant to stop the migration now, but we will keep an eye
+on it in the future.
+
+Our current implementation based on Undertow also has problems with direct memory leaks in Undertow itself. This can be
+easily demonstrated with this graph from the [Grafana](https://grafana.com/) monitoring tool:
+
+![Undertow direct memory leak](assets/images/13-undertow-leak.png)
+
+Accompanied by this corresponding stack trace:
+
+```
+A channel event listener threw an exception
+java.lang.OutOfMemoryError: Cannot reserve 16384 bytes of direct buffer memory (allocated: 5368695181, limit: 5368709120)
+	at java.base/java.nio.Bits.reserveMemory(Bits.java:178)
+	at java.base/java.nio.DirectByteBuffer.<init>(DirectByteBuffer.java:121)
+	at java.base/java.nio.ByteBuffer.allocateDirect(ByteBuffer.java:332)
+	at io.undertow.server.DefaultByteBufferPool.allocate(DefaultByteBufferPool.java:149)
+	at io.undertow.server.protocol.http.HttpReadListener.handleEventWithNoRunningRequest(HttpReadListener.java:149)
+	at io.undertow.server.protocol.http.HttpReadListener.handleEvent(HttpReadListener.java:136)
+	at io.undertow.server.protocol.http.HttpOpenListener.handleEvent(HttpOpenListener.java:162)
+	at io.undertow.server.protocol.http.HttpOpenListener.handleEvent(HttpOpenListener.java:100)
+	at io.undertow.server.protocol.http.HttpOpenListener.handleEvent(HttpOpenListener.java:57)
+	at org.xnio.ChannelListeners.invokeChannelListener(ChannelListeners.java:92)
+	at org.xnio.ChannelListeners$10.handleEvent(ChannelListeners.java:291)
+	at org.xnio.ChannelListeners$10.handleEvent(ChannelListeners.java:286)
+	at org.xnio.ChannelListeners.invokeChannelListener(ChannelListeners.java:92)
+	at org.xnio.nio.QueuedNioTcpServer2.acceptTask(QueuedNioTcpServer2.java:178)
+	at org.xnio.nio.WorkerThread.safeRun(WorkerThread.java:624)
+	at org.xnio.nio.WorkerThread.run(WorkerThread.java:491)
+```
+
+We hope that Armeria will not have such problems and allow us to focus on developing our services and not on web server 
+problems.
