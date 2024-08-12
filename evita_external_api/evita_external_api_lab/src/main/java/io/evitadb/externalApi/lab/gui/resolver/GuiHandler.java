@@ -108,11 +108,23 @@ public class GuiHandler implements HttpService {
 		final ClassLoader classLoader = getClass().getClassLoader();
 		final Path fsPath = Paths.get("META-INF/lab/gui/dist");
 		if (path.isEmpty() || path.equals("/") || path.equals("/index.html")) {
-			return HttpFile.of(classLoader, fsPath.resolve("index.html").toString()).asService().serve(ctx, req);
+			return HttpFile.of(classLoader, createJarResourceLocationWithForwardSlashes(fsPath.resolve("index.html"))).asService().serve(ctx, req);
 		} else if (ROOT_ASSETS_PATTERN.matcher(path).matches() || ASSETS_PATTERN.matcher(path).matches()) {
-			return HttpFile.of(classLoader, fsPath.resolve(Paths.get(path.substring(1))).toString()).asService().serve(ctx, req);
+			return HttpFile.of(classLoader, createJarResourceLocationWithForwardSlashes(fsPath.resolve(Paths.get(path.substring(1))))).asService().serve(ctx, req);
 		}
 		return HttpResponse.of(404);
+	}
+
+
+	/**
+	 * Creates a resource location with forward slashes. It is necessary to handle it this way for the sake of Windows
+	 * compatibility - it needs forwards slashes within jar file resources.
+	 * @param path path of a jar file resource to be converted
+	 * @return path of a jar file resource with forward slashes
+	 */
+	@Nonnull
+	private static String createJarResourceLocationWithForwardSlashes(@Nonnull Path path) {
+		return path.toString().replace("\\", "/");
 	}
 
 	private void passServerName(@Nonnull ServiceRequestContext ctx) {
