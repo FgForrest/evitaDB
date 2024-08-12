@@ -748,7 +748,9 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					Catalog version: 9, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (13 mutations, 8 KB):
 						 - changes in `PRODUCT`: 13 upserted entities
 					Catalog version: 4, processed at REPLACED_OFFSET_DATE_TIME with 3 transactions (9 mutations, 6 KB):
-						 - changes in `PRODUCT`: 9 upserted entities"""
+						 - changes in `PRODUCT`: 9 upserted entities
+					Catalog version: 1, processed at REPLACED_OFFSET_DATE_TIME with 1 transactions (3 mutations, 1 KB):
+						 - changes in `PRODUCT`: 3 upserted entities"""
 			),
 			replaceTimeStamps(
 				catalog.getCatalogVersionDescriptors(prevPrevVersions)
