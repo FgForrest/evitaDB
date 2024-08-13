@@ -37,18 +37,25 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SERVER_NAME;
 
 /**
  * Descriptor of external API provider that provides System API.
  *
- * @see SystemProviderRegistrar
  * @author Tomáš Pozler, 2023
+ * @see SystemProviderRegistrar
  */
 @RequiredArgsConstructor
 public class SystemProvider implements ExternalApiProviderWithConsoleOutput<SystemConfig> {
 	public static final String CODE = "system";
+	public static final String ROOT_CERTIFICATE_URL = "rootCertificateUrl";
+	public static final String SERVER_CERTIFICATE_URL = "serverCertificateUrl";
+	public static final String CLIENT_CERTIFICATE_URL = "clientCertificateUrl";
+	public static final String CLIENT_PRIVATE_KEY_URL = "clientPrivateKeyUrl";
+	public static final String SERVER_NAME_URL = "serverNameUrl";
 
 	@Nonnull
 	@Getter
@@ -59,24 +66,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	private final HttpService apiHandler;
 
 	@Nonnull
-	@Getter
-	private final String[] serverNameUrls;
-
-	@Nonnull
-	@Getter
-	private final String[] rootCertificateUrls;
-
-	@Nonnull
-	@Getter
-	private final String[] serverCertificateUrls;
-
-	@Nonnull
-	@Getter
-	private final String[] clientCertificateUrls;
-
-	@Nonnull
-	@Getter
-	private final String[] clientPrivateKeyUrls;
+	private final LinkedHashMap<String, String[]> endpoints;
 
 	/**
 	 * Contains url that was at least once found reachable.
@@ -92,82 +82,12 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	@Nonnull
 	@Override
 	public HttpServiceDefinition[] getHttpServiceDefinitions() {
-		return new HttpServiceDefinition[] {
+		return new HttpServiceDefinition[]{
 			new HttpServiceDefinition(
 				apiHandler,
 				PathHandlingMode.DYNAMIC_PATH_HANDLING
 			)
 		};
-	}
-
-	@Override
-	public void writeToConsole() {
-		ConsoleWriter.write(StringUtils.rightPad("   - server name served at: ", " ", ExternalApiServer.PADDING_START_UP));
-		for (int i = 0; i < serverNameUrls.length; i++) {
-			final String serverNameUrl = serverNameUrls[i];
-			if (i > 0) {
-				ConsoleWriter.write(", ", ConsoleColor.WHITE);
-			}
-			ConsoleWriter.write(serverNameUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-		}
-		ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		if (!ArrayUtils.isEmpty(rootCertificateUrls)) {
-			ConsoleWriter.write(StringUtils.rightPad("   - CA certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			for (int i = 0; i < rootCertificateUrls.length; i++) {
-				final String rootCertificateUrl = rootCertificateUrls[i];
-				if (i > 0) {
-					ConsoleWriter.write(", ", ConsoleColor.WHITE);
-				}
-				ConsoleWriter.write(rootCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			}
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		}
-		if (!ArrayUtils.isEmpty(serverCertificateUrls)) {
-			ConsoleWriter.write(StringUtils.rightPad("   - server certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			for (int i = 0; i < serverCertificateUrls.length; i++) {
-				final String serverCertificateUrl = serverCertificateUrls[i];
-				if (i > 0) {
-					ConsoleWriter.write(", ", ConsoleColor.WHITE);
-				}
-				ConsoleWriter.write(serverCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			}
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		}
-		if (!ArrayUtils.isEmpty(clientCertificateUrls)) {
-			ConsoleWriter.write(StringUtils.rightPad("   - client certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			for (int i = 0; i < clientCertificateUrls.length; i++) {
-				final String clientCertificateUrl = clientCertificateUrls[i];
-				if (i > 0) {
-					ConsoleWriter.write(", ", ConsoleColor.WHITE);
-				}
-				ConsoleWriter.write(clientCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			}
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		}
-		if (!ArrayUtils.isEmpty(clientPrivateKeyUrls)) {
-			ConsoleWriter.write(StringUtils.rightPad("   - client private key served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			for (int i = 0; i < clientPrivateKeyUrls.length; i++) {
-				final String clientPrivateKeyUrl = clientPrivateKeyUrls[i];
-				if (i > 0) {
-					ConsoleWriter.write(", ", ConsoleColor.WHITE);
-				}
-				ConsoleWriter.write(clientPrivateKeyUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			}
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		}
-		if (!ArrayUtils.isEmpty(clientCertificateUrls)) {
-			ConsoleWriter.write("""
-					
-					************************* WARNING!!! *************************
-					You use mTLS with automatically generated client certificate.
-					This is not safe for production environments!
-					Supply the certificate for production manually and set `useGeneratedCertificate` to false.
-					************************* WARNING!!! *************************
-					
-					""",
-				ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD
-			);
-		}
 	}
 
 	@Override
@@ -184,6 +104,56 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 			return false;
 		} else {
 			return NetworkUtils.isReachable(this.reachableUrl);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Map<String, String[]> getKeyEndPoints() {
+		return this.endpoints;
+	}
+
+	@Override
+	public void writeToConsole() {
+		writeLine("   - server name served at: ", SERVER_NAME_URL);
+		writeLine("   - CA certificate served at: ", ROOT_CERTIFICATE_URL);
+		writeLine("   - server certificate served at: ", SERVER_CERTIFICATE_URL);
+		writeLine("   - client certificate served at: ", CLIENT_CERTIFICATE_URL);
+		writeLine("   - client private key served at: ", CLIENT_PRIVATE_KEY_URL);
+
+		if (!ArrayUtils.isEmpty(endpoints.get(CLIENT_CERTIFICATE_URL))) {
+			ConsoleWriter.write("""
+					
+					************************* WARNING!!! *************************
+					You use mTLS with automatically generated client certificate.
+					This is not safe for production environments!
+					Supply the certificate for production manually and set `useGeneratedCertificate` to false.
+					************************* WARNING!!! *************************
+					
+					""",
+				ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD
+			);
+		}
+	}
+
+	/**
+	 * Writes line to the console.
+	 *
+	 * @param label       label
+	 * @param endpointKey key of the endpoint
+	 */
+	private void writeLine(@Nonnull String label, @Nonnull String endpointKey) {
+		final String[] urls = endpoints.get(endpointKey);
+		if (!ArrayUtils.isEmpty(urls)) {
+			ConsoleWriter.write(StringUtils.rightPad(label, " ", ExternalApiServer.PADDING_START_UP));
+			for (int i = 0; i < urls.length; i++) {
+				final String serverNameUrl = urls[i];
+				if (i > 0) {
+					ConsoleWriter.write(", ", ConsoleColor.WHITE);
+				}
+				ConsoleWriter.write(serverNameUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			}
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		}
 	}
 }

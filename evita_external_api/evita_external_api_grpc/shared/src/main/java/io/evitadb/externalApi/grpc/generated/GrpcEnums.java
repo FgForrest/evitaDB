@@ -39,7 +39,7 @@ public final class GrpcEnums {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_fieldAccessorTable;
 
@@ -156,8 +156,13 @@ public final class GrpcEnums {
       "NCE\020\001\022\036\n\032WAIT_FOR_INDEX_PROPAGATION\020\002*m\n" +
       "\024GrpcNamingConvention\022\016\n\nCAMEL_CASE\020\000\022\017\n" +
       "\013PASCAL_CASE\020\001\022\016\n\nSNAKE_CASE\020\002\022\024\n\020UPPER_" +
-      "SNAKE_CASE\020\003\022\016\n\nKEBAB_CASE\020\004B\014P\001\252\002\007Evita" +
-      "DBb\006proto3"
+      "SNAKE_CASE\020\003\022\016\n\nKEBAB_CASE\020\004*}\n\021GrpcHeal" +
+      "thProblem\022\023\n\017MEMORY_SHORTAGE\020\000\022\034\n\030EXTERN" +
+      "AL_API_UNAVAILABLE\020\001\022\033\n\027INPUT_QUEUES_OVE" +
+      "RLOADED\020\002\022\030\n\024JAVA_INTERNAL_ERRORS\020\003*e\n\rG" +
+      "rpcReadiness\022\020\n\014API_STARTING\020\000\022\r\n\tAPI_RE" +
+      "ADY\020\001\022\020\n\014API_STALLING\020\002\022\020\n\014API_SHUTDOWN\020" +
+      "\003\022\017\n\013API_UNKNOWN\020\004B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

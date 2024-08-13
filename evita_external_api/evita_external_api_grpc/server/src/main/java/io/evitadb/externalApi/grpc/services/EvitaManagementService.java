@@ -37,12 +37,19 @@ import io.evitadb.core.EvitaManagement;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.externalApi.api.system.ProbesProvider;
+import io.evitadb.externalApi.api.system.ProbesProvider.ApiState;
+import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
+import io.evitadb.externalApi.api.system.ProbesProvider.ReadinessState;
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
+import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.Assert;
 import io.grpc.Metadata;
@@ -58,7 +65,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.ServiceLoader;
+import java.util.ServiceLoader.Provider;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -66,6 +77,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcTaskStatus;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcHealthProblem;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcReadinessState;
+import static java.util.Optional.ofNullable;
 
 /**
  * This service contains methods that could be called by gRPC clients on {@link EvitaManagementContract}.
@@ -78,6 +92,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 * Instance of Evita upon which will be executed service calls
 	 */
 	@Nonnull private final Evita evita;
+	/**
+	 * Instance of {@link ExternalApiServer} that is used to handle HTTP requests - for the sake of checking the status.
+	 */
+	@Nonnull private final ExternalApiServer externalApiServer;
 	/**
 	 * Direct reference to {@link EvitaManagement} instance.
 	 */
@@ -127,8 +145,9 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		}
 	}
 
-	public EvitaManagementService(@Nonnull Evita evita) {
+	public EvitaManagementService(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer) {
 		this.evita = evita;
+		this.externalApiServer = externalApiServer;
 		this.management = evita.management();
 	}
 
@@ -143,17 +162,72 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		executeWithClientContext(
 			() -> {
 				final SystemStatus systemStatus = management.getSystemStatus();
-				responseObserver.onNext(
-					GrpcEvitaServerStatusResponse
-						.newBuilder()
-						.setVersion(systemStatus.version())
-						.setStartedAt(toGrpcOffsetDateTime(systemStatus.startedAt()))
-						.setUptime(systemStatus.uptime().toSeconds())
-						.setInstanceId(systemStatus.instanceId())
-						.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
-						.setCatalogsOk(systemStatus.catalogsOk())
-						.build()
-				);
+				final List<ProbesProvider> probes = ServiceLoader.load(ProbesProvider.class)
+					.stream()
+					.map(Provider::get)
+					.toList();
+
+				final String[] enabledApiEndpoints = externalApiServer.getApiOptions().getEnabledApiEndpoints();
+				final Optional<Readiness> readiness = probes.stream()
+					.findFirst()
+					.map(it -> it.getReadiness(evita, externalApiServer, enabledApiEndpoints));
+
+				final GrpcEvitaServerStatusResponse.Builder responseBuilder = GrpcEvitaServerStatusResponse
+					.newBuilder()
+					.setVersion(systemStatus.version())
+					.setStartedAt(toGrpcOffsetDateTime(systemStatus.startedAt()))
+					.setUptime(systemStatus.uptime().toSeconds())
+					.setInstanceId(systemStatus.instanceId())
+					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
+					.setCatalogsOk(systemStatus.catalogsOk())
+					.setReadiness(toGrpcReadinessState(readiness.map(Readiness::state).orElse(ReadinessState.UNKNOWN)));
+
+				probes.stream()
+					.flatMap(probe -> probe.getHealthProblems(evita, externalApiServer, enabledApiEndpoints).stream())
+					.distinct()
+					.forEach(problem -> responseBuilder.addHealthProblems(toGrpcHealthProblem(problem)));
+
+				final Set<String> enabledApiEndpointsSet = Set.of(enabledApiEndpoints);
+				ExternalApiServer.gatherExternalApiProviders()
+					.forEach(apiRegistrar -> {
+						final GrpcApiStatus.Builder apiBuilder = GrpcApiStatus.newBuilder()
+							.setEnabled(enabledApiEndpointsSet.contains(apiRegistrar.getExternalApiCode()))
+							.setReady(
+								readiness.map(it -> Arrays.stream(it.apiStates())
+									.filter(apiState -> apiState.apiCode().equals(apiRegistrar.getExternalApiCode()))
+									.anyMatch(ApiState::isReady)
+								).orElse(false)
+							);
+
+						final Optional<ExternalApiProvider<?>> externalApiProviderByCode = ofNullable(externalApiServer.getExternalApiProviderByCode(apiRegistrar.getExternalApiCode()));
+						externalApiProviderByCode
+							.ifPresent(provider -> {
+								final AbstractApiConfiguration configuration = provider.getConfiguration();
+								Arrays.stream(configuration.getBaseUrls(configuration.getExposedHost()))
+									.forEach(apiBuilder::addBaseUrl);
+
+								provider.getKeyEndPoints()
+									.forEach(
+										(key, value) -> {
+											final GrpcEndpoint.Builder endpointBuilder = GrpcEndpoint.newBuilder()
+												.setName(key);
+											for (String url : value) {
+												endpointBuilder.addUrl(url);
+											}
+											apiBuilder.addEndpoints(
+												endpointBuilder.build()
+											);
+										}
+									);
+							});
+
+						responseBuilder.putApi(
+							apiRegistrar.getExternalApiCode(),
+							apiBuilder.build()
+						);
+					});
+
+				responseObserver.onNext(responseBuilder.build());
 				responseObserver.onCompleted();
 			},
 			evita.getRequestExecutor(),

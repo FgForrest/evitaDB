@@ -460,7 +460,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setNameVariants(boolean value) {
-
+      
       nameVariants_ = value;
       onChanged();
       return this;
@@ -475,7 +475,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearNameVariants() {
-
+      
       nameVariants_ = false;
       onChanged();
       return this;

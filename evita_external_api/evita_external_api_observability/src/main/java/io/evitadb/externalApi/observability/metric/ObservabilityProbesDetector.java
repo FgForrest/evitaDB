@@ -133,14 +133,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 			recordResult(checkJavaErrors(theObservabilityManager), healthProblems, theObservabilityManager);
 		}
 
-		final ReadinessWithTimestamp readinessWithTimestamp = this.lastReadinessSeen.get();
-		if (readinessWithTimestamp == null ||
-			(OffsetDateTime.now().minus(HEALTH_CHECK_READINESS_RENEW_INTERVAL).isAfter(readinessWithTimestamp.timestamp()) ||
-				readinessWithTimestamp.result().state() != ReadinessState.READY)
-		) {
-			// enforce renewal of readiness check
-			getReadiness(evitaContract, externalApiServer, apiCodes);
-		}
+		getReadiness(evitaContract, externalApiServer, apiCodes);
 
 		recordResult(checkApiReadiness(), healthProblems, theObservabilityManager);
 
@@ -150,30 +143,40 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	@Nonnull
 	@Override
 	public Readiness getReadiness(@Nonnull EvitaContract evitaContract, @Nonnull ExternalApiServer externalApiServer, @Nonnull String... apiCodes) {
-		final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
-		// check the end-points availability
-		//noinspection rawtypes
-		final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
-		final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
-		for (String apiCode : apiCodes) {
-			final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
-			final boolean ready = apiProvider.isReady();
-			readiness.put(apiProvider.getCode(), ready);
-			theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), ready));
+		final ReadinessWithTimestamp readinessWithTimestamp = this.lastReadinessSeen.get();
+		final Readiness currentReadiness;
+		if (readinessWithTimestamp == null ||
+			(OffsetDateTime.now().minus(HEALTH_CHECK_READINESS_RENEW_INTERVAL).isAfter(readinessWithTimestamp.timestamp()) ||
+				readinessWithTimestamp.result().state() != ReadinessState.READY)
+		) {
+			// enforce renewal of readiness check
+			final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
+			// check the end-points availability
+			//noinspection rawtypes
+			final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
+			final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
+			for (String apiCode : apiCodes) {
+				final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
+				final boolean ready = apiProvider.isReady();
+				readiness.put(apiProvider.getCode(), ready);
+				theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), ready));
+			}
+			final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
+			if (ready) {
+				this.seenReady.set(true);
+			}
+			currentReadiness = new Readiness(
+				ready ? ReadinessState.READY : (this.seenReady.get() ? ReadinessState.STALLING : ReadinessState.STARTING),
+				readiness.entrySet().stream()
+					.map(entry -> new ApiState(entry.getKey(), entry.getValue()))
+					.toArray(ApiState[]::new)
+			);
+			this.lastReadinessSeen.set(
+				new ReadinessWithTimestamp(currentReadiness, OffsetDateTime.now())
+			);
+		} else {
+			currentReadiness = readinessWithTimestamp.result();
 		}
-		final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
-		if (ready) {
-			this.seenReady.set(true);
-		}
-		final Readiness currentReadiness = new Readiness(
-			ready ? ReadinessState.READY : (this.seenReady.get() ? ReadinessState.STALLING : ReadinessState.STARTING),
-			readiness.entrySet().stream()
-				.map(entry -> new ApiState(entry.getKey(), entry.getValue()))
-				.toArray(ApiState[]::new)
-		);
-		this.lastReadinessSeen.set(
-			new ReadinessWithTimestamp(currentReadiness, OffsetDateTime.now())
-		);
 		return currentReadiness;
 	}
 

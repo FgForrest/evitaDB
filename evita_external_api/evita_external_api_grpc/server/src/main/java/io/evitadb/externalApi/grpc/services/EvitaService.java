@@ -118,6 +118,18 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	}
 
 	/**
+	 * Method is used to check readiness of the gRPC API.
+	 *
+	 * @param request          empty message
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void isReady(Empty request, StreamObserver<GrpcReadyResponse> responseObserver) {
+		responseObserver.onNext(GrpcReadyResponse.newBuilder().setReady(true).build());
+		responseObserver.onCompleted();
+	}
+
+	/**
 	 * Method is used to create read only session by calling {@link Evita#createSession(SessionTraits)}.
 	 *
 	 * @param request          request containing session type and session id

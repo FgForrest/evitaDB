@@ -37,7 +37,7 @@ public interface GetMutationsHistoryResponseOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> 
       getChangeCaptureList();
   /**
    * <pre>
@@ -62,7 +62,7 @@ public interface GetMutationsHistoryResponseOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
       getChangeCaptureOrBuilderList();
   /**
    * <pre>

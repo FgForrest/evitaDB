@@ -45,6 +45,8 @@ private static final long serialVersionUID = 0L;
   private GrpcEvitaServerStatusResponse() {
     version_ = "";
     instanceId_ = "";
+    healthProblems_ = java.util.Collections.emptyList();
+    readiness_ = 0;
   }
 
   @java.lang.Override
@@ -67,6 +69,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -117,6 +120,48 @@ private static final long serialVersionUID = 0L;
             catalogsOk_ = input.readInt32();
             break;
           }
+          case 56: {
+            int rawValue = input.readEnum();
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              healthProblems_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            healthProblems_.add(rawValue);
+            break;
+          }
+          case 58: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+                healthProblems_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000001;
+              }
+              healthProblems_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
+            break;
+          }
+          case 64: {
+            int rawValue = input.readEnum();
+
+            readiness_ = rawValue;
+            break;
+          }
+          case 74: {
+            if (!((mutable_bitField0_ & 0x00000002) != 0)) {
+              api_ = com.google.protobuf.MapField.newMapField(
+                  ApiDefaultEntryHolder.defaultEntry);
+              mutable_bitField0_ |= 0x00000002;
+            }
+            com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
+            api__ = input.readMessage(
+                ApiDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
+            api_.getMutableMap().put(
+                api__.getKey(), api__.getValue());
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -132,6 +177,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        healthProblems_ = java.util.Collections.unmodifiableList(healthProblems_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -141,6 +189,18 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaServerStatusResponse_descriptor;
   }
 
+  @SuppressWarnings({"rawtypes"})
+  @java.lang.Override
+  protected com.google.protobuf.MapField internalGetMapField(
+      int number) {
+    switch (number) {
+      case 9:
+        return internalGetApi();
+      default:
+        throw new RuntimeException(
+            "Invalid map field number: " + number);
+    }
+  }
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
@@ -165,7 +225,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       version_ = s;
@@ -185,7 +245,7 @@ private static final long serialVersionUID = 0L;
       getVersionBytes() {
     java.lang.Object ref = version_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       version_ = b;
@@ -264,7 +324,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       instanceId_ = s;
@@ -284,7 +344,7 @@ private static final long serialVersionUID = 0L;
       getInstanceIdBytes() {
     java.lang.Object ref = instanceId_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       instanceId_ = b;
@@ -324,6 +384,208 @@ private static final long serialVersionUID = 0L;
     return catalogsOk_;
   }
 
+  public static final int HEALTHPROBLEMS_FIELD_NUMBER = 7;
+  private java.util.List<java.lang.Integer> healthProblems_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> healthProblems_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcHealthProblem convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcHealthProblem result = io.evitadb.externalApi.grpc.generated.GrpcHealthProblem.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcHealthProblem.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * Health problems
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+   * @return A list containing the healthProblems.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> getHealthProblemsList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem>(healthProblems_, healthProblems_converter_);
+  }
+  /**
+   * <pre>
+   * Health problems
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+   * @return The count of healthProblems.
+   */
+  @java.lang.Override
+  public int getHealthProblemsCount() {
+    return healthProblems_.size();
+  }
+  /**
+   * <pre>
+   * Health problems
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+   * @param index The index of the element to return.
+   * @return The healthProblems at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcHealthProblem getHealthProblems(int index) {
+    return healthProblems_converter_.convert(healthProblems_.get(index));
+  }
+  /**
+   * <pre>
+   * Health problems
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+   * @return A list containing the enum numeric values on the wire for healthProblems.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getHealthProblemsValueList() {
+    return healthProblems_;
+  }
+  /**
+   * <pre>
+   * Health problems
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of healthProblems at the given index.
+   */
+  @java.lang.Override
+  public int getHealthProblemsValue(int index) {
+    return healthProblems_.get(index);
+  }
+  private int healthProblemsMemoizedSerializedSize;
+
+  public static final int READINESS_FIELD_NUMBER = 8;
+  private int readiness_;
+  /**
+   * <pre>
+   * Overall readiness of the evitaDB server
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReadiness readiness = 8;</code>
+   * @return The enum numeric value on the wire for readiness.
+   */
+  @java.lang.Override public int getReadinessValue() {
+    return readiness_;
+  }
+  /**
+   * <pre>
+   * Overall readiness of the evitaDB server
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReadiness readiness = 8;</code>
+   * @return The readiness.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcReadiness getReadiness() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcReadiness result = io.evitadb.externalApi.grpc.generated.GrpcReadiness.valueOf(readiness_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcReadiness.UNRECOGNIZED : result;
+  }
+
+  public static final int API_FIELD_NUMBER = 9;
+  private static final class ApiDefaultEntryHolder {
+    static final com.google.protobuf.MapEntry<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> defaultEntry =
+            com.google.protobuf.MapEntry
+            .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>newDefaultInstance(
+                io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaServerStatusResponse_ApiEntry_descriptor, 
+                com.google.protobuf.WireFormat.FieldType.STRING,
+                "",
+                com.google.protobuf.WireFormat.FieldType.MESSAGE,
+                io.evitadb.externalApi.grpc.generated.GrpcApiStatus.getDefaultInstance());
+  }
+  private com.google.protobuf.MapField<
+      java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> api_;
+  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
+  internalGetApi() {
+    if (api_ == null) {
+      return com.google.protobuf.MapField.emptyMapField(
+          ApiDefaultEntryHolder.defaultEntry);
+    }
+    return api_;
+  }
+
+  public int getApiCount() {
+    return internalGetApi().getMap().size();
+  }
+  /**
+   * <pre>
+   * Information about all available APIs
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+   */
+
+  @java.lang.Override
+  public boolean containsApi(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    return internalGetApi().getMap().containsKey(key);
+  }
+  /**
+   * Use {@link #getApiMap()} instead.
+   */
+  @java.lang.Override
+  @java.lang.Deprecated
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> getApi() {
+    return getApiMap();
+  }
+  /**
+   * <pre>
+   * Information about all available APIs
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+   */
+  @java.lang.Override
+
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> getApiMap() {
+    return internalGetApi().getMap();
+  }
+  /**
+   * <pre>
+   * Information about all available APIs
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+   */
+  @java.lang.Override
+
+  public io.evitadb.externalApi.grpc.generated.GrpcApiStatus getApiOrDefault(
+      java.lang.String key,
+      io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> map =
+        internalGetApi().getMap();
+    return map.containsKey(key) ? map.get(key) : defaultValue;
+  }
+  /**
+   * <pre>
+   * Information about all available APIs
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+   */
+  @java.lang.Override
+
+  public io.evitadb.externalApi.grpc.generated.GrpcApiStatus getApiOrThrow(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> map =
+        internalGetApi().getMap();
+    if (!map.containsKey(key)) {
+      throw new java.lang.IllegalArgumentException();
+    }
+    return map.get(key);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -338,6 +600,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(version_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, version_);
     }
@@ -356,6 +619,22 @@ private static final long serialVersionUID = 0L;
     if (catalogsOk_ != 0) {
       output.writeInt32(6, catalogsOk_);
     }
+    if (getHealthProblemsList().size() > 0) {
+      output.writeUInt32NoTag(58);
+      output.writeUInt32NoTag(healthProblemsMemoizedSerializedSize);
+    }
+    for (int i = 0; i < healthProblems_.size(); i++) {
+      output.writeEnumNoTag(healthProblems_.get(i));
+    }
+    if (readiness_ != io.evitadb.externalApi.grpc.generated.GrpcReadiness.API_STARTING.getNumber()) {
+      output.writeEnum(8, readiness_);
+    }
+    com.google.protobuf.GeneratedMessageV3
+      .serializeStringMapTo(
+        output,
+        internalGetApi(),
+        ApiDefaultEntryHolder.defaultEntry,
+        9);
     unknownFields.writeTo(output);
   }
 
@@ -387,6 +666,32 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(6, catalogsOk_);
     }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < healthProblems_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(healthProblems_.get(i));
+      }
+      size += dataSize;
+      if (!getHealthProblemsList().isEmpty()) {  size += 1;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }healthProblemsMemoizedSerializedSize = dataSize;
+    }
+    if (readiness_ != io.evitadb.externalApi.grpc.generated.GrpcReadiness.API_STARTING.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(8, readiness_);
+    }
+    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> entry
+         : internalGetApi().getMap().entrySet()) {
+      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
+      api__ = ApiDefaultEntryHolder.defaultEntry.newBuilderForType()
+          .setKey(entry.getKey())
+          .setValue(entry.getValue())
+          .build();
+      size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(9, api__);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -417,6 +722,10 @@ private static final long serialVersionUID = 0L;
         != other.getCatalogsCorrupted()) return false;
     if (getCatalogsOk()
         != other.getCatalogsOk()) return false;
+    if (!healthProblems_.equals(other.healthProblems_)) return false;
+    if (readiness_ != other.readiness_) return false;
+    if (!internalGetApi().equals(
+        other.internalGetApi())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -443,6 +752,16 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getCatalogsCorrupted();
     hash = (37 * hash) + CATALOGSOK_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogsOk();
+    if (getHealthProblemsCount() > 0) {
+      hash = (37 * hash) + HEALTHPROBLEMS_FIELD_NUMBER;
+      hash = (53 * hash) + healthProblems_.hashCode();
+    }
+    hash = (37 * hash) + READINESS_FIELD_NUMBER;
+    hash = (53 * hash) + readiness_;
+    if (!internalGetApi().getMap().isEmpty()) {
+      hash = (37 * hash) + API_FIELD_NUMBER;
+      hash = (53 * hash) + internalGetApi().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -554,6 +873,28 @@ private static final long serialVersionUID = 0L;
       return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaServerStatusResponse_descriptor;
     }
 
+    @SuppressWarnings({"rawtypes"})
+    protected com.google.protobuf.MapField internalGetMapField(
+        int number) {
+      switch (number) {
+        case 9:
+          return internalGetApi();
+        default:
+          throw new RuntimeException(
+              "Invalid map field number: " + number);
+      }
+    }
+    @SuppressWarnings({"rawtypes"})
+    protected com.google.protobuf.MapField internalGetMutableMapField(
+        int number) {
+      switch (number) {
+        case 9:
+          return internalGetMutableApi();
+        default:
+          throw new RuntimeException(
+              "Invalid map field number: " + number);
+      }
+    }
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
@@ -596,6 +937,11 @@ private static final long serialVersionUID = 0L;
 
       catalogsOk_ = 0;
 
+      healthProblems_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      readiness_ = 0;
+
+      internalGetMutableApi().clear();
       return this;
     }
 
@@ -622,6 +968,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse result = new io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse(this);
+      int from_bitField0_ = bitField0_;
       result.version_ = version_;
       if (startedAtBuilder_ == null) {
         result.startedAt_ = startedAt_;
@@ -632,6 +979,14 @@ private static final long serialVersionUID = 0L;
       result.instanceId_ = instanceId_;
       result.catalogsCorrupted_ = catalogsCorrupted_;
       result.catalogsOk_ = catalogsOk_;
+      if (((bitField0_ & 0x00000001) != 0)) {
+        healthProblems_ = java.util.Collections.unmodifiableList(healthProblems_);
+        bitField0_ = (bitField0_ & ~0x00000001);
+      }
+      result.healthProblems_ = healthProblems_;
+      result.readiness_ = readiness_;
+      result.api_ = internalGetApi();
+      result.api_.makeImmutable();
       onBuilt();
       return result;
     }
@@ -700,6 +1055,21 @@ private static final long serialVersionUID = 0L;
       if (other.getCatalogsOk() != 0) {
         setCatalogsOk(other.getCatalogsOk());
       }
+      if (!other.healthProblems_.isEmpty()) {
+        if (healthProblems_.isEmpty()) {
+          healthProblems_ = other.healthProblems_;
+          bitField0_ = (bitField0_ & ~0x00000001);
+        } else {
+          ensureHealthProblemsIsMutable();
+          healthProblems_.addAll(other.healthProblems_);
+        }
+        onChanged();
+      }
+      if (other.readiness_ != 0) {
+        setReadinessValue(other.getReadinessValue());
+      }
+      internalGetMutableApi().mergeFrom(
+          other.internalGetApi());
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -728,6 +1098,7 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
+    private int bitField0_;
 
     private java.lang.Object version_ = "";
     /**
@@ -762,7 +1133,7 @@ private static final long serialVersionUID = 0L;
         getVersionBytes() {
       java.lang.Object ref = version_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         version_ = b;
@@ -785,7 +1156,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       version_ = value;
       onChanged();
       return this;
@@ -799,7 +1170,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-
+      
       version_ = getDefaultInstance().getVersion();
       onChanged();
       return this;
@@ -819,7 +1190,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       version_ = value;
       onChanged();
       return this;
@@ -940,7 +1311,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getStartedAtBuilder() {
-
+      
       onChanged();
       return getStartedAtFieldBuilder().getBuilder();
     }
@@ -967,7 +1338,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
         getStartedAtFieldBuilder() {
       if (startedAtBuilder_ == null) {
         startedAtBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1003,7 +1374,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setUptime(long value) {
-
+      
       uptime_ = value;
       onChanged();
       return this;
@@ -1017,7 +1388,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearUptime() {
-
+      
       uptime_ = 0L;
       onChanged();
       return this;
@@ -1056,7 +1427,7 @@ private static final long serialVersionUID = 0L;
         getInstanceIdBytes() {
       java.lang.Object ref = instanceId_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         instanceId_ = b;
@@ -1079,7 +1450,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       instanceId_ = value;
       onChanged();
       return this;
@@ -1093,7 +1464,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearInstanceId() {
-
+      
       instanceId_ = getDefaultInstance().getInstanceId();
       onChanged();
       return this;
@@ -1113,7 +1484,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       instanceId_ = value;
       onChanged();
       return this;
@@ -1142,7 +1513,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogsCorrupted(int value) {
-
+      
       catalogsCorrupted_ = value;
       onChanged();
       return this;
@@ -1156,7 +1527,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogsCorrupted() {
-
+      
       catalogsCorrupted_ = 0;
       onChanged();
       return this;
@@ -1185,7 +1556,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogsOk(int value) {
-
+      
       catalogsOk_ = value;
       onChanged();
       return this;
@@ -1199,9 +1570,430 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogsOk() {
-
+      
       catalogsOk_ = 0;
       onChanged();
+      return this;
+    }
+
+    private java.util.List<java.lang.Integer> healthProblems_ =
+      java.util.Collections.emptyList();
+    private void ensureHealthProblemsIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        healthProblems_ = new java.util.ArrayList<java.lang.Integer>(healthProblems_);
+        bitField0_ |= 0x00000001;
+      }
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @return A list containing the healthProblems.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> getHealthProblemsList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem>(healthProblems_, healthProblems_converter_);
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @return The count of healthProblems.
+     */
+    public int getHealthProblemsCount() {
+      return healthProblems_.size();
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @param index The index of the element to return.
+     * @return The healthProblems at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcHealthProblem getHealthProblems(int index) {
+      return healthProblems_converter_.convert(healthProblems_.get(index));
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @param index The index to set the value at.
+     * @param value The healthProblems to set.
+     * @return This builder for chaining.
+     */
+    public Builder setHealthProblems(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureHealthProblemsIsMutable();
+      healthProblems_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @param value The healthProblems to add.
+     * @return This builder for chaining.
+     */
+    public Builder addHealthProblems(io.evitadb.externalApi.grpc.generated.GrpcHealthProblem value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureHealthProblemsIsMutable();
+      healthProblems_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @param values The healthProblems to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllHealthProblems(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> values) {
+      ensureHealthProblemsIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcHealthProblem value : values) {
+        healthProblems_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearHealthProblems() {
+      healthProblems_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @return A list containing the enum numeric values on the wire for healthProblems.
+     */
+    public java.util.List<java.lang.Integer>
+    getHealthProblemsValueList() {
+      return java.util.Collections.unmodifiableList(healthProblems_);
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of healthProblems at the given index.
+     */
+    public int getHealthProblemsValue(int index) {
+      return healthProblems_.get(index);
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of healthProblems at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setHealthProblemsValue(
+        int index, int value) {
+      ensureHealthProblemsIsMutable();
+      healthProblems_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @param value The enum numeric value on the wire for healthProblems to add.
+     * @return This builder for chaining.
+     */
+    public Builder addHealthProblemsValue(int value) {
+      ensureHealthProblemsIsMutable();
+      healthProblems_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Health problems
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+     * @param values The enum numeric values on the wire for healthProblems to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllHealthProblemsValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureHealthProblemsIsMutable();
+      for (int value : values) {
+        healthProblems_.add(value);
+      }
+      onChanged();
+      return this;
+    }
+
+    private int readiness_ = 0;
+    /**
+     * <pre>
+     * Overall readiness of the evitaDB server
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReadiness readiness = 8;</code>
+     * @return The enum numeric value on the wire for readiness.
+     */
+    @java.lang.Override public int getReadinessValue() {
+      return readiness_;
+    }
+    /**
+     * <pre>
+     * Overall readiness of the evitaDB server
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReadiness readiness = 8;</code>
+     * @param value The enum numeric value on the wire for readiness to set.
+     * @return This builder for chaining.
+     */
+    public Builder setReadinessValue(int value) {
+      
+      readiness_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Overall readiness of the evitaDB server
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReadiness readiness = 8;</code>
+     * @return The readiness.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcReadiness getReadiness() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcReadiness result = io.evitadb.externalApi.grpc.generated.GrpcReadiness.valueOf(readiness_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcReadiness.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * Overall readiness of the evitaDB server
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReadiness readiness = 8;</code>
+     * @param value The readiness to set.
+     * @return This builder for chaining.
+     */
+    public Builder setReadiness(io.evitadb.externalApi.grpc.generated.GrpcReadiness value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      
+      readiness_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Overall readiness of the evitaDB server
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcReadiness readiness = 8;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearReadiness() {
+      
+      readiness_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.MapField<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> api_;
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
+    internalGetApi() {
+      if (api_ == null) {
+        return com.google.protobuf.MapField.emptyMapField(
+            ApiDefaultEntryHolder.defaultEntry);
+      }
+      return api_;
+    }
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
+    internalGetMutableApi() {
+      onChanged();;
+      if (api_ == null) {
+        api_ = com.google.protobuf.MapField.newMapField(
+            ApiDefaultEntryHolder.defaultEntry);
+      }
+      if (!api_.isMutable()) {
+        api_ = api_.copy();
+      }
+      return api_;
+    }
+
+    public int getApiCount() {
+      return internalGetApi().getMap().size();
+    }
+    /**
+     * <pre>
+     * Information about all available APIs
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+     */
+
+    @java.lang.Override
+    public boolean containsApi(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      return internalGetApi().getMap().containsKey(key);
+    }
+    /**
+     * Use {@link #getApiMap()} instead.
+     */
+    @java.lang.Override
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> getApi() {
+      return getApiMap();
+    }
+    /**
+     * <pre>
+     * Information about all available APIs
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+     */
+    @java.lang.Override
+
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> getApiMap() {
+      return internalGetApi().getMap();
+    }
+    /**
+     * <pre>
+     * Information about all available APIs
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+     */
+    @java.lang.Override
+
+    public io.evitadb.externalApi.grpc.generated.GrpcApiStatus getApiOrDefault(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> map =
+          internalGetApi().getMap();
+      return map.containsKey(key) ? map.get(key) : defaultValue;
+    }
+    /**
+     * <pre>
+     * Information about all available APIs
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+     */
+    @java.lang.Override
+
+    public io.evitadb.externalApi.grpc.generated.GrpcApiStatus getApiOrThrow(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> map =
+          internalGetApi().getMap();
+      if (!map.containsKey(key)) {
+        throw new java.lang.IllegalArgumentException();
+      }
+      return map.get(key);
+    }
+
+    public Builder clearApi() {
+      internalGetMutableApi().getMutableMap()
+          .clear();
+      return this;
+    }
+    /**
+     * <pre>
+     * Information about all available APIs
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+     */
+
+    public Builder removeApi(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      internalGetMutableApi().getMutableMap()
+          .remove(key);
+      return this;
+    }
+    /**
+     * Use alternate mutation accessors instead.
+     */
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
+    getMutableApi() {
+      return internalGetMutableApi().getMutableMap();
+    }
+    /**
+     * <pre>
+     * Information about all available APIs
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+     */
+    public Builder putApi(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcApiStatus value) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      if (value == null) {
+  throw new NullPointerException("map value");
+}
+
+      internalGetMutableApi().getMutableMap()
+          .put(key, value);
+      return this;
+    }
+    /**
+     * <pre>
+     * Information about all available APIs
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+     */
+
+    public Builder putAllApi(
+        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> values) {
+      internalGetMutableApi().getMutableMap()
+          .putAll(values);
       return this;
     }
     @java.lang.Override

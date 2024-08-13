@@ -55,8 +55,8 @@ import javax.annotation.Nonnull;
 import java.io.File;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
@@ -93,23 +93,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				.collect(Collectors.joining(",\n")) + "\n" +
 			"\t}\n" +
 			"}").build();
-	}
-
-	/**
-	 * Returns the enabled API endpoints.
-	 *
-	 * @param apiOptions the common settings shared among all the API endpoints
-	 * @return array of codes of the enabled API endpoints
-	 */
-	@Nonnull
-	private static String[] getEnabledApiEndpoints(@Nonnull ApiOptions apiOptions) {
-		return apiOptions.endpoints()
-			.entrySet()
-			.stream()
-			.filter(entry -> entry.getValue() != null)
-			.filter(entry -> entry.getValue().isEnabled())
-			.map(Entry::getKey)
-			.toArray(String[]::new);
 	}
 
 	/**
@@ -303,7 +286,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			)
 		);
 
-		final String[] enabledEndPoints = getEnabledApiEndpoints(apiOptions);
+		final String[] enabledEndPoints = apiOptions.getEnabledApiEndpoints();
 		final List<ProbesProvider> probes = ServiceLoader.load(ProbesProvider.class)
 			.stream()
 			.map(Provider::get)
@@ -419,32 +402,44 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		}
 
 		final boolean atLeastOnEndpointRequiresMtls = apiOptions.atLeastOnEndpointRequiresMtls();
-		return new SystemProvider(
-			systemConfig,
-			router,
+		final LinkedHashMap<String, String[]> endpoints = new LinkedHashMap<>(16);
+		endpoints.put(
+			SystemProvider.SERVER_NAME_URL,
 			Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 				.map(it -> it + ENDPOINT_SERVER_NAME)
-				.toArray(String[]::new),
-			fileName == null ?
-				new String[0] : Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-				.map(it -> it + fileName)
-				.toArray(String[]::new),
-			certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresTls ?
+				.toArray(String[]::new)
+		);
+		if (fileName != null) {
+			endpoints.put(
+				SystemProvider.ROOT_CERTIFICATE_URL,
+				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+					.map(it -> it + fileName)
+					.toArray(String[]::new)
+			);
+		}
+		if (certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresTls) {
+			endpoints.put(
+				SystemProvider.SERVER_CERTIFICATE_URL,
 				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 					.map(it -> it + CertificateUtils.getGeneratedServerCertificateFileName())
-					.toArray(String[]::new) :
-				new String[0],
-			certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresMtls ?
+					.toArray(String[]::new)
+			);
+		}
+		if (certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresMtls) {
+			endpoints.put(
+				SystemProvider.CLIENT_CERTIFICATE_URL,
 				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 					.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
-					.toArray(String[]::new) :
-				new String[0],
-			certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresMtls ?
+					.toArray(String[]::new)
+			);
+			endpoints.put(
+				SystemProvider.CLIENT_PRIVATE_KEY_URL,
 				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 					.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
-					.toArray(String[]::new) :
-				new String[0]
-		);
+					.toArray(String[]::new)
+			);
+		}
+		return new SystemProvider(systemConfig, router, endpoints);
 	}
 
 	@Nonnull

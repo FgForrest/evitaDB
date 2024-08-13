@@ -57,7 +57,7 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus> 
       getTaskStatusList();
   /**
    * <pre>
@@ -82,7 +82,7 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> 
       getTaskStatusOrBuilderList();
   /**
    * <pre>
