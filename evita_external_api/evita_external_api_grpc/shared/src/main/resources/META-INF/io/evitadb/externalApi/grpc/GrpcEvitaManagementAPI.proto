@@ -23,6 +23,33 @@ message GrpcEvitaServerStatusResponse {
   int32 catalogsCorrupted = 5;
   // Number of catalogs that are ok
   int32 catalogsOk = 6;
+  // Health problems
+  repeated GrpcHealthProblem healthProblems = 7;
+  // Overall readiness of the evitaDB server
+  GrpcReadiness readiness = 8;
+  // Information about all available APIs
+  map<string, GrpcApiStatus> api = 9;
+}
+
+// Status of the external API
+message GrpcApiStatus {
+  // True if the API is enabled
+  bool enabled = 1;
+  // API readiness status
+  bool ready = 2;
+  // list of base url of the web API
+  repeated string baseUrl = 3;
+  // list of specific endpoints of particular API
+  // currently only system API provides list of endpoints
+  repeated GrpcEndpoint endpoints = 4;
+}
+
+// Information about a system endpoint of particular purpose derived from name
+message GrpcEndpoint {
+  // logical name of the endpoint
+  string name = 1;
+  // absolute URL of the endpoint
+  repeated string url = 2;
 }
 
 // Response to an evitaDB configuration request.

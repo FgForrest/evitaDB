@@ -37,7 +37,7 @@ public interface GrpcEvitaCatalogStatisticsResponseOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics> 
       getCatalogStatisticsList();
   /**
    * <pre>
@@ -62,7 +62,7 @@ public interface GrpcEvitaCatalogStatisticsResponseOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder> 
       getCatalogStatisticsOrBuilderList();
   /**
    * <pre>

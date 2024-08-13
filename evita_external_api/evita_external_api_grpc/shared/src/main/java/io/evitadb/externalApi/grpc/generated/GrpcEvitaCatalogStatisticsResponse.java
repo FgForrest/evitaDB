@@ -142,7 +142,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder> 
       getCatalogStatisticsOrBuilderList() {
     return catalogStatistics_;
   }
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
             catalogStatisticsBuilder_ = null;
             catalogStatistics_ = other.catalogStatistics_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            catalogStatisticsBuilder_ =
+            catalogStatisticsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getCatalogStatisticsFieldBuilder() : null;
           } else {
@@ -782,7 +782,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder> 
          getCatalogStatisticsOrBuilderList() {
       if (catalogStatisticsBuilder_ != null) {
         return catalogStatisticsBuilder_.getMessageOrBuilderList();
@@ -820,12 +820,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder> 
          getCatalogStatisticsBuilderList() {
       return getCatalogStatisticsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder> 
         getCatalogStatisticsFieldBuilder() {
       if (catalogStatisticsBuilder_ == null) {
         catalogStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

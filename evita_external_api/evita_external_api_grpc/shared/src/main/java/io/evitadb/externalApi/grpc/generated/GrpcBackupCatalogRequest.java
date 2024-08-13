@@ -631,7 +631,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getPastMomentBuilder() {
-
+      
       onChanged();
       return getPastMomentFieldBuilder().getBuilder();
     }
@@ -658,7 +658,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
         getPastMomentFieldBuilder() {
       if (pastMomentBuilder_ == null) {
         pastMomentBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -696,7 +696,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIncludingWAL(boolean value) {
-
+      
       includingWAL_ = value;
       onChanged();
       return this;
@@ -711,7 +711,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIncludingWAL() {
-
+      
       includingWAL_ = false;
       onChanged();
       return this;

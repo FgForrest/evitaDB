@@ -10,6 +10,12 @@ import "GrpcEvitaDataTypes.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "google/protobuf/wrappers.proto";
 
+// Response to a server status request.
+message GrpcReadyResponse {
+  // Always true when returned
+  bool ready = 1;
+}
+
 // Request to create a session inside of a catalog.
 message GrpcEvitaSessionRequest {
   // The name of the catalog for which the session is to be created.
@@ -113,6 +119,8 @@ message GrpcUpdateEvitaRequest {
 // This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
 // a way to create sessions and catalogs, and to update the catalog.
 service EvitaService {
+  // Procedure used to check readiness of the API
+  rpc IsReady(google.protobuf.Empty) returns (GrpcReadyResponse);
   // Procedure used to create read only sessions.
   rpc CreateReadOnlySession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
   // Procedure used to create read write sessions.

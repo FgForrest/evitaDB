@@ -709,7 +709,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setAreaValue(int value) {
-
+      
       area_ = value;
       onChanged();
       return this;
@@ -741,7 +741,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       area_ = value.getNumber();
       onChanged();
       return this;
@@ -755,7 +755,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearArea() {
-
+      
       area_ = 0;
       onChanged();
       return this;
@@ -920,7 +920,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureSchemaSite schemaSite = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCaptureSchemaSite, io.evitadb.externalApi.grpc.generated.GrpcCaptureSchemaSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcCaptureSchemaSiteOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcCaptureSchemaSite, io.evitadb.externalApi.grpc.generated.GrpcCaptureSchemaSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcCaptureSchemaSiteOrBuilder> 
         getSchemaSiteFieldBuilder() {
       if (schemaSiteBuilder_ == null) {
         if (!(siteCase_ == 2)) {
@@ -1097,7 +1097,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite dataSite = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite, io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSiteOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite, io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSiteOrBuilder> 
         getDataSiteFieldBuilder() {
       if (dataSiteBuilder_ == null) {
         if (!(siteCase_ == 3)) {

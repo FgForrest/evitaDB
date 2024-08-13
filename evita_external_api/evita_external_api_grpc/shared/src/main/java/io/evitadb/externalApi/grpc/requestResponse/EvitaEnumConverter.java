@@ -53,10 +53,13 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.api.system.ProbesProvider.ReadinessState;
+import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,6 +69,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class EvitaEnumConverter {
 
@@ -954,4 +958,34 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts a {@link HealthProblem} to a {@link GrpcHealthProblem}.
+	 * @param problem The HealthProblem to convert.
+	 * @return The converted GrpcHealthProblem.
+	 */
+	@Nonnull
+	public static GrpcHealthProblem toGrpcHealthProblem(@Nonnull HealthProblem problem) {
+		return switch (problem) {
+			case MEMORY_SHORTAGE -> GrpcHealthProblem.MEMORY_SHORTAGE;
+			case EXTERNAL_API_UNAVAILABLE -> GrpcHealthProblem.EXTERNAL_API_UNAVAILABLE;
+			case INPUT_QUEUES_OVERLOADED -> GrpcHealthProblem.INPUT_QUEUES_OVERLOADED;
+			case JAVA_INTERNAL_ERRORS -> GrpcHealthProblem.JAVA_INTERNAL_ERRORS;
+		};
+	}
+
+	/**
+	 * Converts a {@link ReadinessState} to a {@link GrpcReadiness}.
+	 * @param readinessState The ReadinessState to convert.
+	 * @return The converted GrpcReadiness.
+	 */
+	@Nonnull
+	public static GrpcReadiness toGrpcReadinessState(@Nonnull ReadinessState readinessState) {
+		return switch (readinessState) {
+			case STARTING -> GrpcReadiness.API_STARTING;
+			case READY -> GrpcReadiness.API_READY;
+			case STALLING -> GrpcReadiness.API_STALLING;
+			case SHUTDOWN -> GrpcReadiness.API_SHUTDOWN;
+			case UNKNOWN -> GrpcReadiness.API_UNKNOWN;
+		};
+	}
 }

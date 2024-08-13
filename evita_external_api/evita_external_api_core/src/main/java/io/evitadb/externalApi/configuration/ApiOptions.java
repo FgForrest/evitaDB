@@ -36,6 +36,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -171,6 +172,22 @@ public record ApiOptions(
 					return false;
 				}
 			});
+	}
+
+	/**
+	 * Returns the enabled API endpoints.
+	 *
+	 * @return array of codes of the enabled API endpoints
+	 */
+	@Nonnull
+	public String[] getEnabledApiEndpoints() {
+		return endpoints()
+			.entrySet()
+			.stream()
+			.filter(entry -> entry.getValue() != null)
+			.filter(entry -> entry.getValue().isEnabled())
+			.map(Entry::getKey)
+			.toArray(String[]::new);
 	}
 
 	/**

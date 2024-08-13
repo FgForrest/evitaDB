@@ -33,7 +33,7 @@ import com.linecorp.armeria.server.docs.DocServiceFilter;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
-import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaManagementServiceBlockingStub;
+import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -124,12 +124,11 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	 */
 	public boolean checkReachable(@Nonnull String uri) {
 		try {
-			final EvitaManagementServiceBlockingStub evitaService = GrpcClients.builder(uri)
+			final EvitaServiceBlockingStub evitaService = GrpcClients.builder(uri)
 				.factory(clientFactoryBuilder.build())
 				.responseTimeoutMillis(100)
-				.build(EvitaManagementServiceBlockingStub.class);
-			final long uptime = evitaService.serverStatus(Empty.newBuilder().build()).getUptime();
-			if (uptime > 0) {
+				.build(EvitaServiceBlockingStub.class);
+			if (evitaService.isReady(Empty.newBuilder().build()).getReady()) {
 				reachableUrl = uri;
 				return true;
 			} else {

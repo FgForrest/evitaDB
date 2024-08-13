@@ -29,6 +29,8 @@ import io.evitadb.externalApi.utils.path.PathHandlingService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * Descriptor of single external API provider. External API provider is system that is responsible for serving
@@ -57,6 +59,16 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	 */
 	@Nonnull
 	HttpServiceDefinition[] getHttpServiceDefinitions();
+
+	/**
+	 * Returns map of key endpoints and their absolute URLs that could be published to the user via.
+	 * console or administration GUI
+	 * @return index of symbolic name of the endpoint and the absolute URL as a value
+	 */
+	@Nonnull
+	default Map<String, String[]> getKeyEndPoints() {
+		return Collections.emptyMap();
+	}
 
 	/**
 	 * Called automatically when entire server is done initializing but not started yet.

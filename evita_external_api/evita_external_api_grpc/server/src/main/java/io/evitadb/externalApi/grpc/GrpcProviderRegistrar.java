@@ -70,7 +70,7 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 	public ExternalApiProvider<GrpcConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig grpcAPIConfig) {
 		final GrpcServiceBuilder grpcServiceBuilder = GrpcService.builder()
 			.addService(new EvitaService(evita))
-			.addService(new EvitaManagementService(evita))
+			.addService(new EvitaManagementService(evita, externalApiServer))
 			.addService(new EvitaSessionService(evita))
 			.addService(ProtoReflectionService.newInstance())
 			.intercept(new ServerSessionInterceptor(evita, grpcAPIConfig.getTlsMode()))
