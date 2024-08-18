@@ -169,14 +169,14 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 			try {
 				super.onHalfClose();
 			} catch (RuntimeException ex) {
-				event.setResponseState(ResponseState.ERROR);
+				event.setGrpcResponseStatus(ResponseState.ERROR);
 				throw ex;
 			}
 		}
 
 		@Override
 		public void onCancel() {
-			event.setResponseState(ResponseState.CANCELED);
+			event.setGrpcResponseStatus(ResponseState.CANCELED);
 			super.onCancel();
 		}
 

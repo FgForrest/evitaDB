@@ -37,14 +37,20 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractSystemCatalogEvent.PACKAGE_NAME + ".BackgroundTaskRejected")
-@Description("Event that is fired when a background task is rejected due to full queues.")
+@Name(AbstractSystemEvent.PACKAGE_NAME + ".BackgroundTaskRejected")
+@Description("Event raised when a background task is rejected due to full queues.")
 @ExportInvocationMetric(label = "Background tasks rejected")
 @Label("Background task rejected")
 @Getter
 public class BackgroundTaskRejectedEvent extends AbstractSystemEvent {
+
+	/**
+	 * The name of the background task.
+	 */
+	@Label("Task name")
+	@Description("Name of the background task.")
 	@ExportMetricLabel
-	private final String taskName;
+	final String taskName;
 
 	public BackgroundTaskRejectedEvent(@Nonnull String taskName) {
 		this.taskName = taskName;

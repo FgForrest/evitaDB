@@ -28,12 +28,11 @@ import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.externalApi.rest.io.RestInstanceType;
 import jdk.jfr.Category;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
-import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * Common ancestor for REST API request processing events.
@@ -43,24 +42,23 @@ import javax.annotation.Nullable;
 @EventGroup(
 	value = AbstractRestRequestEvent.PACKAGE_NAME,
 	name = "evitaDB - REST Request",
-	description = "evitaDB events relating to REST request processing."
+	description = "evitaDB events related to REST request processing."
 )
 @Category({"evitaDB", "ExternalAPI", "REST", "Request"})
 @Getter
 public class AbstractRestRequestEvent extends CustomMetricsExecutionEvent {
-
 	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.rest.request";
 
 	/**
-	 * Type of used GQL instance.
+	 * Type of used REST instance.
 	 */
-	@Label("Instance type")
-	@Name("instanceType")
+	@Label("REST instance type")
+	@Description("Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG")
 	@ExportMetricLabel
-	@Nullable
-	final String instanceType;
+	@Nonnull
+	private final String restInstanceType;
 
-	protected AbstractRestRequestEvent(@Nonnull RestInstanceType instanceType) {
-		this.instanceType = instanceType.name();
+	protected AbstractRestRequestEvent(@Nonnull RestInstanceType restInstanceType) {
+		this.restInstanceType = restInstanceType.name();
 	}
 }

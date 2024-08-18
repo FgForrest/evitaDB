@@ -4,81 +4,85 @@
   <h4>Labels used in metrics</h4>
   <dl>
     <dt>buildType</dt>
-    <dd><strong>Build type</strong>: N/A</dd>
+    <dd><strong>Build type</strong>: Type of the instance build: NEW or REFRESH</dd>
     <dt>catalogName</dt>
-    <dd><strong>Catalog</strong>: N/A</dd>
+    <dd><strong>Catalog</strong>: The name of the catalog to which this event/metric is associated.</dd>
     <dt>entityType</dt>
-    <dd><strong>Entity type</strong>: N/A</dd>
-    <dt>entityType</dt>
-    <dd><strong>Collection</strong>: N/A</dd>
+    <dd><strong>Entity type</strong>: The name of the related entity type (collection).</dd>
     <dt>fileType</dt>
-    <dd><strong>File type</strong>: N/A</dd>
+    <dd><strong>File type</strong>: The type of the file that was flushed. One of: CATALOG, ENTITY_COLLECTION, WAL, or BOOTSTRAP</dd>
+    <dt>graphQLInstanceType</dt>
+    <dd><strong>GraphQL instance type</strong>: Domain of the GraphQL API used in connection with this event/metric: SYSTEM, SCHEMA, or DATA</dd>
+    <dt>graphQLOperationType</dt>
+    <dd><strong>GraphQL operation type</strong>: The type of operation specified in the GQL request: QUERY, MUTATION, or SUBSCRIPTION.</dd>
+    <dt>grpcResponseStatus</dt>
+    <dd><strong>gRPC response status</strong>: State of the gRPC response (OK, ERROR, CANCELED).</dd>
     <dt>httpMethod</dt>
-    <dd><strong>HTTP method</strong>: N/A</dd>
+    <dd><strong>HTTP method</strong>: The HTTP method of the request.</dd>
     <dt>initiator</dt>
-    <dd><strong>Initiator of the call (client or server)</strong>: N/A</dd>
-    <dt>instanceType</dt>
-    <dd><strong>Instance type</strong>: N/A</dd>
+    <dd><strong>Initiator of the call</strong>: Initiator of the gRPC call (either client or server).</dd>
     <dt>name</dt>
-    <dd><strong>Logical file name</strong>: N/A</dd>
+    <dd><strong>Logical file name</strong>: The logical name of the file that was flushed. Identifies the file more precisely.</dd>
     <dt>operationId</dt>
-    <dd><strong>Operation ID</strong>: N/A</dd>
+    <dd><strong>Operation ID</strong>: The ID of the operation that was executed.</dd>
     <dt>operationName</dt>
-    <dd><strong>GraphQL operation</strong>: N/A</dd>
-    <dt>operationType</dt>
-    <dd><strong>Operation type</strong>: N/A</dd>
+    <dd><strong>GraphQL operation</strong>: The name of the operation specified in the GQL request.</dd>
     <dt>prefetched</dt>
-    <dd><strong>Prefetched vs. non-prefetched query</strong>: N/A</dd>
+    <dd><strong>Prefetched vs. non-prefetched query</strong>: Whether or not the query used a prefetch plan. Prefetch plan optimistically fetches queried entities in advance and executes directly on them (without accessing the indexes).</dd>
     <dt>procedureName</dt>
-    <dd><strong>Name of the procedure that was called</strong>: N/A</dd>
+    <dd><strong>Procedure name</strong>: Name of the gRPC procedure that was called (the method name).</dd>
     <dt>recordType</dt>
-    <dd><strong>Record type</strong>: N/A</dd>
+    <dd><strong>Record type</strong>: Type of records that changed in the OffsetIndex.</dd>
     <dt>resolution</dt>
-    <dd><strong>Transaction resolution</strong>: N/A</dd>
-    <dt>responseState</dt>
-    <dd><strong>State of the response (OK, ERROR, CANCELED)</strong>: N/A</dd>
+    <dd><strong>Transaction resolution</strong>: The resolution of the transaction (either commit or rollback).</dd>
+    <dt>resolution</dt>
+    <dd><strong>Transaction resolution</strong>: The resolution of the transaction - either commit or rollback.</dd>
     <dt>responseStatus</dt>
-    <dd><strong>Response status</strong>: N/A</dd>
+    <dd><strong>Response status</strong>: The status of the response: OK or ERROR.</dd>
+    <dt>restInstanceType</dt>
+    <dd><strong>REST instance type</strong>: Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG</dd>
+    <dt>restOperationType</dt>
+    <dd><strong>REST operation type</strong>: The type of operation that was executed. One of: QUERY, MUTATION.</dd>
     <dt>serviceName</dt>
-    <dd><strong>Name of the service that was called</strong>: N/A</dd>
+    <dd><strong>Service name</strong>: Name of the gRPC service that was called (the name of the Java class).</dd>
     <dt>stage</dt>
-    <dd><strong>Transaction stage</strong>: N/A</dd>
+    <dd><strong>Transaction stage</strong>: The name of the stage the transaction is waiting for.</dd>
     <dt>taskName</dt>
-    <dd><strong>N/A</strong>: N/A</dd>
+    <dd><strong>Task name</strong>: Name of the background task.</dd>
   </dl>
 </UsedTerms>
 
 #### API / GraphQL / Instance / Schema
 
 <dl>
-  <dt><code>io_evitadb_external_api_graphql_instance_built_instance_build_duration</code> (HISTOGRAM)</dt>
-  <dd><strong>Duration of build of a single API</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
-  <dt><code>io_evitadb_external_api_graphql_instance_built_schema_build_duration</code> (HISTOGRAM)</dt>
-  <dd><strong>Duration of GraphQL schema build of a single API</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
-  <dt><code>io_evitadb_external_api_graphql_instance_built_schema_dsl_lines</code> (GAUGE)</dt>
-  <dd><strong>Number of lines in built GraphQL schema DSL</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_qlinstance_build_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>API build duration</strong>: Duration of build of a single API in milliseconds.<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_qlschema_build_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>GraphQL schema build duration</strong>: Duration of build of a single GraphQL API schema in milliseconds.<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_graphql_instance_built_graph_qlschema_dsl_lines</code> (GAUGE)</dt>
+  <dd><strong>Number of lines</strong>: Number of lines generated in the built GraphQL schema DSL.<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_instance_built_total</code> (COUNTER)</dt>
-  <dd>GraphQL instance built total<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dd>GraphQL instance built total<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>graphQLInstanceType</Term><br/></dd>
 </dl>
 
 #### API / gRPC
 
 <dl>
   <dt><code>io_evitadb_api_grpc_evita_procedure_called_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>gRPC evitaDB procedure called duration<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
+  <dd>gRPC evitaDB procedure called duration<br/><br/><strong>Labels:</strong> <Term>grpcResponseStatus</Term>, <Term>initiator</Term>, <Term>procedureName</Term>, <Term>serviceName</Term><br/></dd>
   <dt><code>io_evitadb_api_grpc_evita_procedure_called_total</code> (COUNTER)</dt>
-  <dd>gRPC evitaDB procedure called total<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
+  <dd>gRPC evitaDB procedure called total<br/><br/><strong>Labels:</strong> <Term>grpcResponseStatus</Term>, <Term>initiator</Term>, <Term>procedureName</Term>, <Term>serviceName</Term><br/></dd>
   <dt><code>io_evitadb_api_grpc_session_procedure_called_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>gRPC session procedure called duration<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
+  <dd>gRPC session procedure called duration<br/><br/><strong>Labels:</strong> <Term>grpcResponseStatus</Term>, <Term>initiator</Term>, <Term>procedureName</Term>, <Term>serviceName</Term><br/></dd>
   <dt><code>io_evitadb_api_grpc_session_procedure_called_total</code> (COUNTER)</dt>
-  <dd>gRPC session procedure called total<br/><br/><strong>Labels:</strong> <Term>initiator</Term>, <Term>procedureName</Term>, <Term>responseState</Term>, <Term>serviceName</Term><br/></dd>
+  <dd>gRPC session procedure called total<br/><br/><strong>Labels:</strong> <Term>grpcResponseStatus</Term>, <Term>initiator</Term>, <Term>procedureName</Term>, <Term>serviceName</Term><br/></dd>
 </dl>
 
 #### Cache
 
 <dl>
   <dt><code>io_evitadb_cache_anteroom_record_statistics_updated_records</code> (GAUGE)</dt>
-  <dd><strong>Number of records waiting in anteroom</strong>: N/A</dd>
+  <dd><strong>Number of records waiting in anteroom</strong>: The number of cacheable but not yet cached records that are collecting usage statistics to evaluate for becoming cached.</dd>
   <dt><code>io_evitadb_cache_anteroom_wasted_total</code> (COUNTER)</dt>
   <dd>Anteroom wasted total</dd>
 </dl>
@@ -87,61 +91,61 @@
 
 <dl>
   <dt><code>io_evitadb_external_api_graphql_request_executed_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>GraphQL request execution duration<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd>GraphQL request execution duration<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>graphQLInstanceType</Term>, <Term>graphQLOperationType</Term>, <Term>operationName</Term>, <Term>responseStatus</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_request_executed_execution_api_overhead_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Overall request execution API overhead duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Request execution overhead</strong>: Time to execute the request in milliseconds without internal evitaDB execution.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>graphQLInstanceType</Term>, <Term>graphQLOperationType</Term>, <Term>operationName</Term>, <Term>responseStatus</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_request_executed_input_deserialization_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Input deserialization duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Input deserialization duration</strong>: Time to deserialize the input GQL request in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>graphQLInstanceType</Term>, <Term>graphQLOperationType</Term>, <Term>operationName</Term>, <Term>responseStatus</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_request_executed_internal_evitadb_input_reconstruction_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Duration of all internal evitaDB input (query, mutations, ...) reconstructions in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>evitaDB input reconstruction duration</strong>: Time to reconstruct all internal evitaDB inputs in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>graphQLInstanceType</Term>, <Term>graphQLOperationType</Term>, <Term>operationName</Term>, <Term>responseStatus</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_request_executed_operation_execution_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Request operation execution duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Execution duration</strong>: Time to execute the operation in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>graphQLInstanceType</Term>, <Term>graphQLOperationType</Term>, <Term>operationName</Term>, <Term>responseStatus</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_request_executed_parse_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Request parsing duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Request parsing duration</strong>: Time to parse the request in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>graphQLInstanceType</Term>, <Term>graphQLOperationType</Term>, <Term>operationName</Term>, <Term>responseStatus</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_request_executed_preparation_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Request execution preparation duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Request preparation duration</strong>: Time to prepare the request execution in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>graphQLInstanceType</Term>, <Term>graphQLOperationType</Term>, <Term>operationName</Term>, <Term>responseStatus</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_request_executed_result_serialization_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Request result serialization duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Result serializatio duration</strong>: Time to serialize the request result in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>graphQLInstanceType</Term>, <Term>graphQLOperationType</Term>, <Term>operationName</Term>, <Term>responseStatus</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_request_executed_root_fields_processed</code> (GAUGE)</dt>
-  <dd><strong>Number of root fields (queries, mutations) processed within single GraphQL request</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Request root fields count</strong>: Number of root fields (queries, mutations) processed within a single GraphQL request.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>graphQLInstanceType</Term>, <Term>graphQLOperationType</Term>, <Term>operationName</Term>, <Term>responseStatus</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_request_executed_total</code> (COUNTER)</dt>
-  <dd>GraphQL request executed total<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd>GraphQL request executed total<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>graphQLInstanceType</Term>, <Term>graphQLOperationType</Term>, <Term>operationName</Term>, <Term>responseStatus</Term><br/></dd>
   <dt><code>io_evitadb_external_api_graphql_request_executed_validation_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Request validation duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>instanceType</Term>, <Term>operationName</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Validation duration</strong>: Time to validate the request in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>graphQLInstanceType</Term>, <Term>graphQLOperationType</Term>, <Term>operationName</Term>, <Term>responseStatus</Term><br/></dd>
 </dl>
 
 #### ExternalAPI / REST / Instance / Schema
 
 <dl>
-  <dt><code>io_evitadb_external_api_rest_instance_built_instance_build_duration</code> (HISTOGRAM)</dt>
-  <dd><strong>Duration of build of a single REST API</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
-  <dt><code>io_evitadb_external_api_rest_instance_built_registered_endpoints</code> (GAUGE)</dt>
-  <dd><strong>Number of registered endpoints in built OpenAPI schema</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
-  <dt><code>io_evitadb_external_api_rest_instance_built_schema_build_duration</code> (HISTOGRAM)</dt>
-  <dd><strong>Duration of OpenAPI schema build of a single API</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
-  <dt><code>io_evitadb_external_api_rest_instance_built_schema_dsl_lines</code> (GAUGE)</dt>
-  <dd><strong>Number of lines in built OpenAPI schema DSL</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_instance_built_registered_rest_endpoints</code> (GAUGE)</dt>
+  <dd><strong>Endpoints count</strong>: Number of registered endpoints in built OpenAPI schema<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>restInstanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_instance_built_rest_instance_build_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>API build duration</strong>: Duration of build of a single API in milliseconds.<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>restInstanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_instance_built_rest_schema_build_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd><strong>REST schema build duration</strong>: Duration of build of a single REST API schema in milliseconds.<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>restInstanceType</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_rest_instance_built_rest_schema_dsl_lines</code> (GAUGE)</dt>
+  <dd><strong>Number of lines</strong>: Number of lines generated in the built REST schema DSL.<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>restInstanceType</Term><br/></dd>
   <dt><code>io_evitadb_external_api_rest_instance_built_total</code> (COUNTER)</dt>
-  <dd>REST API instance built total<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>instanceType</Term><br/></dd>
+  <dd>REST API instance built total<br/><br/><strong>Labels:</strong> <Term>buildType</Term>, <Term>catalogName</Term>, <Term>restInstanceType</Term><br/></dd>
 </dl>
 
 #### ExternalAPI / REST / Request
 
 <dl>
   <dt><code>io_evitadb_external_api_rest_request_executed_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>REST request execution duration<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd>REST request execution duration<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>operationId</Term>, <Term>responseStatus</Term>, <Term>restInstanceType</Term>, <Term>restOperationType</Term><br/></dd>
   <dt><code>io_evitadb_external_api_rest_request_executed_execution_api_overhead_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Overall request execution API overhead duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Request execution overhead</strong>: Time to execute the request in milliseconds without internal evitaDB execution.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>operationId</Term>, <Term>responseStatus</Term>, <Term>restInstanceType</Term>, <Term>restOperationType</Term><br/></dd>
   <dt><code>io_evitadb_external_api_rest_request_executed_input_deserialization_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Input deserialization duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Input deserialization duration</strong>: Time to deserialize the input GQL request in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>operationId</Term>, <Term>responseStatus</Term>, <Term>restInstanceType</Term>, <Term>restOperationType</Term><br/></dd>
   <dt><code>io_evitadb_external_api_rest_request_executed_internal_evitadb_input_reconstruction_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Duration of all internal evitaDB input (query, mutations, ...) reconstructions in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>evitaDB input reconstruction duration</strong>: Time to reconstruct all internal evitaDB inputs in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>operationId</Term>, <Term>responseStatus</Term>, <Term>restInstanceType</Term>, <Term>restOperationType</Term><br/></dd>
   <dt><code>io_evitadb_external_api_rest_request_executed_operation_execution_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Request operation execution duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Execution duration</strong>: Time to execute the operation in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>operationId</Term>, <Term>responseStatus</Term>, <Term>restInstanceType</Term>, <Term>restOperationType</Term><br/></dd>
   <dt><code>io_evitadb_external_api_rest_request_executed_result_serialization_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Request result serialization duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd><strong>Result serializatio duration</strong>: Time to serialize the request result in milliseconds.<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>operationId</Term>, <Term>responseStatus</Term>, <Term>restInstanceType</Term>, <Term>restOperationType</Term><br/></dd>
   <dt><code>io_evitadb_external_api_rest_request_executed_total</code> (COUNTER)</dt>
-  <dd>REST request executed total<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>instanceType</Term>, <Term>operationId</Term>, <Term>operationType</Term>, <Term>responseStatus</Term><br/></dd>
+  <dd>REST request executed total<br/><br/><strong>Labels:</strong> <Term>catalogName</Term>, <Term>entityType</Term>, <Term>httpMethod</Term>, <Term>operationId</Term>, <Term>responseStatus</Term>, <Term>restInstanceType</Term>, <Term>restOperationType</Term><br/></dd>
 </dl>
 
 #### Query
@@ -150,39 +154,39 @@
   <dt><code>io_evitadb_query_entity_enrich_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Entity enrichment duration in milliseconds<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
   <dt><code>io_evitadb_query_entity_enrich_records</code> (COUNTER)</dt>
-  <dd><strong>Records enriched total</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
+  <dd><strong>Records enriched total</strong>: The total number of records that were enriched.<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
   <dt><code>io_evitadb_query_entity_enrich_size_bytes</code> (HISTOGRAM)</dt>
-  <dd><strong>Enrichment size in bytes</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
+  <dd><strong>Enrichment size in bytes</strong>: The size in Bytes of the additional fetched and enriched data.<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
   <dt><code>io_evitadb_query_entity_enrich_total</code> (COUNTER)</dt>
   <dd>Entity enriched<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
   <dt><code>io_evitadb_query_entity_fetch_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Entity fetch duration in milliseconds<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
   <dt><code>io_evitadb_query_entity_fetch_records</code> (COUNTER)</dt>
-  <dd><strong>Records fetched total</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
+  <dd><strong>Records fetched total</strong>: The total number of records that were fetched.<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
   <dt><code>io_evitadb_query_entity_fetch_size_bytes</code> (HISTOGRAM)</dt>
-  <dd><strong>Fetched size in bytes</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
+  <dd><strong>Fetched size in bytes</strong>: The total size of the fetched data in Bytes.<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
   <dt><code>io_evitadb_query_entity_fetch_total</code> (COUNTER)</dt>
   <dd>Entity fetched<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Query duration in milliseconds<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_estimated</code> (HISTOGRAM)</dt>
-  <dd><strong>Estimated complexity info</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Estimated complexity info</strong>: The estimated complexity of the query.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_execution_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Query execution duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Query execution duration in milliseconds</strong>: The time it took to execute the selected execution plan for the query.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_fetched</code> (HISTOGRAM)</dt>
-  <dd><strong>Records fetched total</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Records fetched total</strong>: The total number of records fetched from the data storage (excluding records found in the cache).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_fetched_size_bytes</code> (HISTOGRAM)</dt>
-  <dd><strong>Fetched size in bytes</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Fetched size in bytes</strong>: The total size of the fetched data in Bytes.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_found</code> (HISTOGRAM)</dt>
-  <dd><strong>Records found total</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Records found total</strong>: The total number of records found (matching the query).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_plan_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Query planning duration in milliseconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Query planning duration in milliseconds</strong>: The time it took to build all the query execution plan variants.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_real</code> (HISTOGRAM)</dt>
-  <dd><strong>Filter complexity</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Filter complexity</strong>: The real complexity of the query.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_returned</code> (HISTOGRAM)</dt>
-  <dd><strong>Records returned total</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Records returned total</strong>: The total number of records returned (included in the result).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_scanned</code> (HISTOGRAM)</dt>
-  <dd><strong>Records scanned total</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Records scanned total</strong>: The total number of records scanned (included in the calculation).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_total</code> (COUNTER)</dt>
   <dd>Query finished<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
 </dl>
@@ -191,15 +195,15 @@
 
 <dl>
   <dt><code>io_evitadb_session_closed_active_sessions</code> (GAUGE)</dt>
-  <dd><strong>Number of still active sessions</strong>: N/A</dd>
+  <dd><strong>Number of still active sessions</strong>: The number of still active sessions at the time this session was closed.</dd>
   <dt><code>io_evitadb_session_closed_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Session lifespan duration in milliseconds</dd>
   <dt><code>io_evitadb_session_closed_mutations</code> (HISTOGRAM)</dt>
-  <dd><strong>Number of mutation calls performed in session</strong>: N/A</dd>
+  <dd><strong>Number of mutation calls performed in session</strong>: The number of mutations made during this session.</dd>
   <dt><code>io_evitadb_session_closed_oldest_session_timestamp_seconds</code> (GAUGE)</dt>
-  <dd><strong>Oldest session timestamp</strong>: N/A</dd>
+  <dd><strong>Oldest session timestamp</strong>: The timestamp of the oldest session at the time that session was closed.</dd>
   <dt><code>io_evitadb_session_closed_queries</code> (HISTOGRAM)</dt>
-  <dd><strong>Number of queries performed in session</strong>: N/A</dd>
+  <dd><strong>Number of queries performed in session</strong>: The number of requests made during this session.</dd>
   <dt><code>io_evitadb_session_closed_total</code> (COUNTER)</dt>
   <dd>Sessions closed</dd>
   <dt><code>io_evitadb_session_killed_total</code> (COUNTER)</dt>
@@ -212,49 +216,49 @@
 
 <dl>
   <dt><code>io_evitadb_storage_catalog_statistics_entity_collections</code> (GAUGE)</dt>
-  <dd><strong>Entity collection count</strong>: N/A</dd>
+  <dd><strong>Entity collection count</strong>: The number of active entity collections (entity types) in the catalog.</dd>
   <dt><code>io_evitadb_storage_catalog_statistics_occupied_disk_space_bytes</code> (GAUGE)</dt>
-  <dd><strong>Total occupied disk space in Bytes</strong>: N/A</dd>
+  <dd><strong>Total occupied disk space in Bytes</strong>: The total amount of disk space used by the catalog in Bytes.</dd>
   <dt><code>io_evitadb_storage_catalog_statistics_oldest_catalog_version_timestamp_seconds</code> (GAUGE)</dt>
-  <dd><strong>Timestamp of the oldest catalog version available in seconds</strong>: N/A</dd>
+  <dd><strong>Timestamp of the oldest catalog version available in seconds</strong>: The age of the oldest available catalog version, in seconds. This value determines the furthest back in time the catalog can go.</dd>
   <dt><code>io_evitadb_storage_data_file_compact_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Duration of OffsetIndex compaction.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_data_file_compact_total</code> (COUNTER)</dt>
   <dd>OffsetIndex compaction.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_evita_dbcomposition_changed_catalogs</code> (GAUGE)</dt>
-  <dd><strong>Catalog count</strong>: N/A</dd>
+  <dd><strong>Catalog count</strong>: Number of accessible catalogs managed by this instance of evitaDB.</dd>
   <dt><code>io_evitadb_storage_evita_dbcomposition_changed_corrupted_catalogs</code> (GAUGE)</dt>
-  <dd><strong>Corrupted catalog count</strong>: N/A</dd>
+  <dd><strong>Corrupted catalog count</strong>: Number of corrupted catalogs that evitaDB could not load.</dd>
   <dt><code>io_evitadb_storage_observable_output_change_occupied_memory_bytes</code> (GAUGE)</dt>
-  <dd><strong>Memory occupied by opened output buffers in Bytes</strong>: N/A</dd>
+  <dd><strong>Memory occupied by opened output buffers in Bytes</strong>: The amount of memory in bytes occupied by open OffsetIndex output buffers.</dd>
   <dt><code>io_evitadb_storage_observable_output_change_opened_buffers</code> (GAUGE)</dt>
-  <dd><strong>Number of opened output buffers</strong>: N/A</dd>
+  <dd><strong>Number of opened output buffers</strong>: The number of open buffers used to write data to OffsetIndexes.</dd>
   <dt><code>io_evitadb_storage_observable_output_change_total</code> (COUNTER)</dt>
   <dd>ObservableOutput buffer count changes.</dd>
   <dt><code>io_evitadb_storage_offset_index_flush_active_disk_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Active part of disk size in Bytes</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Active part of disk size in Bytes</strong>: The size in Bytes of the active part of the OffsetIndex on disk.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_active_records</code> (GAUGE)</dt>
-  <dd><strong>Number of active records</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Number of active records</strong>: The number of active (accessible) records in the OffsetIndex.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_disk_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Disk size in Bytes</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Disk size in Bytes</strong>: The size in Bytes of the OffsetIndex on disk.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Duration of OffsetIndex flush to disk.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_estimated_memory_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Estimated memory size in Bytes</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Estimated memory size in Bytes</strong>: The estimated size in Bytes of the OffsetIndex in memory.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_max_record_size</code> (GAUGE)</dt>
-  <dd><strong>Biggest record Bytes</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Biggest record Bytes</strong>: The size in Bytes of the biggest record in the OffsetIndex.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_oldest_record_timestamp_seconds</code> (GAUGE)</dt>
-  <dd><strong>Oldest record kept in memory timestamp in seconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Oldest record kept in memory timestamp in seconds</strong>: The timestamp in seconds of the oldest volatile record kept in memory. Volatile records are records that are not yet flushed to disk.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_flush_total</code> (COUNTER)</dt>
   <dd>OffsetIndex flushes to disk.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_history_kept_oldest_record_timestamp_seconds</code> (GAUGE)</dt>
-  <dd><strong>Oldest record kept in memory timestamp in seconds</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Oldest record kept in memory timestamp in seconds</strong>: The timestamp of the oldest catalog version data held in memory, in seconds. Data from previous versions is used to maintain the SNAPSHOT isolation contract for currently open sessions targeting older catalog versions. Zero if no data is retained.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_non_flushed_record_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Size of records pending flush in Bytes</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Size of records pending flush in Bytes</strong>: Size of records pending flush in Bytes in the OffsetIndex.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_non_flushed_records</code> (GAUGE)</dt>
-  <dd><strong>Number of records pending flush</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
+  <dd><strong>Number of records pending flush</strong>: Number of volatile records pending flush in the OffsetIndex.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_offset_index_record_type_count_changed_records</code> (GAUGE)</dt>
-  <dd><strong>Number of records</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term>, <Term>recordType</Term><br/></dd>
+  <dd><strong>Number of records</strong>: Total number of records of the specified type in the OffsetIndex.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term>, <Term>recordType</Term><br/></dd>
   <dt><code>io_evitadb_storage_read_only_handle_closed_total</code> (COUNTER)</dt>
   <dd>Closed file read handles.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_read_only_handle_opened_total</code> (COUNTER)</dt>
@@ -271,58 +275,58 @@
   <dt><code>io_evitadb_system_background_task_started_total</code> (COUNTER)</dt>
   <dd>Background tasks started<br/><br/><strong>Labels:</strong> <Term>taskName</Term><br/></dd>
   <dt><code>io_evitadb_system_background_task_timed_out_timed_out_tasks</code> (COUNTER)</dt>
-  <dd><strong>N/A</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>taskName</Term><br/></dd>
+  <dd><strong>Timed out tasks</strong>: Number of timed out and canceled tasks.<br/><br/><strong>Labels:</strong> <Term>taskName</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_started_cache_anteroom_record_limit</code> (GAUGE)</dt>
-  <dd><strong>Maximal number of records in cache anteroom</strong>: N/A</dd>
+  <dd><strong>Maximum number of records in the cache anteroom</strong>: Configured threshold for the maximum number of records in the cache anteroom (`cache.anteroomRecordCount`).</dd>
   <dt><code>io_evitadb_system_evita_started_cache_reevaluation_seconds</code> (GAUGE)</dt>
-  <dd><strong>Cache reevaluation interval in seconds</strong>: N/A</dd>
+  <dd><strong>Cache reevaluation interval in seconds</strong>: Configured threshold for the cache reevaluation interval in seconds (`cache.reevaluateEachSeconds`).</dd>
   <dt><code>io_evitadb_system_evita_started_cache_size_in_bytes</code> (GAUGE)</dt>
-  <dd><strong>Maximal size of cache in Bytes</strong>: N/A</dd>
+  <dd><strong>Maximum cache size in Bytes</strong>: Configured threshold for the maximum cache size in Bytes (`cache.cacheSizeInBytes`).</dd>
   <dt><code>io_evitadb_system_evita_started_compaction_file_size_threshold_bytes</code> (GAUGE)</dt>
-  <dd><strong>Minimal file size threshold to start compaction in Bytes</strong>: N/A</dd>
+  <dd><strong>Minimum file size threshold to start compression in bytes</strong>: Configured threshold for the minimum file size threshold to start compression in bytes (`storage.fileSizeCompactionThresholdBytes`).</dd>
   <dt><code>io_evitadb_system_evita_started_compaction_minimal_active_record_share_percent</code> (GAUGE)</dt>
-  <dd><strong>Minimal share of active records in the file to start compaction in %</strong>: N/A</dd>
+  <dd><strong>Minimum percentage of active records in the file to start compacting in %.</strong>: Configured threshold for the minimum percentage of active records in the file to start compacting in % (`storage.minimalActiveRecordShare`).</dd>
   <dt><code>io_evitadb_system_evita_started_query_timeout_seconds</code> (GAUGE)</dt>
-  <dd><strong>Read only request timeout in seconds</strong>: N/A</dd>
+  <dd><strong>Read-only request timeout in seconds</strong>: Configured threshold for the read-only request timeout in seconds (`server.queryTimeoutInMilliseconds`).</dd>
   <dt><code>io_evitadb_system_evita_started_read_only_handles_limit</code> (GAUGE)</dt>
-  <dd><strong>Maximal count of opened read-only handles</strong>: N/A</dd>
+  <dd><strong>Maximum number of open read-only handles</strong>: Configured threshold for the maximum number of open read-only handles (`storage.maxOpenedReadHandles`).</dd>
   <dt><code>io_evitadb_system_evita_started_request_max_threads</code> (GAUGE)</dt>
-  <dd><strong>Maximal number of threads read only request handling</strong>: N/A</dd>
+  <dd><strong>Maximum number of threads to handle read-only requests</strong>: Configured threshold for the maximum number of threads to handle read-only requests (`server.requestThreadPool.maxThreadCount`).</dd>
   <dt><code>io_evitadb_system_evita_started_request_max_threads_queue_size</code> (GAUGE)</dt>
-  <dd><strong>Maximal queue size for read only request handling</strong>: N/A</dd>
+  <dd><strong>Maximum queue size for read-only request handling</strong>: Configured threshold for the maximum queue size for read-only request handling (`server.requestThreadPool.queueSize`).</dd>
   <dt><code>io_evitadb_system_evita_started_service_max_threads</code> (GAUGE)</dt>
-  <dd><strong>Maximal number of threads for service tasks</strong>: N/A</dd>
+  <dd><strong>Maximum number of threads for service tasks</strong>: Configured threshold for the maximum number of threads for service tasks (`server.serviceThreadPool.maxThreadCount`).</dd>
   <dt><code>io_evitadb_system_evita_started_service_max_threads_queue_size</code> (GAUGE)</dt>
-  <dd><strong>Maximal queue size for service tasks</strong>: N/A</dd>
+  <dd><strong>Maximum queue size for service tasks</strong>: Configured threshold for the maximum queue size for service tasks (`server.serviceThreadPool.queueSize`).</dd>
   <dt><code>io_evitadb_system_evita_started_session_max_inactive_age_seconds</code> (GAUGE)</dt>
-  <dd><strong>Maximal session inactivity age in seconds</strong>: N/A</dd>
+  <dd><strong>Maximum session inactivity time in seconds</strong>: Configured threshold for the maximum session inactivity time in seconds (`server.closeSessionsAfterSecondsOfInactivity`).</dd>
   <dt><code>io_evitadb_system_evita_started_total</code> (COUNTER)</dt>
   <dd>Evita started total</dd>
   <dt><code>io_evitadb_system_evita_started_transaction_max_threads</code> (GAUGE)</dt>
-  <dd><strong>Maximal number of threads for read/write requests</strong>: N/A</dd>
+  <dd><strong>Maximum number of threads for read/write requests</strong>: Configured threshold for the maximum number of threads for read/write requests (`server.transactionThreadPool.maxThreadCount`).</dd>
   <dt><code>io_evitadb_system_evita_started_transaction_max_threads_queue_size</code> (GAUGE)</dt>
-  <dd><strong>Maximal queue size for read/write requests</strong>: N/A</dd>
+  <dd><strong>Maximum queue size for read/write requests</strong>: Configured threshold for the maximum queue size for read/write requests (`server.transactionThreadPool.queueSize`).</dd>
   <dt><code>io_evitadb_system_evita_started_transaction_memory_buffer_limit_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Size of off-heap memory buffer for transactions in Bytes</strong>: N/A</dd>
+  <dd><strong>Off-heap memory buffer size for transactions in Bytes</strong>: Configured threshold for the off-heap memory buffer size for transactions in Bytes (`transaction.transactionMemoryBufferLimitSizeBytes`).</dd>
   <dt><code>io_evitadb_system_evita_started_transaction_memory_regions</code> (GAUGE)</dt>
-  <dd><strong>Number of off-heap memory regions for transactions</strong>: N/A</dd>
+  <dd><strong>Number of off-heap memory regions for transactions</strong>: Configured threshold for the number of off-heap memory regions for transactions (`transaction.transactionMemoryRegionCount`).</dd>
   <dt><code>io_evitadb_system_evita_started_transaction_timeout_seconds</code> (GAUGE)</dt>
-  <dd><strong>Read/write request timeout in seconds</strong>: N/A</dd>
+  <dd><strong>Read/write request timeout in seconds</strong>: Configured threshold for the read/write request timeout in seconds (`server.transactionTimeoutInMilliseconds`).</dd>
   <dt><code>io_evitadb_system_evita_started_wal_max_file_count_kept</code> (GAUGE)</dt>
-  <dd><strong>Maximal write-ahead log file count to keep</strong>: N/A</dd>
+  <dd><strong>Maximum number of write-ahead log files to keep</strong>: Configured threshold for the maximum number of write-ahead log files to keep (`transaction.walFileCountKept`).</dd>
   <dt><code>io_evitadb_system_evita_started_wal_max_file_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Maximal write-ahead log file size in Bytes</strong>: N/A</dd>
+  <dd><strong>Maximum write-ahead log file size in Bytes</strong>: Configured threshold for the maximum write-ahead log file size in Bytes (`transaction.walFileSizeBytes`).</dd>
 </dl>
 
 #### Transaction
 
 <dl>
   <dt><code>io.evitadb.transaction.WalStatistics.oldestWalEntryTimestampSeconds</code> (GAUGE)</dt>
-  <dd><strong>Oldest WAL entry timestamp</strong>: N/A</dd>
+  <dd><strong>Oldest WAL entry timestamp</strong>: The timestamp of the oldest WAL entry in the WAL files (either active or historical).</dd>
   <dt><code>io.evitadb.transaction.WalStatistics.oldestWalEntryTimestampSeconds</code> (GAUGE)</dt>
-  <dd><strong>Oldest WAL entry timestamp</strong>: N/A</dd>
+  <dd><strong>Oldest WAL entry timestamp</strong>: The timestamp of the oldest WAL entry in the WAL files (either active or historical).</dd>
   <dt><code>io_evitadb_transaction_catalog_goes_live_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Catalog transition to live state duration</dd>
+  <dd>Catalog transition to alive state duration</dd>
   <dt><code>io_evitadb_transaction_catalog_goes_live_total</code> (COUNTER)</dt>
   <dd>Catalog goes live invocation count</dd>
   <dt><code>io_evitadb_transaction_isolated_wal_file_closed_total</code> (COUNTER)</dt>
@@ -330,23 +334,23 @@
   <dt><code>io_evitadb_transaction_isolated_wal_file_opened_total</code> (COUNTER)</dt>
   <dd>Opened files for isolated WAL storage.</dd>
   <dt><code>io_evitadb_transaction_new_catalog_version_propagated_collapsed_transactions</code> (COUNTER)</dt>
-  <dd><strong>Transactions propagated to live view.</strong>: N/A</dd>
+  <dd><strong>Transactions propagated to live view.</strong>: The number of transactions that were propagated to the live view in a single transition.</dd>
   <dt><code>io_evitadb_transaction_new_catalog_version_propagated_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>New catalog version propagation duration in milliseconds</dd>
   <dt><code>io_evitadb_transaction_new_catalog_version_propagated_total</code> (COUNTER)</dt>
   <dd>Catalog versions propagated</dd>
   <dt><code>io_evitadb_transaction_off_heap_memory_allocation_change_allocated_memory_bytes</code> (GAUGE)</dt>
-  <dd><strong>Allocated memory bytes</strong>: N/A</dd>
+  <dd><strong>Allocated memory bytes</strong>: Amount of memory allocated for off-heap storage in Bytes.</dd>
   <dt><code>io_evitadb_transaction_off_heap_memory_allocation_change_used_memory_bytes</code> (GAUGE)</dt>
-  <dd><strong>Used memory bytes</strong>: N/A</dd>
+  <dd><strong>Used memory bytes</strong>: Amount of memory used for off-heap storage in Bytes.</dd>
   <dt><code>io_evitadb_transaction_transaction_accepted_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Conflict resolution duration in milliseconds<br/><br/><strong>Labels:</strong> <Term>resolution</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_accepted_total</code> (COUNTER)</dt>
   <dd>Transactions accepted<br/><br/><strong>Labels:</strong> <Term>resolution</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_appended_to_wal_appended_atomic_mutations</code> (COUNTER)</dt>
-  <dd><strong>Atomic mutations appended.</strong>: N/A</dd>
+  <dd><strong>Atomic mutations appended.</strong>: The number of atomic mutations (schema, catalog schema or entity mutations) appended to the shared WAL.</dd>
   <dt><code>io_evitadb_transaction_transaction_appended_to_wal_appended_wal_bytes</code> (COUNTER)</dt>
-  <dd><strong>Size of the written WAL in Bytes.</strong>: N/A</dd>
+  <dd><strong>Size of the written WAL in Bytes.</strong>: The size of the written WAL in Bytes.</dd>
   <dt><code>io_evitadb_transaction_transaction_appended_to_wal_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Appending transaction to shared WAL duration in milliseconds</dd>
   <dt><code>io_evitadb_transaction_transaction_appended_to_wal_total</code> (COUNTER)</dt>
@@ -354,7 +358,7 @@
   <dt><code>io_evitadb_transaction_transaction_finished_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Transaction lifespan duration in milliseconds<br/><br/><strong>Labels:</strong> <Term>resolution</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_finished_oldest_transaction_timestamp_seconds</code> (GAUGE)</dt>
-  <dd><strong>Oldest transaction timestamp</strong>: N/A<br/><br/><strong>Labels:</strong> <Term>resolution</Term><br/></dd>
+  <dd><strong>Oldest transaction timestamp</strong>: The timestamp of the oldest non-finished (running) transaction in the catalog.<br/><br/><strong>Labels:</strong> <Term>resolution</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_finished_total</code> (COUNTER)</dt>
   <dd>Transactions finished<br/><br/><strong>Labels:</strong> <Term>resolution</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_incorporated_to_trunk_collapsed_transactions</code> (COUNTER)</dt>
@@ -366,13 +370,13 @@
   <dt><code>io_evitadb_transaction_transaction_incorporated_to_trunk_processed_local_mutations</code> (COUNTER)</dt>
   <dd><strong>Local mutations processed.</strong>: N/A</dd>
   <dt><code>io_evitadb_transaction_transaction_processed_lag_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Transaction lag between being committed and finally visible to all</strong>: N/A</dd>
+  <dd><strong>Transaction lag</strong>: The time it took for the transaction to become visible to all new sessions. In other words, the time between when the transaction was committed and when the shared view was affected.</dd>
   <dt><code>io_evitadb_transaction_transaction_queued_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Transaction waiting time in queue.<br/><br/><strong>Labels:</strong> <Term>stage</Term><br/></dd>
+  <dd>Transaction wait time in a queue.<br/><br/><strong>Labels:</strong> <Term>stage</Term><br/></dd>
   <dt><code>io_evitadb_transaction_transaction_started_total</code> (COUNTER)</dt>
   <dd>Transactions initiated</dd>
   <dt><code>io_evitadb_transaction_wal_cache_size_changed_locations_cached</code> (GAUGE)</dt>
-  <dd><strong>Total cached locations in WAL file</strong>: N/A</dd>
+  <dd><strong>Total cached locations in WAL file</strong>: The total number of cached locations (used for fast mutation lookups) in the shared WAL file.</dd>
   <dt><code>io_evitadb_transaction_wal_rotation_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>WAL rotation duration in milliseconds</dd>
   <dt><code>io_evitadb_transaction_wal_rotation_total</code> (COUNTER)</dt>

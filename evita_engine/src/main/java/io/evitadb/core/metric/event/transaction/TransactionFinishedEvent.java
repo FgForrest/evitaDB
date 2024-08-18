@@ -45,17 +45,19 @@ import java.time.OffsetDateTime;
 @ExportDurationMetric(label = "Transaction lifespan duration in milliseconds")
 @ExportInvocationMetric(label = "Transactions finished")
 @Description(
-	"Event that is fired when a transaction is finished either by commit or rollback and corresponding session is closed. " +
-		"This also includes waiting for transaction reaching requested stage of processing."
+	"Event fired when a transaction is completed, either by commit or rollback, and the corresponding session is closed. " +
+		"This includes waiting for the transaction to reach the desired state of processing."
 )
 @Getter
 public class TransactionFinishedEvent extends AbstractTransactionEvent {
 
 	@Label("Transaction resolution")
+	@Description("The resolution of the transaction - either commit or rollback.")
 	@ExportMetricLabel
 	private String resolution;
 
 	@Label("Oldest transaction timestamp")
+	@Description("The timestamp of the oldest non-finished (running) transaction in the catalog.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long oldestTransactionTimestampSeconds;
 

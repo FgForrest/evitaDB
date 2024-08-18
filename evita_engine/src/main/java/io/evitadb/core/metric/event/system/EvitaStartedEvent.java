@@ -41,86 +41,105 @@ import javax.annotation.Nonnull;
 /**
  * Event that is fired when evitaDB instance is started.
  */
-@Name(AbstractSystemCatalogEvent.PACKAGE_NAME + ".EvitaStarted")
-@Description("Event that is fired when evitaDB instance is started.")
+@Name(AbstractSystemEvent.PACKAGE_NAME + ".EvitaStarted")
+@Description("Event that is triggered when the evitaDB instance is started.")
 @ExportInvocationMetric(label = "Evita started total")
 @Label("Evita started")
 @Getter
 public class EvitaStartedEvent extends AbstractSystemCatalogEvent {
 
-	@Label("Maximal number of threads read only request handling")
+	@Label("Maximum number of threads to handle read-only requests")
+	@Description("Configured threshold for the maximum number of threads to handle read-only requests (`server.requestThreadPool.maxThreadCount`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int requestMaxThreads;
 
-	@Label("Maximal queue size for read only request handling")
+	@Label("Maximum queue size for read-only request handling")
+	@Description("Configured threshold for the maximum queue size for read-only request handling (`server.requestThreadPool.queueSize`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int requestMaxThreadsQueueSize;
 
-	@Label("Maximal number of threads for read/write requests")
+	@Label("Maximum number of threads for read/write requests")
+	@Description("Configured threshold for the maximum number of threads for read/write requests (`server.transactionThreadPool.maxThreadCount`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int transactionMaxThreads;
 
-	@Label("Maximal queue size for read/write requests")
+	@Label("Maximum queue size for read/write requests")
+	@Description("Configured threshold for the maximum queue size for read/write requests (`server.transactionThreadPool.queueSize`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int transactionMaxThreadsQueueSize;
 
-	@Label("Maximal number of threads for service tasks")
+	@Label("Maximum number of threads for service tasks")
+	@Description("Configured threshold for the maximum number of threads for service tasks (`server.serviceThreadPool.maxThreadCount`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int serviceMaxThreads;
 
-	@Label("Maximal queue size for service tasks")
+	@Label("Maximum queue size for service tasks")
+	@Description("Configured threshold for the maximum queue size for service tasks (`server.serviceThreadPool.queueSize`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int serviceMaxThreadsQueueSize;
 
-	@Label("Read only request timeout in seconds")
+	@Label("Read-only request timeout in seconds")
+	@Description("Configured threshold for the read-only request timeout in seconds (`server.queryTimeoutInMilliseconds`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int queryTimeoutSeconds;
 
 	@Label("Read/write request timeout in seconds")
+	@Description("Configured threshold for the read/write request timeout in seconds (`server.transactionTimeoutInMilliseconds`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int transactionTimeoutSeconds;
 
-	@Label("Maximal session inactivity age in seconds")
+	@Label("Maximum session inactivity time in seconds")
+	@Description("Configured threshold for the maximum session inactivity time in seconds (`server.closeSessionsAfterSecondsOfInactivity`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int sessionMaxInactiveAgeSeconds;
 
-	@Label("Maximal count of opened read-only handles")
+	@Label("Maximum number of open read-only handles")
+	@Description("Configured threshold for the maximum number of open read-only handles (`storage.maxOpenedReadHandles`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int readOnlyHandlesLimit;
 
-	@Label("Minimal share of active records in the file to start compaction in %")
+	@Label("Minimum percentage of active records in the file to start compacting in %.")
+	@Description("Configured threshold for the minimum percentage of active records in the file to start compacting in % (`storage.minimalActiveRecordShare`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int compactionMinimalActiveRecordSharePercent;
 
-	@Label("Minimal file size threshold to start compaction in Bytes")
+	@Label("Minimum file size threshold to start compression in bytes")
+	@Description("Configured threshold for the minimum file size threshold to start compression in bytes (`storage.fileSizeCompactionThresholdBytes`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long compactionFileSizeThresholdBytes;
 
-	@Label("Size of off-heap memory buffer for transactions in Bytes")
+	@Label("Off-heap memory buffer size for transactions in Bytes")
+	@Description("Configured threshold for the off-heap memory buffer size for transactions in Bytes (`transaction.transactionMemoryBufferLimitSizeBytes`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long transactionMemoryBufferLimitSizeBytes;
 
 	@Label("Number of off-heap memory regions for transactions")
+	@Description("Configured threshold for the number of off-heap memory regions for transactions (`transaction.transactionMemoryRegionCount`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int transactionMemoryRegions;
 
-	@Label("Maximal write-ahead log file size in Bytes")
+	@Label("Maximum write-ahead log file size in Bytes")
+	@Description("Configured threshold for the maximum write-ahead log file size in Bytes (`transaction.walFileSizeBytes`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long walMaxFileSizeBytes;
 
-	@Label("Maximal write-ahead log file count to keep")
+	@Label("Maximum number of write-ahead log files to keep")
+	@Description("Configured threshold for the maximum number of write-ahead log files to keep (`transaction.walFileCountKept`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int walMaxFileCountKept;
 
 	@Label("Cache reevaluation interval in seconds")
+	@Description("Configured threshold for the cache reevaluation interval in seconds (`cache.reevaluateEachSeconds`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int cacheReevaluationSeconds;
 
-	@Label("Maximal number of records in cache anteroom")
+	@Label("Maximum number of records in the cache anteroom")
+	@Description("Configured threshold for the maximum number of records in the cache anteroom (`cache.anteroomRecordCount`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int cacheAnteroomRecordLimit;
 
-	@Label("Maximal size of cache in Bytes")
+	@Label("Maximum cache size in Bytes")
+	@Description("Configured threshold for the maximum cache size in Bytes (`cache.cacheSizeInBytes`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long cacheSizeInBytes;
 

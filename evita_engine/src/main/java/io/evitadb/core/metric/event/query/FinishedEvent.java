@@ -51,54 +51,65 @@ import javax.annotation.Nullable;
 @Getter
 public class FinishedEvent extends AbstractQueryEvent {
 	@Label("Entity type")
+	@Description("The name of the related entity type (collection).")
 	@ExportMetricLabel
 	private final String entityType;
 
 	@Label("Query planning duration in milliseconds")
+	@Description("The time it took to build all the query execution plan variants.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long planDurationMilliseconds;
 
 	@Label("Query execution duration in milliseconds")
+	@Description("The time it took to execute the selected execution plan for the query.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long executionDurationMilliseconds;
 
 	@Label("Prefetched vs. non-prefetched query")
+	@Description("Whether or not the query used a prefetch plan. Prefetch plan optimistically fetches queried entities in advance and executes directly on them (without accessing the indexes).")
 	@ExportMetricLabel
 	private String prefetched;
 
 	@Label("Records scanned total")
+	@Description("The total number of records scanned (included in the calculation).")
 	@HistogramSettings(unit = "records", factor = 4)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int scanned;
 
 	@Label("Records returned total")
+	@Description("The total number of records returned (included in the result).")
 	@HistogramSettings(unit = "records", factor = 1.9)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int returned;
 
 	@Label("Records found total")
+	@Description("The total number of records found (matching the query).")
 	@HistogramSettings(unit = "records", factor = 2.5)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int found;
 
 	@Label("Records fetched total")
+	@Description("The total number of records fetched from the data storage (excluding records found in the cache).")
 	@HistogramSettings(unit = "records", factor = 1.9)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int fetched;
 
 	@Label("Fetched size in bytes")
+	@Description("The total size of the fetched data in Bytes.")
 	@HistogramSettings(unit = "bytes", factor = 3)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int fetchedSizeBytes;
 
 	@Label("Estimated complexity info")
+	@Description("The estimated complexity of the query.")
 	@HistogramSettings(unit = "complexity", factor = 22)
 	@ExportMetric(metricName = "estimated", metricType = MetricType.HISTOGRAM)
 	private long estimatedComplexity;
 
 	@Label("Filter complexity")
+	@Description("The real complexity of the query.")
 	@HistogramSettings(unit = "complexity", factor = 22)
 	@ExportMetric(metricName = "real", metricType = MetricType.HISTOGRAM)
 	private long realComplexity;

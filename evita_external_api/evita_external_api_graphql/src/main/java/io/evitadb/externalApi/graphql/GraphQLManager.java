@@ -340,7 +340,7 @@ public class GraphQLManager {
 	/**
 	 * Counts lines of printed GraphQL schema in DSL.
 	 */
-	private long countGraphQLSchemaLines(@Nonnull GraphQLSchema schema) {
+	private static long countGraphQLSchemaLines(@Nonnull GraphQLSchema schema) {
 		return GraphQLSchemaPrinter.print(schema).lines().count();
 	}
 

@@ -24,6 +24,7 @@
 package io.evitadb.core.metric.event.storage;
 
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import lombok.Getter;
 
@@ -40,12 +41,14 @@ abstract class AbstractDataFileEvent extends AbstractStorageEvent {
 	 * The type of the file that was flushed.
 	 */
 	@Label("File type")
+	@Description("The type of the file that was flushed. One of: CATALOG, ENTITY_COLLECTION, WAL, or BOOTSTRAP")
 	@ExportMetricLabel
 	final String fileType;
 	/**
 	 * The logical name of the file that was flushed.
 	 */
 	@Label("Logical file name")
+	@Description("The logical name of the file that was flushed. Identifies the file more precisely.")
 	@ExportMetricLabel
 	final String name;
 

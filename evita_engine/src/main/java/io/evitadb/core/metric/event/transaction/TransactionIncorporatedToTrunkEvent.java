@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".IncorporatedToTrunk")
-@Description("Event that is fired when a transaction was incorporated into a shared data structures.")
+@Description("Event fired when a transaction is included in a shared data structure.")
 @Label("Transaction incorporated to trunk")
 @ExportDurationMetric(value = "incorporationDurationMilliseconds", label = "Incorporation duration in milliseconds")
 @Getter
