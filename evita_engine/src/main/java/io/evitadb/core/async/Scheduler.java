@@ -30,6 +30,7 @@ import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.State;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -407,8 +408,11 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		final int bufferSize = 512;
 		final ArrayList<ServerTask<?, ?>> buffer = new ArrayList<>(bufferSize);
 		final int queueSize = this.queue.size();
+		//noinspection rawtypes
+		final CompositeObjectArray<Task> finishedTaskInDefensePeriod = new CompositeObjectArray<>(Task.class);
 		final OffsetDateTime threshold = OffsetDateTime.now().minus(FINISHED_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
-		for (int i = 0; i < queueSize; i++) {
+		final int batches = queueSize / bufferSize + 1;
+		for (int i = 0; i < batches; i++) {
 			// effectively withdraw first block of tasks from the queue
 			this.queue.drainTo(buffer, bufferSize);
 			// now go through all of them
@@ -417,15 +421,29 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 				final Task<?, ?> task = it.next();
 				final TaskStatus<?, ?> status = task.getStatus();
 				final State taskState = status.state();
-				if ((taskState == State.FINISHED || taskState == State.FAILED) && status.finished().isBefore(threshold)) {
-					// if task is finished and it's defense period has perished, remove it from the queue
+				if ((taskState == State.FINISHED || taskState == State.FAILED)) {
+					// if task is finished, remove it from the queue
 					it.remove();
+					// if its defense period hasn't perished add it to list, that might end up in the queue again
+					if (status.finished().isAfter(threshold)) {
+						finishedTaskInDefensePeriod.add(task);
+					}
 				}
 			}
 			// add the remaining tasks back to the queue in an effective way
 			this.queue.addAll(buffer);
 			// clear the buffer for the next iteration
 			buffer.clear();
+		}
+		// now add the tasks that are still in defense period back to the queue, but keep at least 1/3 of the queue empty
+		final int requiredEmptyBlock = queueSize / 3;
+		final int remainingCapacity = this.queue.remainingCapacity();
+		if (remainingCapacity > requiredEmptyBlock) {
+			//noinspection rawtypes
+			final Iterator<Task> it = finishedTaskInDefensePeriod.iterator();
+			for (int i = remainingCapacity; i < queueSize - requiredEmptyBlock && it.hasNext(); i++) {
+				this.queue.add((ServerTask<?, ?>) it.next());
+			}
 		}
 		// plan to next standard time
 		return 0L;
