@@ -94,72 +94,79 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	String responseStatus = ResponseStatus.OK.name();
 
 	/**
-	 * Duration of input deserialization in milliseconds.
+	 * Time to deserialize the incoming JSON input GraphQL request to internal structure in milliseconds.
 	 */
 	@Label("Input deserialization duration")
-	@Description("Time to deserialize the input GQL request in milliseconds.")
+	@Description("Time to deserialize the incoming JSON input GraphQL request to internal structure in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long inputDeserializationDurationMilliseconds;
 	private final long processStarted;
 
 	/**
-	 * Duration of request preparation in milliseconds.
+	 * Time to prepare and initialize the GraphQL server engine for parsing and executing the incoming request in milliseconds.
 	 */
 	@Label("Request preparation duration")
-	@Description("Time to prepare the request execution in milliseconds.")
+	@Description("Time to prepare and initialize the GraphQL server engine for parsing and executing the incoming request in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long preparationDurationMilliseconds;
 	private long preparationStarted;
 
 	/**
-	 * Duration of request parsing in milliseconds.
+	 * Time to parse the GraphQL request (query and variables) by the GraphQL server engine from internal structure for validation and execution in milliseconds.
 	 */
 	@Label("Request parsing duration")
-	@Description("Time to parse the request in milliseconds.")
+	@Description("Time to parse the GraphQL request (query and variables) by the GraphQL server engine from internal structure for validation and execution in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long parseDurationMilliseconds;
 	private long parseStarted;
 
 	/**
-	 * Duration of request validation in milliseconds.
+	 * Time to validate the parsed request (query and variables) by the GraphQL server engine before execution in milliseconds.
 	 */
 	@Label("Validation duration")
-	@Description("Time to validate the request in milliseconds.")
+	@Description("Time to validate the parsed request (query and variables) by the GraphQL server engine before execution in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long validationDurationMilliseconds;
 	private long validationStarted;
 
 	/**
-	 * Duration of operation execution in milliseconds.
+	 * Time to execute the entire parsed and validated GraphQL operation by the GraphQL server engine in milliseconds.
+	 * Includes all data fetcher business logic, including evitaDB input reconstruction and evitaDB query execution.
 	 */
 	@Label("Execution duration")
-	@Description("Time to execute the operation in milliseconds.")
+	@Description("Time to execute the entire parsed and validated GraphQL operation by the GraphQL server engine in milliseconds. " +
+		"Includes all data fetcher business logic, including evitaDB input reconstruction and evitaDB query execution.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long operationExecutionDurationMilliseconds;
 	private long operationExecutionStarted;
 
+	/**
+	 * Time to reconstruct query input into evitaDB engine in milliseconds. Usually converts JSON query into
+	 * internal evitaDB query representation or JSON mutations into internal evitaDB mutation representation.
+	 */
 	@Label("evitaDB input reconstruction duration")
-	@Description("Time to reconstruct all internal evitaDB inputs in milliseconds.")
+	@Description("Time to reconstruct query input into evitaDB engine in milliseconds. Usually converts JSON query into" +
+		" internal evitaDB query representation or JSON mutations into internal evitaDB mutation representation.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long internalEvitadbInputReconstructionDurationMilliseconds;
 
 
 	/**
-	 * Duration of all internal evitaDB executions in milliseconds.
+	 * Duration of all internal evitaDB calls/executions (query entities, upsert entities, and so on) in milliseconds.
 	 */
 	private long internalEvitadbExecutionDurationMilliseconds;
 
 	/**
-	 * Duration of result serialization in milliseconds.
+	 * Time to serialize the final request result into output JSON in milliseconds.
 	 */
 	@Label("Result serializatio duration")
-	@Description("Time to serialize the request result in milliseconds.")
+	@Description("Time to serialize the final request result into output JSON in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long resultSerializationDurationMilliseconds;
@@ -171,10 +178,10 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	private long executionDurationMilliseconds;
 
 	/**
-	 * Request execution overhead in milliseconds.
+	 * Time to execute the entire request in milliseconds without internal evitaDB execution.
 	 */
 	@Label("Request execution overhead")
-	@Description("Time to execute the request in milliseconds without internal evitaDB execution.")
+	@Description("Time to execute the entire request in milliseconds without internal evitaDB execution.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long executionApiOverheadDurationMilliseconds;
