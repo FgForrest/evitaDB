@@ -144,7 +144,9 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 				final Status status = Status.UNAUTHENTICATED
 					.withCause(new InvalidSchemeException("TLS is not required for this endpoint."))
 					.withDescription("TLS is not required for this endpoint.");
-				metadata.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "invalidProtocol");
+				Metadata trailers = new Metadata();
+				trailers.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "invalidProtocol");
+				serverCall.sendHeaders(trailers);
 				serverCall.close(status, metadata);
 				return new ServerCall.Listener<>() {};
 			}
@@ -152,7 +154,9 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 				final Status status = Status.UNAUTHENTICATED
 					.withCause(new InvalidSchemeException("TLS is required for this endpoint."))
 					.withDescription("TLS is required for this endpoint.");
-				metadata.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "invalidProtocol");
+				Metadata trailers = new Metadata();
+				trailers.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "invalidProtocol");
+				serverCall.sendHeaders(trailers);
 				serverCall.close(status, metadata);
 				return new ServerCall.Listener<>() {};
 			}
@@ -165,8 +169,10 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			final Status status = Status.UNAUTHENTICATED
 				.withCause(new SessionNotFoundException("Your session is either not set or is not active."))
 				.withDescription("Your session (session id: " + sessionId + ") is either not set or is not active.");
-			metadata.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "sessionNotFound");
-			serverCall.close(status, metadata);
+			Metadata trailers = new Metadata();
+			trailers.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "sessionNotFound");
+			serverCall.sendHeaders(trailers);
+			serverCall.close(status, trailers);
 			return new ServerCall.Listener<>() {};
 		}
 
