@@ -126,7 +126,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	public static final String ATTRIBUTE_UUID = "uuid";
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "EvitaReadWriteClientDataSet";
-	private static final Map<Serializable, Integer> GENERATED_ENTITIES = new HashMap<>(2000);
+	private static final Map<Serializable, Integer> GENERATED_ENTITIES = new HashMap<>(20);
 	private static final BiFunction<String, Faker, Integer> RANDOM_ENTITY_PICKER = (entityType, faker) -> {
 		final int entityCount = GENERATED_ENTITIES.computeIfAbsent(entityType, serializable -> 0);
 		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
