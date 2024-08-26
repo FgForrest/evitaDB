@@ -109,44 +109,48 @@ public class ExecutedEvent extends AbstractRestRequestEvent {
 	String responseStatus = ResponseStatus.OK.name();
 
 	/**
-	 * Duration of input deserialization in milliseconds.
+	 * Time to deserialize the incoming JSON input REST request to internal structure in milliseconds.
 	 */
 	@Label("Input deserialization duration")
-	@Description("Time to deserialize the input GQL request in milliseconds.")
+	@Description("Time to deserialize the incoming JSON input REST request to internal structure in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long inputDeserializationDurationMilliseconds;
 	private final long processStarted;
 
 	/**
-	 * Duration of operation execution in milliseconds.
+	 * Time to execute the entire parsed and validated REST operation by the server engine in milliseconds.
+	 * Includes all handler business logic, including evitaDB input reconstruction and evitaDB query execution.
 	 */
 	@Label("Execution duration")
-	@Description("Time to execute the operation in milliseconds.")
+	@Description("Time to execute the entire parsed and validated REST operation by the server engine in milliseconds. " +
+		"Includes all handler business logic, including evitaDB input reconstruction and evitaDB query execution.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long operationExecutionDurationMilliseconds;
 	private long operationExecutionStarted;
 
 	/**
-	 * Duration of all internal evitaDB input reconstructions in milliseconds.
+	 * Time to reconstruct query input into evitaDB engine in milliseconds. Usually converts JSON query into
+	 * internal evitaDB query representation or JSON mutations into internal evitaDB mutation representation.
 	 */
 	@Label("evitaDB input reconstruction duration")
-	@Description("Time to reconstruct all internal evitaDB inputs in milliseconds.")
+	@Description("Time to reconstruct query input into evitaDB engine in milliseconds. Usually converts JSON query into" +
+		" internal evitaDB query representation or JSON mutations into internal evitaDB mutation representation.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long internalEvitadbInputReconstructionDurationMilliseconds;
 
 	/**
-	 * Duration of all internal evitaDB executions in milliseconds.
+	 * Duration of all internal evitaDB calls/executions (query entities, upsert entities, and so on) in milliseconds.
 	 */
 	private long internalEvitadbExecutionDurationMilliseconds;
 
 	/**
-	 * Duration of result serialization in milliseconds.
+	 * Time to serialize the final request result into output JSON in milliseconds.
 	 */
 	@Label("Result serializatio duration")
-	@Description("Time to serialize the request result in milliseconds.")
+	@Description("Time to serialize the final request result into output JSON in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long resultSerializationDurationMilliseconds;
