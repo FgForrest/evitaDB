@@ -567,7 +567,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					final CompletableFuture<Long> future = session.closeNow(toCommitBehavior(request.getCommitBehaviour()));
 					future.whenComplete((version, throwable) -> {
 						if (throwable != null) {
-							responseObserver.onError(throwable);
+							GlobalExceptionHandlerInterceptor.sendErrorToClient(throwable, responseObserver);
 						} else {
 							responseObserver.onNext(GrpcCloseResponse.newBuilder().setCatalogVersion(version).build());
 						}
