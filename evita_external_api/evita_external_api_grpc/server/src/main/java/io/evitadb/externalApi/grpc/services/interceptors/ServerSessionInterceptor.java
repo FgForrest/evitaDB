@@ -37,6 +37,7 @@ import io.grpc.Context;
 import io.grpc.Contexts;
 import io.grpc.InternalMetadata;
 import io.grpc.Metadata;
+import io.grpc.Metadata.Key;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
@@ -62,6 +63,8 @@ import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADE
 @RequiredArgsConstructor
 public class ServerSessionInterceptor implements ServerInterceptor {
 	private static final Set<String> ENDPOINTS_NOT_REQUIRING_SESSION = CollectionUtils.createHashSet(32);
+	public static final String METADATA_CAUSE = "cause";
+
 	static {
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/IsReady");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateReadOnlySession");
@@ -141,6 +144,7 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 				final Status status = Status.UNAUTHENTICATED
 					.withCause(new InvalidSchemeException("TLS is not required for this endpoint."))
 					.withDescription("TLS is not required for this endpoint.");
+				metadata.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "invalidProtocol");
 				serverCall.close(status, metadata);
 				return new ServerCall.Listener<>() {};
 			}
@@ -148,6 +152,7 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 				final Status status = Status.UNAUTHENTICATED
 					.withCause(new InvalidSchemeException("TLS is required for this endpoint."))
 					.withDescription("TLS is required for this endpoint.");
+				metadata.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "invalidProtocol");
 				serverCall.close(status, metadata);
 				return new ServerCall.Listener<>() {};
 			}
@@ -160,6 +165,7 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			final Status status = Status.UNAUTHENTICATED
 				.withCause(new SessionNotFoundException("Your session is either not set or is not active."))
 				.withDescription("Your session (session id: " + sessionId + ") is either not set or is not active.");
+			metadata.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "sessionNotFound");
 			serverCall.close(status, metadata);
 			return new ServerCall.Listener<>() {};
 		}
