@@ -78,5 +78,6 @@ module evita.api {
 	requires evita.common;
 	requires evita.query;
 	requires static proxycian.bytebuddy;
+	requires java.smartcardio;
 
 }

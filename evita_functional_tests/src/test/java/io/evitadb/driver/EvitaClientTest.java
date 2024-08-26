@@ -825,7 +825,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNames.contains(newCatalog));
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 		assertEquals(
-			Integer.valueOf(10),
+			Integer.valueOf(3),
 			evitaClient.queryCatalog(TEST_CATALOG, evitaSessionContract -> {
 				return evitaSessionContract.getCatalogSchema().version();
 			})
@@ -838,7 +838,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNamesAgain.contains(newCatalog));
 
 		assertEquals(
-			Integer.valueOf(11),
+			Integer.valueOf(4),
 			evitaClient.queryCatalog(newCatalog, evitaSessionContract -> {
 				return evitaSessionContract.getCatalogSchema().version();
 			})
@@ -854,7 +854,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertEquals(1, catalogNames.size());
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 		assertEquals(
-			Integer.valueOf(10),
+			Integer.valueOf(3),
 			evitaClient.queryCatalog(TEST_CATALOG, evitaSessionContract -> {
 				return evitaSessionContract.getCatalogSchema().version();
 			})
@@ -867,7 +867,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNamesAgain.contains(newCatalog));
 
 		assertEquals(
-			Integer.valueOf(11),
+			Integer.valueOf(4),
 			evitaClient.queryCatalog(newCatalog, evitaSessionContract -> {
 				return evitaSessionContract.getCatalogSchema().version();
 			})

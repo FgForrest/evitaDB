@@ -29,7 +29,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.TlsMode;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Context;
@@ -176,8 +175,6 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		if (sessionId == null) {
 			return Optional.empty();
 		}
-		Assert.notNull(sessionId, "Both `catalogName` and `sessionId` must be specified to identify session.");
-
 		return evita.getSessionById(UUIDUtil.uuid(sessionId))
 			.map(session -> {
 				if (!session.isActive()) {

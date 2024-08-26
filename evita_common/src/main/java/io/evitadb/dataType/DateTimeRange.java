@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -228,13 +228,13 @@ public final class DateTimeRange implements Range<OffsetDateTime>, Serializable,
 			INTERVAL_JOIN + ofNullable(to).map(DateTimeFormatter.ISO_OFFSET_DATE_TIME::format).orElse("") + CLOSE_CHAR;
 	}
 
-	private void assertEitherBoundaryNotNull(@Nullable OffsetDateTime from, @Nullable OffsetDateTime to) {
+	private static void assertEitherBoundaryNotNull(@Nullable OffsetDateTime from, @Nullable OffsetDateTime to) {
 		if (from == null && to == null) {
 			throw new EvitaInvalidUsageException("From and to cannot be both null at the same time in DateTimeRange type!");
 		}
 	}
 
-	private void assertFromLesserThanTo(@Nullable OffsetDateTime from, @Nullable OffsetDateTime to) {
+	private static void assertFromLesserThanTo(@Nullable OffsetDateTime from, @Nullable OffsetDateTime to) {
 		if (!(from == null || to == null || from.equals(to) || from.isBefore(to))) {
 			throw new EvitaInvalidUsageException("From must be before or equals to to!");
 		}

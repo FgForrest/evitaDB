@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.store.dataType.serializer.EnumNameSerializer;
 import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
@@ -50,6 +51,7 @@ import io.evitadb.store.schema.serializer.EntityAttributeSchemaSerializer;
 import io.evitadb.store.schema.serializer.EntitySchemaSerializer;
 import io.evitadb.store.schema.serializer.GlobalAttributeSchemaSerializer;
 import io.evitadb.store.schema.serializer.ReferenceSchemaSerializer;
+import io.evitadb.store.schema.serializer.ReflectedReferenceSchemaSerializer;
 import io.evitadb.store.schema.serializer.SortableAttributeCompoundSchemaSerializer;
 import io.evitadb.utils.Assert;
 
@@ -81,6 +83,7 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(Cardinality.class, new EnumNameSerializer<>(), index++);
 		kryo.register(OrderDirection.class, new EnumNameSerializer<>(), index++);
 		kryo.register(OrderBehaviour.class, new EnumNameSerializer<>(), index++);
+		kryo.register(ReflectedReferenceSchema.class, new SerialVersionBasedSerializer<>(new ReflectedReferenceSchemaSerializer(), ReflectedReferenceSchema.class), index++);
 
 		Assert.isPremiseValid(index < 500, "Index count overflow.");
 	}

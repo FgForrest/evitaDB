@@ -157,6 +157,10 @@ message GrpcSetReferenceSchemaFacetedMutation {
   // occupies (memory/disk) space in the form of index.
   // Reference that was marked as faceted is called Facet.
   bool faceted = 2;
+  // Set to true when the faceted property should be inherited from the original.
+  // This property makes sense only for inherited reference attributes on reflected reference. For all other cases it
+  // must be left as false. When set to TRUE the value of `faceted` field is ignored.
+  bool inherited = 3;
 }
 
 // Mutation is responsible for setting value to a `ReferenceSchema.filtered` in `EntitySchema`.
@@ -172,4 +176,8 @@ message GrpcSetReferenceSchemaFilterableMutation {
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
   // alongside other references if requested.
   bool filterable = 2;
+  // Set to true when the filterable property should be inherited from the original.
+  // This property makes sense only for inherited reference attributes on reflected reference. For all other cases it
+  // must be left as false. When set to TRUE the value of `filterable` field is ignored.
+  bool inherited = 3;
 }

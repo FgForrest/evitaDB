@@ -74,10 +74,14 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -123,20 +127,14 @@ import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalInt;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -784,9 +782,10 @@ public final class EntityCollection implements
 		// internal schema is expected to be produced on the server side
 		final EntitySchema originalSchema = getInternalSchema();
 		try {
-			EntitySchemaContract updatedSchema = originalSchema;
+			EntitySchema updatedSchema = originalSchema;
+			final Set<String> updatedReferenceSchemas = CollectionUtils.createHashSet(originalSchema.getReferences().size());
 			for (EntitySchemaMutation theMutation : schemaMutation) {
-				updatedSchema = theMutation.mutate(catalogSchema, updatedSchema);
+				updatedSchema = (EntitySchema) theMutation.mutate(catalogSchema, updatedSchema);
 				/* TOBEDONE #409 JNO - this should be diverted to separate class and handle all necessary DDL operations */
 				if (theMutation instanceof SetEntitySchemaWithHierarchyMutation setHierarchy) {
 					if (setHierarchy.isWithHierarchy()) {
@@ -794,24 +793,20 @@ public final class EntityCollection implements
 							.ifPresent(it -> it.initRootNodes(it.getAllPrimaryKeys()));
 					}
 				}
+				if (theMutation instanceof ReferenceSchemaMutation referenceSchemaMutation) {
+					updatedReferenceSchemas.add(referenceSchemaMutation.getName());
+				}
 			}
 
-			final EntitySchemaContract nextSchema = updatedSchema;
+			updatedSchema = refreshReflectedSchemas(originalSchema, updatedSchema, updatedReferenceSchemas);
+
 			Assert.isPremiseValid(updatedSchema != null, "Entity collection cannot be dropped by updating schema!");
 			Assert.isPremiseValid(updatedSchema instanceof EntitySchema, "Mutation is expected to produce EntitySchema instance!");
 			if (updatedSchema.version() > originalSchema.version()) {
 				/* TOBEDONE JNO (#501) - apply this just before commit happens in case validations are enabled */
 				// assertAllReferencedEntitiesExist(newSchema);
 				// assertReferences(newSchema);
-				final EntitySchema updatedInternalSchema = (EntitySchema) updatedSchema;
-				final EntitySchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
-					this.schema.get(),
-					new EntitySchemaDecorator(() -> this.catalog.getSchema(), updatedInternalSchema)
-				);
-				Assert.isTrue(
-					originalSchemaBeforeExchange.version() == originalSchema.version(),
-					() -> new ConcurrentSchemaUpdateException(originalSchema, nextSchema)
-				);
+				exchangeSchema(originalSchema, updatedSchema);
 			}
 		} catch (RuntimeException ex) {
 			// revert all changes in the schema (for current transaction) if anything failed
@@ -824,9 +819,155 @@ public final class EntityCollection implements
 			this.dataStoreBuffer.update(this.catalog.getVersion(), new EntitySchemaStoragePart(updatedInternalSchema));
 		}
 
-		final SealedEntitySchema schemaResult = getSchema();
-		this.catalog.entitySchemaUpdated(schemaResult);
-		return schemaResult;
+		return getSchema();
+	}
+
+	/**
+	 * Notifies that other entity type in catalog has been renamed. When any of reference in this schema refers to
+	 * the renamed entity schema, it needs to be automatically altered to refer to the new name.
+	 *
+	 * @param oldName the old name of the entity type
+	 * @param newCollection the instance of the updated (renamed) collection
+	 * @return {@code true} if the schema was updated, {@code false} otherwise
+	 */
+	public boolean notifyEntityTypeRenamed(@Nonnull String oldName, @Nonnull EntityCollection newCollection) {
+		final EntitySchema originalSchema = getInternalSchema();
+		final SealedEntitySchema newSchema = newCollection.getSchema();
+		final String newSchemaName = newSchema.getName();
+
+		EntitySchema updatedSchema = originalSchema;
+		for (ReferenceSchemaContract referenceSchemaContract : originalSchema.getReferences().values()) {
+			if (referenceSchemaContract.isReferencedEntityTypeManaged() && referenceSchemaContract.getReferencedEntityType().equals(oldName)) {
+				if (referenceSchemaContract instanceof ReflectedReferenceSchema referenceSchema) {
+					final Optional<ReferenceSchemaContract> updatedReference = newSchema.getReference(referenceSchema.getReflectedReferenceName());
+					if (updatedReference.isPresent()) {
+						updatedSchema = updatedSchema.withReplacedReferenceSchema(
+							referenceSchema.withReferencedSchema(updatedReference.get())
+								.withUpdatedReferencedEntityType(newSchemaName)
+						);
+					} else {
+						updatedSchema = updatedSchema.withReplacedReferenceSchema(
+							referenceSchema.withUpdatedReferencedEntityType(newSchemaName)
+						);
+					}
+				} else if (referenceSchemaContract instanceof ReferenceSchema referenceSchema) {
+					updatedSchema = updatedSchema.withReplacedReferenceSchema(
+						referenceSchema.withUpdatedReferencedEntityType(newSchemaName)
+					);
+				}
+			}
+			if (referenceSchemaContract.isReferencedGroupTypeManaged() && referenceSchemaContract.getReferencedGroupType().equals(oldName)) {
+				if (referenceSchemaContract instanceof ReferenceSchema referenceSchema) {
+					updatedSchema = updatedSchema.withReplacedReferenceSchema(
+						referenceSchema.withUpdatedReferencedGroupType(newSchemaName)
+					);
+				}
+			}
+		}
+		if (originalSchema != updatedSchema) {
+			exchangeSchema(originalSchema, updatedSchema);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Refreshes the given schemas based on the references provided.
+	 *
+	 * @param originalSchema the original schema to be refreshed
+	 * @param updatedSchema the updated schema containing new references
+	 * @param updatedReferenceSchemas the set of updated reference schemas
+	 * @return the updated entity schema
+	 * @throws GenericEvitaInternalError if a reference is expected to exist but is not found
+	 */
+	@Nonnull
+	private EntitySchema refreshReflectedSchemas(
+		@Nonnull EntitySchema originalSchema,
+		@Nonnull EntitySchema updatedSchema,
+		@Nonnull Set<String> updatedReferenceSchemas
+	) {
+		for (String referenceName : updatedReferenceSchemas) {
+			final Optional<ReferenceSchemaContract> updatedReference = updatedSchema.getReference(referenceName);
+			final Optional<ReferenceSchemaContract> referenceInStakeRef = updatedReference
+				.or(() -> originalSchema.getReference(referenceName));
+			if (referenceInStakeRef.isEmpty()) {
+				// the schema was not present before - we may skip it
+				continue;
+			}
+			final ReferenceSchemaContract referenceInStake = referenceInStakeRef.get();
+			if (referenceInStake instanceof ReflectedReferenceSchema reflectedReferenceSchema && updatedReference.isPresent()) {
+				final ReferenceSchemaContract originalReference = this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType())
+					.flatMap(it -> it.getSchema().getReference(reflectedReferenceSchema.getReflectedReferenceName()))
+					.orElse(null);
+				if (originalReference != null) {
+					updatedSchema = updatedSchema.withReplacedReferenceSchema(
+						reflectedReferenceSchema.withReferencedSchema(originalReference)
+					);
+				}
+			} else if (referenceInStake.isReferencedEntityTypeManaged()) {
+				// notify the target entity schema about the reference change in our schema
+				EntitySchema finalUpdatedSchema = updatedSchema;
+				this.catalog.getCollectionForEntity(referenceInStake.getReferencedEntityType())
+					.ifPresent(it -> ((EntityCollection)it).notifyAboutExternalReferenceUpdate(finalUpdatedSchema, updatedReference.orElse(null)));
+			}
+		}
+		return updatedSchema;
+	}
+
+	/**
+	 * Notifies about an external reference update. Method will iterate over reference schemas and finds all
+	 * {@link ReflectedReferenceSchemaContract} that relate to the updated reference schema and replaces them with
+	 * updated instance pointing to the current version of the original reference schema it reflects.
+	 *
+	 * If any of such reference is found entire entity schema is updated.
+	 *
+	 * @param updatedReferenceEntitySchema the updated reference entity schema, must not be null
+	 * @param updatedReferenceSchema the updated reference schema, must not be null
+	 */
+	private void notifyAboutExternalReferenceUpdate(
+		@Nonnull EntitySchema updatedReferenceEntitySchema,
+		@Nonnull ReferenceSchemaContract updatedReferenceSchema
+	) {
+		final EntitySchema originalSchema = getInternalSchema();
+		final List<ReflectedReferenceSchema> updatedReferenceSchemas = new LinkedList<>();
+		for (ReferenceSchemaContract referenceSchema : originalSchema.getReferences().values()) {
+			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
+				reflectedReferenceSchema.getReferencedEntityType().equals(updatedReferenceEntitySchema.getName()) &&
+				reflectedReferenceSchema.getReflectedReferenceName().equals(updatedReferenceSchema.getName())
+			) {
+				updatedReferenceSchemas.add(
+					reflectedReferenceSchema.withReferencedSchema(updatedReferenceSchema)
+				);
+			}
+		}
+		if (!updatedReferenceSchemas.isEmpty()) {
+			exchangeSchema(
+				originalSchema,
+				originalSchema.withReplacedReferenceSchema(
+					updatedReferenceSchemas.toArray(new ReflectedReferenceSchema[0])
+				)
+			);
+		}
+	}
+
+	/**
+	 * Exchanges the schema from the original to the updated schema.
+	 *
+	 * @param originalSchema the original schema to be exchanged
+	 * @param updatedSchema the updated schema to replace the original
+	 */
+	private void exchangeSchema(@Nonnull EntitySchema originalSchema, @Nonnull EntitySchema updatedSchema) {
+		final EntitySchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
+			this.schema.get(),
+			new EntitySchemaDecorator(() -> this.catalog.getSchema(), updatedSchema)
+		);
+		final EntitySchemaContract finalUpdatedSchema = updatedSchema;
+		Assert.isTrue(
+			originalSchemaBeforeExchange.version() == originalSchema.version(),
+			() -> new ConcurrentSchemaUpdateException(originalSchema, finalUpdatedSchema)
+		);
+		this.catalog.entitySchemaUpdated(updatedSchema);
 	}
 
 	@Override

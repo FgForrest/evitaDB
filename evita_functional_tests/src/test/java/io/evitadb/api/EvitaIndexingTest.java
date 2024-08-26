@@ -456,7 +456,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceTo(
 						Entities.CATEGORY,
-						Entities.CATEGORY,
+						"externalCategory",
 						Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
 							.indexed()
@@ -521,7 +521,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceTo(
 						Entities.CATEGORY,
-						Entities.CATEGORY,
+						"externalCategory",
 						Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
 							.indexed()

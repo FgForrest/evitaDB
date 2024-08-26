@@ -34,9 +34,9 @@
     <dt>recordType</dt>
     <dd><strong>Record type</strong>: Type of records that changed in the OffsetIndex.</dd>
     <dt>resolution</dt>
-    <dd><strong>Transaction resolution</strong>: The resolution of the transaction (either commit or rollback).</dd>
-    <dt>resolution</dt>
     <dd><strong>Transaction resolution</strong>: The resolution of the transaction - either commit or rollback.</dd>
+    <dt>resolution</dt>
+    <dd><strong>Transaction resolution</strong>: The resolution of the transaction (either commit or rollback).</dd>
     <dt>responseStatus</dt>
     <dd><strong>Response status</strong>: The status of the response: OK or ERROR.</dd>
     <dt>restInstanceType</dt>

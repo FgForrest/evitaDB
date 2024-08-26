@@ -36,18 +36,11 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDescriptionMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityGroupMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.*;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -60,6 +53,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -80,7 +74,7 @@ public final class ReferenceSchemaBuilder
 	private final CatalogSchemaContract catalogSchema;
 	private final EntitySchemaContract entitySchema;
 	private final ReferenceSchemaContract baseSchema;
-	private final List<LocalEntitySchemaMutation> mutations = new LinkedList<>();
+	private final LinkedList<LocalEntitySchemaMutation> mutations = new LinkedList<>();
 	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
 	private int lastMutationReflectedInSchema = 0;
 	private ReferenceSchemaContract updatedSchema;
@@ -118,10 +112,32 @@ public final class ReferenceSchemaBuilder
 					baseSchema.isFaceted()
 				)
 			);
+		} else {
+			if (referencedEntityTypeManaged != existingSchema.isReferencedEntityTypeManaged() || !entityType.equals(existingSchema.getReferencedEntityType())) {
+				this.mutations.add(
+					new ModifyReferenceSchemaRelatedEntityMutation(
+						baseSchema.getName(),
+						entityType,
+						referencedEntityTypeManaged
+					)
+				);
+			}
+			if (cardinality != existingSchema.getCardinality()) {
+				this.mutations.add(
+					new ModifyReferenceSchemaCardinalityMutation(
+						baseSchema.getName(),
+						cardinality
+					)
+				);
+			}
 		}
 		mutations.stream()
-			.filter(it -> it instanceof ReferenceSchemaMutation referenceSchemaMutation &&
-				(name.equals(referenceSchemaMutation.getName()) && !(referenceSchemaMutation instanceof CreateReferenceSchemaMutation)))
+			.filter(
+				it -> it instanceof ReferenceSchemaMutation referenceSchemaMutation &&
+						(name.equals(referenceSchemaMutation.getName()) &&
+						!(referenceSchemaMutation instanceof CreateReferenceSchemaMutation)) &&
+						!(referenceSchemaMutation instanceof RemoveReferenceSchemaMutation)
+			)
 			.forEach(this.mutations::add);
 	}
 
@@ -226,7 +242,7 @@ public final class ReferenceSchemaBuilder
 
 	@Override
 	public ReferenceSchemaBuilder faceted() {
-		if (toInstance().isIndexed()) {
+		if (toInstanceInternal().isIndexed()) {
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
 				addMutations(
@@ -437,11 +453,34 @@ public final class ReferenceSchemaBuilder
 	}
 
 	/**
+	 * Builds new instance of immutable {@link ReferenceSchemaContract} filled with updated configuration and validates
+	 * consistency of the result.
+	 */
+	@Nonnull
+	public ReferenceSchemaBuilderResult toResult() {
+		final Collection<LocalEntitySchemaMutation> mutations = toMutation();
+		// and now rebuild the schema from scratch including consistency checks
+		ReferenceSchemaContract currentSchema = this.baseSchema;
+		for (LocalEntitySchemaMutation mutation : mutations) {
+			currentSchema = ((ReferenceSchemaMutation) mutation).mutate(this.entitySchema, currentSchema);
+		}
+		return new ReferenceSchemaBuilderResult(currentSchema, mutations);
+	}
+
+	@Override
+	@Nonnull
+	public Collection<LocalEntitySchemaMutation> toMutation() {
+		// apply necessary mutation sort
+		sortMutations();
+		// and return mutations
+		return this.mutations;
+	}
+
+	/**
 	 * Builds new instance of immutable {@link ReferenceSchemaContract} filled with updated configuration.
 	 */
 	@Delegate(types = ReferenceSchemaContract.class)
-	@Nonnull
-	public ReferenceSchemaContract toInstance() {
+	private ReferenceSchemaContract toInstanceInternal() {
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
 			// if the dirty flat is set to modified previous we need to start from the base schema again
 			// and reapply all mutations
@@ -453,12 +492,14 @@ public final class ReferenceSchemaBuilder
 			ReferenceSchemaContract currentSchema = this.lastMutationReflectedInSchema == 0 ?
 				this.baseSchema : this.updatedSchema;
 
-			// apply the mutations not reflected in the schema
-			for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
-				final EntitySchemaMutation mutation = this.mutations.get(i);
-				currentSchema = ((ReferenceSchemaMutation) mutation).mutate(entitySchema, currentSchema);
-				if (currentSchema == null) {
-					throw new GenericEvitaInternalError("Attribute unexpectedly removed from inside!");
+			if (this.lastMutationReflectedInSchema < this.mutations.size()) {
+				// apply the mutations not reflected in the schema
+				for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+					final LocalEntitySchemaMutation mutation = this.mutations.get(i);
+					currentSchema = ((ReferenceSchemaMutation) mutation).mutate(entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP);
+					if (currentSchema == null) {
+						throw new GenericEvitaInternalError("Reference unexpectedly removed from inside!");
+					}
 				}
 			}
 			this.updatedSchema = currentSchema;
@@ -468,10 +509,32 @@ public final class ReferenceSchemaBuilder
 		return this.updatedSchema;
 	}
 
-	@Override
-	@Nonnull
-	public Collection<LocalEntitySchemaMutation> toMutation() {
-		return this.mutations;
+	/**
+	 * Sorts mutations, so that attribute mutations always come last.
+	 */
+	private void sortMutations() {
+		// sort the mutations first, we need to apply reference schema properties such as faceted / indexed first
+		final Iterator<LocalEntitySchemaMutation> it = this.mutations.iterator();
+		final List<LocalEntitySchemaMutation> movedMutations = new LinkedList<>();
+		while (it.hasNext()) {
+			final LocalEntitySchemaMutation mutation = it.next();
+			if (mutation instanceof ModifyReferenceAttributeSchemaMutation) {
+				it.remove();
+				movedMutations.add(mutation);
+			}
+		}
+		this.mutations.addAll(movedMutations);
+	}
+
+	/**
+	 * The {@code ReferenceSchemaBuilderResult} class represents the result of building a reference schema.
+	 * It contains the built reference schema and a collection of mutations applied to the schema.
+	 */
+	public record ReferenceSchemaBuilderResult(
+		@Nonnull ReferenceSchemaContract schema,
+		@Nonnull Collection<LocalEntitySchemaMutation> mutations
+	) {
+
 	}
 
 }

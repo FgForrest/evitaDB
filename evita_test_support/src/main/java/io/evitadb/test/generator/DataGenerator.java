@@ -407,24 +407,27 @@ public class DataGenerator {
 		@Nonnull Collection<Locale> usedLocales,
 		@Nonnull Collection<Locale> allLocales
 	) {
-		final Set<String> referencableEntityTypes = schema.getReferences()
+		final Set<String> referencableNames = schema.getReferences()
 			.values()
 			.stream()
-			.map(ReferenceSchemaContract::getReferencedEntityType)
+			.filter(it -> !(it instanceof ReflectedReferenceSchemaContract))
+			.map(ReferenceSchemaContract::getName)
 			.collect(Collectors.toCollection(LinkedHashSet::new));
 
-		final List<String> referencedTypes = Stream.concat(
-			pickRandomFromSet(genericFaker, referencableEntityTypes).stream(),
+		final List<String> referenceNames = Stream.concat(
+			pickRandomFromSet(genericFaker, referencableNames).stream(),
 			schema.getReferences().values()
 				.stream()
+				.filter(it -> !(it instanceof ReflectedReferenceSchemaContract))
 				.filter(it -> it.isReferencedEntityTypeManaged())
 				.filter(it -> it.getCardinality() == Cardinality.ONE_OR_MORE || it.getCardinality() == Cardinality.EXACTLY_ONE)
-				.map(it -> it.getReferencedEntityType())
+				.map(it -> it.getName())
 		)
 			.distinct()
 			.toList();
-		for (String referencedType : referencedTypes) {
-			final ReferenceSchemaContract referenceSchema = schema.getReference(referencedType).orElseThrow();
+		for (String referenceName : referenceNames) {
+			final ReferenceSchemaContract referenceSchema = schema.getReference(referenceName).orElseThrow();
+			final String referencedType = referenceSchema.getReferencedEntityType();
 			final int initialCount;
 			if (Entities.CATEGORY.equals(referencedType)) {
 				initialCount = genericFaker.random().nextInt(4);
@@ -438,7 +441,7 @@ public class DataGenerator {
 				initialCount = 1;
 			}
 
-			final int existingCount = detachedBuilder.getReferences(referencedType).size();
+			final int existingCount = detachedBuilder.getReferences(referenceName).size();
 			final int count;
 
 			switch (referenceSchema.getCardinality()) {
@@ -453,10 +456,11 @@ public class DataGenerator {
 				referenceSchema, detachedBuilder
 			);
 			for (int i = 0; i < count; i++) {
-				final Integer referencedEntity = referencedEntityResolver.apply(referencedType, genericFaker);
+				final Integer referencedEntity = referenceSchema.isReferencedEntityTypeManaged() ?
+					referencedEntityResolver.apply(referencedType, genericFaker) : ((Integer) genericFaker.random().nextInt(100_000));
 				if (referencedEntity != null) {
 					detachedBuilder.setReference(
-						referencedType,
+						referenceName,
 						Objects.requireNonNull(referencedEntity),
 						thatIs -> {
 							if (referenceSchema.isReferencedGroupTypeManaged()) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoField;
 import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
@@ -101,7 +102,7 @@ class EntityConverterTest {
 			BigDecimal.ONE,
 			BigDecimal.TEN,
 			new BigDecimal("1.1"),
-			DateTimeRange.since(OffsetDateTime.now()),
+			DateTimeRange.since(OffsetDateTime.now().with(ChronoField.MILLI_OF_SECOND, 0)),
 			true
 		);
 
@@ -111,7 +112,7 @@ class EntityConverterTest {
 	}
 
 	@Nonnull
-	private EntitySchema createEntitySchema() {
+	private static EntitySchema createEntitySchema() {
 		return EntitySchema._internalBuild(
 			1,
 			Entities.PRODUCT,

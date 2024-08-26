@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
@@ -56,6 +57,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -145,59 +147,59 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 			return new MutationCombinationResult<>(
 				null,
 				Stream.of(
-					makeMutationIfDifferent(
-						createdVersion, existingSchema,
-						NamedSchemaContract::getDescription,
-						newValue -> new ModifyAttributeSchemaDescriptionMutation(name, newValue)
-					),
-					makeMutationIfDifferent(
-						createdVersion, existingSchema,
-						NamedSchemaWithDeprecationContract::getDeprecationNotice,
-						newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(name, newValue)
-					),
-					makeMutationIfDifferent(
-						createdVersion, existingSchema,
-						AttributeSchemaContract::getType,
-						newValue -> new ModifyAttributeSchemaTypeMutation(name, newValue, indexedDecimalPlaces)
-					),
-					makeMutationIfDifferent(
-						createdVersion, existingSchema,
-						AttributeSchemaContract::getDefaultValue,
-						newValue -> new ModifyAttributeSchemaDefaultValueMutation(name, defaultValue)
-					),
-					makeMutationIfDifferent(
-						createdVersion, existingSchema,
-						AttributeSchemaContract::isFilterable,
-						newValue -> new SetAttributeSchemaFilterableMutation(name, newValue)
-					),
-					makeMutationIfDifferent(
-						createdVersion, existingSchema,
-						AttributeSchemaContract::getUniquenessType,
-						newValue -> new SetAttributeSchemaUniqueMutation(name, newValue)
-					),
-					makeMutationIfDifferent(
-						createdVersion, existingSchema,
-						AttributeSchemaContract::isSortable,
-						newValue -> new SetAttributeSchemaSortableMutation(name, newValue)
-					),
-					makeMutationIfDifferent(
-						createdVersion, existingSchema,
-						AttributeSchemaContract::isLocalized,
-						newValue -> new SetAttributeSchemaLocalizedMutation(name, newValue)
-					),
-					makeMutationIfDifferent(
-						createdVersion, existingSchema,
-						AttributeSchemaContract::isNullable,
-						newValue -> new SetAttributeSchemaNullableMutation(name, newValue)
-					),
-					makeMutationIfDifferent(
-						createdVersion, existingSchema,
-						attributeSchemaContract -> ((EntityAttributeSchema) attributeSchemaContract).isRepresentative(),
-						newValue -> new SetAttributeSchemaRepresentativeMutation(name, newValue)
+						makeMutationIfDifferent(
+							createdVersion, existingSchema,
+							NamedSchemaContract::getDescription,
+							newValue -> new ModifyAttributeSchemaDescriptionMutation(name, newValue)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingSchema,
+							NamedSchemaWithDeprecationContract::getDeprecationNotice,
+							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(name, newValue)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingSchema,
+							AttributeSchemaContract::getType,
+							newValue -> new ModifyAttributeSchemaTypeMutation(name, newValue, indexedDecimalPlaces)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingSchema,
+							AttributeSchemaContract::getDefaultValue,
+							newValue -> new ModifyAttributeSchemaDefaultValueMutation(name, defaultValue)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingSchema,
+							AttributeSchemaContract::isFilterable,
+							newValue -> new SetAttributeSchemaFilterableMutation(name, newValue)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingSchema,
+							AttributeSchemaContract::getUniquenessType,
+							newValue -> new SetAttributeSchemaUniqueMutation(name, newValue)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingSchema,
+							AttributeSchemaContract::isSortable,
+							newValue -> new SetAttributeSchemaSortableMutation(name, newValue)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingSchema,
+							AttributeSchemaContract::isLocalized,
+							newValue -> new SetAttributeSchemaLocalizedMutation(name, newValue)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingSchema,
+							AttributeSchemaContract::isNullable,
+							newValue -> new SetAttributeSchemaNullableMutation(name, newValue)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingSchema,
+							attributeSchemaContract -> ((EntityAttributeSchema) attributeSchemaContract).isRepresentative(),
+							newValue -> new SetAttributeSchemaRepresentativeMutation(name, newValue)
+						)
 					)
-				)
-				.filter(Objects::nonNull)
-				.toArray(LocalEntitySchemaMutation[]::new)
+					.filter(Objects::nonNull)
+					.toArray(LocalEntitySchemaMutation[]::new)
 			);
 		} else {
 			return null;
@@ -276,7 +278,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchemaContract, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchemaContract, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		@SuppressWarnings({"unchecked", "rawtypes"}) final AttributeSchema newAttributeSchema = AttributeSchema._internalBuild(
 			name, description, deprecationNotice,
@@ -284,35 +286,51 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 			(Class) type, defaultValue,
 			indexedDecimalPlaces
 		);
-		final AttributeSchemaContract existingAttributeSchema = referenceSchema.getAttribute(name).orElse(null);
-		if (existingAttributeSchema == null) {
-			return ReferenceSchema._internalBuild(
-				referenceSchema.getName(),
-				referenceSchema.getNameVariants(),
-				referenceSchema.getDescription(),
-				referenceSchema.getDeprecationNotice(),
-				referenceSchema.getReferencedEntityType(),
-				referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-				referenceSchema.isReferencedEntityTypeManaged(),
-				referenceSchema.getCardinality(),
-				referenceSchema.getReferencedGroupType(),
-				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isIndexed(),
-				referenceSchema.isFaceted(),
-				Stream.concat(
-						referenceSchema.getAttributes().values().stream(),
-						Stream.of(newAttributeSchema)
-					)
-					.collect(
-						Collectors.toMap(
-							AttributeSchemaContract::getName,
-							Function.identity()
+		final Optional<AttributeSchemaContract> existingAttributeSchema = getReferenceAttributeSchema(referenceSchema, name);
+		if (existingAttributeSchema.isEmpty()) {
+			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+				return reflectedReferenceSchema
+					.withDeclaredAttributes(
+						Stream.concat(
+							reflectedReferenceSchema.getDeclaredAttributes().values().stream(),
+							Stream.of(newAttributeSchema)
 						)
-					),
-				referenceSchema.getSortableAttributeCompounds()
-			);
-		} else if (existingAttributeSchema.equals(newAttributeSchema)) {
+						.collect(
+							Collectors.toMap(
+								AttributeSchemaContract::getName,
+								Function.identity()
+							)
+						)
+					);
+			} else {
+				return ReferenceSchema._internalBuild(
+					referenceSchema.getName(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.isIndexed(),
+					referenceSchema.isFaceted(),
+					Stream.concat(
+							referenceSchema.getAttributes().values().stream(),
+							Stream.of(newAttributeSchema)
+						)
+						.collect(
+							Collectors.toMap(
+								AttributeSchemaContract::getName,
+								Function.identity()
+							)
+						),
+					referenceSchema.getSortableAttributeCompounds()
+				);
+			}
+		} else if (existingAttributeSchema.get().equals(newAttributeSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
 			return referenceSchema;
 		} else {

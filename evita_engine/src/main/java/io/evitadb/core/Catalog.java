@@ -558,7 +558,17 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				transactionRef.ifPresent(it -> it.registerMutation(theMutation));
 				// if the mutation implements entity schema mutation apply it on the appropriate schema
 				if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
-					modifyEntitySchema(modifyEntitySchemaMutation, updatedSchema);
+					final String entityType = modifyEntitySchemaMutation.getEntityType();
+					// if the collection doesn't exist yet - create new one
+					EntityCollection entityCollection = this.entityCollections.get(entityType);
+					if (entityCollection == null) {
+						if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
+							throw new InvalidSchemaMutationException(entityType, CatalogEvolutionMode.ADDING_ENTITY_TYPES);
+						}
+						currentSchema = createEntitySchema(new CreateEntitySchemaMutation(entityType), updatedSchema);
+						entityCollection = this.entityCollections.get(entityType);
+					}
+					updatedSchema = modifyEntitySchema(modifyEntitySchemaMutation, updatedSchema, entityCollection);
 				} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
 					updatedSchema = removeEntitySchema(removeEntitySchemaMutation, transactionRef.orElse(null), updatedSchema);
 				} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
@@ -686,7 +696,14 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	@Override
 	@Nonnull
 	public EntityCollection getOrCreateCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
-		return getOrCreateCollectionForEntityInternal(entityType);
+		return ofNullable(entityCollections.get(entityType))
+			.orElseGet(() -> {
+				if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
+					throw new InvalidSchemaMutationException(entityType, CatalogEvolutionMode.ADDING_ENTITY_TYPES);
+				}
+				updateSchema(new CreateEntitySchemaMutation(entityType));
+				return Objects.requireNonNull(entityCollections.get(entityType));
+			});
 	}
 
 	@Override
@@ -1390,7 +1407,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 * @return The updated catalog schema.
 	 */
 	@Nonnull
-	private CatalogSchemaContract createEntitySchema(
+	private CatalogSchema createEntitySchema(
 		@Nonnull CreateEntitySchemaMutation createEntitySchemaMutation,
 		@Nonnull CatalogSchemaContract catalogSchema
 	) {
@@ -1463,45 +1480,19 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 * @param modifyEntitySchemaMutation The modifications to be applied to the entity schema.
 	 * @param catalogSchema              The catalog schema associated with the entity.
 	 */
-	private void modifyEntitySchema(
+	@Nonnull
+	private CatalogSchemaContract modifyEntitySchema(
 		@Nonnull ModifyEntitySchemaMutation modifyEntitySchemaMutation,
-		@Nonnull CatalogSchemaContract catalogSchema
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntityCollection entityCollection
 	) {
-		final String entityType = modifyEntitySchemaMutation.getEntityType();
-		// if the collection doesn't exist yet - create new one
-		final EntityCollectionContract entityCollection = getOrCreateCollectionForEntityInternal(entityType);
-		final SealedEntitySchema currentEntitySchema = entityCollection.getSchema();
 		if (!ArrayUtils.isEmpty(modifyEntitySchemaMutation.getSchemaMutations())) {
-			// validate the new schema version before any changes are applied
-			currentEntitySchema.withMutations(modifyEntitySchemaMutation.getSchemaMutations())
-				.toInstance()
-				.validate(catalogSchema);
 			entityCollection.updateSchema(catalogSchema, modifyEntitySchemaMutation.getSchemaMutations());
 		}
-	}
-
-	/**
-	 * Retrieves an existing EntityCollection for the given entity type or creates a new one if it doesn't exist.
-	 *
-	 * @param entityType The type of the entity for which to retrieve or create an EntityCollection.
-	 * @return The EntityCollection associated with the given entity type.
-	 * @throws InvalidSchemaMutationException Thrown if the entity collection doesn't exist and cannot be automatically
-	 *                                        created based on the catalog schema.
-	 */
-	@Nonnull
-	private EntityCollection getOrCreateCollectionForEntityInternal(@Nonnull String entityType) {
-		return ofNullable(entityCollections.get(entityType))
-			.orElseGet(() -> {
-				if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
-					throw new InvalidSchemaMutationException(
-						"The entity collection `" + entityType + "` doesn't exist and would be automatically created," +
-							" providing that catalog schema allows `" + CatalogEvolutionMode.ADDING_ENTITY_TYPES + "`" +
-							" evolution mode."
-					);
-				}
-				updateSchema(new CreateEntitySchemaMutation(entityType));
-				return Objects.requireNonNull(entityCollections.get(entityType));
-			});
+		return CatalogSchema._internalBuildWithUpdatedVersion(
+			catalogSchema,
+			getEntitySchemaAccessor()
+		);
 	}
 
 	/**
@@ -1584,9 +1575,24 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 					catalogVersion, this.getCatalogState(), newPersistenceService
 				)
 			);
+			// update managed reference entity types and groups that target renamed entity
+			for (EntityCollection otherCollection : entityCollections.values()) {
+				boolean schemaUpdated = otherCollection.notifyEntityTypeRenamed(
+					entityCollectionNameToBeReplacedWith, entityCollectionToBeReplacedWith
+				);
+				if (schemaUpdated) {
+					otherCollection.flush();
+				}
+			}
 			// store catalog with a new file pointer
 			this.flush();
 		} else {
+			// update managed reference entity types and groups that target renamed entity
+			for (EntityCollection otherCollection : entityCollections.values()) {
+				otherCollection.notifyEntityTypeRenamed(
+					entityCollectionNameToBeReplacedWith, entityCollectionToBeReplacedWith
+				);
+			}
 			this.entityCollections.put(entityCollectionNameToBeReplaced, entityCollectionToBeReplacedWith);
 		}
 	}

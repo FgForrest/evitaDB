@@ -23,8 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingAttributeSchemaMutationConverter;
@@ -47,7 +46,7 @@ public class ModifyReferenceAttributeSchemaMutationConverter implements SchemaMu
 	public ModifyReferenceAttributeSchemaMutation convert(@Nonnull GrpcModifyReferenceAttributeSchemaMutation mutation) {
 		return new ModifyReferenceAttributeSchemaMutation(
 			mutation.getName(),
-			(ReferenceSchemaMutation) DelegatingAttributeSchemaMutationConverter.INSTANCE.convert(mutation.getAttributeSchemaMutation())
+			(ReferenceAttributeSchemaMutation) DelegatingAttributeSchemaMutationConverter.INSTANCE.convert(mutation.getAttributeSchemaMutation())
 		);
 	}
 
@@ -55,7 +54,7 @@ public class ModifyReferenceAttributeSchemaMutationConverter implements SchemaMu
 	public GrpcModifyReferenceAttributeSchemaMutation convert(@Nonnull ModifyReferenceAttributeSchemaMutation mutation) {
 		return GrpcModifyReferenceAttributeSchemaMutation.newBuilder()
 			.setName(mutation.getName())
-			.setAttributeSchemaMutation(DelegatingAttributeSchemaMutationConverter.INSTANCE.convert((AttributeSchemaMutation) mutation.getAttributeSchemaMutation()))
+			.setAttributeSchemaMutation(DelegatingAttributeSchemaMutationConverter.INSTANCE.convert(mutation.getAttributeSchemaMutation()))
 			.build();
 	}
 }

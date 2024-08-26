@@ -170,7 +170,7 @@ public class CreateReferenceSchemaMutationTest {
 	}
 
 	@Test
-	void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentReferenceata() {
+	void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentReference() {
 		CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
 			REFERENCE_NAME,
 			"oldDescription",
@@ -184,7 +184,7 @@ public class CreateReferenceSchemaMutationTest {
 			true
 		);
 		RemoveReferenceSchemaMutation removeMutation = new RemoveReferenceSchemaMutation("differentName");
-		assertNull(mutation.combineWith(null, null, removeMutation));
+		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), removeMutation));
 	}
 
 	@Test
