@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.Empty;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -573,7 +574,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						responseObserver.onCompleted();
 					});
 				} else {
-					// no session to close, we couldn't return the catalog version
+					// no session to close, we couldn't return the catalog version, return error
+					responseObserver.onError(new SessionNotFoundException("No session for closing found!"));
 					responseObserver.onCompleted();
 				}
 			},
