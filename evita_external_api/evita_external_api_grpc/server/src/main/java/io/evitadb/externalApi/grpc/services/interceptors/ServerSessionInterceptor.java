@@ -25,10 +25,11 @@ package io.evitadb.externalApi.grpc.services.interceptors;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.TlsMode;
+import io.evitadb.externalApi.exception.InvalidSchemeException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -138,14 +139,14 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			final String scheme = metadata.get(InternalMetadata.keyOf(":scheme", Metadata.ASCII_STRING_MARSHALLER));
 			if ("https".equals(scheme) && tlsMode == TlsMode.FORCE_NO_TLS) {
 				final Status status = Status.UNAUTHENTICATED
-					.withCause(new EvitaInvalidUsageException("TLS is not required for this endpoint."))
+					.withCause(new InvalidSchemeException("TLS is not required for this endpoint."))
 					.withDescription("TLS is not required for this endpoint.");
 				serverCall.close(status, metadata);
 				return new ServerCall.Listener<>() {};
 			}
 			if ("http".equals(scheme) && tlsMode == TlsMode.FORCE_TLS) {
 				final Status status = Status.UNAUTHENTICATED
-					.withCause(new EvitaInvalidUsageException("TLS is required for this endpoint."))
+					.withCause(new InvalidSchemeException("TLS is required for this endpoint."))
 					.withDescription("TLS is required for this endpoint.");
 				serverCall.close(status, metadata);
 				return new ServerCall.Listener<>() {};
@@ -157,7 +158,7 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		final Optional<EvitaInternalSessionContract> activeSession = resolveActiveSession(sessionId);
 		if (activeSession.isEmpty() && isEndpointRequiresSession(serverCall)) {
 			final Status status = Status.UNAUTHENTICATED
-				.withCause(new EvitaInvalidUsageException("Your session is either not set or is not active."))
+				.withCause(new SessionNotFoundException("Your session is either not set or is not active."))
 				.withDescription("Your session (session id: " + sessionId + ") is either not set or is not active.");
 			serverCall.close(status, metadata);
 			return new ServerCall.Listener<>() {};
