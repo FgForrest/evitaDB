@@ -47,6 +47,8 @@ module evita.external.api.lab {
 	requires evita.external.api.core;
 	requires evita.external.api.graphql;
 	requires evita.external.api.rest;
+	requires evita.external.api.system;
+	requires evita.external.api.grpc;
 	requires io.swagger.v3.oas.models;
 	requires evita.api;
 	requires evita.query;
