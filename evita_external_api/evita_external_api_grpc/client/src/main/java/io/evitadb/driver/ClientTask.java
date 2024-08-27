@@ -25,7 +25,7 @@ package io.evitadb.driver;
 
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.driver.exception.TaskFailedException;
 
 import javax.annotation.Nonnull;
@@ -56,11 +56,11 @@ public class ClientTask<S, T> implements Task<S, T> {
 	) {
 		this.status = new AtomicReference<>(status);
 		this.result = new ClientTaskCompletableFuture<>();
-		if (status.state() == State.FINISHED) {
+		if (status.simplifiedState() == TaskSimplifiedState.FINISHED) {
 			this.result.complete(status.result());
 			this.cancellationLambda = null;
 			this.stateUpdater = null;
-		} else if (status.state() == State.FAILED) {
+		} else if (status.simplifiedState() == TaskSimplifiedState.FAILED) {
 			this.result.completeExceptionally(
 				new TaskFailedException(status.publicExceptionMessage())
 			);
@@ -127,9 +127,9 @@ public class ClientTask<S, T> implements Task<S, T> {
 		//noinspection unchecked
 		final TaskStatus<S, T> theStatus = (TaskStatus<S, T>) status;
 		this.status.set(theStatus);
-		if (theStatus.state() == State.FINISHED) {
+		if (theStatus.simplifiedState() == TaskSimplifiedState.FINISHED) {
 			this.result.complete(theStatus.result());
-		} else if (theStatus.state() == State.FAILED) {
+		} else if (theStatus.simplifiedState() == TaskSimplifiedState.FAILED) {
 			this.result.completeExceptionally(
 				new TaskFailedException(theStatus.publicExceptionMessage())
 			);

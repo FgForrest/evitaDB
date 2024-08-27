@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -63,6 +64,11 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_FAILED;
+import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_FINISHED;
+import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_QUEUED;
+import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_RUNNING;
 
 /**
  * Class contains static methods for converting enums from and to gRPC representation.
@@ -988,4 +994,38 @@ public class EvitaEnumConverter {
 			case UNKNOWN -> GrpcReadiness.API_UNKNOWN;
 		};
 	}
+
+	/**
+	 * Converts a {@link TaskSimplifiedState} to a {@link GrpcTaskSimplifiedState}.
+	 *
+	 * @param state the simplified state of the task
+	 * @return the corresponding gRPC task simplified state
+	 */
+	@Nonnull
+	public static GrpcTaskSimplifiedState toGrpcSimplifiedStatus(@Nonnull TaskSimplifiedState state) {
+		return switch (state) {
+			case QUEUED -> TASK_QUEUED;
+			case RUNNING -> TASK_RUNNING;
+			case FAILED -> TASK_FAILED;
+			case FINISHED -> TASK_FINISHED;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcTaskSimplifiedState} to a {@link TaskSimplifiedState}.
+	 *
+	 * @param grpcState the gRPC task simplified state
+	 * @return the corresponding simplified state of the task
+	 */
+	@Nonnull
+	public static TaskSimplifiedState toSimplifiedStatus(@Nonnull GrpcTaskSimplifiedState grpcState) {
+		return switch (grpcState) {
+			case TASK_QUEUED -> TaskSimplifiedState.QUEUED;
+			case TASK_RUNNING -> TaskSimplifiedState.RUNNING;
+			case TASK_FAILED -> TaskSimplifiedState.FAILED;
+			case TASK_FINISHED -> TaskSimplifiedState.FINISHED;
+			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized task simplified state: " + grpcState);
+		};
+	}
+
 }

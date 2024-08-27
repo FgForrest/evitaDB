@@ -25,7 +25,7 @@ package io.evitadb.core.async;
 
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.utils.UUIDUtil;
@@ -173,7 +173,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 		// emit the start event
 		final TaskStatus<S, T> theStatus = getStatus();
 
-		if (theStatus.state() == State.QUEUED) {
+		if (theStatus.simplifiedState() == TaskSimplifiedState.QUEUED) {
 			new BackgroundTaskStartedEvent(theStatus.catalogName(), theStatus.taskName()).commit();
 
 			this.status.updateAndGet(

@@ -73,7 +73,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
@@ -968,11 +968,11 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		CompletableFuture.allOf(backupTasks.toArray(new CompletableFuture[0])).join();
 		executorService.shutdown();
 
-		management.listTaskStatuses(1, numberOfTasks);
+		management.listTaskStatuses(1, numberOfTasks, null);
 
 		// cancel 7 of them immediately
 		final List<Boolean> cancellationResult = Stream.concat(
-				management.listTaskStatuses(1, 1)
+				management.listTaskStatuses(1, 1, null)
 					.getData()
 					.stream()
 					.map(it -> management.cancelTask(it.taskId())),
@@ -990,11 +990,11 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			).get(3, TimeUnit.MINUTES)
 		);
 
-		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(1, numberOfTasks);
+		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(1, numberOfTasks, null);
 		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
 		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
-		assertEquals(backupTasks.size() - cancelled, taskStatuses.getData().stream().filter(task -> task.state() == State.FINISHED).count());
-		assertEquals(cancelled, taskStatuses.getData().stream().filter(task -> task.state() == State.FAILED).count());
+		assertEquals(backupTasks.size() - cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FINISHED).count());
+		assertEquals(cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FAILED).count());
 
 		// fetch all tasks by their ids
 		management.getTaskStatuses(

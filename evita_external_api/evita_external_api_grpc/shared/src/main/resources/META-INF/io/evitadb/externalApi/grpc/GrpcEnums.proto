@@ -584,3 +584,25 @@ enum GrpcReadiness {
   API_UNKNOWN = 4;
 
 }
+
+// State aggregates the possible states of a task into a simple enumeration.
+enum GrpcTaskSimplifiedState {
+
+  /**
+		 * Task is waiting in the queue to be executed.
+		 */
+  TASK_QUEUED = 0;
+  /**
+   * Task is currently running.
+   */
+  TASK_RUNNING = 1;
+  /**
+   * Task has finished successfully.
+   */
+  TASK_FINISHED = 2;
+  /**
+   * Task has failed.
+   */
+  TASK_FAILED = 3;
+
+}

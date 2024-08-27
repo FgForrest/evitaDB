@@ -72,15 +72,15 @@ public record TaskStatus<S, T>(
 	 * @return The state of the task.
 	 */
 	@Nonnull
-	public State state() {
+	public TaskSimplifiedState simplifiedState() {
 		if (exceptionWithStackTrace != null || publicExceptionMessage != null) {
-			return State.FAILED;
+			return TaskSimplifiedState.FAILED;
 		} else if (finished != null) {
-			return State.FINISHED;
+			return TaskSimplifiedState.FINISHED;
 		} else if (started != null) {
-			return State.RUNNING;
+			return TaskSimplifiedState.RUNNING;
 		} else {
-			return State.QUEUED;
+			return TaskSimplifiedState.QUEUED;
 		}
 	}
 
@@ -199,7 +199,7 @@ public record TaskStatus<S, T>(
 	/**
 	 * State aggregates the possible states of a task into a simple enumeration.
 	 */
-	public enum State {
+	public enum TaskSimplifiedState {
 		/**
 		 * Task is waiting in the queue to be executed.
 		 */
