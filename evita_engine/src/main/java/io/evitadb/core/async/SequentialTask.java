@@ -26,7 +26,7 @@ package io.evitadb.core.async;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.utils.UUIDUtil;
 
 import javax.annotation.Nonnull;
@@ -86,7 +86,7 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 		final String newTaskName = this.taskName + ofNullable(this.currentStep.get()).map(it -> " [" + it.getStatus().taskName() + "]").orElse("");
 		final int newProgress = overallProgress / this.steps.length;
 		final TaskStatus<Void, T> currentStatus = this.status.get();
-		return currentStatus.state() != State.RUNNING ||
+		return currentStatus.simplifiedState() != TaskSimplifiedState.RUNNING ||
 			currentStatus.progress() == newProgress ||
 			!Objects.equals(currentStatus.taskName(), newTaskName) ?
 				currentStatus :
@@ -102,12 +102,12 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 	@Nullable
 	@Override
 	public T execute() {
-		if (this.status.get().state() == State.QUEUED) {
+		if (this.status.get().simplifiedState() == TaskSimplifiedState.QUEUED) {
 			try {
 				this.status.updateAndGet(TaskStatus::transitionToStarted);
 
 				for (ServerTask<?, ?> step : steps) {
-					if (step.getStatus().state() == State.QUEUED) {
+					if (step.getStatus().simplifiedState() == TaskSimplifiedState.QUEUED) {
 						this.currentStep.set(step);
 						step.execute();
 					}

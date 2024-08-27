@@ -1395,6 +1395,7 @@ public class EvitaDataTypesConverter {
 			.setTaskName(taskStatus.taskName())
 			.setTaskId(toGrpcUuid(taskStatus.taskId()))
 			.setIssued(toGrpcOffsetDateTime(taskStatus.issued()))
+			.setSimplifiedState(EvitaEnumConverter.toGrpcSimplifiedStatus(taskStatus.simplifiedState()))
 			.setProgress(taskStatus.progress());
 		ofNullable(taskStatus.catalogName())
 			.ifPresent(

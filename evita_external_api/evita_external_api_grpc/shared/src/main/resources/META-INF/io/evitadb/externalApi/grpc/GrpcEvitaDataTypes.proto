@@ -345,19 +345,21 @@ message GrpcTaskStatus {
   GrpcOffsetDateTime started = 6;
   // Date and time when the task was finished
   GrpcOffsetDateTime finished = 7;
+  // Simplified state of the status
+  GrpcTaskSimplifiedState simplifiedState = 8;
   // Progress of the task (0-100)
-  int32 progress = 8;
+  int32 progress = 9;
   // Configuration settings of the task
-  google.protobuf.StringValue settings = 9;
+  google.protobuf.StringValue settings = 10;
   // Result of the task
   oneof result {
     // Textual result of the task
-    google.protobuf.StringValue text = 10;
+    google.protobuf.StringValue text = 11;
     // File that was created by the task and is available for fetching
-    GrpcFile file = 11;
+    GrpcFile file = 12;
   }
   // Exception that occurred during the task execution
-  google.protobuf.StringValue exception = 12;
+  google.protobuf.StringValue exception = 13;
 }
 
 // Aggregates basic data about the catalog and entity types stored in it.

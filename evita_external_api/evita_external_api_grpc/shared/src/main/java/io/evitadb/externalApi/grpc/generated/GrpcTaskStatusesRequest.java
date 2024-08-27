@@ -43,6 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcTaskStatusesRequest() {
+    simplifiedState_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -65,6 +66,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -85,6 +87,42 @@ private static final long serialVersionUID = 0L;
             pageSize_ = input.readInt32();
             break;
           }
+          case 26: {
+            com.google.protobuf.StringValue.Builder subBuilder = null;
+            if (taskType_ != null) {
+              subBuilder = taskType_.toBuilder();
+            }
+            taskType_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(taskType_);
+              taskType_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
+          case 32: {
+            int rawValue = input.readEnum();
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              simplifiedState_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            simplifiedState_.add(rawValue);
+            break;
+          }
+          case 34: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+                simplifiedState_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000001;
+              }
+              simplifiedState_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -100,6 +138,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        simplifiedState_ = java.util.Collections.unmodifiableList(simplifiedState_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -147,6 +188,130 @@ private static final long serialVersionUID = 0L;
     return pageSize_;
   }
 
+  public static final int TASKTYPE_FIELD_NUMBER = 3;
+  private com.google.protobuf.StringValue taskType_;
+  /**
+   * <pre>
+   * Optional taskType of the listed task, passing non-null value
+   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue taskType = 3;</code>
+   * @return Whether the taskType field is set.
+   */
+  @java.lang.Override
+  public boolean hasTaskType() {
+    return taskType_ != null;
+  }
+  /**
+   * <pre>
+   * Optional taskType of the listed task, passing non-null value
+   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue taskType = 3;</code>
+   * @return The taskType.
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getTaskType() {
+    return taskType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : taskType_;
+  }
+  /**
+   * <pre>
+   * Optional taskType of the listed task, passing non-null value
+   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue taskType = 3;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getTaskTypeOrBuilder() {
+    return getTaskType();
+  }
+
+  public static final int SIMPLIFIEDSTATE_FIELD_NUMBER = 4;
+  private java.util.List<java.lang.Integer> simplifiedState_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState> simplifiedState_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState result = io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * Optional set of simplified task states, passing list of enums in this argument
+   * filters the returned statuses to only those that match this simplified status
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+   * @return A list containing the simplifiedState.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState> getSimplifiedStateList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState>(simplifiedState_, simplifiedState_converter_);
+  }
+  /**
+   * <pre>
+   * Optional set of simplified task states, passing list of enums in this argument
+   * filters the returned statuses to only those that match this simplified status
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+   * @return The count of simplifiedState.
+   */
+  @java.lang.Override
+  public int getSimplifiedStateCount() {
+    return simplifiedState_.size();
+  }
+  /**
+   * <pre>
+   * Optional set of simplified task states, passing list of enums in this argument
+   * filters the returned statuses to only those that match this simplified status
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+   * @param index The index of the element to return.
+   * @return The simplifiedState at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState getSimplifiedState(int index) {
+    return simplifiedState_converter_.convert(simplifiedState_.get(index));
+  }
+  /**
+   * <pre>
+   * Optional set of simplified task states, passing list of enums in this argument
+   * filters the returned statuses to only those that match this simplified status
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+   * @return A list containing the enum numeric values on the wire for simplifiedState.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getSimplifiedStateValueList() {
+    return simplifiedState_;
+  }
+  /**
+   * <pre>
+   * Optional set of simplified task states, passing list of enums in this argument
+   * filters the returned statuses to only those that match this simplified status
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of simplifiedState at the given index.
+   */
+  @java.lang.Override
+  public int getSimplifiedStateValue(int index) {
+    return simplifiedState_.get(index);
+  }
+  private int simplifiedStateMemoizedSerializedSize;
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -161,11 +326,22 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (pageNumber_ != 0) {
       output.writeInt32(1, pageNumber_);
     }
     if (pageSize_ != 0) {
       output.writeInt32(2, pageSize_);
+    }
+    if (taskType_ != null) {
+      output.writeMessage(3, getTaskType());
+    }
+    if (getSimplifiedStateList().size() > 0) {
+      output.writeUInt32NoTag(34);
+      output.writeUInt32NoTag(simplifiedStateMemoizedSerializedSize);
+    }
+    for (int i = 0; i < simplifiedState_.size(); i++) {
+      output.writeEnumNoTag(simplifiedState_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -183,6 +359,22 @@ private static final long serialVersionUID = 0L;
     if (pageSize_ != 0) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(2, pageSize_);
+    }
+    if (taskType_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(3, getTaskType());
+    }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < simplifiedState_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(simplifiedState_.get(i));
+      }
+      size += dataSize;
+      if (!getSimplifiedStateList().isEmpty()) {  size += 1;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }simplifiedStateMemoizedSerializedSize = dataSize;
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -203,6 +395,12 @@ private static final long serialVersionUID = 0L;
         != other.getPageNumber()) return false;
     if (getPageSize()
         != other.getPageSize()) return false;
+    if (hasTaskType() != other.hasTaskType()) return false;
+    if (hasTaskType()) {
+      if (!getTaskType()
+          .equals(other.getTaskType())) return false;
+    }
+    if (!simplifiedState_.equals(other.simplifiedState_)) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -218,6 +416,14 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getPageNumber();
     hash = (37 * hash) + PAGESIZE_FIELD_NUMBER;
     hash = (53 * hash) + getPageSize();
+    if (hasTaskType()) {
+      hash = (37 * hash) + TASKTYPE_FIELD_NUMBER;
+      hash = (53 * hash) + getTaskType().hashCode();
+    }
+    if (getSimplifiedStateCount() > 0) {
+      hash = (37 * hash) + SIMPLIFIEDSTATE_FIELD_NUMBER;
+      hash = (53 * hash) + simplifiedState_.hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -359,6 +565,14 @@ private static final long serialVersionUID = 0L;
 
       pageSize_ = 0;
 
+      if (taskTypeBuilder_ == null) {
+        taskType_ = null;
+      } else {
+        taskType_ = null;
+        taskTypeBuilder_ = null;
+      }
+      simplifiedState_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -385,8 +599,19 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest result = new io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest(this);
+      int from_bitField0_ = bitField0_;
       result.pageNumber_ = pageNumber_;
       result.pageSize_ = pageSize_;
+      if (taskTypeBuilder_ == null) {
+        result.taskType_ = taskType_;
+      } else {
+        result.taskType_ = taskTypeBuilder_.build();
+      }
+      if (((bitField0_ & 0x00000001) != 0)) {
+        simplifiedState_ = java.util.Collections.unmodifiableList(simplifiedState_);
+        bitField0_ = (bitField0_ & ~0x00000001);
+      }
+      result.simplifiedState_ = simplifiedState_;
       onBuilt();
       return result;
     }
@@ -441,6 +666,19 @@ private static final long serialVersionUID = 0L;
       if (other.getPageSize() != 0) {
         setPageSize(other.getPageSize());
       }
+      if (other.hasTaskType()) {
+        mergeTaskType(other.getTaskType());
+      }
+      if (!other.simplifiedState_.isEmpty()) {
+        if (simplifiedState_.isEmpty()) {
+          simplifiedState_ = other.simplifiedState_;
+          bitField0_ = (bitField0_ & ~0x00000001);
+        } else {
+          ensureSimplifiedStateIsMutable();
+          simplifiedState_.addAll(other.simplifiedState_);
+        }
+        onChanged();
+      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -469,6 +707,7 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
+    private int bitField0_;
 
     private int pageNumber_ ;
     /**
@@ -493,7 +732,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPageNumber(int value) {
-      
+
       pageNumber_ = value;
       onChanged();
       return this;
@@ -507,7 +746,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPageNumber() {
-      
+
       pageNumber_ = 0;
       onChanged();
       return this;
@@ -536,7 +775,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPageSize(int value) {
-      
+
       pageSize_ = value;
       onChanged();
       return this;
@@ -550,8 +789,372 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPageSize() {
-      
+
       pageSize_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.StringValue taskType_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> taskTypeBuilder_;
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     * @return Whether the taskType field is set.
+     */
+    public boolean hasTaskType() {
+      return taskTypeBuilder_ != null || taskType_ != null;
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     * @return The taskType.
+     */
+    public com.google.protobuf.StringValue getTaskType() {
+      if (taskTypeBuilder_ == null) {
+        return taskType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : taskType_;
+      } else {
+        return taskTypeBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     */
+    public Builder setTaskType(com.google.protobuf.StringValue value) {
+      if (taskTypeBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        taskType_ = value;
+        onChanged();
+      } else {
+        taskTypeBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     */
+    public Builder setTaskType(
+        com.google.protobuf.StringValue.Builder builderForValue) {
+      if (taskTypeBuilder_ == null) {
+        taskType_ = builderForValue.build();
+        onChanged();
+      } else {
+        taskTypeBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     */
+    public Builder mergeTaskType(com.google.protobuf.StringValue value) {
+      if (taskTypeBuilder_ == null) {
+        if (taskType_ != null) {
+          taskType_ =
+            com.google.protobuf.StringValue.newBuilder(taskType_).mergeFrom(value).buildPartial();
+        } else {
+          taskType_ = value;
+        }
+        onChanged();
+      } else {
+        taskTypeBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     */
+    public Builder clearTaskType() {
+      if (taskTypeBuilder_ == null) {
+        taskType_ = null;
+        onChanged();
+      } else {
+        taskType_ = null;
+        taskTypeBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     */
+    public com.google.protobuf.StringValue.Builder getTaskTypeBuilder() {
+
+      onChanged();
+      return getTaskTypeFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getTaskTypeOrBuilder() {
+      if (taskTypeBuilder_ != null) {
+        return taskTypeBuilder_.getMessageOrBuilder();
+      } else {
+        return taskType_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : taskType_;
+      }
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        getTaskTypeFieldBuilder() {
+      if (taskTypeBuilder_ == null) {
+        taskTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
+                getTaskType(),
+                getParentForChildren(),
+                isClean());
+        taskType_ = null;
+      }
+      return taskTypeBuilder_;
+    }
+
+    private java.util.List<java.lang.Integer> simplifiedState_ =
+      java.util.Collections.emptyList();
+    private void ensureSimplifiedStateIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        simplifiedState_ = new java.util.ArrayList<java.lang.Integer>(simplifiedState_);
+        bitField0_ |= 0x00000001;
+      }
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @return A list containing the simplifiedState.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState> getSimplifiedStateList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState>(simplifiedState_, simplifiedState_converter_);
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @return The count of simplifiedState.
+     */
+    public int getSimplifiedStateCount() {
+      return simplifiedState_.size();
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @param index The index of the element to return.
+     * @return The simplifiedState at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState getSimplifiedState(int index) {
+      return simplifiedState_converter_.convert(simplifiedState_.get(index));
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @param index The index to set the value at.
+     * @param value The simplifiedState to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSimplifiedState(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureSimplifiedStateIsMutable();
+      simplifiedState_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @param value The simplifiedState to add.
+     * @return This builder for chaining.
+     */
+    public Builder addSimplifiedState(io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureSimplifiedStateIsMutable();
+      simplifiedState_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @param values The simplifiedState to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllSimplifiedState(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState> values) {
+      ensureSimplifiedStateIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState value : values) {
+        simplifiedState_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearSimplifiedState() {
+      simplifiedState_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @return A list containing the enum numeric values on the wire for simplifiedState.
+     */
+    public java.util.List<java.lang.Integer>
+    getSimplifiedStateValueList() {
+      return java.util.Collections.unmodifiableList(simplifiedState_);
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of simplifiedState at the given index.
+     */
+    public int getSimplifiedStateValue(int index) {
+      return simplifiedState_.get(index);
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of simplifiedState at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setSimplifiedStateValue(
+        int index, int value) {
+      ensureSimplifiedStateIsMutable();
+      simplifiedState_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @param value The enum numeric value on the wire for simplifiedState to add.
+     * @return This builder for chaining.
+     */
+    public Builder addSimplifiedStateValue(int value) {
+      ensureSimplifiedStateIsMutable();
+      simplifiedState_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional set of simplified task states, passing list of enums in this argument
+     * filters the returned statuses to only those that match this simplified status
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+     * @param values The enum numeric values on the wire for simplifiedState to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllSimplifiedStateValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureSimplifiedStateIsMutable();
+      for (int value : values) {
+        simplifiedState_.add(value);
+      }
       onChanged();
       return this;
     }

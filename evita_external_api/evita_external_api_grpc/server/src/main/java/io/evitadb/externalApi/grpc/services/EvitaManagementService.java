@@ -32,6 +32,7 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaManagement;
 import io.evitadb.core.file.ExportFileService;
@@ -46,6 +47,7 @@ import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
@@ -401,7 +403,12 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 			() -> {
 				final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(
 					request.getPageNumber(),
-					request.getPageSize()
+					request.getPageSize(),
+					request.hasTaskType() ? request.getTaskType().getValue() : null,
+					request.getSimplifiedStateList()
+						.stream()
+						.map(EvitaEnumConverter::toSimplifiedStatus)
+						.toArray(TaskSimplifiedState[]::new)
 				);
 				final Builder builder = GrpcTaskStatusesResponse.newBuilder();
 				taskStatuses.getData()
@@ -417,7 +424,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				responseObserver.onCompleted();
 			},
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 	/**
