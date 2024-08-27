@@ -427,7 +427,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup);
 			final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
 			updateCatalogSchema(analysisResult.mutations());
-			return getEntitySchemaOrThrow(analysisResult.entityType());
+			return getEntitySchemaOrThrowException(analysisResult.entityType());
 		});
 	}
 
@@ -444,7 +444,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				capturingResult.captureResult(analysisResult.mutations());
 			}
 			updateCatalogSchema(analysisResult.mutations());
-			return getEntitySchemaOrThrow(analysisResult.entityType());
+			return getEntitySchemaOrThrowException(analysisResult.entityType());
 		});
 	}
 
@@ -473,7 +473,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Traced
 	@Nonnull
 	@Override
-	public SealedEntitySchema getEntitySchemaOrThrow(@Nonnull String entityType) {
+	public SealedEntitySchema getEntitySchemaOrThrowException(@Nonnull String entityType) {
 		assertActive();
 		return getCatalog().getCollectionForEntityOrThrowException(entityType).getSchema();
 	}
@@ -482,8 +482,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Traced
 	@Nonnull
 	@Override
-	public SealedEntitySchema getEntitySchemaOrThrow(@Nonnull Class<?> modelClass) throws CollectionNotFoundException, EntityClassInvalidException {
-		return getEntitySchemaOrThrow(
+	public SealedEntitySchema getEntitySchemaOrThrowException(@Nonnull Class<?> modelClass) throws CollectionNotFoundException, EntityClassInvalidException {
+		return getEntitySchemaOrThrowException(
 			extractEntityTypeFromClass(modelClass, reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass))
 		);
@@ -800,7 +800,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			getCatalog().updateSchema(schemaMutation);
-			return getEntitySchemaOrThrow(schemaMutation.getEntityType());
+			return getEntitySchemaOrThrowException(schemaMutation.getEntityType());
 		});
 	}
 

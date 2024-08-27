@@ -873,6 +873,34 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Method is part of internal API and should be called at the moment entity collection is first created.
+	 * It should initialize all {@link ReflectedReferenceSchemaContract} in {@link EntitySchemaContract} with copies
+	 * that contain reference to the original {@link ReferenceSchemaContract} they relate to. This is necessary to
+	 * properly calculate inherited properties and attributes.
+	 */
+	public void initSchema() {
+		final EntitySchema originalSchema = getInternalSchema();
+		final Collection<ReferenceSchemaContract> referenceSchemas = originalSchema.getReferences().values();
+		final List<ReferenceSchemaContract> updatedReferenceSchemas = new ArrayList<>(referenceSchemas.size());
+		for (ReferenceSchemaContract referenceSchema : referenceSchemas) {
+			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+				this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType())
+					.flatMap(it -> it.getSchema().getReference(reflectedReferenceSchema.getReflectedReferenceName()))
+					.ifPresent(originalReference -> updatedReferenceSchemas.add(reflectedReferenceSchema.withReferencedSchema(originalReference)));
+			}
+		}
+		// exchange schema if it was updated
+		if (!updatedReferenceSchemas.isEmpty()) {
+			exchangeSchema(
+				originalSchema,
+				originalSchema.withReplacedReferenceSchema(
+					updatedReferenceSchemas.toArray(ReferenceSchemaContract[]::new)
+				)
+			);
+		}
+	}
+
+	/**
 	 * Refreshes the given schemas based on the references provided.
 	 *
 	 * @param originalSchema the original schema to be refreshed
@@ -1389,7 +1417,7 @@ public final class EntityCollection implements
 		this.schema = new TransactionalReference<>(
 			new EntitySchemaDecorator(catalog::getSchema, this.initialSchema)
 		);
-		for (EntityIndex entityIndex : indexes.values()) {
+		for (EntityIndex entityIndex : this.indexes.values()) {
 			if (entityIndex instanceof CatalogRelatedDataStructure<?> catalogRelatedEntityIndex) {
 				catalogRelatedEntityIndex.attachToCatalog(this.entityType, this.catalog);
 			}

@@ -1025,6 +1025,41 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldCreateReflectedReferenceAndRetainInheritanceDuringEngineRestart() {
+		shouldCreateReflectedReference();
+
+		evita.close();
+
+		evita = new Evita(
+			getEvitaConfiguration()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY)
+					.orElseThrow();
+
+				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, reflectedReference);
+
+				assertEquals("Assigned category.", reflectedReference.getDescription());
+				assertEquals("Already deprecated.", reflectedReference.getDeprecationNotice());
+				assertEquals(Cardinality.ZERO_OR_ONE, reflectedReference.getCardinality());
+				assertTrue(reflectedReference.isIndexed());
+				assertTrue(reflectedReference.isFaceted());
+
+				final Map<String, AttributeSchemaContract> attributes = reflectedReference.getAttributes();
+				assertEquals(2, attributes.size());
+				assertTrue(attributes.containsKey("categoryPriority"));
+				assertFalse(attributes.get("categoryPriority").isFilterable());
+				assertTrue(attributes.get("categoryPriority").isSortable());
+				assertTrue(attributes.containsKey("customNote"));
+			}
+		);
+	}
+
+	@Test
 	void shouldUpdateInheritedPropertiesInReflectedReference() {
 		shouldCreateReflectedReference();
 		evita.updateCatalog(

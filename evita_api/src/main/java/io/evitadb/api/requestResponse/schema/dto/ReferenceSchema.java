@@ -73,18 +73,18 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	@Serial private static final long serialVersionUID = 2018566260261489037L;
 
 	@Getter @Nonnull protected final String name;
-	@Getter @Nonnull private final Map<NamingConvention, String> nameVariants;
-	@Getter @Nullable private final String description;
-	@Getter @Nullable private final String deprecationNotice;
-	@Getter @Nonnull private final Cardinality cardinality;
-	@Getter @Nonnull private final String referencedEntityType;
-	@Nonnull private final Map<NamingConvention, String> entityTypeNameVariants;
-	@Getter private final boolean referencedEntityTypeManaged;
-	@Getter @Nullable private final String referencedGroupType;
-	@Nonnull private final Map<NamingConvention, String> groupTypeNameVariants;
-	@Getter private final boolean referencedGroupTypeManaged;
-	@Getter private final boolean indexed;
-	@Getter private final boolean faceted;
+	@Getter @Nonnull protected final Map<NamingConvention, String> nameVariants;
+	@Getter @Nullable protected final String description;
+	@Getter @Nullable protected final String deprecationNotice;
+	@Getter @Nonnull protected final Cardinality cardinality;
+	@Getter @Nonnull protected final String referencedEntityType;
+	@Nonnull protected final Map<NamingConvention, String> entityTypeNameVariants;
+	@Getter protected final boolean referencedEntityTypeManaged;
+	@Getter @Nullable protected final String referencedGroupType;
+	@Nonnull protected final Map<NamingConvention, String> groupTypeNameVariants;
+	@Getter protected final boolean referencedGroupTypeManaged;
+	@Getter protected final boolean indexed;
+	@Getter protected final boolean faceted;
 
 	/**
 	 * Contains index of all {@link SortableAttributeCompoundSchema} that could be used as sortable attribute compounds

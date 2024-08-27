@@ -57,6 +57,55 @@ message GrpcCreateReferenceSchemaMutation {
   bool faceted = 10;
 }
 
+// Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+// Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+message GrpcCreateReflectedReferenceSchemaMutation {
+
+  // Name of the reference the mutation is targeting.
+  string name = 1;
+  // Contains description of the model is optional but helps authors of the schema / client API to better
+  // explain the original purpose of the model to the consumers.
+  google.protobuf.StringValue description = 2;
+  // Deprecation notice contains information about planned removal of this schema from the model / client API.
+  // This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.
+  google.protobuf.StringValue deprecationNotice = 3;
+  // Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+  // relationship from the perspective of the entity. We stick to the ERD modelling
+  // [standards](https://www.gleek.io/blog/crows-foot-notation.html) here. Cardinality affect the design
+  // of the client API (returning only single reference or collections) and also help us to protect the consistency
+  // of the data so that conforms to the creator mental model.
+  GrpcCardinality cardinality = 4;
+  // Reference to `EntitySchema.name` of the referenced entity. Might be also any `String`
+  // that identifies type some external resource not maintained by Evita.
+  string referencedEntityType = 5;
+  // Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+  // of such name and this reference must target the entity where the reflected reference is defined, and the target
+  // entity must be managed on both sides of the relation.
+  string reflectedReferenceName = 6;
+  // Whether the index for this reference should be created and maintained allowing to filter by
+  // `referenceHaving` filtering constraints. Index is also required when reference is
+  // `faceted`.
+  //
+  // Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+  // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+  // the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+  // alongside other references if requested.
+  google.protobuf.BoolValue filterable = 7;
+  // Whether the statistics data for this reference should be maintained and this allowing to get
+  // `facetSummary` for this reference or use `facetInSet`
+  // filtering query.
+  //
+  // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+  // occupies (memory/disk) space in the form of index.
+  // Reference that was marked as faceted is called Facet.
+  google.protobuf.BoolValue faceted = 8;
+  // Contains true if the attributes of the reflected reference are inherited from the target reference.
+  bool attributesInherited = 9;
+  // The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
+  // this list is ignored.
+  repeated string attributesExcludedFromInheritance = 10;
+}
+
 // Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
 message GrpcModifyReferenceAttributeSchemaMutation {
   // Name of the reference the mutation is targeting.
@@ -135,6 +184,19 @@ message GrpcModifyReferenceSchemaRelatedEntityMutation {
   string referencedEntityType = 2;
   // Whether `referencedEntityType` refers to any existing `EntitySchema.name` that is maintained by Evita.
   bool referencedEntityTypeManaged = 3;
+}
+
+// Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+// `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+// Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+message GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation {
+  // Name of the reference the mutation is targeting.
+  string name = 1;
+  // Contains true if the attributes of the reflected reference are inherited from the target reference.
+  bool attributesInherited = 2;
+  // The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
+  // this list is ignored.
+  repeated string attributesExcludedFromInheritance = 3;
 }
 
 // Mutation is responsible for removing an existing `ReferenceSchema` in the `EntitySchema`.

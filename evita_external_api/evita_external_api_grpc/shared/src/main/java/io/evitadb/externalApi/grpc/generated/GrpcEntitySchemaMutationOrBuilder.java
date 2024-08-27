@@ -1302,5 +1302,68 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutationOrBuilder getSetReferenceSchemaIndexedMutationOrBuilder();
 
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+   * @return Whether the createReflectedReferenceSchemaMutation field is set.
+   */
+  boolean hasCreateReflectedReferenceSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+   * @return The createReflectedReferenceSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation getCreateReflectedReferenceSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutationOrBuilder getCreateReflectedReferenceSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+   * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+   * @return Whether the modifyReflectedReferenceAttributeInheritanceSchemaMutation field is set.
+   */
+  boolean hasModifyReflectedReferenceAttributeInheritanceSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+   * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+   * @return The modifyReflectedReferenceAttributeInheritanceSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation getModifyReflectedReferenceAttributeInheritanceSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+   * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder getModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder();
+
   public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.MutationCase getMutationCase();
 }

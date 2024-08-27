@@ -48,11 +48,14 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -161,6 +164,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			.certificateFolderPath(clientCertificates)
 			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
 			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+			.timeoutUnit(10, TimeUnit.MINUTES)
 			.build();
 
 		final AtomicReference<EntitySchemaContract> productSchema = new AtomicReference<>();
@@ -572,6 +576,68 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertEquals("New product", loadedEntity.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
 	}
 
+	/**
+	 * Defines a reflected reference using EvitaClient in the specified catalog.
+	 *
+	 * @param evitaClient     the Evita client to use, must not be null
+	 * @param someCatalogName the name of the catalog, must not be null
+	 */
+	private static void defineReflectedReference(
+		@Nonnull EvitaClient evitaClient,
+		@Nonnull String someCatalogName
+	) {
+		evitaClient.defineCatalog(someCatalogName)
+			.withDescription("This is a tutorial catalog.")
+			// define category schema
+			.withEntitySchema(
+				Entities.CATEGORY,
+				whichIs -> whichIs.withDescription("A category of products.")
+					.withReflectedReferenceToEntity(
+						"productsInCategory", Entities.PRODUCT, "productCategory",
+						thatIs -> thatIs.withAttributesInheritedExcept("note")
+							.withCardinality(Cardinality.ZERO_OR_MORE)
+							.withAttribute("customNote", String.class)
+					)
+					.withAttribute(
+						"name", String.class,
+						thatIs -> thatIs.localized().filterable().sortable()
+					)
+					.withHierarchy()
+			)
+			// define product schema
+			.withEntitySchema(
+				Entities.PRODUCT,
+				whichIs -> whichIs.withDescription("A product in inventory.")
+					.withAttribute(
+						"name", String.class,
+						thatIs -> thatIs.localized().filterable().sortable()
+					)
+					.withAttribute(
+						"cores", Integer.class,
+						thatIs -> thatIs.withDescription("Number of CPU cores.")
+							.filterable()
+					)
+					.withAttribute(
+						"graphics", String.class,
+						thatIs -> thatIs.withDescription("Graphics card.")
+							.filterable()
+					)
+					.withPrice()
+					.withReferenceToEntity(
+						"productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						thatIs -> thatIs
+							.withDescription("Assigned category.")
+							.deprecated("Already deprecated.")
+							.withAttribute("categoryPriority", Long.class, that -> that.sortable())
+							.withAttribute("note", String.class)
+							.indexed()
+							.faceted()
+					)
+			)
+			// and now push all the definitions (mutations) to the server
+			.updateViaNewSession(evitaClient);
+	}
+
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldAllowCreatingCatalogAlongWithTheSchema(EvitaClient evitaClient) {
@@ -733,31 +799,76 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldBeAbleToRunParallelClients(EvitaClient evitaClient) {
-		final EvitaClient anotherParallelClient = new EvitaClient(evitaClient.getConfiguration());
-		shouldListCatalogNames(anotherParallelClient);
-		shouldListCatalogNames(evitaClient);
+	void shouldAllowCreatingReflectedReference(EvitaClient evitaClient) {
+		final String someCatalogName = "differentCatalog";
+		try {
+			defineReflectedReference(evitaClient, someCatalogName);
+
+			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
+			evitaClient.queryCatalog(someCatalogName, session -> {
+				final Set<String> allEntityTypes = session.getAllEntityTypes();
+				assertTrue(allEntityTypes.contains(Entities.CATEGORY));
+				assertTrue(allEntityTypes.contains(Entities.PRODUCT));
+
+				final ReferenceSchemaContract reference = session.getEntitySchemaOrThrowException(Entities.CATEGORY)
+					.getReferenceOrThrowException("productsInCategory");
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, reference);
+
+				assertEquals(Entities.PRODUCT, reference.getReferencedEntityType());
+				assertEquals("Assigned category.", reference.getDescription());
+				assertEquals("Already deprecated.", reference.getDeprecationNotice());
+				assertTrue(reference.isIndexed());
+				assertTrue(reference.isFaceted());
+
+				final Map<String, AttributeSchemaContract> attributes = reference.getAttributes();
+				assertEquals(2, attributes.size());
+				assertTrue(attributes.containsKey("customNote"));
+				assertTrue(attributes.containsKey("categoryPriority"));
+			});
+		} finally {
+			evitaClient.deleteCatalogIfExists(someCatalogName);
+		}
 	}
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldAbleToFetchNonCachedEntitySchemaFromCatalogSchema(EvitaClient evitaClient) {
-		final EvitaClient clientWithEmptyCache = new EvitaClient(evitaClient.getConfiguration());
-		clientWithEmptyCache.queryCatalog(
-			TEST_CATALOG,
+	void shouldModifyReflectedReferenceSchema(EvitaClient evitaClient) {
+		defineReflectedReference(evitaClient, "differentCatalog");
+
+		evitaClient.updateCatalog(
+			"differentCatalog",
 			session -> {
-				final Optional<EntitySchemaContract> productSchema = session.getCatalogSchema().getEntitySchema(Entities.PRODUCT);
-				assertNotNull(productSchema);
+				session.getEntitySchemaOrThrowException(Entities.CATEGORY)
+					.openForWrite()
+					.withReflectedReferenceToEntity(
+						"productsInCategory", Entities.PRODUCT, "productCategory",
+						thatIs -> thatIs.withAttributesInheritedExcept("categoryPriority")
+							.withCardinality(Cardinality.EXACTLY_ONE)
+							.withoutAttribute("customNote")
+							.withAttribute("newAttribute", String.class)
+							.withDescription("My description.")
+							.nonFaceted()
+					).updateVia(session);
 			}
 		);
-	}
 
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldListCatalogNames(EvitaClient evitaClient) {
-		final Set<String> catalogNames = evitaClient.getCatalogNames();
-		assertEquals(1, catalogNames.size());
-		assertTrue(catalogNames.contains(TEST_CATALOG));
+		evitaClient.queryCatalog(
+			"differentCatalog",
+			session -> {
+				final SealedEntitySchema entitySchema = session.getEntitySchemaOrThrowException(Entities.CATEGORY);
+				final ReferenceSchemaContract reference = entitySchema.getReferenceOrThrowException("productsInCategory");
+				assertEquals(Cardinality.EXACTLY_ONE, reference.getCardinality());
+				assertEquals(Entities.PRODUCT, reference.getReferencedEntityType());
+				assertEquals("My description.", reference.getDescription());
+				assertTrue(reference.isIndexed());
+				assertFalse(reference.isFaceted());
+
+				final Map<String, AttributeSchemaContract> attributes = reference.getAttributes();
+				assertEquals(2, attributes.size());
+				assertTrue(attributes.containsKey("newAttribute"));
+				assertTrue(attributes.containsKey("note"));
+			}
+		);
 	}
 
 	@Test

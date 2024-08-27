@@ -132,6 +132,11 @@ private static final long serialVersionUID = 0L;
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcNameVariant.parser(), extensionRegistry));
             break;
           }
+          case 48: {
+
+            inherited_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -187,7 +192,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -208,7 +213,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -326,7 +331,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>
       getAttributeElementsOrBuilderList() {
     return attributeElements_;
   }
@@ -389,7 +394,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getNameVariantOrBuilderList() {
     return nameVariant_;
   }
@@ -428,6 +433,21 @@ private static final long serialVersionUID = 0L;
     return nameVariant_.get(index);
   }
 
+  public static final int INHERITED_FIELD_NUMBER = 6;
+  private boolean inherited_;
+  /**
+   * <pre>
+   * Contains true if the attribute was inherited from the original object via reflected reference relation
+   * </pre>
+   *
+   * <code>bool inherited = 6;</code>
+   * @return The inherited.
+   */
+  @java.lang.Override
+  public boolean getInherited() {
+    return inherited_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -457,6 +477,9 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < nameVariant_.size(); i++) {
       output.writeMessage(5, nameVariant_.get(i));
     }
+    if (inherited_ != false) {
+      output.writeBool(6, inherited_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -484,6 +507,10 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < nameVariant_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, nameVariant_.get(i));
+    }
+    if (inherited_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(6, inherited_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -516,6 +543,8 @@ private static final long serialVersionUID = 0L;
         .equals(other.getAttributeElementsList())) return false;
     if (!getNameVariantList()
         .equals(other.getNameVariantList())) return false;
+    if (getInherited()
+        != other.getInherited()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -545,6 +574,9 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + NAMEVARIANT_FIELD_NUMBER;
       hash = (53 * hash) + getNameVariantList().hashCode();
     }
+    hash = (37 * hash) + INHERITED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getInherited());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -713,6 +745,8 @@ private static final long serialVersionUID = 0L;
       } else {
         nameVariantBuilder_.clear();
       }
+      inherited_ = false;
+
       return this;
     }
 
@@ -769,6 +803,7 @@ private static final long serialVersionUID = 0L;
       } else {
         result.nameVariant_ = nameVariantBuilder_.build();
       }
+      result.inherited_ = inherited_;
       onBuilt();
       return result;
     }
@@ -845,7 +880,7 @@ private static final long serialVersionUID = 0L;
             attributeElementsBuilder_ = null;
             attributeElements_ = other.attributeElements_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            attributeElementsBuilder_ = 
+            attributeElementsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getAttributeElementsFieldBuilder() : null;
           } else {
@@ -871,13 +906,16 @@ private static final long serialVersionUID = 0L;
             nameVariantBuilder_ = null;
             nameVariant_ = other.nameVariant_;
             bitField0_ = (bitField0_ & ~0x00000002);
-            nameVariantBuilder_ = 
+            nameVariantBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getNameVariantFieldBuilder() : null;
           } else {
             nameVariantBuilder_.addAllMessages(other.nameVariant_);
           }
         }
+      }
+      if (other.getInherited() != false) {
+        setInherited(other.getInherited());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -944,7 +982,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -968,7 +1006,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       name_ = value;
       onChanged();
       return this;
@@ -983,7 +1021,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
+
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
@@ -1004,7 +1042,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       name_ = value;
       onChanged();
       return this;
@@ -1132,7 +1170,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
-      
+
       onChanged();
       return getDescriptionFieldBuilder().getBuilder();
     }
@@ -1161,7 +1199,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1303,7 +1341,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
-      
+
       onChanged();
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
@@ -1334,7 +1372,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1617,7 +1655,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>
          getAttributeElementsOrBuilderList() {
       if (attributeElementsBuilder_ != null) {
         return attributeElementsBuilder_.getMessageOrBuilderList();
@@ -1658,12 +1696,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder>
          getAttributeElementsBuilderList() {
       return getAttributeElementsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcAttributeElement, io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcAttributeElement, io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>
         getAttributeElementsFieldBuilder() {
       if (attributeElementsBuilder_ == null) {
         attributeElementsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -1932,7 +1970,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
          getNameVariantOrBuilderList() {
       if (nameVariantBuilder_ != null) {
         return nameVariantBuilder_.getMessageOrBuilderList();
@@ -1970,12 +2008,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder>
          getNameVariantBuilderList() {
       return getNameVariantFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
         getNameVariantFieldBuilder() {
       if (nameVariantBuilder_ == null) {
         nameVariantBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -1987,6 +2025,49 @@ private static final long serialVersionUID = 0L;
         nameVariant_ = null;
       }
       return nameVariantBuilder_;
+    }
+
+    private boolean inherited_ ;
+    /**
+     * <pre>
+     * Contains true if the attribute was inherited from the original object via reflected reference relation
+     * </pre>
+     *
+     * <code>bool inherited = 6;</code>
+     * @return The inherited.
+     */
+    @java.lang.Override
+    public boolean getInherited() {
+      return inherited_;
+    }
+    /**
+     * <pre>
+     * Contains true if the attribute was inherited from the original object via reflected reference relation
+     * </pre>
+     *
+     * <code>bool inherited = 6;</code>
+     * @param value The inherited to set.
+     * @return This builder for chaining.
+     */
+    public Builder setInherited(boolean value) {
+
+      inherited_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains true if the attribute was inherited from the original object via reflected reference relation
+     * </pre>
+     *
+     * <code>bool inherited = 6;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearInherited() {
+
+      inherited_ = false;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

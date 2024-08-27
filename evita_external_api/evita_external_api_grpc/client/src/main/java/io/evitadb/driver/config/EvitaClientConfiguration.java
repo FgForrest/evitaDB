@@ -257,7 +257,7 @@ public record EvitaClientConfiguration(
 				trustStorePassword,
 				reflectionCachingBehaviour,
 				timeout,
-				TimeUnit.SECONDS,
+				timeoutUnit,
 				openTelemetryInstance,
 				trackedTaskLimit
 			);

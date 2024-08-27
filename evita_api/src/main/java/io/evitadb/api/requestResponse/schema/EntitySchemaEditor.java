@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -466,17 +467,17 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 *
 	 * References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
 	 *
-	 * @param name name of the reference
-	 * @param entityType name of the target entity this reference relates to
+	 * @param referenceName          name of the reference
+	 * @param entityType             name of the target entity this reference relates to
 	 * @param reflectedReferenceName name of the reference in the target entity, this reference should reflect
-	 * @param whichIs lambda that allows to define reference specifics
+	 * @param whichIs                lambda that allows to define reference specifics
 	 */
 	@Nonnull
 	S withReflectedReferenceToEntity(
-		@Nonnull String name,
+		@Nonnull String referenceName,
 		@Nonnull String entityType,
 		@Nonnull String reflectedReferenceName,
-		@Nullable Consumer<ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder> whichIs
+		@Nullable Consumer<ReflectedReferenceSchemaBuilder> whichIs
 	);
 
 	/**

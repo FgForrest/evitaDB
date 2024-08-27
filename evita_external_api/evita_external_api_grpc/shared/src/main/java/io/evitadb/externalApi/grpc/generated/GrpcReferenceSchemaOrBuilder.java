@@ -399,7 +399,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
       getNameVariantList();
   /**
    * <pre>
@@ -424,7 +424,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getNameVariantOrBuilderList();
   /**
    * <pre>
@@ -443,7 +443,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
       getEntityTypeNameVariantList();
   /**
    * <pre>
@@ -468,7 +468,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getEntityTypeNameVariantOrBuilderList();
   /**
    * <pre>
@@ -487,7 +487,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
       getGroupTypeNameVariantList();
   /**
    * <pre>
@@ -512,7 +512,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getGroupTypeNameVariantOrBuilderList();
   /**
    * <pre>
@@ -543,4 +543,142 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * @return The referencedGroupTypeManaged.
    */
   boolean getReferencedGroupTypeManaged();
+
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   * @return Whether the reflectedReferenceName field is set.
+   */
+  boolean hasReflectedReferenceName();
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   * @return The reflectedReferenceName.
+   */
+  com.google.protobuf.StringValue getReflectedReferenceName();
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getReflectedReferenceNameOrBuilder();
+
+  /**
+   * <pre>
+   * Contains true if the description of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool descriptionInherited = 19;</code>
+   * @return The descriptionInherited.
+   */
+  boolean getDescriptionInherited();
+
+  /**
+   * <pre>
+   * Contains true if the deprecated flag of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool deprecationNoticeInherited = 20;</code>
+   * @return The deprecationNoticeInherited.
+   */
+  boolean getDeprecationNoticeInherited();
+
+  /**
+   * <pre>
+   * Contains true if the cardinality of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool cardinalityInherited = 21;</code>
+   * @return The cardinalityInherited.
+   */
+  boolean getCardinalityInherited();
+
+  /**
+   * <pre>
+   * Contains true if the indexed property settings of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool indexedInherited = 22;</code>
+   * @return The indexedInherited.
+   */
+  boolean getIndexedInherited();
+
+  /**
+   * <pre>
+   * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool facetedInherited = 23;</code>
+   * @return The facetedInherited.
+   */
+  boolean getFacetedInherited();
+
+  /**
+   * <pre>
+   * Contains true if the attributes of the reflected reference are inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool attributesInherited = 24;</code>
+   * @return The attributesInherited.
+   */
+  boolean getAttributesInherited();
+
+  /**
+   * <pre>
+   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
+   * this list is ignored.
+   * </pre>
+   *
+   * <code>repeated string attributesExcludedFromInheritance = 25;</code>
+   * @return A list containing the attributesExcludedFromInheritance.
+   */
+  java.util.List<java.lang.String>
+      getAttributesExcludedFromInheritanceList();
+  /**
+   * <pre>
+   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
+   * this list is ignored.
+   * </pre>
+   *
+   * <code>repeated string attributesExcludedFromInheritance = 25;</code>
+   * @return The count of attributesExcludedFromInheritance.
+   */
+  int getAttributesExcludedFromInheritanceCount();
+  /**
+   * <pre>
+   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
+   * this list is ignored.
+   * </pre>
+   *
+   * <code>repeated string attributesExcludedFromInheritance = 25;</code>
+   * @param index The index of the element to return.
+   * @return The attributesExcludedFromInheritance at the given index.
+   */
+  java.lang.String getAttributesExcludedFromInheritance(int index);
+  /**
+   * <pre>
+   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
+   * this list is ignored.
+   * </pre>
+   *
+   * <code>repeated string attributesExcludedFromInheritance = 25;</code>
+   * @param index The index of the value to return.
+   * @return The bytes of the attributesExcludedFromInheritance at the given index.
+   */
+  com.google.protobuf.ByteString
+      getAttributesExcludedFromInheritanceBytes(int index);
 }

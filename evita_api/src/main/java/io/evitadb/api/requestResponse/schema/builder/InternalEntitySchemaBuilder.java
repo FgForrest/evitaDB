@@ -479,29 +479,29 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Nonnull
 	@Override
 	public EntitySchemaBuilder withReflectedReferenceToEntity(
-		@Nonnull String name,
+		@Nonnull String referenceName,
 		@Nonnull String entityType,
 		@Nonnull String reflectedReferenceName,
 		@Nullable Consumer<ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder> whichIs
 	) {
 		final EntitySchemaContract currentSchema = toInstance();
-		final ReferenceSchemaContract existingReference = currentSchema.getReference(name).orElse(null);
+		final ReferenceSchemaContract existingReference = currentSchema.getReference(referenceName).orElse(null);
 		Assert.isTrue(
 			existingReference == null || existingReference instanceof ReflectedReferenceSchemaContract,
 			() -> new InvalidSchemaMutationException(
-				"Reference `" + name + "` is already created as standard reference, " +
+				"Reference `" + referenceName + "` is already created as standard reference, " +
 					"you need first to remove it to create a reflected reference of such name."
 			)
 		);
 		final ReflectedReferenceSchemaBuilder referenceSchemaBuilder = new ReflectedReferenceSchemaBuilder(
-			catalogSchemaAccessor.get(),
-			baseSchema,
+			this.catalogSchemaAccessor.get(),
+			this.baseSchema,
 			(ReflectedReferenceSchemaContract) existingReference,
-			name,
+			referenceName,
 			entityType,
 			reflectedReferenceName,
 			this.mutations,
-			this.baseSchema.getReference(name)
+			this.baseSchema.getReference(referenceName)
 				.map(it -> !(it instanceof ReflectedReferenceSchemaContract))
 				.orElse(true)
 		);

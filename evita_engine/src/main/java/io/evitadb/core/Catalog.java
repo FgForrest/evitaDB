@@ -443,7 +443,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		}
 
 		this.entitySchemaIndex = new TransactionalMap<>(
-			entityCollections.values()
+			this.entityCollections.values()
 				.stream()
 				.collect(
 					Collectors.toMap(
@@ -452,6 +452,11 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 					)
 				)
 		);
+		// perform initialization of reflected schemas
+		for (EntityCollection collection : collections.values()) {
+			collection.initSchema();
+		}
+
 		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
 		this.evitaConfiguration = evitaConfiguration;
 		this.scheduler = scheduler;
@@ -507,11 +512,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 		catalogIndex.attachToCatalog(null, this);
 		final StoragePartPersistenceService storagePartPersistenceService = persistenceService.getStoragePartPersistenceService(catalogVersion);
-		final CatalogSchema catalogSchema = CatalogSchemaStoragePart.deserializeWithCatalog(
-			this,
-			() -> ofNullable(storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogSchemaStoragePart.class))
-				.map(CatalogSchemaStoragePart::catalogSchema)
-				.orElseThrow(() -> new SchemaNotFoundException(this.persistenceService.getCatalogHeader(catalogVersion).catalogName()))
+		final CatalogSchema catalogSchema = CatalogSchema._internalBuildWithUpdatedEntitySchemaAccessor(
+			previousCatalogVersion.getInternalSchema(),
+			this.entitySchemaAccessor
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
@@ -585,7 +588,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 				// exchange the current catalog schema so that additional entity schema mutations can take advantage of
 				// previous catalog mutations when validated
-				currentSchema = updateCatalogSchema(updatedSchema, currentSchema);
+				currentSchema = exchangeCatalogSchema(updatedSchema, currentSchema);
 			}
 			// alter affected entity schemas
 			if (modifyEntitySchemaMutations != null) {
@@ -739,11 +742,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	public CatalogContract replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced) {
 		final long catalogVersion = versionId.get();
 		this.entityCollections.values().forEach(EntityCollection::terminate);
+		final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
+		exchangeCatalogSchema(renamedSchema, getInternalSchema());
 		final CatalogPersistenceService newIoService = persistenceService.replaceWith(
 			catalogVersion,
 			updatedSchema.getName(),
 			updatedSchema.getNameVariants(),
-			CatalogSchema._internalBuild(updatedSchema),
+			renamedSchema,
 			this.dataStoreBuffer
 		);
 		final long catalogVersionAfterRename = newIoService.getLastCatalogVersion();
@@ -1062,11 +1067,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 		if (transactionalChanges != null) {
 			final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService(newCatalogVersionId);
-			final CatalogSchemaStoragePart storedSchema = CatalogSchemaStoragePart.deserializeWithCatalog(
-				this, () -> storagePartPersistenceService.getStoragePart(newCatalogVersionId, 1, CatalogSchemaStoragePart.class)
-			);
-
-			if (newSchema.version() != storedSchema.catalogSchema().version()) {
+			if (newSchema.version() != lastPersistedSchemaVersion) {
 				final CatalogSchemaStoragePart storagePart = new CatalogSchemaStoragePart(newSchema.getDelegate());
 				storagePartPersistenceService.putStoragePart(storagePart.getStoragePartPK(), storagePart);
 			}
@@ -1327,7 +1328,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 * @return updated schema
 	 */
 	@Nonnull
-	private CatalogSchema updateCatalogSchema(
+	private CatalogSchema exchangeCatalogSchema(
 		@Nonnull CatalogSchemaContract updatedSchema,
 		@Nonnull CatalogSchema currentSchema
 	) {
@@ -1337,8 +1338,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final CatalogSchema updatedInternalSchema = (CatalogSchema) updatedSchema;
 
 		if (updatedSchema.version() > currentSchema.version()) {
+			final CatalogSchemaDecorator currentSchemaWrapper = this.schema.get();
+			Assert.isPremiseValid(
+				currentSchemaWrapper.getDelegate() == currentSchema,
+				"Invalid current schema used!"
+			);
 			final CatalogSchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
-				this.schema.get(),
+				currentSchemaWrapper,
 				new CatalogSchemaDecorator(updatedInternalSchema)
 			);
 			Assert.isTrue(

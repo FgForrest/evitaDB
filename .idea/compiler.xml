@@ -65,6 +65,9 @@
         <module name="evita_performance_tests" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="evita_root" target="17" />
+    </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
