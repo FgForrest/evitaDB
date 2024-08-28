@@ -33,14 +33,16 @@ import javax.annotation.Nullable;
  *
  * @param id optional unique identifier of the connection
  * @param name name of the connection displayed to users
- * @param labApiUrl URL of the Lab API of the target evitaDB instance
+ * @param systemUrl URL of the system API
+ * @param grpcUrl gRPC API URL
  * @param restUrl optional URL of the REST API of the target evitaDB instance
  * @param gqlUrl optional URL of the GraphQL API of the target evitaDB instance
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public record EvitaDBConnection(@Nullable String id,
                                 @Nonnull String name,
-                                @Nonnull String labApiUrl,
-                                @Nullable String restUrl,
-								@Nullable String gqlUrl) {
+                                @Nonnull String systemUrl,
+								@Nonnull String grpcUrl,
+								@Nullable String gqlUrl,
+								@Nullable String restUrl) {
 }
