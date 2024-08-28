@@ -25,12 +25,15 @@ package io.evitadb.externalApi.lab.configuration;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Configuration of lab GUI.
@@ -55,7 +58,28 @@ public class GuiConfig {
 	                 @Nullable @JsonProperty("preconfiguredConnections") List<EvitaDBConnection> preconfiguredConnections) {
 		this.enabled = Optional.ofNullable(enabled).orElse(true);
 		this.readOnly = Optional.ofNullable(readOnly).orElse(false);
+		validatePreconfiguredConnections(preconfiguredConnections);
 		this.preconfiguredConnections = preconfiguredConnections;
 	}
 
+	private static void validatePreconfiguredConnections(@Nonnull List<EvitaDBConnection> preconfiguredConnections) {
+		preconfiguredConnections.stream()
+			.collect(Collectors.groupingBy(EvitaDBConnection::id, Collectors.counting()))
+			.entrySet()
+			.stream()
+			.filter(it -> it.getValue() > 1)
+			.findFirst()
+			.ifPresent(it -> {
+				throw new EvitaInvalidUsageException("Duplicate evitaDB connection id: " + it.getKey());
+			});
+		preconfiguredConnections.stream()
+			.collect(Collectors.groupingBy(EvitaDBConnection::name, Collectors.counting()))
+			.entrySet()
+			.stream()
+			.filter(it -> it.getValue() > 1)
+			.findFirst()
+			.ifPresent(it -> {
+				throw new EvitaInvalidUsageException("Duplicate evitaDB connection name: " + it.getKey());
+			});
+	}
 }

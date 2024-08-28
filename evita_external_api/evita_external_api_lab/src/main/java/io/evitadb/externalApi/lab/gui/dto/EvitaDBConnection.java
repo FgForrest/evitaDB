@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,9 @@ import javax.annotation.Nullable;
  * to maintain several connections to different evitaDB instances. We need this here to pass preconfigured connections
  * to the evitaLab.
  *
- * @param id optional unique identifier of the connection
+ * @param id optional unique identifier of the connection (although recommended)
+ *           if not specified, hash from the name will be used instead (not recommended, if name is changed, evitaLab will
+ *           recognize it as a new connection)
  * @param name name of the connection displayed to users
  * @param systemUrl URL of the system API
  * @param grpcUrl gRPC API URL
