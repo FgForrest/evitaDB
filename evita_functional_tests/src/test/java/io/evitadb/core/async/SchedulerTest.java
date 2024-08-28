@@ -72,6 +72,22 @@ class SchedulerTest {
 	}
 
 	@Test
+	void shouldListTasks() {
+		assertEquals(0, scheduler.listTaskStatuses(1, 20, null).getTotalRecordCount());
+
+		for (int i = 0; i < 10; i++) {
+			scheduler.submit(
+				(ServerTask<?, ?>) new ClientRunnableTask<>("Test task", null, () -> {
+				})
+			);
+		}
+
+		final PaginatedList<TaskStatus<?, ?>> taskStatuses = scheduler.listTaskStatuses(1, 5, null);
+		assertEquals(10, taskStatuses.getTotalRecordCount());
+		assertEquals(5, taskStatuses.getData().size());
+	}
+
+	@Test
 	void shouldGetStatusOfTheTask() throws ExecutionException, InterruptedException {
 		assertEquals(0, scheduler.listTaskStatuses(1, 20, null).getTotalRecordCount());
 
