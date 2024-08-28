@@ -27,12 +27,16 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation;
-import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toAttributeInheritanceBehavior;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCardinality;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcAttributeInheritanceBehavior;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCardinality;
 
 /**
  * Converts between {@link CreateReflectedReferenceSchemaMutation} and {@link GrpcCreateReflectedReferenceSchemaMutation} in both directions.
@@ -49,13 +53,13 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 			mutation.getName(),
 			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
 			mutation.hasDeprecationNotice() ? mutation.getDeprecationNotice().getValue() : null,
-			EvitaEnumConverter.toCardinality(mutation.getCardinality()),
+			toCardinality(mutation.getCardinality()),
 			mutation.getReferencedEntityType(),
 			mutation.getReflectedReferenceName(),
 			mutation.hasFilterable() ? mutation.getFilterable().getValue() : null,
 			mutation.hasFaceted() ? mutation.getFaceted().getValue() : null,
-			mutation.getAttributesInherited(),
-			mutation.getAttributesExcludedFromInheritanceList().toArray(String[]::new)
+			toAttributeInheritanceBehavior(mutation.getAttributeInheritanceBehavior()),
+			mutation.getAttributeInheritanceFilterList().toArray(String[]::new)
 		);
 	}
 
@@ -63,10 +67,10 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 	public GrpcCreateReflectedReferenceSchemaMutation convert(@Nonnull CreateReflectedReferenceSchemaMutation mutation) {
 		final GrpcCreateReflectedReferenceSchemaMutation.Builder builder = GrpcCreateReflectedReferenceSchemaMutation.newBuilder()
 			.setName(mutation.getName())
-			.setCardinality(EvitaEnumConverter.toGrpcCardinality(mutation.getCardinality()))
+			.setCardinality(toGrpcCardinality(mutation.getCardinality()))
 			.setReferencedEntityType(mutation.getReferencedEntityType())
 			.setReflectedReferenceName(mutation.getReflectedReferenceName())
-			.setAttributesInherited(mutation.isAttributesInherited());
+			.setAttributeInheritanceBehavior(toGrpcAttributeInheritanceBehavior(mutation.getAttributesInheritanceBehavior()));
 
 		if (mutation.getDescription() != null) {
 			builder.setDescription(StringValue.of(mutation.getDescription()));
@@ -80,8 +84,8 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 		if (mutation.getFaceted() != null) {
 			builder.setFaceted(BoolValue.newBuilder().setValue(mutation.getFaceted()).build());
 		}
-		for (String attribute : mutation.getAttributesExcludedFromInheritance()) {
-			builder.addAttributesExcludedFromInheritance(attribute);
+		for (String attribute : mutation.getAttributeInheritanceFilter()) {
+			builder.addAttributeInheritanceFilter(attribute);
 		}
 
 		return builder.build();

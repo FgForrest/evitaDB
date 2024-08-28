@@ -36,7 +36,7 @@ import java.lang.annotation.Target;
  * This information, annotation attribute values and target field/method/component signature allows to generate
  * {@link ReferenceSchemaContract}.
  *
- * If you set up bi-directional reference, you need to use {@link ReflectsReference} annotation as well.
+ * If you set up bi-directional reference, you need to use {@link ReflectedReference} annotation as well.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

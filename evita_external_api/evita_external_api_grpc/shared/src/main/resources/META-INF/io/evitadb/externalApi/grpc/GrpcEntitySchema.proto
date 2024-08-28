@@ -337,10 +337,10 @@ message GrpcReferenceSchema {
   // Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
   bool facetedInherited = 23;
   // Contains true if the attributes of the reflected reference are inherited from the target reference.
-  bool attributesInherited = 24;
-  // The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-  // this list is ignored.
-  repeated string attributesExcludedFromInheritance = 25;
+  GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;
+  // The array of attribute names that are inherited / excluded from inheritance based on the value of
+  // attributeInheritanceBehavior property.
+  repeated string attributeInheritanceFilter = 25;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB

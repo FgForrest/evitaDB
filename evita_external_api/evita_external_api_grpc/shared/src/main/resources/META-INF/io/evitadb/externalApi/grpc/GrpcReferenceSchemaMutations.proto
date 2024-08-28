@@ -100,10 +100,10 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // Reference that was marked as faceted is called Facet.
   google.protobuf.BoolValue faceted = 8;
   // Contains true if the attributes of the reflected reference are inherited from the target reference.
-  bool attributesInherited = 9;
-  // The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-  // this list is ignored.
-  repeated string attributesExcludedFromInheritance = 10;
+  GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 9;
+  // The array of attribute names that are inherited / excluded from inheritance based on the value of
+  // attributeInheritanceBehavior property.
+  repeated string attributeInheritanceFilter = 10;
 }
 
 // Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
@@ -193,10 +193,10 @@ message GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation {
   // Name of the reference the mutation is targeting.
   string name = 1;
   // Contains true if the attributes of the reflected reference are inherited from the target reference.
-  bool attributesInherited = 2;
-  // The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-  // this list is ignored.
-  repeated string attributesExcludedFromInheritance = 3;
+  GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 2;
+  // The array of attribute names that are inherited / excluded from inheritance based on the value of
+  // attributeInheritanceBehavior property.
+  repeated string attributeInheritanceFilter = 3;
 }
 
 // Mutation is responsible for removing an existing `ReferenceSchema` in the `EntitySchema`.

@@ -1035,99 +1035,6 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
-	void shouldListAndCancelTasks(EvitaClient evitaClient) {
-		final int numberOfTasks = 20;
-		final ExecutorService executorService = Executors.newFixedThreadPool(numberOfTasks);
-		final EvitaManagementContract management = evitaClient.management();
-
-		// Step 2: Generate backup tasks using the custom executor
-		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream.generate(
-				() -> CompletableFuture.supplyAsync(
-					() -> management.backupCatalog(TEST_CATALOG, null, true),
-					executorService
-				)
-			)
-			.limit(numberOfTasks)
-			.toList();
-
-		// Optional: Wait for all tasks to complete
-		CompletableFuture.allOf(backupTasks.toArray(new CompletableFuture[0])).join();
-		executorService.shutdown();
-
-		management.listTaskStatuses(1, numberOfTasks, null);
-
-		// cancel 7 of them immediately
-		final List<Boolean> cancellationResult = Stream.concat(
-				management.listTaskStatuses(1, 1, null)
-					.getData()
-					.stream()
-					.map(it -> management.cancelTask(it.taskId())),
-				backupTasks.subList(3, numberOfTasks - 1)
-					.stream()
-					.map(task -> task.getNow(null).cancel(true))
-			)
-			.toList();
-
-		// wait for all task to complete
-		assertThrows(
-			ExecutionException.class,
-			() -> CompletableFuture.allOf(
-				backupTasks.stream().map(it -> it.getNow(null)).toArray(CompletableFuture[]::new)
-			).get(3, TimeUnit.MINUTES)
-		);
-
-		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(1, numberOfTasks, null);
-		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
-		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
-		assertEquals(backupTasks.size() - cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FINISHED).count());
-		assertEquals(cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FAILED).count());
-
-		// fetch all tasks by their ids
-		management.getTaskStatuses(
-			taskStatuses.getData().stream().map(TaskStatus::taskId).toArray(UUID[]::new)
-		).forEach(Assertions::assertNotNull);
-
-		// fetch tasks individually
-		taskStatuses.getData().forEach(task -> assertNotNull(management.getTaskStatus(task.taskId())));
-
-		// list exported files
-		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, null);
-		// some task might have finished even if cancelled (if they were cancelled in terminal phase)
-		assertTrue(exportedFiles.getTotalRecordCount() >= backupTasks.size() - cancelled);
-		exportedFiles.getData().forEach(file -> assertTrue(file.totalSizeInBytes() > 0));
-
-		// get all files by their ids
-		exportedFiles.getData().forEach(file -> assertNotNull(management.getFileToFetch(file.fileId())));
-
-		// fetch all of them
-		exportedFiles.getData().forEach(
-			file -> {
-				try (final InputStream inputStream = management.fetchFile(file.fileId())) {
-					final Path tempFile = Files.createTempFile(String.valueOf(file.fileId()), ".zip");
-					Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
-					assertTrue(tempFile.toFile().exists());
-					assertEquals(file.totalSizeInBytes(), Files.size(tempFile));
-					Files.delete(tempFile);
-				} catch (IOException e) {
-					fail(e);
-				}
-			});
-
-		// delete them
-		final Set<UUID> deletedFiles = CollectionUtils.createHashSet(exportedFiles.getData().size());
-		exportedFiles.getData()
-			.forEach(file -> {
-				management.deleteFile(file.fileId());
-				deletedFiles.add(file.fileId());
-			});
-
-		// list them again and there should be none of them
-		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, null);
-		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
-	}
-
-	@Test
-	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	void shouldReplaceCollection(EvitaClient evitaClient) {
 		final String newCollection = "newCollection";
 		final AtomicInteger productCount = new AtomicInteger();
@@ -1665,11 +1572,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		CompletableFuture.allOf(backupTasks.toArray(new CompletableFuture[0])).join();
 		executorService.shutdown();
 
-		management.listTaskStatuses(1, numberOfTasks);
+		management.listTaskStatuses(1, numberOfTasks, null);
 
 		// cancel 7 of them immediately
 		final List<Boolean> cancellationResult = Stream.concat(
-				management.listTaskStatuses(1, 1)
+				management.listTaskStatuses(1, 1, null)
 					.getData()
 					.stream()
 					.map(it -> management.cancelTask(it.taskId())),
@@ -1687,11 +1594,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			).get(3, TimeUnit.MINUTES)
 		);
 
-		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(1, numberOfTasks);
+		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(1, numberOfTasks, null);
 		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
 		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
-		assertEquals(backupTasks.size() - cancelled, taskStatuses.getData().stream().filter(task -> task.state() == State.FINISHED).count());
-		assertEquals(cancelled, taskStatuses.getData().stream().filter(task -> task.state() == State.FAILED).count());
+		assertEquals(backupTasks.size() - cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FINISHED).count());
+		assertEquals(cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FAILED).count());
 
 		// fetch all tasks by their ids
 		management.getTaskStatuses(

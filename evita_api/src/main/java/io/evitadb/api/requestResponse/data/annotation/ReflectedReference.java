@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.annotation;
 
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -45,8 +46,7 @@ import java.lang.annotation.Target;
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD, ElementType.RECORD_COMPONENT})
-public @interface ReflectsReference {
-	String INHERITED_VALUE = "__inherited__";
+public @interface ReflectedReference {
 
 	/**
 	 * Specific enum that allows tri-state logic: true / false and inherited value.
@@ -66,13 +66,13 @@ public @interface ReflectsReference {
 	 * Description of the reference. Use Markdown format.
 	 * Propagates to {@link ReferenceSchemaContract#getDescription()}.
 	 */
-	String description() default INHERITED_VALUE;
+	String description() default "";
 
 	/**
 	 * Marks reference as deprecated and allows to specify the reason for it. Use Markdown format.
 	 * Propagates to {@link ReferenceSchemaContract#getDeprecationNotice()}.
 	 */
-	String deprecated() default INHERITED_VALUE;
+	String deprecated() default "";
 
 	/**
 	 * Specifies the name of the target entity for the reference. If the field, method getter or record
@@ -113,16 +113,28 @@ public @interface ReflectsReference {
 	InheritableBoolean faceted() default InheritableBoolean.INHERITED;
 
 	/**
-	 * By default, all reference attributes of the reflected reference are inherited from the target reference.
-	 * If you don't want to access attributes via the reflected reference, set this to false. If you want to exclude
-	 * only a few attributes, use {@link #inheritsAttributesExcept()} property.
+	 * Returns the inheritance behavior for attributes in the reflected schema.
+	 *
+	 * This method returns an instance of the {@link AttributeInheritanceBehavior} enum that specifies how attribute
+	 * inheritance should be handled in the reference schema. There are two options:
+	 *
+	 * - {@link AttributeInheritanceBehavior#INHERIT_ALL_EXCEPT}: All attributes are inherited by default,
+	 *   except those listed in the {@link #attributeInheritanceFilter()} ()}.
+	 *
+	 * - {@link AttributeInheritanceBehavior#INHERIT_ONLY_SPECIFIED}: No attributes are inherited by default,
+	 *   only those explicitly listed in the {@link #attributeInheritanceFilter()} ()}.
 	 */
-	boolean inheritsAttributes() default true;
+	AttributeInheritanceBehavior attributesInheritanceBehavior() default AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED;
 
 	/**
-	 * By default, all reference attributes of the reflected reference are inherited from the target reference.
-	 * If you want to exclude some attributes from inheritance, list them here.
+	 * Returns the array of attribute names that filtered in the way driven by the {@link #attributesInheritanceBehavior()}
+	 * property:
+	 *
+	 * - {@link AttributeInheritanceBehavior#INHERIT_ALL_EXCEPT}: inherits all attributes defined on original reference
+	 *   except those listed in this filter
+	 * - {@link AttributeInheritanceBehavior#INHERIT_ONLY_SPECIFIED}: inherits only attributes that are listed in
+	 *   this filter
 	 */
-	String[] inheritsAttributesExcept() default {};
+	String[] attributeInheritanceFilter() default {};
 
 }

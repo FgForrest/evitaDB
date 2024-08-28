@@ -606,3 +606,16 @@ enum GrpcTaskSimplifiedState {
   TASK_FAILED = 3;
 
 }
+
+// Enum specifies different modes for reference attributes inheritance in reflected schema.
+enum GrpcAttributeInheritanceBehavior {
+  /**
+   * Inherit all attributes by default except those listed in the {@link #getAttributeInheritanceFilter()} array.
+   */
+  INHERIT_ALL_EXCEPT = 0;
+
+  /**
+   * Do not inherit any attributes by default except those listed in the {@link #getAttributeInheritanceFilter()} array.
+   */
+  INHERIT_ONLY_SPECIFIED = 1;
+}

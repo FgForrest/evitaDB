@@ -29,19 +29,17 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.function.Function;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
@@ -50,9 +48,6 @@ import java.util.function.Function;
  */
 @RequiredArgsConstructor
 public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedReferenceSchema> {
-	private static final Function<String, EntitySchemaContract> IMPOSSIBLE_EXCEPTION_PRODUCER = s -> {
-		throw new GenericEvitaInternalError("Sanity check!");
-	};
 
 	@Override
 	public void write(Kryo kryo, Output output, ReflectedReferenceSchema referenceSchema) {
@@ -102,9 +97,9 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 			kryo.writeObject(output, sortableAttributeCompound);
 		}
 
-		output.writeBoolean(referenceSchema.isAttributesInherited());
-		output.writeVarInt(referenceSchema.getAttributesExcludedFromInheritance().length, true);
-		for (String attributeName : referenceSchema.getAttributesExcludedFromInheritance()) {
+		kryo.writeObject(output, referenceSchema.getAttributesInheritanceBehavior());
+		output.writeVarInt(referenceSchema.getAttributeInheritanceFilter().length, true);
+		for (String attributeName : referenceSchema.getAttributeInheritanceFilter()) {
 			output.writeString(attributeName);
 		}
 	}
@@ -141,7 +136,7 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 			);
 		}
 
-		final boolean attributesInherited = input.readBoolean();
+		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
 		final int attributesExcludedFromInheritanceCount = input.readVarInt(true);
 		final String[] attributesExcludedFromInheritance = new String[attributesExcludedFromInheritanceCount];
 		for (int i = 0; i < attributesExcludedFromInheritanceCount; i++) {
@@ -152,7 +147,7 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
 			indexed, faceted, attributes, sortableAttributeCompounds,
-			attributesInherited, attributesExcludedFromInheritance
+			attributeInheritanceBehavior, attributesExcludedFromInheritance
 		);
 	}
 

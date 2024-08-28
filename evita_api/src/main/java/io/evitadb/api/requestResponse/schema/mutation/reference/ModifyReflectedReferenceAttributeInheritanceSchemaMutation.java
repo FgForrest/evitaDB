@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
@@ -47,8 +48,8 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * Mutation is responsible for setting value to a {@link ReflectedReferenceSchemaContract#isAttributesInherited()}
- * and {@link ReflectedReferenceSchemaContract#getAttributesExcludedFromInheritance()} in {@link ReferenceSchemaContract}.
+ * Mutation is responsible for setting value to a {@link ReflectedReferenceSchemaContract#getAttributesInheritanceBehavior()}
+ * and {@link ReflectedReferenceSchemaContract#getAttributeInheritanceFilter()} in {@link ReferenceSchemaContract}.
  * Mutation can be used for altering also the existing {@link ReferenceSchemaContract} alone.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
@@ -62,17 +63,17 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 	extends AbstractModifyReferenceDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 2119334468800302361L;
-	@Getter private final boolean attributesInherited;
-	@Nonnull @Getter private final String[] attributesExcludedFromInheritance;
+	@Nonnull @Getter private final AttributeInheritanceBehavior attributesInheritanceBehavior;
+	@Nonnull @Getter private final String[] attributeInheritanceFilter;
 
 	public ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
 		@Nonnull String name,
-		boolean attributesInherited,
-		@Nonnull String... attributesExcludedFromInheritance
+		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
+		@Nonnull String... attributeInheritanceFilter
 	) {
 		super(name);
-		this.attributesInherited = attributesInherited;
-		this.attributesExcludedFromInheritance = attributesExcludedFromInheritance;
+		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
+		this.attributeInheritanceFilter = attributeInheritanceFilter;
 	}
 
 	@Nullable
@@ -99,7 +100,7 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 				"the reflected one! Cannot be mutated by this mutation!"
 		);
 		return ((ReflectedReferenceSchema) referenceSchema).withAttributeInheritance(
-			this.attributesInherited, this.attributesExcludedFromInheritance
+			this.attributesInheritanceBehavior, this.attributeInheritanceFilter
 		);
 	}
 
@@ -123,10 +124,10 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 	@Override
 	public String toString() {
 		return "Modify entity reflected reference `" + this.name + "` schema: " +
-			"attributes inherited: " + this.attributesInherited +
+			"attributes inherited: " + this.attributesInheritanceBehavior +
 			(
-				ArrayUtils.isEmpty(this.attributesExcludedFromInheritance) ?
-					"" : (", excluding: " + Arrays.toString(this.attributesExcludedFromInheritance))
+				ArrayUtils.isEmpty(this.attributeInheritanceFilter) ?
+					"" : (", excluding: " + Arrays.toString(this.attributeInheritanceFilter))
 			);
 	}
 }

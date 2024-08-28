@@ -1481,7 +1481,10 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+						ReflectedReferenceSchemaEditor::withAttributesInherited
+					)
 					.updateVia(session);
 
 				session
@@ -1521,7 +1524,10 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+						ReflectedReferenceSchemaEditor::withAttributesInherited
+					)
 					.updateVia(session);
 
 				session
@@ -1561,7 +1567,10 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+						ReflectedReferenceSchemaEditor::withAttributesInherited
+					)
 					.updateVia(session);
 
 				session

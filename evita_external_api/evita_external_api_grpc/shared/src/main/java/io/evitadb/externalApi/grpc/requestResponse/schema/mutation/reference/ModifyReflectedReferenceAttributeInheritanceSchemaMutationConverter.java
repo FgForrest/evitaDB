@@ -31,6 +31,9 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toAttributeInheritanceBehavior;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcAttributeInheritanceBehavior;
+
 /**
  * Converts between {@link ModifyReflectedReferenceAttributeInheritanceSchemaMutation} and {@link GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation} in both directions.
  *
@@ -44,8 +47,8 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter
 	public ModifyReflectedReferenceAttributeInheritanceSchemaMutation convert(@Nonnull GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation mutation) {
 		return new ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
 			mutation.getName(),
-			mutation.getAttributesInherited(),
-			mutation.getAttributesExcludedFromInheritanceList().toArray(String[]::new)
+			toAttributeInheritanceBehavior(mutation.getAttributeInheritanceBehavior()),
+			mutation.getAttributeInheritanceFilterList().toArray(String[]::new)
 		);
 	}
 
@@ -53,10 +56,10 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter
 	public GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation convert(@Nonnull ModifyReflectedReferenceAttributeInheritanceSchemaMutation mutation) {
 		final GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder builder = GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.newBuilder()
 			.setName(mutation.getName())
-			.setAttributesInherited(mutation.isAttributesInherited());
+			.setAttributeInheritanceBehavior(toGrpcAttributeInheritanceBehavior(mutation.getAttributesInheritanceBehavior()));
 
-		for (String attributeName : mutation.getAttributesExcludedFromInheritance()) {
-			builder.addAttributesExcludedFromInheritance(attributeName);
+		for (String attributeName : mutation.getAttributeInheritanceFilter()) {
+			builder.addAttributeInheritanceFilter(attributeName);
 		}
 
 		return builder.build();

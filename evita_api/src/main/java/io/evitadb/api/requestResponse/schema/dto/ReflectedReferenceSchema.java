@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NamingConvention;
@@ -102,12 +103,14 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	/**
 	 * Contains TRUE if the attributes of the reflected reference are inherited from the target reference.
 	 */
-	private final boolean attributesInherited;
+	@Nonnull
+	private final AttributeInheritanceBehavior attributesInheritanceBehavior;
 	/**
-	 * Contains the names of the attributes that are excluded from inheritance.
+	 * Contains the names of the attributes that are explicitly inherited / excluded from inheritance
+	 * based on {@link #attributesInheritanceBehavior} value.
 	 */
 	@Nonnull
-	private final String[] attributesExcludedFromInheritance;
+	private final String[] attributeInheritanceFilter;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
@@ -132,7 +135,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			null,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			true,
+			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 			new String[0],
 			null
 		);
@@ -156,7 +159,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Boolean faceted,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
-		boolean attributesInherited,
+		@Nonnull AttributeInheritanceBehavior attributesInherited,
 		@Nullable String[] attributesExcludedFromInheritance
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
@@ -194,7 +197,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Boolean faceted,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
-		boolean attributesInherited,
+		@Nonnull AttributeInheritanceBehavior attributesInherited,
 		@Nullable String[] attributesExcludedFromInheritance
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
@@ -241,7 +244,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		boolean cardinalityInherited,
 		boolean indexedInherited,
 		boolean facetedInherited,
-		boolean attributesInherited,
+		@Nonnull AttributeInheritanceBehavior attributesInherited,
 		@Nullable String[] attributesExcludedFromInheritance,
 		@Nullable ReferenceSchemaContract reflectedReference
 	) {
@@ -271,22 +274,26 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * Returns new map that contains all the attributes of the reference and the reflected reference except the ones
 	 * that are excluded from inheritance.
 	 *
-	 * @param attributes                        the attributes of the reference
-	 * @param reflectedAttributes               the attributes of the reflected reference (inherited ones)
-	 * @param attributesExcludedFromInheritance the attributes excluded from inheritance
-	 * @param <V>                               the type of the attributes
+	 * @param attributes                    the attributes of the reference
+	 * @param reflectedAttributes           the attributes of the reflected reference (inherited ones)
+	 * @param attributesInheritanceBehavior the inheritance mode to use
+	 * @param attributeInheritanceFilter    the attributes inherited / excluded from inheritance
+	 * @param <V>                           the type of the attributes
 	 * @return the union of the attributes
 	 */
 	@Nonnull
 	private static <V> Map<String, V> union(
 		@Nonnull Map<String, V> attributes,
 		@Nonnull Map<String, V> reflectedAttributes,
-		@Nonnull String[] attributesExcludedFromInheritance
+		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
+		@Nonnull String[] attributeInheritanceFilter
 	) {
-		final Set<String> excludedAttributes = Set.of(attributesExcludedFromInheritance);
+		final Set<String> filteredAttributes = Set.of(attributeInheritanceFilter);
 		final HashMap<String, V> result = new HashMap<>(attributes);
+		final Predicate<String> attributeFilter = attributesInheritanceBehavior == AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED ?
+			filteredAttributes::contains : attribute -> !filteredAttributes.contains(attribute);
 		for (Entry<String, V> reflectedEntry : reflectedAttributes.entrySet()) {
-			if (!excludedAttributes.contains(reflectedEntry.getKey())) {
+			if (attributeFilter.test(reflectedEntry.getKey())) {
 				Assert.isPremiseValid(
 					!result.containsKey(reflectedEntry.getKey()),
 					"Attribute `" + reflectedEntry.getKey() + "` is inherited from the reflected reference, " +
@@ -300,7 +307,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 
 	/**
 	 * Returns a new map that contains the attributes from the "unionAttributes" map that satisfy the given predicate
-	 * "isOriginalPredicate". This method is used to inverse the effect of {@link #union(Map, Map, String[])} method.
+	 * "isOriginalPredicate". This method is used to inverse the effect of {@link #union(Map, Map, AttributeInheritanceBehavior, String[])} method.
 	 *
 	 * @param unionAttributes     the map containing the attributes
 	 * @param isOriginalPredicate the predicate to filter the attributes
@@ -328,8 +335,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Boolean faceted,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
-		boolean attributesInherited,
-		@Nullable String[] attributesExcludedFromInheritance,
+		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
+		@Nullable String[] attributeInheritanceFilter,
 		@Nullable ReferenceSchemaContract reflectedReference
 	) {
 		super(
@@ -344,8 +351,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			reflectedReference != null && reflectedReference.isReferencedGroupTypeManaged(),
 			indexed == null ? reflectedReference != null && reflectedReference.isIndexed() : indexed,
 			faceted == null ? reflectedReference != null && reflectedReference.isFaceted() : faceted,
-			reflectedReference != null && attributesInherited ? union(attributes, reflectedReference.getAttributes(), attributesExcludedFromInheritance) : attributes,
-			reflectedReference != null && attributesInherited ? union(sortableAttributeCompounds, reflectedReference.getSortableAttributeCompounds(), attributesExcludedFromInheritance) : sortableAttributeCompounds
+			reflectedReference != null ?
+				union(attributes, reflectedReference.getAttributes(), attributesInheritanceBehavior, attributeInheritanceFilter) : attributes,
+			reflectedReference != null ?
+				union(sortableAttributeCompounds, reflectedReference.getSortableAttributeCompounds(), attributesInheritanceBehavior, attributeInheritanceFilter) : sortableAttributeCompounds
 		);
 		Assert.isTrue(
 			reflectedReference == null || reflectedReference.getName().equals(reflectedReferenceName),
@@ -374,8 +383,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.facetedInherited || faceted != null,
 			"Faceted must be either inherited or specified explicitly!"
 		);
-		this.attributesInherited = attributesInherited;
-		this.attributesExcludedFromInheritance = attributesExcludedFromInheritance == null ? new String[0] : attributesExcludedFromInheritance;
+		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
+		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? new String[0] : attributeInheritanceFilter;
 	}
 
 	public ReflectedReferenceSchema(
@@ -399,8 +408,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		boolean cardinalityInherited,
 		boolean indexedInherited,
 		boolean facetedInherited,
-		boolean attributesInherited,
-		@Nullable String[] attributesExcludedFromInheritance,
+		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
+		@Nullable String[] attributeInheritanceFilter,
 		@Nullable ReferenceSchemaContract reflectedReference
 	) {
 		super(
@@ -426,8 +435,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		this.cardinalityInherited = cardinalityInherited;
 		this.indexedInherited = indexedInherited;
 		this.facetedInherited = facetedInherited;
-		this.attributesInherited = attributesInherited;
-		this.attributesExcludedFromInheritance = attributesExcludedFromInheritance == null ? new String[0] : attributesExcludedFromInheritance;
+		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
+		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? new String[0] : attributeInheritanceFilter;
 	}
 
 	@Nonnull
@@ -452,17 +461,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	}
 
 	@Override
-	public boolean isAttributesInherited() {
-		return this.attributesInherited;
-	}
-
-	@Nonnull
-	@Override
-	public String[] getAttributesExcludedFromInheritance() {
-		return this.attributesExcludedFromInheritance;
-	}
-
-	@Override
 	public boolean isIndexedInherited() {
 		return this.indexedInherited;
 	}
@@ -470,6 +468,18 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	@Override
 	public boolean isFacetedInherited() {
 		return this.facetedInherited;
+	}
+
+	@Nonnull
+	@Override
+	public AttributeInheritanceBehavior getAttributesInheritanceBehavior() {
+		return this.attributesInheritanceBehavior;
+	}
+
+	@Nonnull
+	@Override
+	public String[] getAttributeInheritanceFilter() {
+		return this.attributeInheritanceFilter;
 	}
 
 	@Nullable
@@ -509,7 +519,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.reflectedReference != null,
 			"Reflected reference must be available to return a referenced group type!"
 		);
-		return super.getReferencedGroupType();
+		return this.reflectedReference.getReferencedGroupType();
 	}
 
 	@Override
@@ -518,7 +528,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.reflectedReference != null,
 			"Reflected reference must be available to return if the referenced group type is managed!"
 		);
-		return super.isReferencedGroupTypeManaged();
+		return this.reflectedReference.isReferencedGroupTypeManaged();
 	}
 
 	@Override
@@ -676,8 +686,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					this.getSortableAttributeCompounds(),
 					sortableAttributeCompoundName -> this.reflectedReference.getSortableAttributeCompound(sortableAttributeCompoundName).isPresent()
 				),
-			attributesInherited,
-			attributesExcludedFromInheritance,
+			attributesInheritanceBehavior,
+			attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}
@@ -697,7 +707,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		if (!super.equals(o)) return false;
 
 		ReflectedReferenceSchema that = (ReflectedReferenceSchema) o;
-		return descriptionInherited == that.descriptionInherited && deprecatedInherited == that.deprecatedInherited && cardinalityInherited == that.cardinalityInherited && indexedInherited == that.indexedInherited && facetedInherited == that.facetedInherited && attributesInherited == that.attributesInherited && reflectedReferenceName.equals(that.reflectedReferenceName) && Arrays.equals(attributesExcludedFromInheritance, that.attributesExcludedFromInheritance);
+		return descriptionInherited == that.descriptionInherited && deprecatedInherited == that.deprecatedInherited && cardinalityInherited == that.cardinalityInherited && indexedInherited == that.indexedInherited && facetedInherited == that.facetedInherited && attributesInheritanceBehavior == that.attributesInheritanceBehavior && reflectedReferenceName.equals(that.reflectedReferenceName) && Arrays.equals(attributeInheritanceFilter, that.attributeInheritanceFilter);
 	}
 
 	@Override
@@ -709,8 +719,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		result = 31 * result + Boolean.hashCode(cardinalityInherited);
 		result = 31 * result + Boolean.hashCode(indexedInherited);
 		result = 31 * result + Boolean.hashCode(facetedInherited);
-		result = 31 * result + Boolean.hashCode(attributesInherited);
-		result = 31 * result + Arrays.hashCode(attributesExcludedFromInheritance);
+		result = 31 * result + attributesInheritanceBehavior.hashCode();
+		result = 31 * result + Arrays.hashCode(attributeInheritanceFilter);
 		return result;
 	}
 
@@ -806,8 +816,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.cardinalityInherited,
 			this.indexedInherited,
 			this.facetedInherited,
-			this.attributesInherited,
-			this.attributesExcludedFromInheritance,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}
@@ -857,8 +867,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.cardinalityInherited,
 			this.indexedInherited,
 			this.facetedInherited,
-			this.attributesInherited,
-			this.attributesExcludedFromInheritance,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}
@@ -908,8 +918,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.cardinalityInherited,
 			this.indexedInherited,
 			this.facetedInherited,
-			this.attributesInherited,
-			this.attributesExcludedFromInheritance,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}
@@ -959,8 +969,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			cardinality == null,
 			this.indexedInherited,
 			this.facetedInherited,
-			this.attributesInherited,
-			this.attributesExcludedFromInheritance,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}
@@ -1010,8 +1020,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.cardinalityInherited,
 			indexed == null,
 			this.facetedInherited,
-			this.attributesInherited,
-			this.attributesExcludedFromInheritance,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}
@@ -1061,8 +1071,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.cardinalityInherited,
 			this.indexedInherited,
 			faceted == null,
-			this.attributesInherited,
-			this.attributesExcludedFromInheritance,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}
@@ -1070,14 +1080,14 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	/**
 	 * Creates a copy of this instance with different settings for:
 	 *
-	 * @param attributesInherited               attribute inheritance property
-	 * @param attributesExcludedFromInheritance set of attributes excluded from inheritance
+	 * @param inheritanceBehavior        attribute inheritance property
+	 * @param attributeInheritanceFilter set of attributes inherited / excluded from inheritance
 	 * @return copy of the schema with applied changes
 	 */
 	@Nonnull
 	public ReflectedReferenceSchemaContract withAttributeInheritance(
-		boolean attributesInherited,
-		@Nonnull String... attributesExcludedFromInheritance
+		@Nonnull AttributeInheritanceBehavior inheritanceBehavior,
+		@Nonnull String... attributeInheritanceFilter
 	) {
 		return new ReflectedReferenceSchema(
 			this.name,
@@ -1116,8 +1126,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.cardinalityInherited,
 			this.indexedInherited,
 			this.facetedInherited,
-			attributesInherited,
-			attributesExcludedFromInheritance,
+			inheritanceBehavior,
+			attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}
@@ -1154,7 +1164,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				union(
 					newlyDeclaredAttributes,
 					this.reflectedReference.getAttributes(),
-					this.attributesExcludedFromInheritance
+					this.attributesInheritanceBehavior,
+					this.attributeInheritanceFilter
 				),
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
@@ -1170,8 +1181,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.cardinalityInherited,
 			this.indexedInherited,
 			this.facetedInherited,
-			this.attributesInherited,
-			this.attributesExcludedFromInheritance,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}
@@ -1217,15 +1228,16 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				union(
 					newlyDeclaredSortableAttributeCompounds,
 					this.reflectedReference.getSortableAttributeCompounds(),
-					this.attributesExcludedFromInheritance
+					this.attributesInheritanceBehavior,
+					this.attributeInheritanceFilter
 				),
 			this.descriptionInherited,
 			this.deprecatedInherited,
 			this.cardinalityInherited,
 			this.indexedInherited,
 			this.facetedInherited,
-			this.attributesInherited,
-			this.attributesExcludedFromInheritance,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}
@@ -1257,36 +1269,40 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				union(
 					super.getAttributes(),
 					originalReference.getAttributes(),
-					this.attributesExcludedFromInheritance
+					this.attributesInheritanceBehavior,
+					this.attributeInheritanceFilter
 				) :
 				// if the reflected reference is present, attributes are merged using union function and we need to
 				// filter them out to leave attributes added on the reflected reference only
 				union(
 					this.getDeclaredAttributes(),
 					originalReference.getAttributes(),
-					this.attributesExcludedFromInheritance
+					this.attributesInheritanceBehavior,
+					this.attributeInheritanceFilter
 				),
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				union(
 					super.getSortableAttributeCompounds(),
 					originalReference.getSortableAttributeCompounds(),
-					this.attributesExcludedFromInheritance
+					this.attributesInheritanceBehavior,
+					this.attributeInheritanceFilter
 				) :
 				// if the reflected reference is present, attributes are merged using union function and we need to
 				// filter them out to leave attributes added on the reflected reference only
 				union(
 					this.getDeclaredSortableAttributeCompounds(),
 					originalReference.getSortableAttributeCompounds(),
-					this.attributesExcludedFromInheritance
+					this.attributesInheritanceBehavior,
+					this.attributeInheritanceFilter
 				),
 			this.descriptionInherited,
 			this.deprecatedInherited,
 			this.cardinalityInherited,
 			this.indexedInherited,
 			this.facetedInherited,
-			this.attributesInherited,
-			this.attributesExcludedFromInheritance,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
 			originalReference
 		);
 	}
@@ -1305,7 +1321,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 */
 	private void assertAttributes() {
 		Assert.isTrue(
-			!this.attributesInherited || this.reflectedReference != null,
+			(this.attributesInheritanceBehavior == AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED && ArrayUtils.isEmpty(this.attributeInheritanceFilter))
+				|| this.reflectedReference != null,
 			"Attributes of the reflected reference are inherited from the target reference, but the reflected reference is not available!"
 		);
 	}

@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -84,6 +85,7 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(OrderDirection.class, new EnumNameSerializer<>(), index++);
 		kryo.register(OrderBehaviour.class, new EnumNameSerializer<>(), index++);
 		kryo.register(ReflectedReferenceSchema.class, new SerialVersionBasedSerializer<>(new ReflectedReferenceSchemaSerializer(), ReflectedReferenceSchema.class), index++);
+		kryo.register(AttributeInheritanceBehavior.class, new EnumNameSerializer<>(), index++);
 
 		Assert.isPremiseValid(index < 500, "Index count overflow.");
 	}

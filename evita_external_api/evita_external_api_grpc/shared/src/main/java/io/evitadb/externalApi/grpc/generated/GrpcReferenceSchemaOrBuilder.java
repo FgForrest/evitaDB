@@ -632,53 +632,62 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * Contains true if the attributes of the reflected reference are inherited from the target reference.
    * </pre>
    *
-   * <code>bool attributesInherited = 24;</code>
-   * @return The attributesInherited.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;</code>
+   * @return The enum numeric value on the wire for attributeInheritanceBehavior.
    */
-  boolean getAttributesInherited();
+  int getAttributeInheritanceBehaviorValue();
+  /**
+   * <pre>
+   * Contains true if the attributes of the reflected reference are inherited from the target reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;</code>
+   * @return The attributeInheritanceBehavior.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior getAttributeInheritanceBehavior();
 
   /**
    * <pre>
-   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-   * this list is ignored.
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributesExcludedFromInheritance = 25;</code>
-   * @return A list containing the attributesExcludedFromInheritance.
+   * <code>repeated string attributeInheritanceFilter = 25;</code>
+   * @return A list containing the attributeInheritanceFilter.
    */
   java.util.List<java.lang.String>
-      getAttributesExcludedFromInheritanceList();
+      getAttributeInheritanceFilterList();
   /**
    * <pre>
-   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-   * this list is ignored.
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributesExcludedFromInheritance = 25;</code>
-   * @return The count of attributesExcludedFromInheritance.
+   * <code>repeated string attributeInheritanceFilter = 25;</code>
+   * @return The count of attributeInheritanceFilter.
    */
-  int getAttributesExcludedFromInheritanceCount();
+  int getAttributeInheritanceFilterCount();
   /**
    * <pre>
-   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-   * this list is ignored.
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributesExcludedFromInheritance = 25;</code>
+   * <code>repeated string attributeInheritanceFilter = 25;</code>
    * @param index The index of the element to return.
-   * @return The attributesExcludedFromInheritance at the given index.
+   * @return The attributeInheritanceFilter at the given index.
    */
-  java.lang.String getAttributesExcludedFromInheritance(int index);
+  java.lang.String getAttributeInheritanceFilter(int index);
   /**
    * <pre>
-   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-   * this list is ignored.
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributesExcludedFromInheritance = 25;</code>
+   * <code>repeated string attributeInheritanceFilter = 25;</code>
    * @param index The index of the value to return.
-   * @return The bytes of the attributesExcludedFromInheritance at the given index.
+   * @return The bytes of the attributeInheritanceFilter at the given index.
    */
   com.google.protobuf.ByteString
-      getAttributesExcludedFromInheritanceBytes(int index);
+      getAttributeInheritanceFilterBytes(int index);
 }

@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -106,8 +107,8 @@ public final class ReflectedReferenceSchemaBuilder
 					reflectedReferenceName,
 					baseSchema.isIndexedInherited() ? null : baseSchema.isIndexed(),
 					baseSchema.isFacetedInherited() ? null : baseSchema.isFaceted(),
-					baseSchema.isAttributesInherited(),
-					baseSchema.getAttributesExcludedFromInheritance()
+					baseSchema.getAttributesInheritanceBehavior(),
+					baseSchema.getAttributeInheritanceFilter()
 				)
 			);
 		}
@@ -200,7 +201,7 @@ public final class ReflectedReferenceSchemaBuilder
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
-					this.getName(), true
+					this.getName(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT
 				)
 			)
 		);
@@ -215,7 +216,22 @@ public final class ReflectedReferenceSchemaBuilder
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
-					this.getName(), false
+					this.getName(), AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED
+				)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder withAttributesInherited(@Nonnull String... attributeNames) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
+					this.getName(), AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED, attributeNames
 				)
 			)
 		);
@@ -230,7 +246,7 @@ public final class ReflectedReferenceSchemaBuilder
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
-					this.getName(), true, attributeNames
+					this.getName(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT, attributeNames
 				)
 			)
 		);

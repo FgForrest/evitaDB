@@ -132,7 +132,7 @@ public final class GrpcReferenceSchemaMutations {
       "referencedGroupType\030\007 \001(\0132\034.google.proto" +
       "buf.StringValue\022\"\n\032referencedGroupTypeMa" +
       "naged\030\010 \001(\010\022\022\n\nfilterable\030\t \001(\010\022\017\n\007facet" +
-      "ed\030\n \001(\010\"\326\003\n*GrpcCreateReflectedReferenc" +
+      "ed\030\n \001(\010\"\241\004\n*GrpcCreateReflectedReferenc" +
       "eSchemaMutation\022\014\n\004name\030\001 \001(\t\0221\n\013descrip" +
       "tion\030\002 \001(\0132\034.google.protobuf.StringValue" +
       "\0227\n\021deprecationNotice\030\003 \001(\0132\034.google.pro" +
@@ -142,47 +142,51 @@ public final class GrpcReferenceSchemaMutations {
       " \001(\t\022\036\n\026reflectedReferenceName\030\006 \001(\t\022.\n\n" +
       "filterable\030\007 \001(\0132\032.google.protobuf.BoolV" +
       "alue\022+\n\007faceted\030\010 \001(\0132\032.google.protobuf." +
-      "BoolValue\022\033\n\023attributesInherited\030\t \001(\010\022)" +
-      "\n!attributesExcludedFromInheritance\030\n \003(" +
-      "\t\"\237\001\n*GrpcModifyReferenceAttributeSchema" +
-      "Mutation\022\014\n\004name\030\001 \001(\t\022c\n\027attributeSchem" +
-      "aMutation\030\002 \001(\0132B.io.evitadb.externalApi" +
-      ".grpc.generated.GrpcAttributeSchemaMutat" +
-      "ion\"\320\001\n:GrpcModifyReferenceSortableAttri" +
-      "buteCompoundSchemaMutation\022\014\n\004name\030\001 \001(\t" +
-      "\022\203\001\n\'sortableAttributeCompoundSchemaMuta" +
-      "tion\030\002 \001(\0132R.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcSortableAttributeCompound" +
-      "SchemaMutation\"\211\001\n,GrpcModifyReferenceSc" +
-      "hemaCardinalityMutation\022\014\n\004name\030\001 \001(\t\022K\n" +
-      "\013cardinality\030\002 \001(\01626.io.evitadb.external" +
-      "Api.grpc.generated.GrpcCardinality\"{\n2Gr" +
-      "pcModifyReferenceSchemaDeprecationNotice" +
-      "Mutation\022\014\n\004name\030\001 \001(\t\0227\n\021deprecationNot" +
-      "ice\030\002 \001(\0132\034.google.protobuf.StringValue\"" +
-      "o\n,GrpcModifyReferenceSchemaDescriptionM" +
-      "utation\022\014\n\004name\030\001 \001(\t\0221\n\013description\030\002 \001" +
-      "(\0132\034.google.protobuf.StringValue\"F\n%Grpc" +
-      "ModifyReferenceSchemaNameMutation\022\014\n\004nam" +
-      "e\030\001 \001(\t\022\017\n\007newName\030\002 \001(\t\"\242\001\n3GrpcModifyR" +
-      "eferenceSchemaRelatedEntityGroupMutation" +
-      "\022\014\n\004name\030\001 \001(\t\0229\n\023referencedGroupType\030\002 " +
-      "\001(\0132\034.google.protobuf.StringValue\022\"\n\032ref" +
-      "erencedGroupTypeManaged\030\003 \001(\010\"\201\001\n.GrpcMo" +
-      "difyReferenceSchemaRelatedEntityMutation" +
-      "\022\014\n\004name\030\001 \001(\t\022\034\n\024referencedEntityType\030\002" +
-      " \001(\t\022#\n\033referencedEntityTypeManaged\030\003 \001(" +
-      "\010\"\226\001\n>GrpcModifyReflectedReferenceAttrib" +
-      "uteInheritanceSchemaMutation\022\014\n\004name\030\001 \001" +
-      "(\t\022\033\n\023attributesInherited\030\002 \001(\010\022)\n!attri" +
-      "butesExcludedFromInheritance\030\003 \003(\t\"1\n!Gr" +
-      "pcRemoveReferenceSchemaMutation\022\014\n\004name\030" +
-      "\001 \001(\t\"Y\n%GrpcSetReferenceSchemaFacetedMu" +
-      "tation\022\014\n\004name\030\001 \001(\t\022\017\n\007faceted\030\002 \001(\010\022\021\n" +
-      "\tinherited\030\003 \001(\010\"_\n(GrpcSetReferenceSche" +
-      "maFilterableMutation\022\014\n\004name\030\001 \001(\t\022\022\n\nfi" +
-      "lterable\030\002 \001(\010\022\021\n\tinherited\030\003 \001(\010B\014P\001\252\002\007" +
-      "EvitaDBb\006proto3"
+      "BoolValue\022m\n\034attributeInheritanceBehavio" +
+      "r\030\t \001(\0162G.io.evitadb.externalApi.grpc.ge" +
+      "nerated.GrpcAttributeInheritanceBehavior" +
+      "\022\"\n\032attributeInheritanceFilter\030\n \003(\t\"\237\001\n" +
+      "*GrpcModifyReferenceAttributeSchemaMutat" +
+      "ion\022\014\n\004name\030\001 \001(\t\022c\n\027attributeSchemaMuta" +
+      "tion\030\002 \001(\0132B.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcAttributeSchemaMutation\"\320" +
+      "\001\n:GrpcModifyReferenceSortableAttributeC" +
+      "ompoundSchemaMutation\022\014\n\004name\030\001 \001(\t\022\203\001\n\'" +
+      "sortableAttributeCompoundSchemaMutation\030" +
+      "\002 \001(\0132R.io.evitadb.externalApi.grpc.gene" +
+      "rated.GrpcSortableAttributeCompoundSchem" +
+      "aMutation\"\211\001\n,GrpcModifyReferenceSchemaC" +
+      "ardinalityMutation\022\014\n\004name\030\001 \001(\t\022K\n\013card" +
+      "inality\030\002 \001(\01626.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcCardinality\"{\n2GrpcMod" +
+      "ifyReferenceSchemaDeprecationNoticeMutat" +
+      "ion\022\014\n\004name\030\001 \001(\t\0227\n\021deprecationNotice\030\002" +
+      " \001(\0132\034.google.protobuf.StringValue\"o\n,Gr" +
+      "pcModifyReferenceSchemaDescriptionMutati" +
+      "on\022\014\n\004name\030\001 \001(\t\0221\n\013description\030\002 \001(\0132\034." +
+      "google.protobuf.StringValue\"F\n%GrpcModif" +
+      "yReferenceSchemaNameMutation\022\014\n\004name\030\001 \001" +
+      "(\t\022\017\n\007newName\030\002 \001(\t\"\242\001\n3GrpcModifyRefere" +
+      "nceSchemaRelatedEntityGroupMutation\022\014\n\004n" +
+      "ame\030\001 \001(\t\0229\n\023referencedGroupType\030\002 \001(\0132\034" +
+      ".google.protobuf.StringValue\022\"\n\032referenc" +
+      "edGroupTypeManaged\030\003 \001(\010\"\201\001\n.GrpcModifyR" +
+      "eferenceSchemaRelatedEntityMutation\022\014\n\004n" +
+      "ame\030\001 \001(\t\022\034\n\024referencedEntityType\030\002 \001(\t\022" +
+      "#\n\033referencedEntityTypeManaged\030\003 \001(\010\"\341\001\n" +
+      ">GrpcModifyReflectedReferenceAttributeIn" +
+      "heritanceSchemaMutation\022\014\n\004name\030\001 \001(\t\022m\n" +
+      "\034attributeInheritanceBehavior\030\002 \001(\0162G.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "AttributeInheritanceBehavior\022\"\n\032attribut" +
+      "eInheritanceFilter\030\003 \003(\t\"1\n!GrpcRemoveRe" +
+      "ferenceSchemaMutation\022\014\n\004name\030\001 \001(\t\"Y\n%G" +
+      "rpcSetReferenceSchemaFacetedMutation\022\014\n\004" +
+      "name\030\001 \001(\t\022\017\n\007faceted\030\002 \001(\010\022\021\n\tinherited" +
+      "\030\003 \001(\010\"_\n(GrpcSetReferenceSchemaFilterab" +
+      "leMutation\022\014\n\004name\030\001 \001(\t\022\022\n\nfilterable\030\002" +
+      " \001(\010\022\021\n\tinherited\030\003 \001(\010B\014P\001\252\002\007EvitaDBb\006p" +
+      "roto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -203,7 +207,7 @@ public final class GrpcReferenceSchemaMutations {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateReflectedReferenceSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateReflectedReferenceSchemaMutation_descriptor,
-        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Cardinality", "ReferencedEntityType", "ReflectedReferenceName", "Filterable", "Faceted", "AttributesInherited", "AttributesExcludedFromInheritance", });
+        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Cardinality", "ReferencedEntityType", "ReflectedReferenceName", "Filterable", "Faceted", "AttributeInheritanceBehavior", "AttributeInheritanceFilter", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyReferenceAttributeSchemaMutation_descriptor =
       getDescriptor().getMessageTypes().get(2);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyReferenceAttributeSchemaMutation_fieldAccessorTable = new
@@ -257,7 +261,7 @@ public final class GrpcReferenceSchemaMutations {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation_descriptor,
-        new java.lang.String[] { "Name", "AttributesInherited", "AttributesExcludedFromInheritance", });
+        new java.lang.String[] { "Name", "AttributeInheritanceBehavior", "AttributeInheritanceFilter", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveReferenceSchemaMutation_descriptor =
       getDescriptor().getMessageTypes().get(11);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveReferenceSchemaMutation_fieldAccessorTable = new

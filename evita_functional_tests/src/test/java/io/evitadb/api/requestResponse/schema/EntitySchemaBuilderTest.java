@@ -1282,7 +1282,7 @@ class EntitySchemaBuilderTest {
 	}
 
 	@Test
-	void shouldDefineBidirectionalReferences() {
+	void shouldDefineBidirectionalReferenceWithImplicitAttributeInheritance() {
 		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
 			catalogSchema,
 			productSchema
@@ -1344,6 +1344,192 @@ class EntitySchemaBuilderTest {
 	}
 
 	@Test
+	void shouldDefineBidirectionalReferenceWithExplicitAttributeInheritance() {
+		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		final String baseReferenceName = "productCategories";
+		productSchemaBuilder.withReferenceToEntity(
+			baseReferenceName, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+			whichIs -> whichIs
+				.withDescription("Assigned categories.")
+				.withGroupTypeRelatedToEntity(Entities.STORE)
+				.withAttribute("note", String.class)
+				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.indexed()
+				.faceted()
+		);
+
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			categorySchema
+		);
+
+		categorySchemaBuilder.withReflectedReferenceToEntity(
+			"categoryProducts", Entities.PRODUCT, baseReferenceName,
+			whichIs -> whichIs
+				.withDescription("Category products.")
+				.deprecated("No longer used.")
+				.withCardinality(Cardinality.ZERO_OR_MORE)
+				.withAttributesInherited("note")
+				.withAttribute("differentNote", String.class)
+				.nonIndexed()
+				.nonFaceted()
+		);
+
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference("categoryProducts")
+			.orElseThrow();
+
+		assertInstanceOf(ReflectedReferenceSchema.class, categoryProducts);
+		ReflectedReferenceSchema categoryProductsWithReference = ((ReflectedReferenceSchema) categoryProducts)
+			.withReferencedSchema(productSchemaBuilder.toInstance().getReference(baseReferenceName).orElseThrow());
+
+		assertEquals("categoryProducts", categoryProductsWithReference.getName());
+		assertEquals("Category products.", categoryProductsWithReference.getDescription());
+		assertFalse(categoryProductsWithReference.isDescriptionInherited());
+		assertEquals(Cardinality.ZERO_OR_MORE, categoryProductsWithReference.getCardinality());
+		assertFalse(categoryProductsWithReference.isCardinalityInherited());
+		assertFalse(categoryProductsWithReference.isIndexed());
+		assertFalse(categoryProductsWithReference.isIndexedInherited());
+		assertFalse(categoryProductsWithReference.isFaceted());
+		assertFalse(categoryProductsWithReference.isFacetedInherited());
+		assertEquals("No longer used.", categoryProductsWithReference.getDeprecationNotice());
+		assertFalse(categoryProductsWithReference.isDeprecatedInherited());
+
+		final Map<String, AttributeSchemaContract> categoryAttributes = categoryProductsWithReference.getAttributes();
+		assertEquals(2, categoryAttributes.size());
+		assertTrue(categoryAttributes.containsKey("note"));
+		assertTrue(categoryAttributes.containsKey("differentNote"));
+	}
+
+	@Test
+	void shouldDefineBidirectionalReferenceWithAllAttributesInherited() {
+		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		final String baseReferenceName = "productCategories";
+		productSchemaBuilder.withReferenceToEntity(
+			baseReferenceName, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+			whichIs -> whichIs
+				.withDescription("Assigned categories.")
+				.withGroupTypeRelatedToEntity(Entities.STORE)
+				.withAttribute("note", String.class)
+				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.indexed()
+				.faceted()
+		);
+
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			categorySchema
+		);
+
+		categorySchemaBuilder.withReflectedReferenceToEntity(
+			"categoryProducts", Entities.PRODUCT, baseReferenceName,
+			whichIs -> whichIs
+				.withDescription("Category products.")
+				.deprecated("No longer used.")
+				.withCardinality(Cardinality.ZERO_OR_MORE)
+				.withAttributesInherited()
+				.withAttribute("differentNote", String.class)
+				.nonIndexed()
+				.nonFaceted()
+		);
+
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference("categoryProducts")
+			.orElseThrow();
+
+		assertInstanceOf(ReflectedReferenceSchema.class, categoryProducts);
+		ReflectedReferenceSchema categoryProductsWithReference = ((ReflectedReferenceSchema) categoryProducts)
+			.withReferencedSchema(productSchemaBuilder.toInstance().getReference(baseReferenceName).orElseThrow());
+
+		assertEquals("categoryProducts", categoryProductsWithReference.getName());
+		assertEquals("Category products.", categoryProductsWithReference.getDescription());
+		assertFalse(categoryProductsWithReference.isDescriptionInherited());
+		assertEquals(Cardinality.ZERO_OR_MORE, categoryProductsWithReference.getCardinality());
+		assertFalse(categoryProductsWithReference.isCardinalityInherited());
+		assertFalse(categoryProductsWithReference.isIndexed());
+		assertFalse(categoryProductsWithReference.isIndexedInherited());
+		assertFalse(categoryProductsWithReference.isFaceted());
+		assertFalse(categoryProductsWithReference.isFacetedInherited());
+		assertEquals("No longer used.", categoryProductsWithReference.getDeprecationNotice());
+		assertFalse(categoryProductsWithReference.isDeprecatedInherited());
+
+		final Map<String, AttributeSchemaContract> categoryAttributes = categoryProductsWithReference.getAttributes();
+		assertEquals(3, categoryAttributes.size());
+		assertTrue(categoryAttributes.containsKey("note"));
+		assertTrue(categoryAttributes.containsKey("categoryPriority"));
+		assertTrue(categoryAttributes.containsKey("differentNote"));
+	}
+
+	@Test
+	void shouldDefineBidirectionalReferenceWithNoneAttributesInherited() {
+		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		final String baseReferenceName = "productCategories";
+		productSchemaBuilder.withReferenceToEntity(
+			baseReferenceName, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+			whichIs -> whichIs
+				.withDescription("Assigned categories.")
+				.withGroupTypeRelatedToEntity(Entities.STORE)
+				.withAttribute("note", String.class)
+				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.indexed()
+				.faceted()
+		);
+
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			categorySchema
+		);
+
+		categorySchemaBuilder.withReflectedReferenceToEntity(
+			"categoryProducts", Entities.PRODUCT, baseReferenceName,
+			whichIs -> whichIs
+				.withDescription("Category products.")
+				.deprecated("No longer used.")
+				.withCardinality(Cardinality.ZERO_OR_MORE)
+				.withoutAttributesInherited()
+				.withAttribute("differentNote", String.class)
+				.nonIndexed()
+				.nonFaceted()
+		);
+
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference("categoryProducts")
+			.orElseThrow();
+
+		assertInstanceOf(ReflectedReferenceSchema.class, categoryProducts);
+		ReflectedReferenceSchema categoryProductsWithReference = ((ReflectedReferenceSchema) categoryProducts)
+			.withReferencedSchema(productSchemaBuilder.toInstance().getReference(baseReferenceName).orElseThrow());
+
+		assertEquals("categoryProducts", categoryProductsWithReference.getName());
+		assertEquals("Category products.", categoryProductsWithReference.getDescription());
+		assertFalse(categoryProductsWithReference.isDescriptionInherited());
+		assertEquals(Cardinality.ZERO_OR_MORE, categoryProductsWithReference.getCardinality());
+		assertFalse(categoryProductsWithReference.isCardinalityInherited());
+		assertFalse(categoryProductsWithReference.isIndexed());
+		assertFalse(categoryProductsWithReference.isIndexedInherited());
+		assertFalse(categoryProductsWithReference.isFaceted());
+		assertFalse(categoryProductsWithReference.isFacetedInherited());
+		assertEquals("No longer used.", categoryProductsWithReference.getDeprecationNotice());
+		assertFalse(categoryProductsWithReference.isDeprecatedInherited());
+
+		final Map<String, AttributeSchemaContract> categoryAttributes = categoryProductsWithReference.getAttributes();
+		assertEquals(1, categoryAttributes.size());
+		assertTrue(categoryAttributes.containsKey("differentNote"));
+	}
+
+	@Test
 	void shouldDefineBidirectionalReferencesWithInheritedProperties() {
 		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
 			catalogSchema,
@@ -1368,7 +1554,8 @@ class EntitySchemaBuilderTest {
 		);
 
 		categorySchemaBuilder.withReflectedReferenceToEntity(
-			"categoryProducts", Entities.PRODUCT, baseReferenceName
+			"categoryProducts", Entities.PRODUCT, baseReferenceName,
+			ReflectedReferenceSchemaEditor::withAttributesInherited
 		);
 
 		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()

@@ -459,9 +459,9 @@ public class EntitySchemaConverter {
 				.setCardinalityInherited(reflectedSchema.isCardinalityInherited())
 				.setIndexedInherited(reflectedSchema.isIndexedInherited())
 				.setFacetedInherited(reflectedSchema.isFacetedInherited())
-				.setAttributesInherited(reflectedSchema.isAttributesInherited());
-			for (String attributeName : reflectedSchema.getAttributesExcludedFromInheritance()) {
-				builder.addAttributesExcludedFromInheritance(attributeName);
+				.setAttributeInheritanceBehavior(toGrpcAttributeInheritanceBehavior(reflectedSchema.getAttributesInheritanceBehavior()));
+			for (String attributeName : reflectedSchema.getAttributeInheritanceFilter()) {
+				builder.addAttributeInheritanceFilter(attributeName);
 			}
 			final Set<String> declaredAttributes = reflectedSchema.getDeclaredAttributes().keySet();
 			inheritedPredicate = attributeName -> !declaredAttributes.contains(attributeName);
@@ -635,8 +635,8 @@ public class EntitySchemaConverter {
 				referenceSchema.getCardinalityInherited(),
 				referenceSchema.getIndexedInherited(),
 				referenceSchema.getFacetedInherited(),
-				referenceSchema.getAttributesInherited(),
-				referenceSchema.getAttributesExcludedFromInheritanceList().toArray(String[]::new),
+				toAttributeInheritanceBehavior(referenceSchema.getAttributeInheritanceBehavior()),
+				referenceSchema.getAttributeInheritanceFilterList().toArray(String[]::new),
 				// here we create mock original reference - it won't be used in most cases, except for detecting
 				// inherited attributes
 				ReferenceSchema._internalBuild(

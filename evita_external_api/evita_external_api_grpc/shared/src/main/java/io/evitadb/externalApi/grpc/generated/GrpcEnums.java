@@ -164,8 +164,10 @@ public final class GrpcEnums {
       "ADY\020\001\022\020\n\014API_STALLING\020\002\022\020\n\014API_SHUTDOWN\020" +
       "\003\022\017\n\013API_UNKNOWN\020\004*`\n\027GrpcTaskSimplified" +
       "State\022\017\n\013TASK_QUEUED\020\000\022\020\n\014TASK_RUNNING\020\001" +
-      "\022\021\n\rTASK_FINISHED\020\002\022\017\n\013TASK_FAILED\020\003B\014P\001" +
-      "\252\002\007EvitaDBb\006proto3"
+      "\022\021\n\rTASK_FINISHED\020\002\022\017\n\013TASK_FAILED\020\003*V\n " +
+      "GrpcAttributeInheritanceBehavior\022\026\n\022INHE" +
+      "RIT_ALL_EXCEPT\020\000\022\032\n\026INHERIT_ONLY_SPECIFI" +
+      "ED\020\001B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

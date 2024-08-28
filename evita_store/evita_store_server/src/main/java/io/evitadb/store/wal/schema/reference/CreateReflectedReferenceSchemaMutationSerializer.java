@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 
 /**
@@ -47,9 +48,9 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 		output.writeString(mutation.getReflectedReferenceName());
 		kryo.writeObjectOrNull(output, mutation.getIndexed(), Boolean.class);
 		kryo.writeObjectOrNull(output, mutation.getFaceted(), Boolean.class);
-		output.writeBoolean(mutation.isAttributesInherited());
+		kryo.writeObject(output, mutation.getAttributesInheritanceBehavior());
 
-		final String[] attributesExcludedFromInheritance = mutation.getAttributesExcludedFromInheritance();
+		final String[] attributesExcludedFromInheritance = mutation.getAttributeInheritanceFilter();
 		output.writeVarInt(attributesExcludedFromInheritance.length, true);
 		for (final String attribute : attributesExcludedFromInheritance) {
 			output.writeString(attribute);
@@ -66,7 +67,7 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 		final String reflectedReferenceName = input.readString();
 		final Boolean indexed = kryo.readObjectOrNull(input, Boolean.class);
 		final Boolean faceted = kryo.readObjectOrNull(input, Boolean.class);
-		final boolean attributesInherited = input.readBoolean();
+		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
 		final int attributesExcludedFromInheritanceLength = input.readVarInt(true);
 		final String[] attributesExcludedFromInheritance = new String[attributesExcludedFromInheritanceLength];
 		for (int i = 0; i < attributesExcludedFromInheritanceLength; i++) {
@@ -82,7 +83,7 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			reflectedReferenceName,
 			indexed,
 			faceted,
-			attributesInherited,
+			attributeInheritanceBehavior,
 			attributesExcludedFromInheritance
 		);
 	}

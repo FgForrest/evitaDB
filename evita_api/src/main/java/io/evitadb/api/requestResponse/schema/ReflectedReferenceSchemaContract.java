@@ -76,22 +76,6 @@ public interface ReflectedReferenceSchemaContract extends ReferenceSchemaContrac
 	boolean isCardinalityInherited();
 
 	/**
-	 * Returns true if the attributes of the reflected reference are inherited from the target reference.
-	 *
-	 * @return true if the attributes are inherited, false otherwise
-	 */
-	boolean isAttributesInherited();
-
-	/**
-	 * Returns the array of attribute names that are excluded from inheritance. If the {@link #isAttributesInherited()}
-	 * is set to false, this list is ignored.
-	 *
-	 * @return array of attributes that are excluded from inheritance
-	 */
-	@Nonnull
-	String[] getAttributesExcludedFromInheritance();
-
-	/**
 	 * Returns true if the indexed property settings of the reflected reference is inherited from the target reference.
 	 *
 	 * @return true if the indexed property settings is inherited, false otherwise
@@ -104,5 +88,51 @@ public interface ReflectedReferenceSchemaContract extends ReferenceSchemaContrac
 	 * @return true if the faceted property settings is inherited, false otherwise
 	 */
 	boolean isFacetedInherited();
+
+	/**
+	 * Returns the inheritance behavior for attributes in the reflected schema.
+	 *
+	 * This method returns an instance of the {@link AttributeInheritanceBehavior} enum that specifies how attribute
+	 * inheritance should be handled in the reference schema. There are two options:
+	 *
+	 * - {@link AttributeInheritanceBehavior#INHERIT_ALL_EXCEPT}: All attributes are inherited by default,
+	 *   except those listed in the {@link #getAttributeInheritanceFilter()}.
+	 *
+	 * - {@link AttributeInheritanceBehavior#INHERIT_ONLY_SPECIFIED}: No attributes are inherited by default,
+	 *   only those explicitly listed in the {@link #getAttributeInheritanceFilter()}.
+	 *
+	 * @return The inheritance behavior for attributes in the schema.
+	 */
+	@Nonnull
+	AttributeInheritanceBehavior getAttributesInheritanceBehavior();
+
+	/**
+	 * Returns the array of attribute names that filtered in the way driven by the {@link #getAttributesInheritanceBehavior()}
+	 * property:
+	 *
+	 * - {@link AttributeInheritanceBehavior#INHERIT_ALL_EXCEPT}: inherits all attributes defined on original reference
+	 *   except those listed in this filter
+	 * - {@link AttributeInheritanceBehavior#INHERIT_ONLY_SPECIFIED}: inherits only attributes that are listed in
+	 *   this filter
+	 *
+	 * @return array of attribute names
+	 */
+	@Nonnull
+	String[] getAttributeInheritanceFilter();
+
+	/**
+	 * Enum specifies different modes for reference attributes inheritance in reflected schema.
+	 */
+	enum AttributeInheritanceBehavior {
+		/**
+		 * Inherit all attributes by default except those listed in the {@link #getAttributeInheritanceFilter()} array.
+		 */
+		INHERIT_ALL_EXCEPT,
+
+		/**
+		 * Do not inherit any attributes by default except those listed in the {@link #getAttributeInheritanceFilter()} array.
+		 */
+		INHERIT_ONLY_SPECIFIED
+	}
 
 }

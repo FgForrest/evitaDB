@@ -46,7 +46,8 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation() {
     name_ = "";
-    attributesExcludedFromInheritance_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    attributeInheritanceBehavior_ = 0;
+    attributeInheritanceFilter_ = com.google.protobuf.LazyStringArrayList.EMPTY;
   }
 
   @java.lang.Override
@@ -87,17 +88,18 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 16: {
+            int rawValue = input.readEnum();
 
-            attributesInherited_ = input.readBool();
+            attributeInheritanceBehavior_ = rawValue;
             break;
           }
           case 26: {
             java.lang.String s = input.readStringRequireUtf8();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              attributesExcludedFromInheritance_ = new com.google.protobuf.LazyStringArrayList();
+              attributeInheritanceFilter_ = new com.google.protobuf.LazyStringArrayList();
               mutable_bitField0_ |= 0x00000001;
             }
-            attributesExcludedFromInheritance_.add(s);
+            attributeInheritanceFilter_.add(s);
             break;
           }
           default: {
@@ -116,7 +118,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        attributesExcludedFromInheritance_ = attributesExcludedFromInheritance_.getUnmodifiableView();
+        attributeInheritanceFilter_ = attributeInheritanceFilter_.getUnmodifiableView();
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -181,74 +183,86 @@ private static final long serialVersionUID = 0L;
     }
   }
 
-  public static final int ATTRIBUTESINHERITED_FIELD_NUMBER = 2;
-  private boolean attributesInherited_;
+  public static final int ATTRIBUTEINHERITANCEBEHAVIOR_FIELD_NUMBER = 2;
+  private int attributeInheritanceBehavior_;
   /**
    * <pre>
    * Contains true if the attributes of the reflected reference are inherited from the target reference.
    * </pre>
    *
-   * <code>bool attributesInherited = 2;</code>
-   * @return The attributesInherited.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 2;</code>
+   * @return The enum numeric value on the wire for attributeInheritanceBehavior.
    */
-  @java.lang.Override
-  public boolean getAttributesInherited() {
-    return attributesInherited_;
+  @java.lang.Override public int getAttributeInheritanceBehaviorValue() {
+    return attributeInheritanceBehavior_;
+  }
+  /**
+   * <pre>
+   * Contains true if the attributes of the reflected reference are inherited from the target reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 2;</code>
+   * @return The attributeInheritanceBehavior.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior getAttributeInheritanceBehavior() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior result = io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.valueOf(attributeInheritanceBehavior_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.UNRECOGNIZED : result;
   }
 
-  public static final int ATTRIBUTESEXCLUDEDFROMINHERITANCE_FIELD_NUMBER = 3;
-  private com.google.protobuf.LazyStringList attributesExcludedFromInheritance_;
+  public static final int ATTRIBUTEINHERITANCEFILTER_FIELD_NUMBER = 3;
+  private com.google.protobuf.LazyStringList attributeInheritanceFilter_;
   /**
    * <pre>
-   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-   * this list is ignored.
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributesExcludedFromInheritance = 3;</code>
-   * @return A list containing the attributesExcludedFromInheritance.
+   * <code>repeated string attributeInheritanceFilter = 3;</code>
+   * @return A list containing the attributeInheritanceFilter.
    */
   public com.google.protobuf.ProtocolStringList
-      getAttributesExcludedFromInheritanceList() {
-    return attributesExcludedFromInheritance_;
+      getAttributeInheritanceFilterList() {
+    return attributeInheritanceFilter_;
   }
   /**
    * <pre>
-   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-   * this list is ignored.
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributesExcludedFromInheritance = 3;</code>
-   * @return The count of attributesExcludedFromInheritance.
+   * <code>repeated string attributeInheritanceFilter = 3;</code>
+   * @return The count of attributeInheritanceFilter.
    */
-  public int getAttributesExcludedFromInheritanceCount() {
-    return attributesExcludedFromInheritance_.size();
+  public int getAttributeInheritanceFilterCount() {
+    return attributeInheritanceFilter_.size();
   }
   /**
    * <pre>
-   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-   * this list is ignored.
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributesExcludedFromInheritance = 3;</code>
+   * <code>repeated string attributeInheritanceFilter = 3;</code>
    * @param index The index of the element to return.
-   * @return The attributesExcludedFromInheritance at the given index.
+   * @return The attributeInheritanceFilter at the given index.
    */
-  public java.lang.String getAttributesExcludedFromInheritance(int index) {
-    return attributesExcludedFromInheritance_.get(index);
+  public java.lang.String getAttributeInheritanceFilter(int index) {
+    return attributeInheritanceFilter_.get(index);
   }
   /**
    * <pre>
-   * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-   * this list is ignored.
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributesExcludedFromInheritance = 3;</code>
+   * <code>repeated string attributeInheritanceFilter = 3;</code>
    * @param index The index of the value to return.
-   * @return The bytes of the attributesExcludedFromInheritance at the given index.
+   * @return The bytes of the attributeInheritanceFilter at the given index.
    */
   public com.google.protobuf.ByteString
-      getAttributesExcludedFromInheritanceBytes(int index) {
-    return attributesExcludedFromInheritance_.getByteString(index);
+      getAttributeInheritanceFilterBytes(int index) {
+    return attributeInheritanceFilter_.getByteString(index);
   }
 
   private byte memoizedIsInitialized = -1;
@@ -268,11 +282,11 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
     }
-    if (attributesInherited_ != false) {
-      output.writeBool(2, attributesInherited_);
+    if (attributeInheritanceBehavior_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.getNumber()) {
+      output.writeEnum(2, attributeInheritanceBehavior_);
     }
-    for (int i = 0; i < attributesExcludedFromInheritance_.size(); i++) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 3, attributesExcludedFromInheritance_.getRaw(i));
+    for (int i = 0; i < attributeInheritanceFilter_.size(); i++) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 3, attributeInheritanceFilter_.getRaw(i));
     }
     unknownFields.writeTo(output);
   }
@@ -286,17 +300,17 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, name_);
     }
-    if (attributesInherited_ != false) {
+    if (attributeInheritanceBehavior_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(2, attributesInherited_);
+        .computeEnumSize(2, attributeInheritanceBehavior_);
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < attributesExcludedFromInheritance_.size(); i++) {
-        dataSize += computeStringSizeNoTag(attributesExcludedFromInheritance_.getRaw(i));
+      for (int i = 0; i < attributeInheritanceFilter_.size(); i++) {
+        dataSize += computeStringSizeNoTag(attributeInheritanceFilter_.getRaw(i));
       }
       size += dataSize;
-      size += 1 * getAttributesExcludedFromInheritanceList().size();
+      size += 1 * getAttributeInheritanceFilterList().size();
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -315,10 +329,9 @@ private static final long serialVersionUID = 0L;
 
     if (!getName()
         .equals(other.getName())) return false;
-    if (getAttributesInherited()
-        != other.getAttributesInherited()) return false;
-    if (!getAttributesExcludedFromInheritanceList()
-        .equals(other.getAttributesExcludedFromInheritanceList())) return false;
+    if (attributeInheritanceBehavior_ != other.attributeInheritanceBehavior_) return false;
+    if (!getAttributeInheritanceFilterList()
+        .equals(other.getAttributeInheritanceFilterList())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -332,12 +345,11 @@ private static final long serialVersionUID = 0L;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + NAME_FIELD_NUMBER;
     hash = (53 * hash) + getName().hashCode();
-    hash = (37 * hash) + ATTRIBUTESINHERITED_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getAttributesInherited());
-    if (getAttributesExcludedFromInheritanceCount() > 0) {
-      hash = (37 * hash) + ATTRIBUTESEXCLUDEDFROMINHERITANCE_FIELD_NUMBER;
-      hash = (53 * hash) + getAttributesExcludedFromInheritanceList().hashCode();
+    hash = (37 * hash) + ATTRIBUTEINHERITANCEBEHAVIOR_FIELD_NUMBER;
+    hash = (53 * hash) + attributeInheritanceBehavior_;
+    if (getAttributeInheritanceFilterCount() > 0) {
+      hash = (37 * hash) + ATTRIBUTEINHERITANCEFILTER_FIELD_NUMBER;
+      hash = (53 * hash) + getAttributeInheritanceFilterList().hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -480,9 +492,9 @@ private static final long serialVersionUID = 0L;
       super.clear();
       name_ = "";
 
-      attributesInherited_ = false;
+      attributeInheritanceBehavior_ = 0;
 
-      attributesExcludedFromInheritance_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      attributeInheritanceFilter_ = com.google.protobuf.LazyStringArrayList.EMPTY;
       bitField0_ = (bitField0_ & ~0x00000001);
       return this;
     }
@@ -512,12 +524,12 @@ private static final long serialVersionUID = 0L;
       io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation result = new io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation(this);
       int from_bitField0_ = bitField0_;
       result.name_ = name_;
-      result.attributesInherited_ = attributesInherited_;
+      result.attributeInheritanceBehavior_ = attributeInheritanceBehavior_;
       if (((bitField0_ & 0x00000001) != 0)) {
-        attributesExcludedFromInheritance_ = attributesExcludedFromInheritance_.getUnmodifiableView();
+        attributeInheritanceFilter_ = attributeInheritanceFilter_.getUnmodifiableView();
         bitField0_ = (bitField0_ & ~0x00000001);
       }
-      result.attributesExcludedFromInheritance_ = attributesExcludedFromInheritance_;
+      result.attributeInheritanceFilter_ = attributeInheritanceFilter_;
       onBuilt();
       return result;
     }
@@ -570,16 +582,16 @@ private static final long serialVersionUID = 0L;
         name_ = other.name_;
         onChanged();
       }
-      if (other.getAttributesInherited() != false) {
-        setAttributesInherited(other.getAttributesInherited());
+      if (other.attributeInheritanceBehavior_ != 0) {
+        setAttributeInheritanceBehaviorValue(other.getAttributeInheritanceBehaviorValue());
       }
-      if (!other.attributesExcludedFromInheritance_.isEmpty()) {
-        if (attributesExcludedFromInheritance_.isEmpty()) {
-          attributesExcludedFromInheritance_ = other.attributesExcludedFromInheritance_;
+      if (!other.attributeInheritanceFilter_.isEmpty()) {
+        if (attributeInheritanceFilter_.isEmpty()) {
+          attributeInheritanceFilter_ = other.attributeInheritanceFilter_;
           bitField0_ = (bitField0_ & ~0x00000001);
         } else {
-          ensureAttributesExcludedFromInheritanceIsMutable();
-          attributesExcludedFromInheritance_.addAll(other.attributesExcludedFromInheritance_);
+          ensureAttributeInheritanceFilterIsMutable();
+          attributeInheritanceFilter_.addAll(other.attributeInheritanceFilter_);
         }
         onChanged();
       }
@@ -709,31 +721,62 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private boolean attributesInherited_ ;
+    private int attributeInheritanceBehavior_ = 0;
     /**
      * <pre>
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>bool attributesInherited = 2;</code>
-     * @return The attributesInherited.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 2;</code>
+     * @return The enum numeric value on the wire for attributeInheritanceBehavior.
+     */
+    @java.lang.Override public int getAttributeInheritanceBehaviorValue() {
+      return attributeInheritanceBehavior_;
+    }
+    /**
+     * <pre>
+     * Contains true if the attributes of the reflected reference are inherited from the target reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 2;</code>
+     * @param value The enum numeric value on the wire for attributeInheritanceBehavior to set.
+     * @return This builder for chaining.
+     */
+    public Builder setAttributeInheritanceBehaviorValue(int value) {
+
+      attributeInheritanceBehavior_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains true if the attributes of the reflected reference are inherited from the target reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 2;</code>
+     * @return The attributeInheritanceBehavior.
      */
     @java.lang.Override
-    public boolean getAttributesInherited() {
-      return attributesInherited_;
+    public io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior getAttributeInheritanceBehavior() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior result = io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.valueOf(attributeInheritanceBehavior_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.UNRECOGNIZED : result;
     }
     /**
      * <pre>
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>bool attributesInherited = 2;</code>
-     * @param value The attributesInherited to set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 2;</code>
+     * @param value The attributeInheritanceBehavior to set.
      * @return This builder for chaining.
      */
-    public Builder setAttributesInherited(boolean value) {
+    public Builder setAttributeInheritanceBehavior(io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
 
-      attributesInherited_ = value;
+      attributeInheritanceBehavior_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -742,167 +785,167 @@ private static final long serialVersionUID = 0L;
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>bool attributesInherited = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 2;</code>
      * @return This builder for chaining.
      */
-    public Builder clearAttributesInherited() {
+    public Builder clearAttributeInheritanceBehavior() {
 
-      attributesInherited_ = false;
+      attributeInheritanceBehavior_ = 0;
       onChanged();
       return this;
     }
 
-    private com.google.protobuf.LazyStringList attributesExcludedFromInheritance_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-    private void ensureAttributesExcludedFromInheritanceIsMutable() {
+    private com.google.protobuf.LazyStringList attributeInheritanceFilter_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    private void ensureAttributeInheritanceFilterIsMutable() {
       if (!((bitField0_ & 0x00000001) != 0)) {
-        attributesExcludedFromInheritance_ = new com.google.protobuf.LazyStringArrayList(attributesExcludedFromInheritance_);
+        attributeInheritanceFilter_ = new com.google.protobuf.LazyStringArrayList(attributeInheritanceFilter_);
         bitField0_ |= 0x00000001;
        }
     }
     /**
      * <pre>
-     * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-     * this list is ignored.
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributesExcludedFromInheritance = 3;</code>
-     * @return A list containing the attributesExcludedFromInheritance.
+     * <code>repeated string attributeInheritanceFilter = 3;</code>
+     * @return A list containing the attributeInheritanceFilter.
      */
     public com.google.protobuf.ProtocolStringList
-        getAttributesExcludedFromInheritanceList() {
-      return attributesExcludedFromInheritance_.getUnmodifiableView();
+        getAttributeInheritanceFilterList() {
+      return attributeInheritanceFilter_.getUnmodifiableView();
     }
     /**
      * <pre>
-     * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-     * this list is ignored.
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributesExcludedFromInheritance = 3;</code>
-     * @return The count of attributesExcludedFromInheritance.
+     * <code>repeated string attributeInheritanceFilter = 3;</code>
+     * @return The count of attributeInheritanceFilter.
      */
-    public int getAttributesExcludedFromInheritanceCount() {
-      return attributesExcludedFromInheritance_.size();
+    public int getAttributeInheritanceFilterCount() {
+      return attributeInheritanceFilter_.size();
     }
     /**
      * <pre>
-     * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-     * this list is ignored.
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributesExcludedFromInheritance = 3;</code>
+     * <code>repeated string attributeInheritanceFilter = 3;</code>
      * @param index The index of the element to return.
-     * @return The attributesExcludedFromInheritance at the given index.
+     * @return The attributeInheritanceFilter at the given index.
      */
-    public java.lang.String getAttributesExcludedFromInheritance(int index) {
-      return attributesExcludedFromInheritance_.get(index);
+    public java.lang.String getAttributeInheritanceFilter(int index) {
+      return attributeInheritanceFilter_.get(index);
     }
     /**
      * <pre>
-     * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-     * this list is ignored.
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributesExcludedFromInheritance = 3;</code>
+     * <code>repeated string attributeInheritanceFilter = 3;</code>
      * @param index The index of the value to return.
-     * @return The bytes of the attributesExcludedFromInheritance at the given index.
+     * @return The bytes of the attributeInheritanceFilter at the given index.
      */
     public com.google.protobuf.ByteString
-        getAttributesExcludedFromInheritanceBytes(int index) {
-      return attributesExcludedFromInheritance_.getByteString(index);
+        getAttributeInheritanceFilterBytes(int index) {
+      return attributeInheritanceFilter_.getByteString(index);
     }
     /**
      * <pre>
-     * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-     * this list is ignored.
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributesExcludedFromInheritance = 3;</code>
+     * <code>repeated string attributeInheritanceFilter = 3;</code>
      * @param index The index to set the value at.
-     * @param value The attributesExcludedFromInheritance to set.
+     * @param value The attributeInheritanceFilter to set.
      * @return This builder for chaining.
      */
-    public Builder setAttributesExcludedFromInheritance(
+    public Builder setAttributeInheritanceFilter(
         int index, java.lang.String value) {
       if (value == null) {
     throw new NullPointerException();
   }
-  ensureAttributesExcludedFromInheritanceIsMutable();
-      attributesExcludedFromInheritance_.set(index, value);
+  ensureAttributeInheritanceFilterIsMutable();
+      attributeInheritanceFilter_.set(index, value);
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-     * this list is ignored.
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributesExcludedFromInheritance = 3;</code>
-     * @param value The attributesExcludedFromInheritance to add.
+     * <code>repeated string attributeInheritanceFilter = 3;</code>
+     * @param value The attributeInheritanceFilter to add.
      * @return This builder for chaining.
      */
-    public Builder addAttributesExcludedFromInheritance(
+    public Builder addAttributeInheritanceFilter(
         java.lang.String value) {
       if (value == null) {
     throw new NullPointerException();
   }
-  ensureAttributesExcludedFromInheritanceIsMutable();
-      attributesExcludedFromInheritance_.add(value);
+  ensureAttributeInheritanceFilterIsMutable();
+      attributeInheritanceFilter_.add(value);
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-     * this list is ignored.
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributesExcludedFromInheritance = 3;</code>
-     * @param values The attributesExcludedFromInheritance to add.
+     * <code>repeated string attributeInheritanceFilter = 3;</code>
+     * @param values The attributeInheritanceFilter to add.
      * @return This builder for chaining.
      */
-    public Builder addAllAttributesExcludedFromInheritance(
+    public Builder addAllAttributeInheritanceFilter(
         java.lang.Iterable<java.lang.String> values) {
-      ensureAttributesExcludedFromInheritanceIsMutable();
+      ensureAttributeInheritanceFilterIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, attributesExcludedFromInheritance_);
+          values, attributeInheritanceFilter_);
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-     * this list is ignored.
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributesExcludedFromInheritance = 3;</code>
+     * <code>repeated string attributeInheritanceFilter = 3;</code>
      * @return This builder for chaining.
      */
-    public Builder clearAttributesExcludedFromInheritance() {
-      attributesExcludedFromInheritance_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    public Builder clearAttributeInheritanceFilter() {
+      attributeInheritanceFilter_ = com.google.protobuf.LazyStringArrayList.EMPTY;
       bitField0_ = (bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * The array of attribute names that are excluded from inheritance. If the attributesInherited is set to false,
-     * this list is ignored.
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributesExcludedFromInheritance = 3;</code>
-     * @param value The bytes of the attributesExcludedFromInheritance to add.
+     * <code>repeated string attributeInheritanceFilter = 3;</code>
+     * @param value The bytes of the attributeInheritanceFilter to add.
      * @return This builder for chaining.
      */
-    public Builder addAttributesExcludedFromInheritanceBytes(
+    public Builder addAttributeInheritanceFilterBytes(
         com.google.protobuf.ByteString value) {
       if (value == null) {
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      ensureAttributesExcludedFromInheritanceIsMutable();
-      attributesExcludedFromInheritance_.add(value);
+      ensureAttributeInheritanceFilterIsMutable();
+      attributeInheritanceFilter_.add(value);
       onChanged();
       return this;
     }

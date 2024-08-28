@@ -90,6 +90,16 @@ public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSche
 	S withoutAttributesInherited();
 
 	/**
+	 * Specifies that the explicitly defined set attributes of the reflected reference are inherited from the target
+	 * reference.
+	 *
+	 * @param attributeNames attribute names that should only be inherited
+	 * @return this
+	 */
+	@Nonnull
+	S withAttributesInherited(@Nonnull String... attributeNames);
+
+	/**
 	 * Specifies that the attributes of the reflected reference are inherited from the target reference, except for the
 	 * specified attribute names.
 	 *

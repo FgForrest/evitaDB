@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
 
 /**
@@ -40,8 +41,8 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutationSerialize
 	@Override
 	public void write(Kryo kryo, Output output, ModifyReflectedReferenceAttributeInheritanceSchemaMutation mutation) {
 		output.writeString(mutation.getName());
-		output.writeBoolean(mutation.isAttributesInherited());
-		final String[] attributesExcludedFromInheritance = mutation.getAttributesExcludedFromInheritance();
+		kryo.writeObject(output, mutation.getAttributesInheritanceBehavior());
+		final String[] attributesExcludedFromInheritance = mutation.getAttributeInheritanceFilter();
 		output.writeVarInt(attributesExcludedFromInheritance.length, true);
 		for (String attribute : attributesExcludedFromInheritance) {
 			output.writeString(attribute);
@@ -51,14 +52,14 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutationSerialize
 	@Override
 	public ModifyReflectedReferenceAttributeInheritanceSchemaMutation read(Kryo kryo, Input input, Class<? extends ModifyReflectedReferenceAttributeInheritanceSchemaMutation> type) {
 		final String name = input.readString();
-		final boolean attributesInherited = input.readBoolean();
+		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
 		final int attributesExcludedFromInheritanceLength = input.readVarInt(true);
 		final String[] attributesExcludedFromInheritance = new String[attributesExcludedFromInheritanceLength];
 		for (int i = 0; i < attributesExcludedFromInheritanceLength; i++) {
 			attributesExcludedFromInheritance[i] = input.readString();
 		}
 		return new ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
-			name, attributesInherited, attributesExcludedFromInheritance
+			name, attributeInheritanceBehavior, attributesExcludedFromInheritance
 		);
 	}
 

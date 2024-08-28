@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
@@ -80,8 +81,8 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 	@Getter @Nonnull private final String reflectedReferenceName;
 	@Getter @Nullable private final Boolean indexed;
 	@Getter @Nullable private final Boolean faceted;
-	@Getter private final boolean attributesInherited;
-	@Getter @Nullable private final String[] attributesExcludedFromInheritance;
+	@Getter @Nonnull private final AttributeInheritanceBehavior attributesInheritanceBehavior;
+	@Getter @Nullable private final String[] attributeInheritanceFilter;
 
 	public CreateReflectedReferenceSchemaMutation(
 		@Nonnull String name,
@@ -92,8 +93,8 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		@Nonnull String reflectedReferenceName,
 		@Nullable Boolean indexed,
 		@Nullable Boolean faceted,
-		boolean attributesInherited,
-		@Nullable String[] attributesExcludedFromInheritance
+		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
+		@Nullable String[] attributeInheritanceFilter
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
@@ -105,8 +106,8 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		this.reflectedReferenceName = reflectedReferenceName;
 		this.indexed = indexed;
 		this.faceted = faceted;
-		this.attributesInherited = attributesInherited;
-		this.attributesExcludedFromInheritance = attributesExcludedFromInheritance;
+		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
+		this.attributeInheritanceFilter = attributeInheritanceFilter;
 	}
 
 	@Nullable
@@ -187,8 +188,8 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			indexed, faceted,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			attributesInherited,
-			attributesExcludedFromInheritance
+			attributesInheritanceBehavior,
+			attributeInheritanceFilter
 		);
 	}
 
@@ -267,7 +268,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			", reflectedReferenceName='" + reflectedReferenceName + '\'' +
 			", indexed=" + indexed +
 			", faceted=" + faceted +
-			", attributesInherited=" + attributesInherited +
-			", attributesExcludedFromInheritance=" + Arrays.toString(attributesExcludedFromInheritance);
+			", attributesInherited=" + attributesInheritanceBehavior +
+			", attributesExcludedFromInheritance=" + Arrays.toString(attributeInheritanceFilter);
 	}
 }
