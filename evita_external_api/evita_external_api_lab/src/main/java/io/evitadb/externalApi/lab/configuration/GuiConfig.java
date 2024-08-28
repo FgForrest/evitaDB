@@ -62,7 +62,10 @@ public class GuiConfig {
 		this.preconfiguredConnections = preconfiguredConnections;
 	}
 
-	private static void validatePreconfiguredConnections(@Nonnull List<EvitaDBConnection> preconfiguredConnections) {
+	private static void validatePreconfiguredConnections(@Nullable List<EvitaDBConnection> preconfiguredConnections) {
+		if (preconfiguredConnections == null) {
+			return;
+		}
 		preconfiguredConnections.stream()
 			.collect(Collectors.groupingBy(EvitaDBConnection::id, Collectors.counting()))
 			.entrySet()
