@@ -26,10 +26,9 @@ package io.evitadb.externalApi.lab.configuration;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
+import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnectionDefinition;
 import lombok.Getter;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Optional;
@@ -44,7 +43,7 @@ public class GuiConfig {
 
 	@Getter private final boolean enabled;
 	@Getter private final boolean readOnly;
-	@Getter @Nullable private final List<EvitaDBConnection> preconfiguredConnections;
+	@Getter @Nullable private final List<EvitaDBConnectionDefinition> preconfiguredConnections;
 
 	public GuiConfig() {
 		this.enabled = true;
@@ -55,19 +54,19 @@ public class GuiConfig {
 	@JsonCreator
 	public GuiConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                 @Nullable @JsonProperty("readOnly") Boolean readOnly,
-	                 @Nullable @JsonProperty("preconfiguredConnections") List<EvitaDBConnection> preconfiguredConnections) {
+	                 @Nullable @JsonProperty("preconfiguredConnections") List<EvitaDBConnectionDefinition> preconfiguredConnections) {
 		this.enabled = Optional.ofNullable(enabled).orElse(true);
 		this.readOnly = Optional.ofNullable(readOnly).orElse(false);
 		validatePreconfiguredConnections(preconfiguredConnections);
 		this.preconfiguredConnections = preconfiguredConnections;
 	}
 
-	private static void validatePreconfiguredConnections(@Nullable List<EvitaDBConnection> preconfiguredConnections) {
+	private static void validatePreconfiguredConnections(@Nullable List<EvitaDBConnectionDefinition> preconfiguredConnections) {
 		if (preconfiguredConnections == null) {
 			return;
 		}
 		preconfiguredConnections.stream()
-			.collect(Collectors.groupingBy(EvitaDBConnection::id, Collectors.counting()))
+			.collect(Collectors.groupingBy(EvitaDBConnectionDefinition::id, Collectors.counting()))
 			.entrySet()
 			.stream()
 			.filter(it -> it.getValue() > 1)
@@ -76,7 +75,7 @@ public class GuiConfig {
 				throw new EvitaInvalidUsageException("Duplicate evitaDB connection id: " + it.getKey());
 			});
 		preconfiguredConnections.stream()
-			.collect(Collectors.groupingBy(EvitaDBConnection::name, Collectors.counting()))
+			.collect(Collectors.groupingBy(EvitaDBConnectionDefinition::name, Collectors.counting()))
 			.entrySet()
 			.stream()
 			.filter(it -> it.getValue() > 1)

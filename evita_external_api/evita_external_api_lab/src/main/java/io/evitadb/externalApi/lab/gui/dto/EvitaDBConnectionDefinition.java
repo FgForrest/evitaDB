@@ -27,8 +27,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Represents a single preconfigured connection to any remote or local evitaDB instance send to the actual evitaLab
- * with additional runtime info. This is used in the evitaLab
+ * Defines a single preconfigured connection to any remote or local evitaDB instance. This is used in the evitaLab
  * to maintain several connections to different evitaDB instances. We need this here to pass preconfigured connections
  * to the evitaLab.
  *
@@ -36,16 +35,16 @@ import javax.annotation.Nullable;
  *           if not specified, hash from the name will be used instead (not recommended, if name is changed, evitaLab will
  *           recognize it as a new connection)
  * @param name name of the connection displayed to users
- * @param systemApi connection to the system API
- * @param grpcApi gRPC API connection
- * @param restApi optional connection to the REST API of the target evitaDB instance
- * @param gqlApi connection to of the GraphQL API of the target evitaDB instance
+ * @param systemUrl URL of the system API
+ * @param grpcUrl gRPC API URL
+ * @param restUrl optional URL of the REST API of the target evitaDB instance
+ * @param gqlUrl optional URL of the GraphQL API of the target evitaDB instance
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record EvitaDBConnection(@Nullable String id,
-                                @Nonnull String name,
-                                @Nonnull ApiConnection systemApi,
-                                @Nonnull ApiConnection grpcApi,
-                                @Nullable ApiConnection gqlApi,
-                                @Nullable ApiConnection restApi) {
+public record EvitaDBConnectionDefinition(@Nullable String id,
+                                          @Nonnull String name,
+                                          @Nonnull String systemUrl,
+                                          @Nonnull String grpcUrl,
+                                          @Nullable String gqlUrl,
+                                          @Nullable String restUrl) {
 }

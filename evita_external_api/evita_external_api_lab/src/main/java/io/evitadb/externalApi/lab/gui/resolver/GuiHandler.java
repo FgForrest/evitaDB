@@ -36,10 +36,12 @@ import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
-import io.evitadb.externalApi.lab.LabManager;
 import io.evitadb.externalApi.lab.configuration.GuiConfig;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
+import io.evitadb.externalApi.lab.gui.dto.ApiConnection;
+import io.evitadb.externalApi.lab.gui.dto.ApiConnectionCertificateType;
 import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
+import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnectionDefinition;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.system.SystemProvider;
@@ -76,6 +78,8 @@ public class GuiHandler implements HttpService {
 	@Nonnull private final String serverName;
 	@Nonnull private final ApiOptions apiOptions;
 	@Nonnull private final ObjectMapper objectMapper;
+
+	private List<EvitaDBConnection> preconfiguredConnections = null;
 
 	@Nonnull
 	public static GuiHandler create(
@@ -168,24 +172,57 @@ public class GuiHandler implements HttpService {
 
 	@Nonnull
 	private List<EvitaDBConnection> resolvePreconfiguredEvitaDBConnections() {
-		final List<EvitaDBConnection> preconfiguredConnections = labConfig.getGui().getPreconfiguredConnections();
-		if (preconfiguredConnections != null) {
-			return preconfiguredConnections;
-		}
+		if (preconfiguredConnections == null) {
+			final List<EvitaDBConnectionDefinition> definedPreconfiguredConnections = labConfig.getGui().getPreconfiguredConnections();
+			if (definedPreconfiguredConnections != null) {
+				// use definitions from evita configuration
 
-		final SystemConfig systemConfig = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
-		final GrpcConfig grpcConfig = apiOptions.getEndpointConfiguration(GrpcProvider.CODE);
-		final GraphQLConfig graphQLConfig = apiOptions.getEndpointConfiguration(GraphQLProvider.CODE);
-		final RestConfig restConfig = apiOptions.getEndpointConfiguration(RestProvider.CODE);
-		final EvitaDBConnection selfConnection = new EvitaDBConnection(
-			null,
-			serverName,
-			Optional.ofNullable(systemConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElseThrow(() -> new ExternalApiInternalError("Missing system API.")),
-			Optional.ofNullable(grpcConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElseThrow(() -> new ExternalApiInternalError("Missing gRPC API.")),
-			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null),
-			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null)
-		);
-		return List.of(selfConnection);
+				preconfiguredConnections = definedPreconfiguredConnections
+					.stream()
+					.map(definition -> new EvitaDBConnection(
+						definition.id(),
+						definition.name(),
+						Optional.of(definition.systemUrl())
+							.map(systemUrl -> new ApiConnection(systemUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+							.get(),
+						Optional.of(definition.grpcUrl())
+							.map(grpcUrl -> new ApiConnection(grpcUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+							.get(),
+						Optional.ofNullable(definition.gqlUrl())
+							.map(gqlUrl -> new ApiConnection(gqlUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+							.orElse(null),
+						Optional.ofNullable(definition.restUrl())
+							.map(restUrl -> new ApiConnection(restUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+							.orElse(null)
+					))
+					.toList();
+			} else {
+				// create fallback connection to this evitaDB instance
+
+				final SystemConfig systemConfig = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
+				final GrpcConfig grpcConfig = apiOptions.getEndpointConfiguration(GrpcProvider.CODE);
+				final GraphQLConfig graphQLConfig = apiOptions.getEndpointConfiguration(GraphQLProvider.CODE);
+				final RestConfig restConfig = apiOptions.getEndpointConfiguration(RestProvider.CODE);
+				final EvitaDBConnection selfConnection = new EvitaDBConnection(
+					null,
+					serverName,
+					Optional.ofNullable(systemConfig)
+						.map(it -> new ApiConnection(it.getBaseUrls(apiOptions.exposedOn())[0], ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+						.orElseThrow(() -> new ExternalApiInternalError("Missing system API.")),
+					Optional.ofNullable(grpcConfig)
+						.map(it -> new ApiConnection(it.getBaseUrls(apiOptions.exposedOn())[0], ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+						.orElseThrow(() -> new ExternalApiInternalError("Missing gRPC API.")),
+					Optional.ofNullable(graphQLConfig)
+						.map(it -> new ApiConnection(it.getBaseUrls(apiOptions.exposedOn())[0], ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+						.orElse(null),
+					Optional.ofNullable(restConfig)
+						.map(it -> new ApiConnection(it.getBaseUrls(apiOptions.exposedOn())[0], ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+						.orElse(null)
+				);
+				preconfiguredConnections = List.of(selfConnection);
+			}
+		}
+		return preconfiguredConnections;
 	}
 
 	@Nonnull
