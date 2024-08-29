@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.grpc.utils;
 
 import com.google.protobuf.GeneratedMessageV3;
-import com.google.rpc.Code;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryParser;
 import io.evitadb.api.query.parser.DefaultQueryParser;
@@ -40,6 +39,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
+
+import static io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor.sendErrorToClient;
 
 /**
  * Class containing utility methods targeting on query, such as its parsing or getting specific parts of it.
@@ -82,7 +83,7 @@ public class QueryUtil {
 				.toArray(EntityContentRequire[]::new);
 		} catch (EvitaInvalidUsageException ex) {
 			if (responseObserver != null) {
-				responseObserver.onError(ExceptionStatusProvider.getStatus(ex, Code.INVALID_ARGUMENT, "Query parsing error"));
+				sendErrorToClient(ex, responseObserver);
 			}
 			throw ex;
 		}
@@ -107,7 +108,7 @@ public class QueryUtil {
 			return parser.parseQuery(queryString, QueryConverter.convertQueryParamsList(queryParams));
 		} catch (Exception ex) {
 			if (responseObserver != null) {
-				responseObserver.onError(ExceptionStatusProvider.getStatus(ex, Code.INVALID_ARGUMENT, "Query parsing error"));
+				sendErrorToClient(ex, responseObserver);
 			}
 			return null;
 		}
@@ -132,7 +133,7 @@ public class QueryUtil {
 			return parser.parseQuery(queryString, QueryConverter.convertQueryParamsMap(queryParams));
 		} catch (Exception ex) {
 			if (responseObserver != null) {
-				responseObserver.onError(ExceptionStatusProvider.getStatus(ex, Code.INVALID_ARGUMENT, "Query parsing error"));
+				sendErrorToClient(ex, responseObserver);
 			}
 			return null;
 		}
@@ -172,7 +173,7 @@ public class QueryUtil {
 			);
 		} catch (Exception ex) {
 			if (responseObserver != null) {
-				responseObserver.onError(ExceptionStatusProvider.getStatus(ex, Code.INVALID_ARGUMENT, "Query parsing error"));
+				sendErrorToClient(ex, responseObserver);
 			}
 			return null;
 		}
@@ -195,7 +196,7 @@ public class QueryUtil {
 			return parser.parseQueryUnsafe(queryString);
 		} catch (Exception ex) {
 			if (responseObserver != null) {
-				responseObserver.onError(ExceptionStatusProvider.getStatus(ex, Code.INVALID_ARGUMENT, "Query parsing error"));
+				sendErrorToClient(ex, responseObserver);
 			}
 			return null;
 		}

@@ -96,6 +96,12 @@ message GrpcTaskStatusesRequest {
   int32 pageNumber = 1;
   // Number of task statuses per page.
   int32 pageSize = 2;
+  // Optional taskType of the listed task, passing non-null value
+  // in this argument filters the returned status to only those that are related to the tasks of specified type
+  google.protobuf.StringValue taskType = 3;
+  // Optional set of simplified task states, passing list of enums in this argument
+  // filters the returned statuses to only those that match this simplified status
+  repeated GrpcTaskSimplifiedState simplifiedState = 4;
 }
 
 // Response to a task statuses request.

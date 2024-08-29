@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.async.SequentialTask;
 import io.evitadb.core.file.ExportFileService;
@@ -182,9 +183,9 @@ public class EvitaManagement implements EvitaManagementContract {
 
 	@Nonnull
 	@Override
-	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
+	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize, @Nullable String taskType, @Nonnull TaskSimplifiedState... states) {
 		this.evita.assertActive();
-		return this.serviceExecutor.listTaskStatuses(page, pageSize);
+		return this.serviceExecutor.listTaskStatuses(page, pageSize, taskType, states);
 	}
 
 	@Nonnull

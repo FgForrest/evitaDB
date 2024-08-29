@@ -102,13 +102,14 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			);
 		}
 
+		final PaginatedList<FileForFetch> fileForFetches = this.exportFileService.listFilesToFetch(1, 5, null);
 		assertArrayEquals(
 			new String[] {
 				"testFile27.txt", "testFile26.txt", "testFile25.txt", "testFile24.txt", "testFile23.txt"
 			},
-			this.exportFileService.listFilesToFetch(1, 5, null)
-				.getData().stream().map(FileForFetch::name).toArray(String[]::new)
+			fileForFetches.getData().stream().map(FileForFetch::name).toArray(String[]::new)
 		);
+		assertEquals(28, fileForFetches.getTotalRecordCount());
 
 		assertArrayEquals(
 			new String[] {

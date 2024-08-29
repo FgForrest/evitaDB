@@ -26,7 +26,7 @@ package io.evitadb.driver;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -114,7 +114,7 @@ public class ClientTaskTracker implements Closeable {
 	@Nonnull
 	public <S, T> ClientTask<S, T> createTask(@Nonnull TaskStatus<S, T> taskStatus) {
 		assertActive();
-		if (taskStatus.state() == State.QUEUED || taskStatus.state() == State.RUNNING) {
+		if (taskStatus.simplifiedState() == TaskSimplifiedState.QUEUED || taskStatus.simplifiedState() == TaskSimplifiedState.RUNNING) {
 			// we need to add the task to the queue and track its status - unless it's already GCed
 			final ClientTask<S, T> taskToTrack = new ClientTask<>(
 				taskStatus,

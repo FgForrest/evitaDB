@@ -25,6 +25,7 @@ package io.evitadb.driver;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
+import com.google.protobuf.StringValue;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
@@ -35,6 +36,7 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -42,6 +44,7 @@ import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaMan
 import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaManagementServiceStub;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
@@ -248,19 +251,28 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 
 	@Nonnull
 	@Override
-	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
+	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(
+		int page, int pageSize,
+		@Nullable String taskType,
+		@Nonnull TaskSimplifiedState... states
+	) {
 		this.evitaClient.assertActive();
 
 		final GrpcTaskStatusesResponse response = executeWithEvitaService(
 			this.evitaManagementServiceFutureStub,
 			evitaService -> {
 				final Timeout timeoutToUse = this.evitaClient.timeout.get().peek();
-				return evitaService.listTaskStatuses(
-					GrpcTaskStatusesRequest.newBuilder()
-						.setPageNumber(page)
-						.setPageSize(pageSize)
-						.build()
-				).get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
+				final GrpcTaskStatusesRequest.Builder builder = GrpcTaskStatusesRequest.newBuilder()
+					.setPageNumber(page)
+					.setPageSize(pageSize);
+				if (taskType != null) {
+					builder.setTaskType(StringValue.of(taskType));
+				}
+				for (TaskSimplifiedState state : states) {
+					builder.addSimplifiedState(EvitaEnumConverter.toGrpcSimplifiedStatus(state));
+				}
+				return evitaService.listTaskStatuses(builder.build())
+					.get(timeoutToUse.timeout(), timeoutToUse.timeoutUnit());
 			}
 		);
 

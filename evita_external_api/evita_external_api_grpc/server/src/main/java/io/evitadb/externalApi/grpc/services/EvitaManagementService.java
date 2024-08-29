@@ -32,6 +32,7 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaManagement;
 import io.evitadb.core.file.ExportFileService;
@@ -46,7 +47,7 @@ import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder;
-import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
@@ -79,6 +80,7 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrp
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcHealthProblem;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcReadinessState;
+import static io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor.sendErrorToClient;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -123,7 +125,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							lambda.run();
 						} catch (RuntimeException exception) {
 							// Delegate exception handling to GlobalExceptionHandlerInterceptor
-							GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
+							sendErrorToClient(exception, responseObserver);
 						}
 					}
 				)
@@ -329,7 +331,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							log.error("Failed to close output stream for backup file: {}", finalBackupFilePath, e);
 						} finally {
 							deleteFileIfExists(finalBackupFilePath, "restore");
-							responseObserver.onError(t);
+							sendErrorToClient(t, responseObserver);
 						}
 					}
 
@@ -351,13 +353,13 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							);
 							responseObserver.onCompleted();
 						} catch (Exception e) {
-							responseObserver.onError(e);
 							deleteFileIfExists(finalBackupFilePath, "restore");
+							sendErrorToClient(e, responseObserver);
 						}
 					}
 				};
 			} catch (IOException e) {
-				responseObserver.onError(e);
+				sendErrorToClient(e, responseObserver);
 				throw e;
 			}
 		} catch (Exception e) {
@@ -401,7 +403,12 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 			() -> {
 				final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(
 					request.getPageNumber(),
-					request.getPageSize()
+					request.getPageSize(),
+					request.hasTaskType() ? request.getTaskType().getValue() : null,
+					request.getSimplifiedStateList()
+						.stream()
+						.map(EvitaEnumConverter::toSimplifiedStatus)
+						.toArray(TaskSimplifiedState[]::new)
 				);
 				final Builder builder = GrpcTaskStatusesResponse.newBuilder();
 				taskStatuses.getData()
@@ -417,7 +424,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				responseObserver.onCompleted();
 			},
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 	/**
@@ -527,8 +535,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 								.setFileToFetch(EvitaDataTypesConverter.toGrpcFile(file))
 								.build()
 						),
-						() -> responseObserver.onError(
-							new FileForFetchNotFoundException(toUuid(request.getFileId()))
+						() -> sendErrorToClient(
+							new FileForFetchNotFoundException(toUuid(request.getFileId())), responseObserver
 						)
 					);
 				responseObserver.onCompleted();
@@ -547,7 +555,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				final UUID fileId = toUuid(request.getFileId());
 				final Optional<FileForFetch> fileToFetch = management.getFileToFetch(fileId);
 				if (fileToFetch.isEmpty()) {
-					responseObserver.onError(new FileForFetchNotFoundException(fileId));
+					sendErrorToClient(new FileForFetchNotFoundException(fileId), responseObserver);
 				} else {
 					try (
 						final InputStream inputStream = management.fetchFile(

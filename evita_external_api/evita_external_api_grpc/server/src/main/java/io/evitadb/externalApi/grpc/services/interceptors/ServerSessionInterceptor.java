@@ -25,10 +25,11 @@ package io.evitadb.externalApi.grpc.services.interceptors;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.TlsMode;
+import io.evitadb.externalApi.exception.InvalidSchemeException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -36,6 +37,7 @@ import io.grpc.Context;
 import io.grpc.Contexts;
 import io.grpc.InternalMetadata;
 import io.grpc.Metadata;
+import io.grpc.Metadata.Key;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
@@ -61,6 +63,8 @@ import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADE
 @RequiredArgsConstructor
 public class ServerSessionInterceptor implements ServerInterceptor {
 	private static final Set<String> ENDPOINTS_NOT_REQUIRING_SESSION = CollectionUtils.createHashSet(32);
+	public static final String METADATA_CAUSE = "cause";
+
 	static {
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/IsReady");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateReadOnlySession");
@@ -138,15 +142,21 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			final String scheme = metadata.get(InternalMetadata.keyOf(":scheme", Metadata.ASCII_STRING_MARSHALLER));
 			if ("https".equals(scheme) && tlsMode == TlsMode.FORCE_NO_TLS) {
 				final Status status = Status.UNAUTHENTICATED
-					.withCause(new EvitaInvalidUsageException("TLS is not required for this endpoint."))
+					.withCause(new InvalidSchemeException("TLS is not required for this endpoint."))
 					.withDescription("TLS is not required for this endpoint.");
+				Metadata trailers = new Metadata();
+				trailers.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "invalidProtocol");
+				serverCall.sendHeaders(trailers);
 				serverCall.close(status, metadata);
 				return new ServerCall.Listener<>() {};
 			}
 			if ("http".equals(scheme) && tlsMode == TlsMode.FORCE_TLS) {
 				final Status status = Status.UNAUTHENTICATED
-					.withCause(new EvitaInvalidUsageException("TLS is required for this endpoint."))
+					.withCause(new InvalidSchemeException("TLS is required for this endpoint."))
 					.withDescription("TLS is required for this endpoint.");
+				Metadata trailers = new Metadata();
+				trailers.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "invalidProtocol");
+				serverCall.sendHeaders(trailers);
 				serverCall.close(status, metadata);
 				return new ServerCall.Listener<>() {};
 			}
@@ -157,9 +167,12 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		final Optional<EvitaInternalSessionContract> activeSession = resolveActiveSession(sessionId);
 		if (activeSession.isEmpty() && isEndpointRequiresSession(serverCall)) {
 			final Status status = Status.UNAUTHENTICATED
-				.withCause(new EvitaInvalidUsageException("Your session is either not set or is not active."))
+				.withCause(new SessionNotFoundException("Your session is either not set or is not active."))
 				.withDescription("Your session (session id: " + sessionId + ") is either not set or is not active.");
-			serverCall.close(status, metadata);
+			Metadata trailers = new Metadata();
+			trailers.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "sessionNotFound");
+			serverCall.sendHeaders(trailers);
+			serverCall.close(status, trailers);
 			return new ServerCall.Listener<>() {};
 		}
 

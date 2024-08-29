@@ -21,4 +21,22 @@
  *   limitations under the License.
  */
 
-import{p as i,m as f,a as _,b as d,c as v,u as y,d as V,e as a,_ as h,r as C,o as k,f as w,w as A}from"./index-553d2b69.js";import{m as R,c as x}from"./layout-7b3b7988.js";const P=i({...f(),...R({fullHeight:!0}),..._()},"VApp"),g=d()({name:"VApp",props:P(),setup(e,s){let{slots:t}=s;const o=v(e),{layoutClasses:c,layoutStyles:l,getLayoutItem:n,items:p,layoutRef:u}=x(e),{rtlClasses:m}=y();return V(()=>{var r;return a("div",{ref:u,class:["v-application",o.themeClasses.value,c.value,m.value,e.class],style:[l.value,e.style]},[a("div",{class:"v-application__wrap"},[(r=t.default)==null?void 0:r.call(t)])])}),{getLayoutItem:n,items:p,theme:o}}}),L={};function B(e,s){const t=C("RouterView");return k(),w(g,null,{default:A(()=>[a(t)]),_:1})}const D=h(L,[["render",B]]);export{D as default};
+package io.evitadb.externalApi.exception;
+
+
+import javax.annotation.Nonnull;
+import java.io.Serial;
+
+/**
+ * Exception is raised when client accesses the API endpoint via incorrect HTTP scheme.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ */
+public class InvalidSchemeException extends ExternalApiInvalidUsageException {
+	@Serial private static final long serialVersionUID = 3934858455674566277L;
+
+	public InvalidSchemeException(@Nonnull String publicMessage) {
+		super(publicMessage);
+	}
+
+}

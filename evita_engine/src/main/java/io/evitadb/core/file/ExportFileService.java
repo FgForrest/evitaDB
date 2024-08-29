@@ -132,7 +132,7 @@ public class ExportFileService {
 			.toList();
 		return new PaginatedList<>(
 			page, pageSize,
-			filePage.size(),
+			filteredFiles.size(),
 			filePage
 		);
 	}

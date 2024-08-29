@@ -25,7 +25,7 @@ package io.evitadb.driver;
 
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.Test;
@@ -64,7 +64,7 @@ class ClientTaskTrackerTest implements TestConstants {
 				null, null, null, null
 			)
 		);
-		assertEquals(State.QUEUED, task.getStatus().state());
+		assertEquals(TaskSimplifiedState.QUEUED, task.getStatus().simplifiedState());
 
 		Mockito.doAnswer(
 			invocation -> List.of(
@@ -92,7 +92,7 @@ class ClientTaskTrackerTest implements TestConstants {
 				null, null, null, null
 			)
 		);
-		assertEquals(State.QUEUED, task.getStatus().state());
+		assertEquals(TaskSimplifiedState.QUEUED, task.getStatus().simplifiedState());
 		task.cancel();
 
 		// cancelling on the client should trigger cancelling the task on the server
