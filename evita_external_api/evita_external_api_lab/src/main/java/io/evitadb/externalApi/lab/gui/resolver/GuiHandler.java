@@ -31,6 +31,7 @@ import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.file.HttpFile;
 import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
@@ -91,10 +92,30 @@ public class GuiHandler implements HttpService {
 		return new GuiHandler(labConfig, serverName, apiOptions, objectMapper);
 	}
 
-	private GuiHandler(@Nonnull LabConfig labConfig,
-	                   @Nonnull String serverName,
-	                   @Nonnull ApiOptions apiOptions,
-	                   @Nonnull ObjectMapper objectMapper) {
+	/**
+	 * Creates a resource location with forward slashes. It is necessary to handle it this way for the sake of Windows
+	 * compatibility - it needs forwards slashes within jar file resources.
+	 *
+	 * @param path path of a jar file resource to be converted
+	 * @return path of a jar file resource with forward slashes
+	 */
+	@Nonnull
+	private static String createJarResourceLocationWithForwardSlashes(@Nonnull Path path) {
+		return path.toString().replace("\\", "/");
+	}
+
+	@Nonnull
+	private static String createCookie(@Nonnull String name, @Nonnull String value) {
+		return name + "=" + BASE_64_ENCODER.encodeToString(value.getBytes(StandardCharsets.UTF_8)) + ";SameSite=Strict";
+	}
+
+
+	private GuiHandler(
+		@Nonnull LabConfig labConfig,
+		@Nonnull String serverName,
+		@Nonnull ApiOptions apiOptions,
+		@Nonnull ObjectMapper objectMapper
+	) {
 		this.labConfig = labConfig;
 		this.serverName = serverName;
 		this.apiOptions = apiOptions;
@@ -122,18 +143,6 @@ public class GuiHandler implements HttpService {
 			return HttpFile.of(classLoader, createJarResourceLocationWithForwardSlashes(fsPath.resolve(Paths.get(path.substring(1))))).asService().serve(ctx, req);
 		}
 		return HttpResponse.of(404);
-	}
-
-
-	/**
-	 * Creates a resource location with forward slashes. It is necessary to handle it this way for the sake of Windows
-	 * compatibility - it needs forwards slashes within jar file resources.
-	 * @param path path of a jar file resource to be converted
-	 * @return path of a jar file resource with forward slashes
-	 */
-	@Nonnull
-	private static String createJarResourceLocationWithForwardSlashes(@Nonnull Path path) {
-		return path.toString().replace("\\", "/");
 	}
 
 	private void passServerName(@Nonnull ServiceRequestContext ctx) {
@@ -183,16 +192,16 @@ public class GuiHandler implements HttpService {
 						definition.id(),
 						definition.name(),
 						Optional.of(definition.systemUrl())
-							.map(systemUrl -> new ApiConnection(systemUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+							.map(systemUrl -> new ApiConnection(systemUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo lho: this need to be configured in lab-config
 							.get(),
 						Optional.of(definition.grpcUrl())
-							.map(grpcUrl -> new ApiConnection(grpcUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+							.map(grpcUrl -> new ApiConnection(grpcUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo lho: this need to be configured in lab-config
 							.get(),
 						Optional.ofNullable(definition.gqlUrl())
-							.map(gqlUrl -> new ApiConnection(gqlUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+							.map(gqlUrl -> new ApiConnection(gqlUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo lho: this need to be configured in lab-config
 							.orElse(null),
 						Optional.ofNullable(definition.restUrl())
-							.map(restUrl -> new ApiConnection(restUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+							.map(restUrl -> new ApiConnection(restUrl, ApiConnectionCertificateType.SELF_SIGNED)) // todo lho: this need to be configured in lab-config
 							.orElse(null)
 					))
 					.toList();
@@ -203,30 +212,48 @@ public class GuiHandler implements HttpService {
 				final GrpcConfig grpcConfig = apiOptions.getEndpointConfiguration(GrpcProvider.CODE);
 				final GraphQLConfig graphQLConfig = apiOptions.getEndpointConfiguration(GraphQLProvider.CODE);
 				final RestConfig restConfig = apiOptions.getEndpointConfiguration(RestProvider.CODE);
+				final ApiConnectionCertificateType certificateType = apiOptions.certificate().generateAndUseSelfSigned() ?
+					ApiConnectionCertificateType.SELF_SIGNED : ApiConnectionCertificateType.TRUSTED;
+
 				final EvitaDBConnection selfConnection = new EvitaDBConnection(
 					null,
 					serverName,
 					Optional.ofNullable(systemConfig)
-						.map(it -> new ApiConnection(it.getBaseUrls(apiOptions.exposedOn())[0], ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+						.map(
+							it -> new ApiConnection(
+								it.getBaseUrls(apiOptions.exposedOn())[0],
+								it.getTlsMode() == TlsMode.FORCE_NO_TLS ? ApiConnectionCertificateType.NONE : certificateType
+							)
+						)
 						.orElseThrow(() -> new ExternalApiInternalError("Missing system API.")),
 					Optional.ofNullable(grpcConfig)
-						.map(it -> new ApiConnection(it.getBaseUrls(apiOptions.exposedOn())[0], ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+						.map(
+							it -> new ApiConnection(
+								it.getBaseUrls(apiOptions.exposedOn())[0],
+								it.getTlsMode() == TlsMode.FORCE_NO_TLS ? ApiConnectionCertificateType.NONE : certificateType
+							)
+						)
 						.orElseThrow(() -> new ExternalApiInternalError("Missing gRPC API.")),
 					Optional.ofNullable(graphQLConfig)
-						.map(it -> new ApiConnection(it.getBaseUrls(apiOptions.exposedOn())[0], ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+						.map(
+							it -> new ApiConnection(
+								it.getBaseUrls(apiOptions.exposedOn())[0],
+								it.getTlsMode() == TlsMode.FORCE_NO_TLS ? ApiConnectionCertificateType.NONE : certificateType
+							)
+						)
 						.orElse(null),
 					Optional.ofNullable(restConfig)
-						.map(it -> new ApiConnection(it.getBaseUrls(apiOptions.exposedOn())[0], ApiConnectionCertificateType.SELF_SIGNED)) // todo jno: resolve cert type
+						.map(
+							it -> new ApiConnection(
+								it.getBaseUrls(apiOptions.exposedOn())[0],
+								it.getTlsMode() == TlsMode.FORCE_NO_TLS ? ApiConnectionCertificateType.NONE : certificateType
+							)
+						)
 						.orElse(null)
 				);
 				preconfiguredConnections = List.of(selfConnection);
 			}
 		}
 		return preconfiguredConnections;
-	}
-
-	@Nonnull
-	private static String createCookie(@Nonnull String name, @Nonnull String value) {
-		return name + "=" + BASE_64_ENCODER.encodeToString(value.getBytes(StandardCharsets.UTF_8)) + ";SameSite=Strict";
 	}
 }
