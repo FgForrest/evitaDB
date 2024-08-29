@@ -55,6 +55,8 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutorWithImplicitMutations;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutorWithImplicitMutations.ImplicitMutations;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -86,6 +88,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
@@ -129,6 +132,7 @@ import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
+import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -159,8 +163,9 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public final class EntityCollection implements
-	TransactionalLayerProducer<DataStoreChanges<EntityIndexKey, EntityIndex>, EntityCollection>,
+	TransactionalLayerProducer<DataStoreChanges, EntityCollection>,
 	EntityCollectionContract,
+	DataStoreReader,
 	CatalogRelatedDataStructure<EntityCollection> {
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -210,7 +215,8 @@ public final class EntityCollection implements
 	 *
 	 * @see TransactionalDataStoreMemoryBuffer documentation
 	 */
-	@Getter private final DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> dataStoreBuffer;
+	@Delegate(types = DataStoreReader.class)
+	@Getter private final DataStoreMemoryBuffer dataStoreBuffer;
 	/**
 	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified
 	 * by its {@link Formula#getHash()} method and when the supervisor identifies that certain
@@ -270,22 +276,38 @@ public final class EntityCollection implements
 	 * and `entityIndexUpdater`.
 	 */
 	private static void processMutations(
-		@Nonnull Collection<? extends LocalMutation<?, ?>> localMutations,
+		@Nonnull Catalog catalog,
+		@Nonnull List<? extends LocalMutation<?, ?>> localMutations,
+		boolean generateImplicitMutations,
 		@Nonnull LocalMutationExecutor... mutationApplicators
 	) {
 		try {
 
-			do {
-				for (LocalMutation<?, ?> localMutation : localMutations) {
-					for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
-						mutationApplicator.applyMutation(localMutation);
+			for (LocalMutation<?, ?> localMutation : localMutations) {
+				for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
+					mutationApplicator.applyMutation(localMutation);
+				}
+			}
+
+			// find applicators that are able to produce implicit mutations
+			if (generateImplicitMutations) {
+				for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
+					if (mutationApplicator instanceof LocalMutationExecutorWithImplicitMutations lmewim) {
+						final ImplicitMutations implicitMutations = lmewim.popImplicitMutations(localMutations);
+						// immediately apply all local mutations
+						for (LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
+							for (LocalMutationExecutor applicator : mutationApplicators) {
+								applicator.applyMutation(localMutation);
+							}
+						}
+						// and for each external mutation - call external collection to apply it
+						for (EntityMutation entityMutation : implicitMutations.externalMutations()) {
+							/* TODO JNO - rollbackable apply mutation, with implicit flag to avoid this section!!! */
+							catalog.applyMutation(entityMutation);
+						}
 					}
 				}
-
-				localMutations = Arrays.stream(mutationApplicators)
-					.flatMap(it -> it.popImplicitMutations().stream())
-					.toList();
-			} while (!localMutations.isEmpty());
+			}
 
 		} catch (RuntimeException ex) {
 			// rollback all changes in memory if anything failed
@@ -346,8 +368,8 @@ public final class EntityCollection implements
 		// initialize container buffer
 		final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer<>(storagePartPersistenceService) :
-			new TransactionalDataStoreMemoryBuffer<>(this, storagePartPersistenceService);
+			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
+			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
 		// initialize schema - still in constructor
 		this.initialSchema = ofNullable(storagePartPersistenceService.getStoragePart(catalogVersion, 1, EntitySchemaStoragePart.class))
 			.map(EntitySchemaStoragePart::entitySchema)
@@ -404,8 +426,8 @@ public final class EntityCollection implements
 		this.persistenceService = persistenceService;
 		this.indexPkSequence = indexPkSequence;
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer<>(persistenceService.getStoragePartPersistenceService()) :
-			new TransactionalDataStoreMemoryBuffer<>(this, persistenceService.getStoragePartPersistenceService());
+			new WarmUpDataStoreMemoryBuffer(persistenceService.getStoragePartPersistenceService()) :
+			new TransactionalDataStoreMemoryBuffer(this, persistenceService.getStoragePartPersistenceService());
 		this.indexes = new TransactionalMap<>(indexes, it -> (EntityIndex) it);
 		this.cacheSupervisor = cacheSupervisor;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, dataStoreBuffer);
@@ -766,7 +788,8 @@ public final class EntityCollection implements
 			applyMutations(
 				entityMutation,
 				Objects.requireNonNull(getFullEntityById(removeMutation.getEntityPrimaryKey()).entity()),
-				!(removeMutation instanceof VerifiedEntityRemoveMutation)
+				!(removeMutation instanceof VerifiedEntityRemoveMutation),
+				false
 			);
 		} else {
 			throw new InvalidMutationException(
@@ -1327,8 +1350,8 @@ public final class EntityCollection implements
 	 */
 
 	@Override
-	public DataStoreChanges<EntityIndexKey, EntityIndex> createLayer() {
-		return new DataStoreChanges<>(
+	public DataStoreChanges createLayer() {
+		return new DataStoreChanges(
 			Transaction.createTransactionalPersistenceService(
 				this.persistenceService.getStoragePartPersistenceService()
 			)
@@ -1344,9 +1367,9 @@ public final class EntityCollection implements
 
 	@Nonnull
 	@Override
-	public EntityCollection createCopyWithMergedTransactionalMemory(@Nullable DataStoreChanges<EntityIndexKey, EntityIndex> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public EntityCollection createCopyWithMergedTransactionalMemory(@Nullable DataStoreChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final long catalogVersion = this.catalog.getVersion();
-		final DataStoreChanges<EntityIndexKey, EntityIndex> transactionalChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this);
+		final DataStoreChanges transactionalChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this);
 		if (transactionalChanges != null) {
 			// when we register all storage parts for persisting we can now release transactional memory
 			transactionalLayer.removeTransactionalMemoryLayer(this);
@@ -1667,15 +1690,15 @@ public final class EntityCollection implements
 
 		// check the existence of the primary key and report error when unexpectedly (not) provided
 		final SealedEntitySchema currentSchema = getSchema();
-		final boolean verifiedMutation = entityMutation instanceof VerifiedEntityUpsertMutation;
-		final EntityMutation entityMutationToUpsert = verifiedMutation ?
-			entityMutation : verifyPrimaryKeyAssignment(entityMutation, currentSchema);
 
-		applyMutations(
-			entityMutationToUpsert,
-			null,
-			!verifiedMutation
-		);
+		final EntityMutation entityMutationToUpsert;
+		if (entityMutation instanceof VerifiedEntityUpsertMutation veum) {
+			entityMutationToUpsert = entityMutation;
+			applyMutations(entityMutationToUpsert, null, false, veum.shouldProduceImplicitMutations());
+		} else {
+			entityMutationToUpsert = verifyPrimaryKeyAssignment(entityMutation, currentSchema);
+			applyMutations(entityMutationToUpsert, null, true, true);
+		}
 
 		return entityMutationToUpsert.getEntityPrimaryKey();
 	}
@@ -1734,11 +1757,7 @@ public final class EntityCollection implements
 		final int entityToRemovePrimaryKey = Objects.requireNonNull(entityToRemove.getPrimaryKey());
 		final EntityRemoveMutation entityMutation = new EntityRemoveMutation(getEntityType(), entityToRemovePrimaryKey);
 
-		applyMutations(
-			entityMutation,
-			entityToRemove,
-			true
-		);
+		applyMutations(entityMutation, entityToRemove, true, false);
 	}
 
 	/**
@@ -1750,7 +1769,8 @@ public final class EntityCollection implements
 	private void applyMutations(
 		@Nonnull EntityMutation entityMutation,
 		@Nullable Entity entity,
-		boolean undoOnError
+		boolean undoOnError,
+		boolean generateImplicitMutations
 	) {
 		// prepare collectors
 		final EntityRemoveMutation entityRemoveMutation = entityMutation instanceof EntityRemoveMutation erm ? erm : null;
@@ -1760,7 +1780,9 @@ public final class EntityCollection implements
 			this.catalog.getVersion(),
 			entityMutation.getEntityPrimaryKey(),
 			entityMutation.expects(),
+			this.catalog::getInternalSchema,
 			this::getInternalSchema,
+			entityType -> this.catalog.getCollectionForEntityInternal(entityType).orElse(null),
 			entityRemoveMutation != null
 		);
 
@@ -1774,16 +1796,13 @@ public final class EntityCollection implements
 			undoOnError
 		);
 
-		final Collection<? extends LocalMutation<?, ?>> localMutations = entityRemoveMutation != null ?
+		final List<? extends LocalMutation<?, ?>> localMutations = entityRemoveMutation != null ?
 			entityRemoveMutation.computeLocalMutationsForEntityRemoval(entity) : entityMutation.getLocalMutations();
 
 		// apply mutations leading to clearing storage containers
 		EntitySchemaContext.executeWithSchemaContext(
 			getInternalSchema(),
-			() -> processMutations(
-				localMutations,
-				entityIndexUpdater, changeCollector
-			)
+			() -> processMutations(this.catalog, localMutations, generateImplicitMutations, entityIndexUpdater, changeCollector)
 		);
 
 		if (entityRemoveMutation != null) {

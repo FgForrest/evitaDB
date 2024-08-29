@@ -51,7 +51,6 @@ import lombok.EqualsAndHashCode;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -129,7 +128,7 @@ public class EntityRemoveMutation implements EntityMutation {
 
 	@Nonnull
 	@Override
-	public Collection<? extends LocalMutation<?, ?>> getLocalMutations() {
+	public List<? extends LocalMutation<?, ?>> getLocalMutations() {
 		return Collections.emptyList();
 	}
 

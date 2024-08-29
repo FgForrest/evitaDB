@@ -153,7 +153,7 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 @ThreadSafe
-public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHorizonListener, TransactionalLayerProducer<DataStoreChanges<CatalogIndexKey, CatalogIndex>, Catalog> {
+public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHorizonListener, TransactionalLayerProducer<DataStoreChanges, Catalog> {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains information about version of the catalog which corresponds to transaction commit sequence number.
@@ -185,7 +185,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 *
 	 * @see TransactionalDataStoreMemoryBuffer documentation
 	 */
-	private final DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreBuffer;
+	private final DataStoreMemoryBuffer dataStoreBuffer;
 	/**
 	 * This field contains flag with TRUE value if catalog is being switched to {@link CatalogState#ALIVE} state.
 	 */
@@ -325,7 +325,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		// initialize container buffer
 		this.state = CatalogState.WARMING_UP;
 		this.versionId = new TransactionalReference<>(catalogVersion);
-		this.dataStoreBuffer = new WarmUpDataStoreMemoryBuffer<>(storagePartPersistenceService);
+		this.dataStoreBuffer = new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService);
 		this.cacheSupervisor = cacheSupervisor;
 		this.entityCollections = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
@@ -397,8 +397,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.catalogIndex.attachToCatalog(null, this);
 		this.cacheSupervisor = cacheSupervisor;
 		this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer<>(storagePartPersistenceService) :
-			new TransactionalDataStoreMemoryBuffer<>(this, storagePartPersistenceService);
+			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
+			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
 
 		final Collection<CollectionFileReference> entityCollectionHeaders = catalogHeader.getEntityTypeFileIndexes();
 		final Map<String, EntityCollection> collections = createHashMap(entityCollectionHeaders.size());
@@ -518,8 +518,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer<>(storagePartPersistenceService) :
-			new TransactionalDataStoreMemoryBuffer<>(this, storagePartPersistenceService);
+			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
+			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
 		// we need to switch references working with catalog (inter index relations) to new catalog
 		// the collections are not yet used anywhere - we're still safe here
 		final Map<String, EntityCollection> newEntityCollections = CollectionUtils.createHashMap(entityCollections.size());
@@ -679,6 +679,11 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	@Override
 	@Nonnull
 	public Optional<EntityCollectionContract> getCollectionForEntity(@Nonnull String entityType) {
+		return ofNullable(entityCollections.get(entityType));
+	}
+
+	@Nonnull
+	public Optional<EntityCollection> getCollectionForEntityInternal(@Nonnull String entityType) {
 		return ofNullable(entityCollections.get(entityType));
 	}
 
@@ -988,8 +993,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	}
 
 	@Override
-	public DataStoreChanges<CatalogIndexKey, CatalogIndex> createLayer() {
-		return new DataStoreChanges<>(
+	public DataStoreChanges createLayer() {
+		return new DataStoreChanges(
 			Transaction.createTransactionalPersistenceService(
 				this.persistenceService.getStoragePartPersistenceService(getVersion())
 			)
@@ -1009,13 +1014,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	@Nonnull
 	@Override
 	public Catalog createCopyWithMergedTransactionalMemory(
-		@Nullable DataStoreChanges<CatalogIndexKey, CatalogIndex> layer,
+		@Nullable DataStoreChanges layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		/* the version is incremented via. {@link #setVersion} method */
 		final long newCatalogVersionId = transactionalLayer.getStateCopyWithCommittedChanges(this.versionId).orElseThrow();
 		final CatalogSchemaDecorator newSchema = transactionalLayer.getStateCopyWithCommittedChanges(this.schema).orElseThrow();
-		final DataStoreChanges<CatalogIndexKey, CatalogIndex> transactionalChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this);
+		final DataStoreChanges transactionalChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this);
 
 		final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this.entityCollections);
 		Map<String, EntityCollectionPersistenceService> updatedServiceCollections = null;

@@ -191,7 +191,7 @@ public class EntityUpsertMutation implements EntityMutation {
 	}
 
 	@Nonnull
-	public Collection<? extends LocalMutation<?, ?>> getLocalMutations() {
+	public List<? extends LocalMutation<?, ?>> getLocalMutations() {
 		return localMutations;
 	}
 

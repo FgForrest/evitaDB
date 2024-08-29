@@ -77,9 +77,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
@@ -270,12 +268,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			// SHOULD NOT EVER HAPPEN
 			throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
 		}
-	}
-
-	@Nonnull
-	@Override
-	public List<LocalMutation<?, ?>> popImplicitMutations() {
-		return Collections.emptyList();
 	}
 
 	@Override

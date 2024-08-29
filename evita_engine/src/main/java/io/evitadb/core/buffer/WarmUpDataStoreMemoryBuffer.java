@@ -48,11 +48,11 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class WarmUpDataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>> implements DataStoreMemoryBuffer<IK, I> {
+public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	/**
 	 * DTO contains all trapped changes in this memory buffer.
 	 */
-	@Nonnull private final DataStoreIndexChanges<IK, I> dataStoreIndexChanges = new DataStoreIndexMemoryBuffer<>();
+	@Nonnull private final DataStoreIndexChanges dataStoreIndexChanges = new DataStoreIndexMemoryBuffer();
 	/**
 	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
 	 * This reference can be exchanged in case of internal store compaction.
@@ -75,17 +75,17 @@ public class WarmUpDataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK
 	}
 
 	@Override
-	public I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
+	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		return dataStoreIndexChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
 	}
 
 	@Override
-	public I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
+	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		return dataStoreIndexChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
 	}
 
 	@Override
-	public I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
+	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
 		return dataStoreIndexChanges.removeIndex(entityIndexKey, removalPropagation);
 	}
 
@@ -147,7 +147,7 @@ public class WarmUpDataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK
 	}
 
 	@Override
-	public DataStoreIndexChanges<IK, I> getTrappedIndexChanges() {
+	public DataStoreIndexChanges getTrappedIndexChanges() {
 		return this.dataStoreIndexChanges;
 	}
 

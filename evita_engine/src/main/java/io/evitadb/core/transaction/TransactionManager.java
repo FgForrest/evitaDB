@@ -47,6 +47,7 @@ import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.core.transaction.stage.mutation.VerifiedEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.VerifiedEntityUpsertMutation;
+import io.evitadb.core.transaction.stage.mutation.VerifiedEntityUpsertMutation.ImplicitMutations;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
@@ -856,7 +857,7 @@ public class TransactionManager {
 					log.debug("Processing mutation: {}", mutation);
 					atomicMutationCount++;
 					if (mutation instanceof EntityUpsertMutation entityUpsertMutation) {
-						lastFinalizedCatalog.applyMutation(new VerifiedEntityUpsertMutation(entityUpsertMutation));
+						lastFinalizedCatalog.applyMutation(new VerifiedEntityUpsertMutation(entityUpsertMutation, ImplicitMutations.GENERATE));
 						localMutationCount += entityUpsertMutation.getLocalMutations().size();
 					} else if (mutation instanceof EntityRemoveMutation entityRemoveMutation) {
 						lastFinalizedCatalog.applyMutation(new VerifiedEntityRemoveMutation(entityRemoveMutation));

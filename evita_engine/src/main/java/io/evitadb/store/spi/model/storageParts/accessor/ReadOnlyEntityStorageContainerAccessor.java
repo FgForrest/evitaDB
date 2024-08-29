@@ -28,8 +28,6 @@ import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
@@ -83,7 +81,7 @@ public final class ReadOnlyEntityStorageContainerAccessor extends AbstractEntity
 
 	public ReadOnlyEntityStorageContainerAccessor(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer,
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer,
 		@Nonnull Supplier<EntitySchema> schemaAccessor
 	) {
 		super(catalogVersion, storageContainerBuffer, schemaAccessor);

@@ -23,8 +23,6 @@
 
 package io.evitadb.core.buffer;
 
-import io.evitadb.index.Index;
-import io.evitadb.index.IndexKey;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.StoragePartPersistenceService;
@@ -42,7 +40,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-public class DataStoreChanges<IK extends IndexKey, I extends Index<IK>> extends DataStoreIndexMemoryBuffer<IK, I> {
+public class DataStoreChanges extends DataStoreIndexMemoryBuffer {
 	/**
 	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
 	 */

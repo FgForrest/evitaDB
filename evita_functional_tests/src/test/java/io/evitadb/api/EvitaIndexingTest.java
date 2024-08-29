@@ -91,6 +91,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class EvitaIndexingTest implements EvitaTestSupport {
+	public static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
+	public static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
+
 	public static final String ATTRIBUTE_CODE = "code";
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
@@ -2829,8 +2832,243 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		);
 	}
 
+	@Test
+	void shouldAutomaticallySetupReflectedReferencesOnEntityCreation() {
+		/* TODO JNO - add attributes to the test! Including automatic setup of default values of non matching ones */
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.indexed()
+					)
+					.updateVia(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
+				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReferencesWhenReflectedOnesExistOnEntityCreation() {
+		/* TODO JNO - add attributes to the test! Including automatic setup of default values of non matching ones */
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.indexed()
+					)
+					.updateVia(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
+				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReflectedReferencesByReferencesOnCreatedEntity() {
+		/* TODO JNO - add attributes to the test! Including automatic setup of default values of non matching ones */
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.indexed()
+					)
+					.updateVia(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 1)
+				);
+
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
+				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReferencesByReflectedReferencesOnCreatedEntity() {
+		/* TODO JNO - add attributes to the test! Including automatic setup of default values of non matching ones */
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.indexed()
+					)
+					.updateVia(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
+				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReflectedReference() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.indexed()
+					)
+					.updateVia(session);
+
+				// first create both entities without any references
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				// then add regular reference
+				session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(REFERENCE_PRODUCT_CATEGORY, 1)
+					.upsertVia(session);
+
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
+				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReferenceViaReflectedReference() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.indexed()
+					)
+					.updateVia(session);
+
+				// first create both entities without any references
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				// then add regular reference
+				session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					.upsertVia(session);
+
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
+				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+			}
+		);
+	}
+
+
 	@Nullable
-	private EntityIndex getGlobalIndex(EntityCollectionContract collection) {
+	private static EntityIndex getGlobalIndex(EntityCollectionContract collection) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
 			new EntityIndexKey(EntityIndexType.GLOBAL)
@@ -2838,7 +3076,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Nullable
-	private EntityIndex getHierarchyIndex(EntityCollectionContract collection, String entityType, int recordId) {
+	private static EntityIndex getHierarchyIndex(EntityCollectionContract collection, String entityType, int recordId) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
 			new EntityIndexKey(
@@ -2849,7 +3087,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Nullable
-	private EntityIndex getReferencedEntityIndex(EntityCollectionContract collection, String entityType, int recordId) {
+	private static EntityIndex getReferencedEntityIndex(EntityCollectionContract collection, String entityType, int recordId) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
 			new EntityIndexKey(
@@ -2859,7 +3097,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		);
 	}
 
-	private int[] getAllCategories(EvitaSessionContract session) {
+	private static int[] getAllCategories(EvitaSessionContract session) {
 		return session.query(
 				query(
 					collection(Entities.CATEGORY)
@@ -2872,7 +3110,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			.toArray();
 	}
 
-	private int countProductsWithPriceListCurrencyCombination(EvitaSessionContract session, String priceList, Currency currency) {
+	private static int countProductsWithPriceListCurrencyCombination(EvitaSessionContract session, String priceList, Currency currency) {
 		return session.query(
 				query(
 					collection(Entities.PRODUCT),

@@ -208,7 +208,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EntityBodyStoragePart entityStorageContainer,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	) {
 		// the initial value is 1 because we've already fetched the `entityStorageContainer`
 		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
@@ -788,7 +788,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges<EntityIndexKey, EntityIndex> dataStoreIndexChanges) {
+	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges dataStoreIndexChanges) {
 		// now store all entity trapped updates
 		dataStoreIndexChanges.popTrappedUpdates()
 			.forEach(it -> this.storagePartPersistenceService.putStoragePart(catalogVersion, it));
@@ -811,7 +811,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	) {
 		// provide passed schema during deserialization from binary form
 		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
@@ -836,7 +836,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	) {
 		// provide passed schema during deserialization from binary form
 		final EntitySchema entitySchema = entityCollectionFetcher.apply(evitaRequest.getEntityType()).getInternalSchema();
@@ -867,7 +867,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	) {
 		// provide passed schema during deserialization from binary form
 		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
@@ -969,7 +969,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Override
 	public int countEntities(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	) {
 		return storageContainerBuffer.countStorageParts(
 			catalogVersion, EntityBodyStoragePart.class
@@ -979,7 +979,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Override
 	public boolean isEmpty(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	) {
 		return storageContainerBuffer.countStorageParts(
 			catalogVersion, EntityBodyStoragePart.class
@@ -988,7 +988,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Nonnull
 	@Override
-	public BinaryEntityWithFetchCount enrichEntity(long catalogVersion, @Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer) throws EntityAlreadyRemovedException {
+	public BinaryEntityWithFetchCount enrichEntity(long catalogVersion, @Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreMemoryBuffer storageContainerBuffer) throws EntityAlreadyRemovedException {
 		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		return new BinaryEntityWithFetchCount(
 			entity, 0, 0
@@ -1289,7 +1289,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	) {
 		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
 		final EntitySchema entitySchema = EntitySchemaContext.getEntitySchema();

@@ -123,6 +123,10 @@ public final class EntitySchema implements EntitySchemaContract {
 	 */
 	private final Map<String, ReferenceSchema[]> referenceNameIndex;
 	/**
+	 * List of all reflected reference schemas within {@link #references}, prepared for quick lookup.
+	 */
+	private final Map<String, ReflectedReferenceSchema> reflectedReferences;
+	/**
 	 * Contains allowed evolution modes for the entity schema.
 	 */
 	@Getter private final Set<EvolutionMode> evolutionMode;
@@ -474,6 +478,17 @@ public final class EntitySchema implements EntitySchemaContract {
 		);
 		;
 		this.referenceNameIndex = _internalGenerateNameVariantIndex(this.references.values(), ReferenceSchemaContract::getNameVariants);
+		this.reflectedReferences = this.references
+			.values()
+			.stream()
+			.filter(ReflectedReferenceSchema.class::isInstance)
+			.map(ReflectedReferenceSchema.class::cast)
+			.collect(
+				Collectors.toMap(
+					ReflectedReferenceSchema::getReflectedReferenceName,
+					Function.identity()
+				)
+			);
 		this.evolutionMode = Collections.unmodifiableSet(evolutionMode);
 		this.nonNullableAttributes = this.attributes
 			.values()
@@ -768,6 +783,29 @@ public final class EntitySchema implements EntitySchemaContract {
 			this.evolutionMode,
 			this.getSortableAttributeCompounds()
 		);
+	}
+
+	/**
+	 * Returns a sub list of {@link ReflectedReferenceSchema} schemas from {@link #getReferences()}.
+	 *
+	 * @return the list of ReflectedReferenceSchema objects
+	 */
+	@Nonnull
+	public Collection<ReflectedReferenceSchema> getReflectedReferences() {
+		return this.reflectedReferences.values();
+	}
+
+	/**
+	 * Retrieves the reflected reference schema for the given reference name.
+	 *
+	 * @param referenceName The name of the reference for which to retrieve the reflected reference schema.
+	 *                      Must not be null.
+	 * @return The optional reflected reference schema for the given reference name. If the reference name is not found,
+	 *         an empty optional is returned.
+	 */
+	@Nonnull
+	public Optional<ReflectedReferenceSchema> getReflectedReferenceFor(@Nonnull String referenceName) {
+		return ofNullable(this.reflectedReferences.get(referenceName));
 	}
 
 	/**

@@ -49,6 +49,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
@@ -102,6 +103,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 public class EntityByAttributeFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForAttributeTesting";
+	private static final String REFERENCE_BRAND_PRODUCTS = "products";
 	private static final String ATTRIBUTE_SIZE = "size";
 	private static final String ATTRIBUTE_CREATED = "created";
 	private static final String ATTRIBUTE_CURRENCY = "currency";
@@ -260,7 +262,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	}
 
 	@DataSet(value = HUNDRED_PRODUCTS, readOnly = false, destroyAfterClass = true)
-	List<SealedEntity> setUp(Evita evita) {
+	DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			session.updateCatalogSchema(
 				session.getCatalogSchema()
@@ -276,13 +278,25 @@ public class EntityByAttributeFilteringFunctionalTest {
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 				return primaryKey == 0 ? null : primaryKey;
 			};
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleBrandSchema(session),
+			final List<EntityReference> storedBrands = dataGenerator.generateEntities(
+					dataGenerator.getSampleBrandSchema(
+						session,
+						schemaBuilder -> schemaBuilder
+							.withReflectedReferenceToEntity(
+								REFERENCE_BRAND_PRODUCTS,
+								Entities.PRODUCT,
+								Entities.BRAND,
+								whichIs -> whichIs
+									.withCardinality(Cardinality.ZERO_OR_MORE)
+									.withAttributesInherited()
+							).updateAndFetchVia(session)
+					),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(5)
-				.forEach(session::upsertEntity);
+				.map(session::upsertEntity)
+				.toList();
 
 			dataGenerator.generateEntities(
 					dataGenerator.getSampleCategorySchema(session),
@@ -312,7 +326,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					dataGenerator.getSampleProductSchema(
 						session,
 						schemaBuilder -> {
-							schemaBuilder
+							return schemaBuilder
 								.withGlobalAttribute(ATTRIBUTE_RELATIVE_URL)
 								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().sortable().indexDecimalPlaces(2))
 								.withAttribute(ATTRIBUTE_PRIORITY, Long.class, whichIs -> whichIs.sortable().filterable())
@@ -345,7 +359,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 									whichIs -> whichIs
 										.withAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class, thatIs -> thatIs.filterable())
 										.withAttribute(ATTRIBUTE_CAPACITY, Long.class, thatIs -> thatIs.filterable().nullable().sortable())
-								);
+								).updateAndFetchVia(session);
 						}
 					),
 					randomEntityPicker,
@@ -355,9 +369,16 @@ public class EntityByAttributeFilteringFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
-			return storedProducts.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
-				.collect(Collectors.toList());
+			return new DataCarrier(
+				"originalProductEntities",
+				storedProducts.stream()
+					.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+					.collect(Collectors.toList()),
+				"originalBrandEntities",
+				storedBrands.stream()
+					.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+					.collect(Collectors.toList())
+			);
 		});
 	}
 
@@ -2895,6 +2916,36 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities having a reflected reference of particular name")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByHavingAReflectedReferenceOfParticularName(Evita evita, List<SealedEntity> originalBrandEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.BRAND),
+						filterBy(
+							referenceHaving(REFERENCE_BRAND_PRODUCTS)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalBrandEntities,
+					sealedEntity -> !sealedEntity.getReferences(REFERENCE_BRAND_PRODUCTS).isEmpty(),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should fail to process query targeting non existing attribute on reference")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -2980,6 +3031,13 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities by reflected reference entity of particular id")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByReflectedReferencedEntityId(Evita evita, List<SealedEntity> originalProductEntities) {
+		fail("Implement me");
+	}
+
 	@DisplayName("Should return entities by referenced entity using prefetch")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3029,6 +3087,13 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities by reflected reference entity using prefetch")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByReflectedReferenceUsingPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		fail("Implement me");
+	}
+
 	@DisplayName("Should return entities by having attribute set on referenced entity")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3042,6 +3107,54 @@ public class EntityByAttributeFilteringFunctionalTest {
 						filterBy(
 							referenceHaving(
 								Entities.BRAND,
+								and(
+									attributeEqualsTrue(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C),
+									attributeGreaterThan(ATTRIBUTE_MARKET_SHARE, new BigDecimal("150.45"))
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity
+						.getReferences(Entities.BRAND)
+						.stream()
+						.anyMatch(brand -> {
+							final boolean marketMatch = ofNullable(brand.getAttribute(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C))
+								.map(Boolean.TRUE::equals)
+								.orElse(false);
+							final boolean shareMatch = ofNullable((BigDecimal) brand.getAttribute(ATTRIBUTE_MARKET_SHARE))
+								.map(it -> new BigDecimal("150.45").compareTo(it) < 0)
+								.orElse(false);
+							return marketMatch && shareMatch;
+						}),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities by having attribute set on reflected reference entity")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByAttributeSetOnReflectedReferenceEntity(Evita evita, List<SealedEntity> originalProductEntities) {
+		/* TODO JNO - Implement */
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.BRAND),
+						filterBy(
+							referenceHaving(
+								REFERENCE_BRAND_PRODUCTS,
 								and(
 									attributeEqualsTrue(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C),
 									attributeGreaterThan(ATTRIBUTE_MARKET_SHARE, new BigDecimal("150.45"))

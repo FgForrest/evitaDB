@@ -28,8 +28,6 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart.EntityAssociatedDataKey;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
@@ -69,7 +67,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 	/**
 	 * Contains CURRENT storage buffer that traps transactional and intermediate volatile data.
 	 */
-	@Nonnull protected final DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer;
+	@Nonnull protected final DataStoreMemoryBuffer storageContainerBuffer;
 	/**
 	 * Function returns CURRENT {@link EntitySchema} to be used for deserialized objects.
 	 */
