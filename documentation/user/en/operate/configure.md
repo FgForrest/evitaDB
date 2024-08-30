@@ -989,15 +989,19 @@ This configuration controls how the actual evitaLab web client will be served th
 
         ```yaml
         - name: "evitaDB local" # name displayed in evitaLab in connection manager
-          labApiUrl: "https://your-server:5555/lab/api" # URL of the evitaLab API accessible from the web browser 
-          gqlUrl: "https://your-server:5555/gql" # URL of the GraphQL API accessible from the web browser
+          systemUrl: "http://your-server:5555/system" # mandatory URL of the evitaDB's system API accessible from the web browser
+          grpcUrl: "http://your-server:5555/" # mandatory URL of the evitaDB's gRPC API accessible from the web browser
+          gqlUrl: "http://your-server:5555/gql" # mandatory URL of the GraphQL API accessible from the web browser
+          restUrl: "http://your-server:5555/rest" # optional URL of the GraphQL API accessible from the web browser
         ```
         </p>
 
         <p>
-        This is especially useful for when the evitaDB server is running locally on a server behind a reverse proxy and 
-        it is exposed on a different public domain and port, not on a localhost. Without custom connection configuration
-        pointing to the public domain, the evitaLab web client would try to connect to the server on localhost.
+        In most cases, evitaDB should be able generate correct configuration by it self. More so, if the `api.exposedOn`
+        property is configured correctly, then it should generate correct configuration even for evitaDB server being
+        behind a proxy.
+        In special cases, this can be overriden by this configuration property, allowing completelly custom connections
+        to multiple different evitaDB server (not just this one).
         </p>
     </dd>
 </dl>

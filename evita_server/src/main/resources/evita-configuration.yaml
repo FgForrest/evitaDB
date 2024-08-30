@@ -102,7 +102,6 @@ api:
       gui:
         enabled: ${api.endpoints.lab.gui.enabled:true}
         readOnly: ${api.endpoints.lab.gui.readOnly:false}
-        preconfiguredConnections: !include ${api.endpoints.lab.gui.preconfiguredConnections:null}
     observability:
       enabled: ${api.endpoints.observability.enabled:true}
       host: ${api.endpoints.observability.host:":5555"}
