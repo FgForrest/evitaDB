@@ -546,6 +546,8 @@ public class EntityConverter {
 			.setEntityType(entityReference.getType())
 			.setPrimaryKey(entityReference.getPrimaryKey());
 
+		// TODO JNO: fix missing passing entity version to gRPC
+
 		entityReference.getParentEntity()
 			.ifPresent(
 				it -> builder.setParent(
