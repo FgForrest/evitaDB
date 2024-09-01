@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data.mutation;
 
 
 import javax.annotation.Nonnull;
+import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -33,16 +34,53 @@ import java.util.List;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface LocalMutationExecutorWithImplicitMutations extends LocalMutationExecutor {
+public interface ConsistencyCheckingLocalMutationExecutor extends LocalMutationExecutor {
+
+	/**
+	 * Method verifies the consistency of the entity. This is not necessary if the mutation is replayed from WAL log,
+	 * because there the consistency is already verified.
+	 */
+	void verifyConsistency();
 
 	/**
 	 * Method returns and clears list of implicit mutations that needs to be executed to keep entity consistent.
 	 * These implicit mutations usually represent initialization of default values on entity creation.
 	 *
+	 * @param inputMutations           list of local mutations that are being applied
+	 * @param implicitMutationBehavior a set of ImplicitMutationBehavior instances representing the desired scope
+	 *                                 of implicit mutations
 	 * @return list of implicit mutations
 	 */
 	@Nonnull
-	ImplicitMutations popImplicitMutations(@Nonnull List<? extends LocalMutation<?, ?>> inputMutations);
+	ImplicitMutations popImplicitMutations(
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
+		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutationBehavior
+	);
+
+	/**
+	 * This enum represents different options for implicit mutations.
+	 *
+	 * - GENERATE: Indicates that implicit mutations should be generated.
+	 * - SKIP: Indicates that implicit mutations should be skipped.
+	 *
+	 * This enum is used in the class `ServerEntityUpsertMutation` to specify the desired behavior of implicit mutations.
+	 */
+	enum ImplicitMutationBehavior {
+
+		/**
+		 * Entity attributes with default values should be generated.
+		 */
+		GENERATE_ATTRIBUTES,
+		/**
+		 * Reference attributes with default values should be generated.
+		 */
+		GENERATE_REFERENCE_ATTRIBUTES,
+		/**
+		 * Reflected references should be generated.
+		 */
+		GENERATE_REFLECTED_REFERENCES
+
+	}
 
 	/**
 	 * The ImplicitMutations class represents a collection of implicit mutations that need to be executed to keep
@@ -60,7 +98,6 @@ public interface LocalMutationExecutorWithImplicitMutations extends LocalMutatio
 		@Nonnull LocalMutation<?, ?>[] localMutations,
 		@Nonnull EntityMutation[] externalMutations
 	) {
-
 	}
 
 }

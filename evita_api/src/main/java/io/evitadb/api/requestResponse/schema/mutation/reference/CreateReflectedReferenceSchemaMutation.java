@@ -197,7 +197,12 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final ReferenceSchemaContract newReferenceSchema = this.mutate(entitySchema, null);
+		final ReflectedReferenceSchema newReferenceSchema = (ReflectedReferenceSchema) this.mutate(entitySchema, null);
+		final Optional<ReferenceSchemaContract> referencedReferenceSchema = catalogSchema.getEntitySchema(newReferenceSchema.getReferencedEntityType())
+			.flatMap(it -> it.getReference(newReferenceSchema.getReflectedReferenceName()));
+		final ReferenceSchemaContract referenceToInsert = referencedReferenceSchema
+			.map(newReferenceSchema::withReferencedSchema)
+			.orElse(newReferenceSchema);
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
 		if (existingReferenceSchema.isEmpty()) {
 			return EntitySchema._internalBuild(
@@ -216,7 +221,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 				entitySchema.getAssociatedData(),
 				Stream.concat(
 						entitySchema.getReferences().values().stream(),
-						Stream.of(newReferenceSchema)
+						Stream.of(referenceToInsert)
 					)
 					.collect(
 						Collectors.toMap(

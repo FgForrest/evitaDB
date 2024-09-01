@@ -133,7 +133,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	/**
 	 * Contains all definitions of the attributes that return false in method {@link AttributeSchema#isNullable()}.
 	 */
-	@Getter private final Collection<EntityAttributeSchemaContract> nonNullableAttributes;
+	@Getter private final Collection<EntityAttributeSchemaContract> nonNullableOrDefaultValueAttributes;
 	/**
 	 * Contains all definitions of the associated data that return false in method {@link AssociatedDataSchema#isNullable()}.
 	 */
@@ -490,10 +490,10 @@ public final class EntitySchema implements EntitySchemaContract {
 				)
 			);
 		this.evolutionMode = Collections.unmodifiableSet(evolutionMode);
-		this.nonNullableAttributes = this.attributes
+		this.nonNullableOrDefaultValueAttributes = this.attributes
 			.values()
 			.stream()
-			.filter(it -> !it.isNullable())
+			.filter(it -> !it.isNullable() || it.getDefaultValue() != null)
 			.toList();
 		this.nonNullableAssociatedData = this.associatedData
 			.values()

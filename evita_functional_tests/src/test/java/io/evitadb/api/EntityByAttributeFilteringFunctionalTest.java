@@ -3034,8 +3034,48 @@ public class EntityByAttributeFilteringFunctionalTest {
 	@DisplayName("Should return entities by reflected reference entity of particular id")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldReturnEntitiesByReflectedReferencedEntityId(Evita evita, List<SealedEntity> originalProductEntities) {
-		fail("Implement me");
+	void shouldReturnEntitiesByReflectedReferencedEntityId(Evita evita, List<SealedEntity> originalBrandEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity brand = originalBrandEntities
+					.stream()
+					.filter(it -> it.getPrimaryKey() == 1)
+					.findFirst()
+					.orElseThrow();
+				final int referencedProduct = brand.getReferences(REFERENCE_BRAND_PRODUCTS)
+					.stream()
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.findFirst()
+					.orElseThrow();
+
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.BRAND),
+						filterBy(
+							referenceHaving(
+								REFERENCE_BRAND_PRODUCTS,
+								entityPrimaryKeyInSet(referencedProduct)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalBrandEntities,
+					sealedEntity -> sealedEntity
+						.getReferences(REFERENCE_BRAND_PRODUCTS)
+						.stream()
+						.anyMatch(product -> product.getReferencedPrimaryKey() == referencedProduct),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
 	}
 
 	@DisplayName("Should return entities by referenced entity using prefetch")
@@ -3090,8 +3130,50 @@ public class EntityByAttributeFilteringFunctionalTest {
 	@DisplayName("Should return entities by reflected reference entity using prefetch")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldReturnEntitiesByReflectedReferenceUsingPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
-		fail("Implement me");
+	void shouldReturnEntitiesByReflectedReferenceUsingPrefetch(Evita evita, List<SealedEntity> originalBrandEntities) {
+		final SealedEntity lookedUpProduct = originalBrandEntities
+			.stream()
+			.filter(
+				it -> it.getReferences(REFERENCE_BRAND_PRODUCTS)
+					.stream()
+					.anyMatch(ref -> ref.getAttribute(ATTRIBUTE_FOUNDED) != null)
+			)
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.BRAND),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(lookedUpProduct.getPrimaryKey()),
+								referenceHaving(
+									REFERENCE_BRAND_PRODUCTS,
+									attributeIsNotNull(ATTRIBUTE_FOUNDED)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetchAll(),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, result.getRecordData().size());
+
+				assertEquals(
+					lookedUpProduct,
+					result.getRecordData().get(0)
+				);
+				return null;
+			}
+		);
 	}
 
 	@DisplayName("Should return entities by having attribute set on referenced entity")
@@ -3144,8 +3226,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	@DisplayName("Should return entities by having attribute set on reflected reference entity")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldReturnEntitiesByAttributeSetOnReflectedReferenceEntity(Evita evita, List<SealedEntity> originalProductEntities) {
-		/* TODO JNO - Implement */
+	void shouldReturnEntitiesByAttributeSetOnReflectedReferenceEntity(Evita evita, List<SealedEntity> originalBrandEntities) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3169,9 +3250,9 @@ public class EntityByAttributeFilteringFunctionalTest {
 					EntityReference.class
 				);
 				assertResultIs(
-					originalProductEntities,
+					originalBrandEntities,
 					sealedEntity -> sealedEntity
-						.getReferences(Entities.BRAND)
+						.getReferences(REFERENCE_BRAND_PRODUCTS)
 						.stream()
 						.anyMatch(brand -> {
 							final boolean marketMatch = ofNullable(brand.getAttribute(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C))

@@ -27,6 +27,7 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
@@ -119,7 +120,11 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 	@Nullable
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
-		return attributeSchemaMutation.mutate(entitySchema, referenceSchema, consistencyChecks);
+		return attributeSchemaMutation.mutate(
+			entitySchema, referenceSchema,
+			referenceSchema instanceof ReflectedReferenceSchemaContract rrsc && !rrsc.isReflectedReferenceAvailable() ?
+				ConsistencyChecks.SKIP : consistencyChecks
+		);
 	}
 
 	@Nullable

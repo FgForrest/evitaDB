@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
+import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator.ConsistencyChecks;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.*;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
@@ -560,10 +561,13 @@ public final class ReflectedReferenceSchemaBuilder
 	@Nonnull
 	public ReferenceSchemaBuilderResult toResult() {
 		final Collection<LocalEntitySchemaMutation> mutations = toMutation();
-		// and now rebuild the schema from scratch including consistency checks
+		// and now rebuild the schema from scratch including consistency checks, if available
 		ReflectedReferenceSchema currentSchema = this.baseSchema;
 		for (LocalEntitySchemaMutation mutation : mutations) {
-			currentSchema = (ReflectedReferenceSchema) ((ReferenceSchemaMutation) mutation).mutate(this.entitySchema, currentSchema);
+			currentSchema = (ReflectedReferenceSchema) ((ReferenceSchemaMutation) mutation).mutate(
+				this.entitySchema, currentSchema,
+				currentSchema.isReflectedReferenceAvailable() ? ConsistencyChecks.APPLY : ConsistencyChecks.SKIP
+			);
 		}
 		return new ReferenceSchemaBuilderResult(currentSchema, mutations);
 	}

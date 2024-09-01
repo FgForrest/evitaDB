@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart.EntityAssociatedDataKey;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
@@ -59,7 +60,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public abstract class AbstractEntityStorageContainerAccessor implements EntityStoragePartAccessor {
+public abstract class AbstractEntityStorageContainerAccessor<T extends DataStoreReader> implements EntityStoragePartAccessor {
 	/**
 	 * Represents the catalog version the storage container accessor is related to.
 	 */
@@ -67,7 +68,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 	/**
 	 * Contains CURRENT storage buffer that traps transactional and intermediate volatile data.
 	 */
-	@Nonnull protected final DataStoreMemoryBuffer storageContainerBuffer;
+	@Nonnull protected final T dataStoreReader;
 	/**
 	 * Function returns CURRENT {@link EntitySchema} to be used for deserialized objects.
 	 */
@@ -92,7 +93,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 						// read it from mem table
 						return cacheEntityStorageContainer(
 							entityPrimaryKey,
-							ofNullable(storageContainerBuffer.fetch(catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class))
+							ofNullable(dataStoreReader.fetch(catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class))
 								.map(it -> {
 									// if it was found, verify whether it was expected
 									if (expects == EntityExistence.MUST_NOT_EXIST && !it.isMarkedForRemoval()) {
@@ -143,7 +144,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 						final EntityAttributesSetKey globalAttributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, null);
 						return cacheAttributeStorageContainer(
 							entityPrimaryKey,
-							ofNullable(storageContainerBuffer.fetch(catalogVersion, globalAttributeSetKey, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId))
+							ofNullable(dataStoreReader.fetch(catalogVersion, globalAttributeSetKey, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId))
 								// when not found in storage - create new container
 								.orElseGet(() -> new AttributesStoragePart(entityPrimaryKey))
 						);
@@ -165,7 +166,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 				() -> {
 					// try to compute container id (keyCompressor must already recognize the EntityAttributesSetKey)
 					final EntityAttributesSetKey localeSpecificAttributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, language);
-					return ofNullable(storageContainerBuffer.fetch(catalogVersion, localeSpecificAttributeSetKey, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId))
+					return ofNullable(dataStoreReader.fetch(catalogVersion, localeSpecificAttributeSetKey, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId))
 						// when not found in storage - create new container
 						.orElseGet(() -> new AttributesStoragePart(entityPrimaryKey, locale));
 				}
@@ -187,7 +188,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 				() -> {
 					// try to compute container id (keyCompressor must already recognize the EntityAssociatedDataKey)
 					final EntityAssociatedDataKey entityAssociatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, key.associatedDataName(), key.locale());
-					return ofNullable(storageContainerBuffer.fetch(catalogVersion, entityAssociatedDataKey, AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId))
+					return ofNullable(dataStoreReader.fetch(catalogVersion, entityAssociatedDataKey, AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId))
 						// when not found in storage - create new container
 						.orElseGet(() -> new AssociatedDataStoragePart(entityPrimaryKey, associatedDataKey));
 				})
@@ -207,7 +208,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 					// read it from mem table
 					() -> cacheReferencesStorageContainer(
 						entityPrimaryKey,
-						ofNullable(storageContainerBuffer.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class))
+						ofNullable(dataStoreReader.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class))
 							// and when not found even there create new container
 							.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey))
 					)
@@ -227,7 +228,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 					// read it from mem table
 					() -> cachePricesStorageContainer(
 						entityPrimaryKey,
-						ofNullable(storageContainerBuffer.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class))
+						ofNullable(dataStoreReader.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class))
 							// and when not found even there create new container
 							.orElseGet(() -> new PricesStoragePart(entityPrimaryKey))
 					)

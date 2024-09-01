@@ -110,9 +110,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 */
 	@Nonnull private final Map<String, AttributeSchema[]> attributeNameIndex;
 	/**
-	 * Contains all definitions of the attributes that return false in method {@link AttributeSchema#isNullable()}.
+	 * Contains all definitions of the attributes that contain default value.
 	 */
-	@Getter @Nonnull private final Collection<AttributeSchema> nonNullableAttributes;
+	@Getter @Nonnull private final Collection<AttributeSchema> nonNullableOrDefaultValueAttributes;
 	/**
 	 * Index contains collections of sortable attribute compounds that reference the attribute with the name equal
 	 * to a key of this index.
@@ -299,10 +299,10 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		this.attributeNameIndex = _internalGenerateNameVariantIndex(
 			this.attributes.values(), AttributeSchemaContract::getNameVariants
 		);
-		this.nonNullableAttributes = this.attributes
+		this.nonNullableOrDefaultValueAttributes = this.attributes
 			.values()
 			.stream()
-			.filter(it -> !it.isNullable())
+			.filter(it -> !it.isNullable() || it.getDefaultValue() != null)
 			.toList();
 		this.sortableAttributeCompounds = Collections.unmodifiableMap(
 			sortableAttributeCompounds.entrySet()

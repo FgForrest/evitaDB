@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,6 +74,7 @@ public class ReferenceSerializer extends Serializer<Reference> {
 
 	@Override
 	public Reference read(Kryo kryo, Input input, Class<? extends Reference> type) {
+		final EntitySchema schema = EntitySchemaContext.getEntitySchema();
 		final int version = input.readVarInt(true);
 		final String referenceName = input.readString();
 		final int entityPrimaryKey = input.readInt();
@@ -84,15 +85,12 @@ public class ReferenceSerializer extends Serializer<Reference> {
 			final int groupVersion = input.readVarInt(true);
 			final int groupPrimaryKey = input.readInt();
 			final boolean groupDropped = input.readBoolean();
-			final EntitySchema entitySchema = EntitySchemaContext.getEntitySchema();
-			final String groupType = Objects.requireNonNull(entitySchema.getReferenceOrThrowException(referenceName).getReferencedGroupType());
+			final String groupType = Objects.requireNonNull(schema.getReferenceOrThrowException(referenceName).getReferencedGroupType());
 			group = new GroupEntityReference(groupType, groupPrimaryKey, groupVersion, groupDropped);
 		} else {
 			group = null;
 		}
-		final EntitySchema schema = EntitySchemaContext.getEntitySchema();
 		final ReferenceSchemaContract reference = schema.getReferenceOrThrowException(referenceName);
-
 		final int attributeCount = input.readVarInt(true);
 		final LinkedHashMap<AttributeKey, AttributeValue> attributes = CollectionUtils.createLinkedHashMap(attributeCount);
 		for (int i = 0; i < attributeCount; i++) {

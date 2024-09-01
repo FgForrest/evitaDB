@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction.stage.mutation;
 
+import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -30,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.util.EnumSet;
 import java.util.Optional;
 
 /**
@@ -38,14 +40,38 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class VerifiedEntityRemoveMutation extends EntityRemoveMutation {
+public class ServerEntityRemoveMutation extends EntityRemoveMutation implements ServerEntityMutation {
 	@Serial private static final long serialVersionUID = 2860854495453490511L;
+	public final boolean applyUndoOnError;
+	public final boolean verifyConsistency;
 
-	public VerifiedEntityRemoveMutation(@Nonnull EntityRemoveMutation entityRemoveMutation) {
+	public ServerEntityRemoveMutation(
+		@Nonnull EntityRemoveMutation entityRemoveMutation,
+		boolean applyUndoOnError,
+		boolean verifyConsistency
+	) {
 		super(
 			entityRemoveMutation.getEntityType(),
 			entityRemoveMutation.getEntityPrimaryKey()
 		);
+		this.applyUndoOnError = applyUndoOnError;
+		this.verifyConsistency = verifyConsistency;
+	}
+
+	@Override
+	public boolean shouldApplyUndoOnError() {
+		return this.applyUndoOnError;
+	}
+
+	@Override
+	public boolean shouldVerifyConsistency() {
+		return this.verifyConsistency;
+	}
+
+	@Nonnull
+	@Override
+	public EnumSet<ImplicitMutationBehavior> getImplicitMutationsBehavior() {
+		return EnumSet.noneOf(ImplicitMutationBehavior.class);
 	}
 
 	@Nonnull

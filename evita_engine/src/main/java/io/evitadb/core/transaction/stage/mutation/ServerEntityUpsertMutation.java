@@ -23,15 +23,18 @@
 
 package io.evitadb.core.transaction.stage.mutation;
 
+import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.EnumSet;
 import java.util.Optional;
 
 /**
@@ -41,16 +44,20 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class VerifiedEntityUpsertMutation extends EntityUpsertMutation {
+public class ServerEntityUpsertMutation extends EntityUpsertMutation implements ServerEntityMutation {
 	@Serial private static final long serialVersionUID = -5775248516292883577L;
 	/**
 	 * Specifies whether the implicit mutations should be generated or not.
 	 */
-	public final ImplicitMutations implicitMutations;
+	@Getter public final EnumSet<ImplicitMutationBehavior> implicitMutations;
+	public final boolean verifyConsistency;
+	public final boolean applyUndoOnError;
 
-	public VerifiedEntityUpsertMutation(
+	public ServerEntityUpsertMutation(
 		@Nonnull EntityUpsertMutation entityUpsertMutation,
-		@Nonnull ImplicitMutations implicitMutations
+		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations,
+		boolean applyUndoOnError,
+		boolean verifyConsistency
 	) {
 		super(
 			entityUpsertMutation.getEntityType(),
@@ -59,13 +66,17 @@ public class VerifiedEntityUpsertMutation extends EntityUpsertMutation {
 			entityUpsertMutation.getLocalMutations()
 		);
 		this.implicitMutations = implicitMutations;
+		this.applyUndoOnError = applyUndoOnError;
+		this.verifyConsistency = verifyConsistency;
 	}
 
-	public VerifiedEntityUpsertMutation(
+	public ServerEntityUpsertMutation(
 		@Nonnull String entityType,
 		@Nullable Integer entityPrimaryKey,
 		@Nonnull EntityExistence entityExistence,
-		@Nonnull ImplicitMutations implicitMutations,
+		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations,
+		boolean applyUndoOnError,
+		boolean verifyConsistency,
 		@Nonnull LocalMutation<?, ?>... localMutations
 	) {
 		super(
@@ -75,15 +86,24 @@ public class VerifiedEntityUpsertMutation extends EntityUpsertMutation {
 			localMutations
 		);
 		this.implicitMutations = implicitMutations;
+		this.applyUndoOnError = applyUndoOnError;
+		this.verifyConsistency = verifyConsistency;
 	}
 
-	/**
-	 * Determines whether the method should produce implicit mutations.
-	 *
-	 * @return true if the method should produce implicit mutations, false otherwise
-	 */
-	public boolean shouldProduceImplicitMutations() {
-		return this.implicitMutations == ImplicitMutations.GENERATE;
+	@Nonnull
+	@Override
+	public EnumSet<ImplicitMutationBehavior> getImplicitMutationsBehavior() {
+		return this.implicitMutations;
+	}
+
+	@Override
+	public boolean shouldApplyUndoOnError() {
+		return this.applyUndoOnError;
+	}
+
+	@Override
+	public boolean shouldVerifyConsistency() {
+		return this.verifyConsistency;
 	}
 
 	@Nonnull
@@ -96,21 +116,6 @@ public class VerifiedEntityUpsertMutation extends EntityUpsertMutation {
 		// this has already happened in the transactional memory layer
 		// and all schema mutations have been already recorded
 		return Optional.empty();
-	}
-
-
-	/**
-	 * This enum represents different options for implicit mutations.
-	 *
-	 * - GENERATE: Indicates that implicit mutations should be generated.
-	 * - SKIP: Indicates that implicit mutations should be skipped.
-	 *
-	 * This enum is used in the class `VerifiedEntityUpsertMutation` to specify the desired behavior of implicit mutations.
-	 */
-	public enum ImplicitMutations {
-
-		GENERATE, SKIP
-
 	}
 
 }

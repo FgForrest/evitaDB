@@ -49,6 +49,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -111,6 +112,12 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 */
 	@Nonnull
 	private final String[] attributeInheritanceFilter;
+	/**
+	 * Set of inherited attribute from the original reference that is reflected by this one. When the original reference
+	 * is not present, this set is empty.
+	 */
+	@Nonnull
+	private final Set<String> inheritedAttributes;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
@@ -385,6 +392,23 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		);
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? new String[0] : attributeInheritanceFilter;
+		if (this.reflectedReference == null) {
+			this.inheritedAttributes = Collections.emptySet();
+		} else {
+			switch (this.attributesInheritanceBehavior) {
+				case INHERIT_ONLY_SPECIFIED -> {
+					this.inheritedAttributes = Arrays.stream(this.attributeInheritanceFilter).collect(Collectors.toCollection(HashSet::new));
+					this.inheritedAttributes.retainAll(this.reflectedReference.getAttributes().keySet());
+				}
+				case INHERIT_ALL_EXCEPT -> {
+					this.inheritedAttributes = new HashSet<>(this.reflectedReference.getAttributes().keySet());
+					Arrays.asList(this.attributeInheritanceFilter).forEach(this.inheritedAttributes::remove);
+				}
+				default -> throw new GenericEvitaInternalError(
+					"Unsupported attribute inheritance behavior: " + this.attributesInheritanceBehavior
+				);
+			}
+		}
 	}
 
 	public ReflectedReferenceSchema(
@@ -437,6 +461,23 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		this.facetedInherited = facetedInherited;
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? new String[0] : attributeInheritanceFilter;
+		if (this.reflectedReference == null) {
+			this.inheritedAttributes = Collections.emptySet();
+		} else {
+			switch (this.attributesInheritanceBehavior) {
+				case INHERIT_ONLY_SPECIFIED -> {
+					this.inheritedAttributes = Arrays.stream(this.attributeInheritanceFilter).collect(Collectors.toCollection(HashSet::new));
+					this.inheritedAttributes.retainAll(this.reflectedReference.getAttributes().keySet());
+				}
+				case INHERIT_ALL_EXCEPT -> {
+					this.inheritedAttributes = new HashSet<>(this.reflectedReference.getAttributes().keySet());
+					Arrays.asList(this.attributeInheritanceFilter).forEach(this.inheritedAttributes::remove);
+				}
+				default -> throw new GenericEvitaInternalError(
+					"Unsupported attribute inheritance behavior: " + this.attributesInheritanceBehavior
+				);
+			}
+		}
 	}
 
 	@Nonnull
@@ -551,9 +592,9 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 
 	@Nonnull
 	@Override
-	public Collection<AttributeSchema> getNonNullableAttributes() {
+	public Collection<AttributeSchema> getNonNullableOrDefaultValueAttributes() {
 		assertAttributes();
-		return super.getNonNullableAttributes();
+		return super.getNonNullableOrDefaultValueAttributes();
 	}
 
 	@Nonnull
@@ -1307,13 +1348,20 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		);
 	}
 
-	/**
-	 * Returns true if the internal field to the reflected reference is not empty.
-	 *
-	 * @return true if the reflected reference is available
-	 */
+	@Override
 	public boolean isReflectedReferenceAvailable() {
 		return this.reflectedReference != null;
+	}
+
+	/**
+	 * Retrieves the set of inherited attributes from the original reference. When the reflected reference is not available,
+	 * the set is empty.
+	 *
+	 * @return a set containing the names of inherited attributes
+	 */
+	@Nonnull
+	public Set<String> getInheritedAttributes() {
+		return this.inheritedAttributes;
 	}
 
 	/**

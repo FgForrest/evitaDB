@@ -111,6 +111,9 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	private static final Currency CURRENCY_GBP = Currency.getInstance("GBP");
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";
+	private static final String ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED = "notInherited";
+	private static final String ATTRIBUTE_PRODUCT_CATEGORY_INHERITED = "inherited";
+	private static final String ATTRIBUTE_CATEGORY_MARKET = "market";
 	private Evita evita;
 
 	private static void assertDataWasPropagated(EntityIndex categoryIndex, int recordId) {
@@ -136,6 +139,210 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				)
 			)
 		).orElse(null);
+	}
+
+	/**
+	 * Asserts that the references between product and category entities are linked correctly.
+	 *
+	 * @param session the session to use for entity fetching
+	 */
+	private static void assertReferencesAreEntangled(@Nonnull EvitaSessionContract session) {
+		final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+		assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
+		final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+		assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+	}
+
+	/**
+	 * Asserts that the references between product and category entities are linked correctly.
+	 *
+	 * @param session the session to use for entity fetching
+	 */
+	private static void assertReferencesAreNotEntangled(@Nonnull EvitaSessionContract session) {
+		final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+		assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isEmpty());
+		final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+		assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isEmpty());
+	}
+
+	/**
+	 * Asserts that the references between product and category entities are linked correctly.
+	 *
+	 * @param session the session to use for entity fetching
+	 */
+	private static void assertEntitiesAreNotEntangled(@Nonnull EvitaSessionContract session) {
+		final Optional<SealedEntity> product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent());
+		product.ifPresent(it -> assertTrue(it.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isEmpty()));
+		final Optional<SealedEntity> category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent());
+		category.ifPresent(it -> assertTrue(it.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isEmpty()));
+		assertTrue(
+			product.isPresent() || category.isPresent(),
+			"Neither product nor category entity was found!"
+		);
+		assertFalse(
+			product.isPresent() && category.isPresent(),
+			"Both product and category entities were found!"
+		);
+	}
+
+	/**
+	 * Creates a schema with reflected references between CATEGORY and PRODUCT entities using the given session.
+	 *
+	 * @param session the session to use for schema creation
+	 */
+	private static void createEntangledSchema(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(Entities.CATEGORY)
+			.withReflectedReferenceToEntity(
+				REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+			)
+			.updateVia(session);
+		session
+			.defineEntitySchema(Entities.PRODUCT)
+			.withReferenceToEntity(
+				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.indexed()
+			)
+			.updateVia(session);
+	}
+
+	/**
+	 * Creates a schema with reflected references between CATEGORY and PRODUCT entities using the given session.
+	 *
+	 * @param session the session to use for schema creation
+	 */
+	private static void createEntangledSchemaWithInheritedAttributes(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(Entities.CATEGORY)
+			.withReflectedReferenceToEntity(
+				REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+				whichIs -> whichIs.withAttributesInheritedExcept(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED)
+					.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, thatIs -> thatIs.filterable().sortable().withDefaultValue("CZ"))
+			)
+			.updateVia(session);
+		session
+			.defineEntitySchema(Entities.PRODUCT)
+			.withReferenceToEntity(
+				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.indexed()
+					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, String.class, thatIs -> thatIs.filterable().sortable().withDefaultValue("default"))
+					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, String.class, thatIs -> thatIs.filterable().sortable().nullable())
+			)
+			.updateVia(session);
+	}
+
+	/**
+	 * Creates a schema with reflected references between CATEGORY and PRODUCT entities using the given session.
+	 *
+	 * @param session the session to use for schema creation
+	 */
+	private static void createEntangledSchemaWithInheritedAttributesWithoutDefaults(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(Entities.CATEGORY)
+			.withReflectedReferenceToEntity(
+				REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+				whichIs -> whichIs.withAttributesInheritedExcept(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED)
+					.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, thatIs -> thatIs.filterable().sortable())
+			)
+			.updateVia(session);
+		session
+			.defineEntitySchema(Entities.PRODUCT)
+			.withReferenceToEntity(
+				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.indexed()
+					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, String.class, thatIs -> thatIs.filterable().sortable())
+					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, String.class, thatIs -> thatIs.filterable().sortable())
+			)
+			.updateVia(session);
+	}
+
+	/**
+	 * Asserts the values of inherited and non-inherited attributes for specified product and category entities.
+	 *
+	 * @param session the session to use for entity fetching
+	 * @param productNotInherited expected value for the non-inherited product attribute
+	 * @param productInherited expected value for the inherited product attribute
+	 * @param categoryMarket expected value for the category market attribute
+	 */
+	private static void assertInheritedAttributesValues(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String productNotInherited,
+		@Nullable String productInherited,
+		@Nonnull String categoryMarket
+	) {
+		final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+		final ReferenceContract productCategory = product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).orElseThrow();
+		assertEquals(productNotInherited, productCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED));
+		if (productInherited != null) {
+			assertEquals(productInherited, productCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED));
+		} else {
+			assertNull(productCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED));
+		}
+
+		final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+		final ReferenceContract productsInCategory = category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).orElseThrow();
+		assertEquals(categoryMarket, productsInCategory.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+		if (productInherited != null) {
+			assertEquals(productInherited, productsInCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED));
+		} else {
+			assertNull(productsInCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED));
+		}
+	}
+
+	@Nullable
+	private static EntityIndex getGlobalIndex(EntityCollectionContract collection) {
+		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
+		return ((EntityCollection) collection).getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.GLOBAL)
+		);
+	}
+
+	@Nullable
+	private static EntityIndex getHierarchyIndex(EntityCollectionContract collection, String entityType, int recordId) {
+		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
+		return ((EntityCollection) collection).getIndexByKeyIfExists(
+			new EntityIndexKey(
+				EntityIndexType.REFERENCED_HIERARCHY_NODE,
+				new ReferenceKey(entityType, recordId)
+			)
+		);
+	}
+
+	@Nullable
+	private static EntityIndex getReferencedEntityIndex(EntityCollectionContract collection, String entityType, int recordId) {
+		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
+		return ((EntityCollection) collection).getIndexByKeyIfExists(
+			new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY,
+				new ReferenceKey(entityType, recordId)
+			)
+		);
+	}
+
+	private static int[] getAllCategories(EvitaSessionContract session) {
+		return session.query(
+				query(
+					collection(Entities.CATEGORY)
+				),
+				EntityReferenceContract.class
+			)
+			.getRecordData()
+			.stream()
+			.mapToInt(EntityReferenceContract::getPrimaryKey)
+			.toArray();
+	}
+
+	private static int countProductsWithPriceListCurrencyCombination(EvitaSessionContract session, String priceList, Currency currency) {
+		return session.query(
+				query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						and(
+							priceInPriceLists(priceList),
+							priceInCurrency(currency)
+						)
+					)
+				),
+				EntityReferenceContract.class
+			)
+			.getTotalRecordCount();
 	}
 
 	@BeforeEach
@@ -2834,23 +3041,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReflectedReferencesOnEntityCreation() {
-		/* TODO JNO - add attributes to the test! Including automatic setup of default values of non matching ones */
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
-					)
-					.updateVia(session);
-
-				session
-					.defineEntitySchema(Entities.PRODUCT)
-					.withReferenceToEntity(
-						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						whichIs -> whichIs.indexed()
-					)
-					.updateVia(session);
+				createEntangledSchema(session);
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 10)
@@ -2861,33 +3055,231 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					session.createNewEntity(Entities.CATEGORY, 1)
 				);
 
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
-				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
-				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
-				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+				assertReferencesAreEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateReflectedReferenceWhenMandatoryAttributesHasNoDefaultValues() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributesWithoutDefaults(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, "123")
+						)
+				);
+
+				assertThrows(
+					MandatoryAttributesNotProvidedException.class,
+					() -> session.upsertEntity(
+						session.createNewEntity(Entities.CATEGORY, 1)
+					)
+				);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReflectedReferencesOnEntityCreationIncludingInheritedAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, "123")
+						)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "123", "ABC", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldUpdateInheritedAttributeOnReflectedReference() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+
+				session.upsertEntity(
+					session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "123")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "123", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldUpdateInheritedAttributeOnReferenceWhenSetOnReflectedOne() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+
+				session.upsertEntity(
+					session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "123")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "123", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldRemoveInheritedAttributeOnReflectedReference() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+
+				session.upsertEntity(
+					session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.removeAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED)
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", null, "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldRemoveInheritedAttributeOnReferenceWhenSetOnReflectedOne() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+
+				session.upsertEntity(
+					session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
+							whichIs -> whichIs
+								.removeAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED)
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", null, "CZ");
 			}
 		);
 	}
 
 	@Test
 	void shouldAutomaticallySetupReferencesWhenReflectedOnesExistOnEntityCreation() {
-		/* TODO JNO - add attributes to the test! Including automatic setup of default values of non matching ones */
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
-					)
-					.updateVia(session);
-
-				session
-					.defineEntitySchema(Entities.PRODUCT)
-					.withReferenceToEntity(
-						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						whichIs -> whichIs.indexed()
-					)
-					.updateVia(session);
+				createEntangledSchema(session);
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.CATEGORY, 1)
@@ -2898,33 +3290,43 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					session.createNewEntity(Entities.PRODUCT, 10)
 				);
 
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
-				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
-				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
-				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+				assertReferencesAreEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReferencesWhenReflectedOnesExistOnEntityCreationIncludingInheritedAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
 			}
 		);
 	}
 
 	@Test
 	void shouldAutomaticallySetupReflectedReferencesByReferencesOnCreatedEntity() {
-		/* TODO JNO - add attributes to the test! Including automatic setup of default values of non matching ones */
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
-					)
-					.updateVia(session);
-
-				session
-					.defineEntitySchema(Entities.PRODUCT)
-					.withReferenceToEntity(
-						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						whichIs -> whichIs.indexed()
-					)
-					.updateVia(session);
+				createEntangledSchema(session);
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.CATEGORY, 1)
@@ -2935,33 +3337,43 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.setReference(REFERENCE_PRODUCT_CATEGORY, 1)
 				);
 
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
-				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
-				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
-				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+				assertReferencesAreEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReflectedReferencesByReferencesOnCreatedEntityIncludingInheritedValues() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
 			}
 		);
 	}
 
 	@Test
 	void shouldAutomaticallySetupReferencesByReflectedReferencesOnCreatedEntity() {
-		/* TODO JNO - add attributes to the test! Including automatic setup of default values of non matching ones */
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
-					)
-					.updateVia(session);
-
-				session
-					.defineEntitySchema(Entities.PRODUCT)
-					.withReferenceToEntity(
-						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						whichIs -> whichIs.indexed()
-					)
-					.updateVia(session);
+				createEntangledSchema(session);
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 10)
@@ -2972,10 +3384,33 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
 				);
 
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
-				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
-				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
-				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+				assertReferencesAreEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReferencesByReflectedReferencesOnCreatedEntityIncludingInheritedAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
 			}
 		);
 	}
@@ -2985,19 +3420,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
-					)
-					.updateVia(session);
-
-				session
-					.defineEntitySchema(Entities.PRODUCT)
-					.withReferenceToEntity(
-						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						whichIs -> whichIs.indexed()
-					)
-					.updateVia(session);
+				createEntangledSchema(session);
 
 				// first create both entities without any references
 				session.upsertEntity(
@@ -3015,10 +3438,40 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.setReference(REFERENCE_PRODUCT_CATEGORY, 1)
 					.upsertVia(session);
 
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
-				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
-				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
-				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+				assertReferencesAreEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReflectedReferenceIncludingInheritedAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				// first create both entities without any references
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				// then add regular reference
+				session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(
+						REFERENCE_PRODUCT_CATEGORY, 1,
+						whichIs -> whichIs
+							.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+					)
+					.upsertVia(session);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
 			}
 		);
 	}
@@ -3028,19 +3481,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
-					)
-					.updateVia(session);
-
-				session
-					.defineEntitySchema(Entities.PRODUCT)
-					.withReferenceToEntity(
-						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						whichIs -> whichIs.indexed()
-					)
-					.updateVia(session);
+				createEntangledSchema(session);
 
 				// first create both entities without any references
 				session.upsertEntity(
@@ -3058,72 +3499,150 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
 					.upsertVia(session);
 
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
-				assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
-				final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
-				assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+				assertReferencesAreEntangled(session);
 			}
 		);
 	}
 
+	@Test
+	void shouldAutomaticallySetupReferenceViaReflectedReferenceWithInheritedAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
 
-	@Nullable
-	private static EntityIndex getGlobalIndex(EntityCollectionContract collection) {
-		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.GLOBAL)
-		);
-	}
+				// first create both entities without any references
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
 
-	@Nullable
-	private static EntityIndex getHierarchyIndex(EntityCollectionContract collection, String entityType, int recordId) {
-		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(
-				EntityIndexType.REFERENCED_HIERARCHY_NODE,
-				new ReferenceKey(entityType, recordId)
-			)
-		);
-	}
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
 
-	@Nullable
-	private static EntityIndex getReferencedEntityIndex(EntityCollectionContract collection, String entityType, int recordId) {
-		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY,
-				new ReferenceKey(entityType, recordId)
-			)
-		);
-	}
-
-	private static int[] getAllCategories(EvitaSessionContract session) {
-		return session.query(
-				query(
-					collection(Entities.CATEGORY)
-				),
-				EntityReferenceContract.class
-			)
-			.getRecordData()
-			.stream()
-			.mapToInt(EntityReferenceContract::getPrimaryKey)
-			.toArray();
-	}
-
-	private static int countProductsWithPriceListCurrencyCombination(EvitaSessionContract session, String priceList, Currency currency) {
-		return session.query(
-				query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						and(
-							priceInPriceLists(priceList),
-							priceInCurrency(currency)
-						)
+				// then add regular reference
+				session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
+						whichIs -> whichIs
+							.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
 					)
-				),
-				EntityReferenceContract.class
-			)
-			.getTotalRecordCount();
+					.upsertVia(session);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallyRemoveReferenceViaReflectedReferenceIsRemoved() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				// first create both entities with particular reference
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				// then add regular reference
+				session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.removeReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					.upsertVia(session);
+
+				assertReferencesAreNotEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallyRemoveReflectedReferenceViaReferenceIsRemoved() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				// first create both entities with particular reference
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				// then add regular reference
+				session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.removeReference(REFERENCE_PRODUCT_CATEGORY, 1)
+					.upsertVia(session);
+
+				assertReferencesAreNotEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallyRemoveReflectedReferenceViaReferenceOnEntityRemoval() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				// first create both entities with particular reference
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				// then add regular reference
+				session.deleteEntity(Entities.PRODUCT, 10, entityFetchAllContent());
+
+				assertEntitiesAreNotEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallyRemoveReferenceViaReflectedReferenceOnEntityRemoval() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				// first create both entities with particular reference
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				// then add regular reference
+				session.deleteEntity(Entities.CATEGORY, 1, entityFetchAllContent());
+
+				assertEntitiesAreNotEntangled(session);
+			}
+		);
 	}
 
 	@Nonnull

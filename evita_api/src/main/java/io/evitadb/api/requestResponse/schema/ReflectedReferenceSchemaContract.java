@@ -121,6 +121,14 @@ public interface ReflectedReferenceSchemaContract extends ReferenceSchemaContrac
 	String[] getAttributeInheritanceFilter();
 
 	/**
+	 * Returns true if the reflected reference is available. Reflected reference might not be available, when it really
+	 * doesn't yet exists in the target entity schema (but it may be created in the future).
+	 *
+	 * @return true if the reflected reference is available
+	 */
+	boolean isReflectedReferenceAvailable();
+
+	/**
 	 * Enum specifies different modes for reference attributes inheritance in reflected schema.
 	 */
 	enum AttributeInheritanceBehavior {
