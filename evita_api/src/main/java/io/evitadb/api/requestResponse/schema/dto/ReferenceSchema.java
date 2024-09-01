@@ -112,7 +112,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	/**
 	 * Contains all definitions of the attributes that contain default value.
 	 */
-	@Getter @Nonnull private final Collection<AttributeSchema> nonNullableOrDefaultValueAttributes;
+	@Getter @Nonnull private final Map<String, AttributeSchema> nonNullableOrDefaultValueAttributes;
 	/**
 	 * Index contains collections of sortable attribute compounds that reference the attribute with the name equal
 	 * to a key of this index.
@@ -303,7 +303,12 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			.values()
 			.stream()
 			.filter(it -> !it.isNullable() || it.getDefaultValue() != null)
-			.toList();
+			.collect(
+				Collectors.toMap(
+					AttributeSchema::getName,
+					Function.identity()
+				)
+			);
 		this.sortableAttributeCompounds = Collections.unmodifiableMap(
 			sortableAttributeCompounds.entrySet()
 				.stream()

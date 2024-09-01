@@ -61,6 +61,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -91,6 +92,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
 
@@ -197,6 +199,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull TriConsumer<Serializable, Boolean, AttributeKey> missingAttributeHandler
 	) {
 		referenceSchema.getNonNullableOrDefaultValueAttributes()
+			.values()
 			.forEach(attribute -> {
 				final Serializable defaultValue = attribute.getDefaultValue();
 				if (attribute.isLocalized()) {
@@ -648,42 +651,16 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			// and if such is found (collection might not yet exists, but we can still reference to it)
 			if (dataStoreReader != null) {
 				final Optional<String> reflectedReferenceSchema;
-				final Optional<Set<String>> inheritedAttributes;
-				final TriConsumer<String, Integer, Consumer<AttributeValue>> inheritedValuesProcessor;
 
 				/* TODO JNO - Odtud jsem kopíroval */
 				// find reflected schema definition (if any)
 				if (referenceSchema instanceof ReflectedReferenceSchema rrs) {
 					reflectedReferenceSchema = of(rrs.getReflectedReferenceName());
-					inheritedAttributes = of(rrs.getInheritedAttributes());
 				} else {
 					final Optional<ReflectedReferenceSchema> rrs = catalogSchema.getEntitySchema(referencedEntityType)
 						.flatMap(it -> ((EntitySchemaDecorator) it).getDelegate().getReflectedReferenceFor(referenceSchema.getName()));
 					reflectedReferenceSchema = rrs.map(ReferenceSchema::getName);
-					inheritedAttributes = rrs.map(ReflectedReferenceSchema::getInheritedAttributes);
 				}
-				// and create insert reference mutation in this entity for the referencing entities
-				inheritedValuesProcessor =
-					inheritedAttributes.isEmpty() ?
-						(referenceName, refPk, consumer) -> {
-						} :
-						(referenceName, refPk, consumer) -> {
-							// fetch the referenced entity reference part, this is quite expensive operation
-							final ReferencesStoragePart referencedEntityReferencePart = dataStoreReader.fetch(
-								catalogVersion, refPk, ReferencesStoragePart.class
-							);
-							// find the appropriate reference in the referenced entity
-							final ReferenceContract theOtherReference = referencedEntityReferencePart.findReferenceOrThrowException(
-								new ReferenceKey(referenceName, entityPrimaryKey)
-							);
-							// and propagate the inherited attributes
-							for (String attributeName : inheritedAttributes.get()) {
-								final Collection<AttributeValue> attributeValues = theOtherReference.getAttributeValues(attributeName);
-								for (AttributeValue attributeValue : attributeValues) {
-									consumer.accept(attributeValue);
-								}
-							}
-						};
 
 				// if the target entity and reference schema exists, set-up all reflected references
 				reflectedReferenceSchema
@@ -692,53 +669,24 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							dataStoreReader,
 							(ReferenceSchema) referenceSchema, it, mutationCollector,
 							InsertReferenceMutation::new,
-							referenceKey -> {
-								// init default values
-								((ReferenceSchema) referenceSchema).getNonNullableOrDefaultValueAttributes()
-									.stream()
-									.filter(attributeSchema -> !inheritedAttributes.get().contains(attributeSchema.getName()))
-									.forEach(attributeSchema -> {
-										final Serializable defaultValue = attributeSchema.getDefaultValue();
-										if (defaultValue != null) {
-											if (attributeSchema.isLocalized()) {
-												for (Locale locale : entityStorageContainer.getLocales()) {
-													mutationCollector.addLocalMutation(
-														new ReferenceAttributeMutation(
-															referenceKey,
-															new UpsertAttributeMutation(
-																new AttributeKey(attributeSchema.getName(), locale),
-																defaultValue
-															)
-														)
-													);
-												}
-											} else {
-												mutationCollector.addLocalMutation(
-													new ReferenceAttributeMutation(
-														referenceKey,
-														new UpsertAttributeMutation(
-															new AttributeKey(attributeSchema.getName()),
-															defaultValue
-														)
-													)
-												);
-											}
-										} else if (!attributeSchema.isNullable()) {
-											missingMandatedAttributes.add(attributeSchema.getName());
-										}
-									});
-								// add all inherited values
-								final Consumer<AttributeValue> inheritedValuesConsumer = attributeValue -> {
-									final AttributeKey attributeKey = attributeValue.key();
-									final Serializable value = attributeValue.value();
-									mutationCollector.addLocalMutation(
-										new ReferenceAttributeMutation(
-											referenceKey,
-											new UpsertAttributeMutation(attributeKey, value)
-										)
-									);
-								};
-								inheritedValuesProcessor.accept(it, referenceKey.primaryKey(), inheritedValuesConsumer);
+							referenceKeys -> {
+								final ReferenceBlock referenceBlock = new ReferenceBlock(
+									catalogSchema,
+									this.entityContainer.getLocales(),
+									(ReferenceSchema) referenceSchema,
+									// create a new attribute value provider for the reflected reference
+									new LazyReferenceAttributeValueProvider(
+										catalogVersion,
+										this.entityPrimaryKey,
+										referenceKeys,
+										dataStoreReader
+									)
+								);
+								Arrays.stream(referenceBlock.getAttributeSupplier().get())
+									.forEach(mutationCollector::addLocalMutation);
+								missingMandatedAttributes.addAll(
+									referenceBlock.getMissingMandatedAttributes()
+								);
 							}
 						)
 					);
@@ -773,10 +721,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						catalogSchema, entitySchema, thisReferenceName,
 						() -> new ReferenceBlock(
 							catalogSchema,
-							this.entityPrimaryKey,
 							this.entityContainer.getLocales(),
 							entitySchema.getReferenceOrThrowException(thisReferenceName),
 							new MutationAttributeValueProvider(
+								this.entityPrimaryKey,
 								irm,
 								currentIndex,
 								processedMutations,
@@ -794,10 +742,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						catalogSchema, entitySchema, thisReferenceName,
 						() -> new ReferenceBlock(
 							catalogSchema,
-							this.entityPrimaryKey,
 							this.entityContainer.getLocales(),
 							entitySchema.getReferenceOrThrowException(thisReferenceName),
 							new MutationAttributeValueProvider(
+								this.entityPrimaryKey,
 								rrm,
 								currentIndex,
 								processedMutations,
@@ -871,19 +819,19 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							for (int j = currentIndex + 1; j < references.length; j++) {
 								if (!thisReferenceName.equals(references[j].getReferenceName())) {
 									return new ReferenceBlock(
-										catalogSchema, this.entityPrimaryKey, this.entityContainer.getLocales(), referenceSchema,
-										new ReferenceAttributeValueProvider(Arrays.copyOfRange(references, currentIndex, j))
+										catalogSchema, this.entityContainer.getLocales(), referenceSchema,
+										new ReferenceAttributeValueProvider(this.entityPrimaryKey, Arrays.copyOfRange(references, currentIndex, j))
 									);
 								}
 							}
 							return new ReferenceBlock(
-								catalogSchema, this.entityPrimaryKey, this.entityContainer.getLocales(), referenceSchema,
-								new ReferenceAttributeValueProvider(Arrays.copyOfRange(references, currentIndex, references.length))
+								catalogSchema, this.entityContainer.getLocales(), referenceSchema,
+								new ReferenceAttributeValueProvider(this.entityPrimaryKey, Arrays.copyOfRange(references, currentIndex, references.length))
 							);
 						} else {
 							return new ReferenceBlock(
-								catalogSchema, this.entityPrimaryKey, this.entityContainer.getLocales(), referenceSchema,
-								new ReferenceAttributeValueProvider(reference)
+								catalogSchema, this.entityContainer.getLocales(), referenceSchema,
+								new ReferenceAttributeValueProvider(this.entityPrimaryKey, reference)
 							);
 						}
 					},
@@ -909,7 +857,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nullable String externalReferenceSchemaName,
 		@Nonnull MutationCollector mutationCollector,
 		@Nonnull Function<ReferenceKey, ReferenceMutation<?>> mutationFactory,
-		@Nonnull Consumer<ReferenceKey> eachReferenceConsumer
+		@Nonnull Consumer<ReferenceKey[]> eachReferenceConsumer
 	) {
 		// access its reduced entity index for current entity
 		final ReferenceKey referenceKey = new ReferenceKey(externalReferenceSchemaName, this.entityPrimaryKey);
@@ -921,13 +869,16 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		if (reducedEntityIndex != null) {
 			// for each such entity create internal (reflected) reference to it
 			final Bitmap referencingEntities = reducedEntityIndex.getAllPrimaryKeys();
+			final ReferenceKey[] referenceKeys = new ReferenceKey[referencingEntities.size()];
+			int index = -1;
 			final OfInt it = referencingEntities.iterator();
 			while (it.hasNext()) {
 				int epk = it.nextInt();
 				final ReferenceKey refKey = new ReferenceKey(referenceSchema.getName(), epk);
 				mutationCollector.addLocalMutation(mutationFactory.apply(refKey));
-				eachReferenceConsumer.accept(refKey);
+				referenceKeys[++index] = refKey;
 			}
+			eachReferenceConsumer.accept(referenceKeys);
 		}
 	}
 
@@ -1391,16 +1342,18 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private interface AttributeValueProvider<T> {
 
 		@Nonnull
+		Stream<? extends AttributeSchemaContract> getAttributeSchemas(@Nonnull ReferenceSchema localReferenceSchema, @Nonnull ReferenceSchema referencedEntityReferenceSchema, @Nonnull Set<String> inheritedAttributes);
+
+		@Nonnull
 		Stream<T> getReferenceHolders();
 
 		int geEntityPrimaryKey(@Nonnull T referenceHolder);
 
-		boolean isAttributeSet(@Nonnull T referenceHolder, @Nonnull String attributeName, @Nullable Locale locale);
+		@Nonnull
+		ReferenceKey getReferenceKey(@Nonnull ReferenceSchema referenceSchema, @Nonnull T referenceHolder);
 
 		@Nonnull
-		Collection<AttributeValue> getAttributeValues(@Nonnull T referenceHolder, @Nonnull String attributeName);
-
-
+		Collection<AttributeValue> getAttributeValues(@Nonnull ReferenceSchema referenceSchema, @Nonnull T referenceHolder, @Nonnull String attributeName);
 	}
 
 	/**
@@ -1453,10 +1406,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private static class ReferenceBlock {
 		@Getter private final RoaringBitmap referencedPrimaryKeys;
 		@Getter private final Supplier<ReferenceAttributeMutation[]> attributeSupplier;
+		private Set<Object> missingMandatedAttributes;
 
 		public <T> ReferenceBlock(
 			@Nonnull CatalogSchema catalogSchema,
-			int entityPrimaryKey,
 			@Nonnull Set<Locale> locales,
 			@Nonnull ReferenceSchema referenceSchema,
 			@Nonnull AttributeValueProvider<T> attributeValueProvider
@@ -1486,80 +1439,132 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			// if the target entity and reference schema exists, set-up all reflected references
 			this.attributeSupplier = theOtherReferenceSchema
 				.map(
-					it -> (Supplier<ReferenceAttributeMutation[]>) () -> {
-						final ReferenceKey referenceKey = new ReferenceKey(it.getName(), entityPrimaryKey);
-						return attributeValueProvider.getReferenceHolders()
-							.flatMap(
-								reference -> Stream.concat(
-									// init default values
-									it.getNonNullableOrDefaultValueAttributes()
-										.stream()
-										.filter(attributeSchema -> !inheritedAttributes.get().contains(attributeSchema.getName()))
-										.flatMap(
-											attributeSchema -> {
-												final Serializable defaultValue = attributeSchema.getDefaultValue();
-												if (defaultValue != null) {
-													if (attributeSchema.isLocalized()) {
-														return locales.stream()
-															.filter(locale -> !attributeValueProvider.isAttributeSet(reference, attributeSchema.getName(), locale))
-															.map(locale -> {
-																final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
-																return new ReferenceAttributeMutation(
-																	referenceKey,
-																	new UpsertAttributeMutation(attributeKey, defaultValue)
-																);
-															});
-													} else {
-														return attributeValueProvider.isAttributeSet(reference, attributeSchema.getName(), null) ?
-															Stream.empty() :
-															Stream.of(
-																new ReferenceAttributeMutation(
-																	referenceKey,
-																	new UpsertAttributeMutation(
-																		new AttributeKey(attributeSchema.getName()),
-																		defaultValue
-																	)
-																)
-															);
-													}
-												} else {
-													return Stream.empty();
-												}
-											}),
-									// and propagate the inherited attributes
-									inheritedAttributes.get().stream()
-										.flatMap(
-											attributeName -> {
-												final Collection<AttributeValue> attributeValues = attributeValueProvider.getAttributeValues(
-													reference, attributeName
+					it -> (Supplier<ReferenceAttributeMutation[]>) () -> attributeValueProvider.getReferenceHolders()
+						.flatMap(
+							reference -> attributeValueProvider.getAttributeSchemas(referenceSchema, it, inheritedAttributes.get())
+								.flatMap(
+									attributeSchema -> {
+										final boolean inherited = inheritedAttributes.get().contains(attributeSchema.getName());
+										final Collection<AttributeValue> attributeValues;
+										if (inherited) {
+											attributeValues = attributeValueProvider.getAttributeValues(
+												it, reference, attributeSchema.getName()
+											);
+										} else {
+											attributeValues = Collections.emptyList();
+										}
+										final Serializable defaultValue = attributeSchema.getDefaultValue();
+										if (defaultValue != null) {
+											final Function<AttributeKey, Serializable> valueLookup = attributeKey ->
+												attributeValues.stream()
+													.filter(attVal -> attributeKey.equals(attVal.key()))
+													.map(AttributeValue::value)
+													.findFirst()
+													.orElse(defaultValue);
+											if (attributeSchema.isLocalized()) {
+												return locales.stream()
+													.map(locale -> {
+														final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
+														return new ReferenceAttributeMutation(
+															attributeValueProvider.getReferenceKey(it, reference),
+															new UpsertAttributeMutation(
+																attributeKey,
+																valueLookup.apply(attributeKey)
+															)
+														);
+													});
+											} else {
+												final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
+												return Stream.of(
+													new ReferenceAttributeMutation(
+														attributeValueProvider.getReferenceKey(it, reference),
+														new UpsertAttributeMutation(
+															attributeKey,
+															valueLookup.apply(attributeKey)
+														)
+													)
 												);
-												return attributeValues.stream()
-													.map(
-														attributeValue -> {
-															final AttributeKey attributeKey = attributeValue.key();
-															final Serializable value = attributeValue.value();
+											}
+										} else {
+											if (this.missingMandatedAttributes == null) {
+												this.missingMandatedAttributes = CollectionUtils.createHashSet(16);
+											}
+											final Function<AttributeKey, Serializable> valueLookup = attributeKey ->
+												attributeValues.stream()
+													.filter(attVal -> attributeKey.equals(attVal.key()))
+													.map(AttributeValue::value)
+													.findFirst()
+													.orElse(null);
+											if (attributeSchema.isLocalized()) {
+												return locales
+													.stream()
+													.map(locale -> {
+														final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
+														final Serializable value = valueLookup.apply(attributeKey);
+														if (value == null && !attributeSchema.isNullable()) {
+															this.missingMandatedAttributes.add(attributeKey);
+															return null;
+														} else {
 															return new ReferenceAttributeMutation(
-																referenceKey,
+																attributeValueProvider.getReferenceKey(it, reference),
 																new UpsertAttributeMutation(attributeKey, value)
 															);
-														});
-											})
-								)
-							).toArray(ReferenceAttributeMutation[]::new);
-					}
+														}
+													})
+													.filter(Objects::nonNull);
+											} else {
+												final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
+												final Serializable value = valueLookup.apply(attributeKey);
+												if (value == null && !attributeSchema.isNullable()) {
+													this.missingMandatedAttributes.add(attributeKey);
+													return Stream.empty();
+												} else {
+													return Stream.of(
+														new ReferenceAttributeMutation(
+															attributeValueProvider.getReferenceKey(it, reference),
+															new UpsertAttributeMutation(attributeKey, value)
+														)
+													);
+												}
+											}
+										}
+									})
+						).toArray(ReferenceAttributeMutation[]::new)
 				)
 				.orElse(() -> new ReferenceAttributeMutation[0]);
-
 		}
 
+		@Nonnull
+		public Set<Object> getMissingMandatedAttributes() {
+			return missingMandatedAttributes == null ? Collections.emptySet() : missingMandatedAttributes;
+		}
 	}
 
 	/* TODO JNO - document */
 	private static class ReferenceAttributeValueProvider implements AttributeValueProvider<ReferenceContract> {
+		private final int entityPrimaryKey;
 		private final ReferenceContract[] referenceContracts;
 
-		public ReferenceAttributeValueProvider(@Nonnull ReferenceContract... referenceContracts) {
+		public ReferenceAttributeValueProvider(
+			int entityPrimaryKey,
+			@Nonnull ReferenceContract... referenceContracts
+		) {
+			this.entityPrimaryKey = entityPrimaryKey;
 			this.referenceContracts = referenceContracts;
+		}
+
+		@Nonnull
+		@Override
+		public Stream<? extends AttributeSchemaContract> getAttributeSchemas(@Nonnull ReferenceSchema localReferenceSchema, @Nonnull ReferenceSchema referencedEntityReferenceSchema, @Nonnull Set<String> inheritedAttributes) {
+			final Map<String, AttributeSchema> nonNullableOrDefaultValueAttributes = referencedEntityReferenceSchema.getNonNullableOrDefaultValueAttributes();
+			return Stream.concat(
+				nonNullableOrDefaultValueAttributes.values().stream(),
+				localReferenceSchema.getAttributes()
+					.entrySet()
+					.stream()
+					.filter(it -> inheritedAttributes.contains(it.getKey()) && !nonNullableOrDefaultValueAttributes.containsKey(it.getKey()))
+					.map(Map.Entry::getValue)
+			);
 		}
 
 		@Nonnull
@@ -1573,17 +1578,16 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			return referenceHolder.getReferencedPrimaryKey();
 		}
 
+		@Nonnull
 		@Override
-		public boolean isAttributeSet(@Nonnull ReferenceContract referenceHolder, @Nonnull String attributeName, @Nullable Locale locale) {
-			final Set<AttributeKey> attributeKeys = referenceHolder.getAttributeKeys();
-			return locale == null ?
-				attributeKeys.contains(new AttributeKey(attributeName)) :
-				attributeKeys.contains(new AttributeKey(attributeName, locale));
+		public ReferenceKey getReferenceKey(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceContract referenceHolder) {
+			return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey);
 		}
 
 		@Nonnull
 		@Override
 		public Collection<AttributeValue> getAttributeValues(
+			@Nonnull ReferenceSchema referenceSchema,
 			@Nonnull ReferenceContract referenceHolder,
 			@Nonnull String attributeName
 		) {
@@ -1594,15 +1598,18 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	/* TODO JNO - document */
 	@SuppressWarnings("rawtypes")
 	private static class MutationAttributeValueProvider implements AttributeValueProvider<ReferenceMutation> {
+		private final int entityPrimaryKey;
 		private final CompositeObjectArray<ReferenceMutation> matchingMutations;
 		private final Map<ReferenceKey, Map<AttributeKey, AttributeValue>> referenceAttributesIndex;
 
 		public MutationAttributeValueProvider(
+			int entityPrimaryKey,
 			@Nonnull ReferenceMutation<?> firstMutation,
 			int currentIndex,
 			@Nonnull IntSet processedMutations,
 			@Nonnull List<? extends LocalMutation<?, ?>> inputMutations
 		) {
+			this.entityPrimaryKey = entityPrimaryKey;
 			this.referenceAttributesIndex = CollectionUtils.createHashMap(inputMutations.size());
 			// let's collect all primary keys of the insert reference with the same name into a bitmap
 			final String referenceName = firstMutation.getReferenceKey().referenceName();
@@ -1618,9 +1625,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							nextIrm instanceof ReferenceAttributeMutation ram &&
 								ram.getAttributeMutation() instanceof UpsertAttributeMutation uam) {
 							this.referenceAttributesIndex.computeIfAbsent(
-								ram.getReferenceKey(),
-								referenceKey -> CollectionUtils.createHashMap(16)
-							)
+									ram.getReferenceKey(),
+									referenceKey -> CollectionUtils.createHashMap(16)
+								)
 								.put(
 									ram.getAttributeKey(),
 									uam.mutateLocal(null, null)
@@ -1634,6 +1641,20 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 		@Nonnull
 		@Override
+		public Stream<? extends AttributeSchemaContract> getAttributeSchemas(@Nonnull ReferenceSchema localReferenceSchema, @Nonnull ReferenceSchema referencedEntityReferenceSchema, @Nonnull Set<String> inheritedAttributes) {
+			final Map<String, AttributeSchema> nonNullableOrDefaultValueAttributes = referencedEntityReferenceSchema.getNonNullableOrDefaultValueAttributes();
+			return Stream.concat(
+				nonNullableOrDefaultValueAttributes.values().stream(),
+				localReferenceSchema.getAttributes()
+					.entrySet()
+					.stream()
+					.filter(it -> inheritedAttributes.contains(it.getKey()) && !nonNullableOrDefaultValueAttributes.containsKey(it.getKey()))
+					.map(Map.Entry::getValue)
+			);
+		}
+
+		@Nonnull
+		@Override
 		public Stream<ReferenceMutation> getReferenceHolders() {
 			return StreamSupport.stream(this.matchingMutations.spliterator(), false);
 		}
@@ -1643,20 +1664,15 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			return referenceHolder.getReferenceKey().primaryKey();
 		}
 
+		@Nonnull
 		@Override
-		public boolean isAttributeSet(@Nonnull ReferenceMutation referenceHolder, @Nonnull String attributeName, @Nullable Locale locale) {
-			final Map<AttributeKey, AttributeValue> attributes = this.referenceAttributesIndex.get(referenceHolder.getReferenceKey());
-			return attributes != null &&
-				(
-					locale == null ?
-						attributes.containsKey(new AttributeKey(attributeName)) :
-						attributes.containsKey(new AttributeKey(attributeName, locale))
-				);
+		public ReferenceKey getReferenceKey(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceMutation referenceHolder) {
+			return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey);
 		}
 
 		@Nonnull
 		@Override
-		public Collection<AttributeValue> getAttributeValues(@Nonnull ReferenceMutation referenceHolder, @Nonnull String attributeName) {
+		public Collection<AttributeValue> getAttributeValues(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceMutation referenceHolder, @Nonnull String attributeName) {
 			final Map<AttributeKey, AttributeValue> attributeValues = this.referenceAttributesIndex.get(referenceHolder.getReferenceKey());
 			return attributeValues == null ?
 				Collections.emptyList() :
@@ -1665,6 +1681,60 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					.collect(Collectors.toList());
 		}
 
+	}
+
+	@RequiredArgsConstructor
+	private static class LazyReferenceAttributeValueProvider implements AttributeValueProvider<ReferenceKey> {
+		private final long catalogVersion;
+		private final int entityPrimaryKey;
+		private final ReferenceKey[] referenceKeys;
+		private final DataStoreReader dataStoreReader;
+
+		@Nonnull
+		@Override
+		public Stream<? extends AttributeSchemaContract> getAttributeSchemas(@Nonnull ReferenceSchema localReferenceSchema, @Nonnull ReferenceSchema referencedEntityReferenceSchema, @Nonnull Set<String> inheritedAttributes) {
+			final Map<String, AttributeSchema> nonNullableOrDefaultValueAttributes = localReferenceSchema.getNonNullableOrDefaultValueAttributes();
+			return Stream.concat(
+				nonNullableOrDefaultValueAttributes.values().stream(),
+				referencedEntityReferenceSchema.getAttributes()
+					.entrySet()
+					.stream()
+					.filter(it -> inheritedAttributes.contains(it.getKey()) && !nonNullableOrDefaultValueAttributes.containsKey(it.getKey()))
+					.map(Map.Entry::getValue)
+			);
+		}
+
+		@Nonnull
+		@Override
+		public Stream<ReferenceKey> getReferenceHolders() {
+			return Arrays.stream(referenceKeys);
+		}
+
+		@Override
+		public int geEntityPrimaryKey(@Nonnull ReferenceKey referenceHolder) {
+			return referenceHolder.primaryKey();
+		}
+
+		@Nonnull
+		@Override
+		public ReferenceKey getReferenceKey(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceKey referenceHolder) {
+			return referenceHolder;
+		}
+
+		@Nonnull
+		@Override
+		public Collection<AttributeValue> getAttributeValues(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceKey referenceHolder, @Nonnull String attributeName) {
+			// fetch the referenced entity reference part, this is quite expensive operation
+			final ReferencesStoragePart referencedEntityReferencePart = dataStoreReader.fetch(
+				catalogVersion, referenceHolder.primaryKey(), ReferencesStoragePart.class
+			);
+			// find the appropriate reference in the referenced entity
+			final ReferenceContract reference = referencedEntityReferencePart.findReferenceOrThrowException(
+				new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey)
+			);
+			// and propagate the inherited attributes
+			return reference.getAttributeValues(attributeName);
+		}
 	}
 
 }

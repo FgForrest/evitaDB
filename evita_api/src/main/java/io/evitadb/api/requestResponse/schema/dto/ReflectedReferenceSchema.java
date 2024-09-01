@@ -592,7 +592,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 
 	@Nonnull
 	@Override
-	public Collection<AttributeSchema> getNonNullableOrDefaultValueAttributes() {
+	public Map<String, AttributeSchema> getNonNullableOrDefaultValueAttributes() {
 		assertAttributes();
 		return super.getNonNullableOrDefaultValueAttributes();
 	}
