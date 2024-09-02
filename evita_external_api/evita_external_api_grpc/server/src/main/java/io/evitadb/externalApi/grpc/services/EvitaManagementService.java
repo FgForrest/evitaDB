@@ -28,6 +28,7 @@ import com.google.protobuf.Empty;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
+import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
@@ -247,12 +248,19 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	public void getConfiguration(Empty request, StreamObserver<GrpcEvitaConfigurationResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				responseObserver.onNext(
-					GrpcEvitaConfigurationResponse.newBuilder()
-						.setConfiguration(management.getConfiguration())
-						.build()
-				);
-				responseObserver.onCompleted();
+				/* TOBEDONE JNO #25 - handle differently */
+				if (evita.getConfiguration().server().readOnly()) {
+					responseObserver.onError(
+						new ReadOnlyException()
+					);
+				} else {
+					responseObserver.onNext(
+						GrpcEvitaConfigurationResponse.newBuilder()
+							.setConfiguration(management.getConfiguration())
+							.build()
+					);
+					responseObserver.onCompleted();
+				}
 			},
 			evita.getRequestExecutor(),
 			responseObserver);
