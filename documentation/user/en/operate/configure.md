@@ -80,22 +80,26 @@ api:                                              # [see API configuration](#api
     system:                                       # [see System API configuration](#system-api-configuration)
       enabled: true
       host: ":5555"
+      exposedHost: null
       tlsMode: FORCE_NO_TLS
       allowedOrigins: null
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
       enabled: true
       host: ":5555"
+      exposedHost: null
       tlsMode: FORCE_TLS
       allowedOrigins: null
       parallelize: true
     rest:                                         # [see REST API configuration](#rest-api-configuration)
       enabled: true
       host: ":5555"
+      exposedHost: null
       tlsMode: FORCE_TLS
       allowedOrigins: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
       enabled: true
       host: ":5555"
+      exposedHost: null
       tlsMode: FORCE_TLS
       exposeDocsService: false
       mTLS:
@@ -104,6 +108,7 @@ api:                                              # [see API configuration](#api
     lab:                                          # [see evitaLab configuration](#evitalab-configuration)
       enabled: true
       host: ":5555"
+      exposedHost: null
       tlsMode: FORCE_TLS
       allowedOrigins: null
       gui:
@@ -735,7 +740,8 @@ provide an unsecured connection for security reasons.
         <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
            the internally resolved local host name and port usually don't match the host name and port 
            evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
-           is no longer used.</p>
+           is no longer used. Property `exposedHost` allows you to override not only the external hostname, but
+           also specify external port.</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
@@ -782,7 +788,8 @@ provide an unsecured connection for security reasons.
         <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
            the internally resolved local host name and port usually don't match the host name and port 
            evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
-           is no longer used.</p>
+           is no longer used. Property `exposedHost` allows you to override not only the external hostname, but
+           also specify external port.</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
@@ -824,7 +831,8 @@ provide an unsecured connection for security reasons.
         <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
            the internally resolved local host name and port usually don't match the host name and port 
            evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
-           is no longer used.</p>
+           is no longer used. Property `exposedHost` allows you to override not only the external hostname, but
+           also specify external port.</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
@@ -888,6 +896,14 @@ more information.
         [default `mTLS` implementation](tls.md#default-mtls-behaviour-not-secure) and therefore it's always provided
         on plain (insecure) HTTP protocol.</p>
     </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used. Property `exposedHost` allows you to override not only the external hostname, but
+           also specify external port.</p>
+    </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>
@@ -933,7 +949,8 @@ Besides that, it can also serve an entire evitaLab web client as its copy is bui
         <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
            the internally resolved local host name and port usually don't match the host name and port 
            evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
-           is no longer used.</p>
+           is no longer used. Property `exposedHost` allows you to override not only the external hostname, but
+           also specify external port.</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
@@ -1030,7 +1047,8 @@ pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
         <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
            the internally resolved local host name and port usually don't match the host name and port 
            evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
-           is no longer used.</p>
+           is no longer used. Property `exposedHost` allows you to override not only the external hostname, but
+           also specify external port.</p>
     </dd>
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>

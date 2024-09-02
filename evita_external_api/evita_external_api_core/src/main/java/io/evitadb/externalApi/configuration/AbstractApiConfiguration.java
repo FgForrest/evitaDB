@@ -137,8 +137,8 @@ public abstract class AbstractApiConfiguration {
 					.distinct()
 					.flatMap(
 						port -> ofNullable(getExposedHost())
-							.or(() -> ofNullable(exposedOn)
-								.map(it -> it + ":" + port))
+							.or(() -> ofNullable(exposedOn))
+							.map(it -> it.contains(":") ? it : it + ":" + port)
 							.stream()
 					),
 				Arrays.stream(getHost())
