@@ -1291,6 +1291,13 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 */
 	@Nonnull
 	public ReflectedReferenceSchema withReferencedSchema(@Nonnull ReferenceSchemaContract originalReference) {
+		Assert.isTrue(
+			originalReference.isIndexed(),
+			() -> new InvalidSchemaMutationException(
+				"Referenced reference `" + originalReference.getName() +
+					"` must be indexed in order to propagate changes to reflected reference `" + getName() + "`!"
+			)
+		);
 		return new ReflectedReferenceSchema(
 			this.name,
 			this.nameVariants,

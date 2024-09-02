@@ -516,6 +516,9 @@ public final class Evita implements EvitaContract {
 			final EvitaInternalSessionContract theSession = createdSession.session();
 			theSession.execute(updater);
 			return createdSession.closeFuture();
+		} catch (Throwable ex) {
+			createdSession.closeFuture().completeExceptionally(ex);
+			return createdSession.closeFuture();
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
 		}

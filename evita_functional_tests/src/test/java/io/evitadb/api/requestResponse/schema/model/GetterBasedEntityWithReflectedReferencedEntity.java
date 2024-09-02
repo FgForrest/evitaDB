@@ -72,7 +72,7 @@ public interface GetterBasedEntityWithReflectedReferencedEntity {
 		@PrimaryKey
 		int getId();
 
-		@Reference
+		@Reference(indexed = true)
 		ItemReference[] getItems();
 
 	}

@@ -847,7 +847,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"Brand",
 					true,
 					"BrandGroup",
-					false, false
+					false, true
 				);
 
 				assertEvolutionMode(entitySchema, EvolutionMode.values());
@@ -901,7 +901,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"Brand",
 					true,
 					"BrandGroup",
-					false, false
+					false, true
 				);
 
 				assertEvolutionMode(entitySchema, EvolutionMode.values());
@@ -1051,7 +1051,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"Brand",
 					true,
 					"BrandGroup",
-					false, false
+					false, true
 				);
 
 				assertEvolutionMode(entitySchema, EvolutionMode.values());

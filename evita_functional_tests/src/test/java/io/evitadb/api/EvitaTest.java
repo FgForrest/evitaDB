@@ -61,7 +61,6 @@ import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.PaginatedList;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
@@ -727,7 +726,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			assertThrows(
-				EvitaInvalidUsageException.class,
+				EntityTypeAlreadyPresentInCatalogSchemaException.class,
 				() -> session.renameCollection(Entities.PRODUCT, Entities.CATEGORY)
 			);
 		});
@@ -1176,6 +1175,51 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldFailToCreateNonIndexedReferenceWhenReflectedReferenceExists() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() ->
+				evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.defineEntitySchema(Entities.CATEGORY)
+							.withReflectedReferenceToEntity(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
+							.updateVia(session);
+
+						session.defineEntitySchema(Entities.PRODUCT)
+							.withReferenceToEntity(
+								REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+								ReferenceSchemaEditor::nonIndexed
+							)
+							.updateVia(session);
+					}
+				)
+		);
+	}
+
+	@Test
+	void shouldFailToCreateReflectedReferenceToNonIndexedReference() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+							ReferenceSchemaEditor::nonIndexed
+						)
+						.updateVia(session);
+
+					session.defineEntitySchema(Entities.CATEGORY)
+						.withReflectedReferenceToEntity(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
 	void shouldFailToCreateNonManagedReferenceWhenEntityOfSuchNameExists() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -1371,7 +1415,8 @@ class EvitaTest implements EvitaTestSupport {
 				session
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
-						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						ReferenceSchemaEditor::indexed
 					)
 					.updateVia(session);
 			}
@@ -1407,7 +1452,8 @@ class EvitaTest implements EvitaTestSupport {
 				session
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
-						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						ReferenceSchemaEditor::indexed
 					)
 					.updateVia(session);
 			}

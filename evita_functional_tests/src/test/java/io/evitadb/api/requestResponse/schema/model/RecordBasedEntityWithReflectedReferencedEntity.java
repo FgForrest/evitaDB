@@ -68,7 +68,7 @@ public record RecordBasedEntityWithReflectedReferencedEntity(
 		@PrimaryKey
 		int id,
 
-		@Reference
+		@Reference(indexed = true)
 		ItemReference[] items
 	) {
 	}

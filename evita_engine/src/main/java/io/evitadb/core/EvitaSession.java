@@ -353,16 +353,20 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					theCatalogToFlush.flush();
 				}
 				// immediately complete future
-				try {
-					validateCatalogSchema(theCatalog);
-					this.finalizationFuture.complete(getCatalogVersion());
-				} catch (SchemaAlteringException ex) {
-					this.finalizationFuture.completeExceptionally(ex);
+				if (!this.finalizationFuture.isCompletedExceptionally()) {
+					try {
+						validateCatalogSchema(theCatalog);
+						this.finalizationFuture.complete(getCatalogVersion());
+					} catch (SchemaAlteringException ex) {
+						this.finalizationFuture.completeExceptionally(ex);
+					}
 				}
 			} else {
 				if (this.transactionAccessor.get() != null) {
 					try {
-						validateCatalogSchema(theCatalog);
+						if (!this.transactionAccessor.get().isRollbackOnly()) {
+							validateCatalogSchema(theCatalog);
+						}
 					} catch (SchemaAlteringException ex) {
 						this.finalizationFuture.completeExceptionally(ex);
 					} finally {
@@ -1620,12 +1624,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					isRootLevelExecution()
 				);
 			} catch (Throwable ex) {
-				ofNullable(transactionAccessor.get())
-					.ifPresent(tx -> {
-						if (isRootLevelExecution()) {
-							tx.setRollbackOnlyWithException(ex);
-						}
-					});
+				if (isRootLevelExecution()) {
+					ofNullable(transactionAccessor.get())
+						.ifPresentOrElse(
+							tx -> tx.setRollbackOnlyWithException(ex),
+							() -> this.finalizationFuture.completeExceptionally(ex)
+						);
+				}
 				throw ex;
 			} finally {
 				decreaseNestLevel();

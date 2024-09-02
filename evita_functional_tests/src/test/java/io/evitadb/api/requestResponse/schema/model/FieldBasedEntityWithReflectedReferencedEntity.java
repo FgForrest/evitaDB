@@ -76,7 +76,7 @@ public class FieldBasedEntityWithReflectedReferencedEntity {
 		@PrimaryKey
 		private int id;
 
-		@Reference
+		@Reference(indexed = true)
 		private ItemReference[] items;
 
 	}
