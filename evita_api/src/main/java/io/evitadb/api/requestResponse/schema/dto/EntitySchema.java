@@ -786,16 +786,6 @@ public final class EntitySchema implements EntitySchemaContract {
 	}
 
 	/**
-	 * Returns a sub list of {@link ReflectedReferenceSchema} schemas from {@link #getReferences()}.
-	 *
-	 * @return the list of ReflectedReferenceSchema objects
-	 */
-	@Nonnull
-	public Collection<ReflectedReferenceSchema> getReflectedReferences() {
-		return this.reflectedReferences.values();
-	}
-
-	/**
 	 * Retrieves the reflected reference schema for the given reference name.
 	 *
 	 * @param referenceName The name of the reference for which to retrieve the reflected reference schema.

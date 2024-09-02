@@ -58,6 +58,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -313,7 +314,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				insertReflectedReferences(this.referencesStorageContainer, missingMandatedAttributes, mutationCollector);
 			}
 			if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
-				verifyReferenceMandatoryAttributes(this.entityContainer, this.referencesStorageContainer, missingMandatedAttributes, mutationCollector);
+				verifyReferenceAttributes(this.entityContainer, this.referencesStorageContainer, inputMutations, missingMandatedAttributes, mutationCollector);
 			}
 
 			if (!missingMandatedAttributes.isEmpty()) {
@@ -338,7 +339,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					verifyReflectedReferences(inputMutations, mutationCollector);
 				}
 				if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
-					verifyReferenceMandatoryAttributes(this.entityContainer, this.referencesStorageContainer, missingMandatedAttributes, mutationCollector);
+					verifyReferenceAttributes(
+						this.entityContainer,
+						this.referencesStorageContainer,
+						inputMutations,
+						missingMandatedAttributes,
+						mutationCollector
+					);
 				}
 			}
 
@@ -941,9 +948,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	/**
 	 * Method verifies that all non-mandatory attributes are present on entity references.
 	 */
-	private void verifyReferenceMandatoryAttributes(
+	private void verifyReferenceAttributes(
 		@Nonnull EntityBodyStoragePart entityStorageContainer,
 		@Nullable ReferencesStoragePart referencesStoragePart,
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
 		@Nonnull List<Object> missingMandatedAttributes,
 		@Nonnull MutationCollector mutationCollector
 	) throws MandatoryAttributesNotProvidedException {
@@ -951,9 +959,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			return;
 		}
 
+		final CatalogSchema catalogSchema = catalogSchemaAccessor.get();
 		final EntitySchema entitySchema = schemaAccessor.get();
-		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
+		propagateOrphanedReferenceAttributeMutations(catalogSchema, entitySchema, inputMutations, mutationCollector);
 
+		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
 		Arrays.stream(referencesStoragePart.getReferences())
 			.filter(Droppable::exists)
 			.collect(Collectors.groupingBy(ReferenceContract::getReferenceName))
@@ -991,6 +1001,107 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					}
 				}
 			});
+	}
+
+	/**
+	 * Propagates mutations related to reference attributes that are not related to any reference insertion.
+	 * Method generates mutations that replay attribute mutations in reflected references or in reference attributes in
+	 * the target entity collection, so that consistency is maintained.
+	 *
+	 * @param catalogSchema The schema of the catalog, containing metadata about the entire data catalog.
+	 * @param entitySchema The schema of the entity, containing metadata about the specific entity type.
+	 * @param inputMutations The list of local mutations to be processed, potentially containing reference attribute mutations.
+	 * @param mutationCollector The collector used to gather and store mutations that need to be externally applied.
+	 */
+	private void propagateOrphanedReferenceAttributeMutations(
+		@Nonnull CatalogSchema catalogSchema,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
+		@Nonnull MutationCollector mutationCollector
+	) {
+		// we need to avoid propagating reference attribute mutations related to created references
+		// those are handled within the reference creation process
+		// but we will build them in a lazy way
+		final Supplier<Set<ReferenceKey>> createdReferencesSupplier = () -> inputMutations.stream()
+			.filter(InsertReferenceMutation.class::isInstance)
+			.map(InsertReferenceMutation.class::cast)
+			.map(InsertReferenceMutation::getReferenceKey)
+			.collect(Collectors.toSet());
+		Set<ReferenceKey> createdReferences = null;
+
+		// go through all input mutations
+		for (LocalMutation<?, ?> inputMutation : inputMutations) {
+			// and check if there are any reference attribute mutation
+			if (inputMutation instanceof ReferenceAttributeMutation ram) {
+				final ReferenceKey referenceKey = ram.getReferenceKey();
+				// lazy init created references on first attribute mutation
+				createdReferences = createdReferences == null ? createdReferencesSupplier.get() : createdReferences;
+				// if the mutation relate to reference which hasn't been created in the same entity update
+				if (!createdReferences.contains(referenceKey)) {
+
+					final String referenceName = referenceKey.referenceName();
+					final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+
+					// access the data store reader of referenced collection
+					final DataStoreReader dataStoreReader = this.dataStoreReaderAccessor.apply(referenceSchema.getReferencedEntityType());
+					// and if such is found (collection might not yet exist, but we can still reference to it)
+					if (dataStoreReader != null) {
+						// check whether global index exists (there is at least one entity of such type)
+						final GlobalEntityIndex globalIndex = dataStoreReader.getIndexIfExists(
+							new EntityIndexKey(EntityIndexType.GLOBAL),
+							entityIndexKey -> null
+						);
+						if (globalIndex != null) {
+							// and whether it contains the entity we are referencing to
+							if (globalIndex.getAllPrimaryKeys().contains(referenceKey.primaryKey())) {
+								// create shared factory for creating entity mutations (shared logic)
+								final Function<ReferenceAttributeMutation, ServerEntityUpsertMutation> entityMutationFactory =
+									referenceAttributeMutation -> new ServerEntityUpsertMutation(
+										referenceSchema.getReferencedEntityType(),
+										referenceKey.primaryKey(),
+										EntityExistence.MUST_EXIST,
+										EnumSet.noneOf(ImplicitMutationBehavior.class),
+										true,
+										true,
+										referenceAttributeMutation
+									);
+
+								// if the current reference is a reflected reference
+								if (referenceSchema instanceof ReflectedReferenceSchemaContract rrsc) {
+									// create a mutation to counterpart reference in the referenced entity
+									mutationCollector.addExternalMutation(
+										entityMutationFactory.apply(
+											new ReferenceAttributeMutation(
+												new ReferenceKey(rrsc.getReflectedReferenceName(), this.entityPrimaryKey),
+												ram.getAttributeMutation()
+											)
+										)
+									);
+								} else {
+									// otherwise check whether there is reflected reference in the referenced entity
+									// that relates to our standard reference
+									catalogSchema.getEntitySchema(referenceSchema.getReferencedEntityType())
+										.map(it -> ((EntitySchemaDecorator) it).getDelegate())
+										.flatMap(it -> it.getReflectedReferenceFor(referenceName))
+										.ifPresent(
+											// if such is found, create a mutation to counterpart reflected reference
+											// in the referenced entity
+											rrsc -> mutationCollector.addExternalMutation(
+												entityMutationFactory.apply(
+													new ReferenceAttributeMutation(
+														new ReferenceKey(rrsc.getName(), this.entityPrimaryKey),
+														ram.getAttributeMutation()
+													)
+												)
+											)
+										);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	/**
