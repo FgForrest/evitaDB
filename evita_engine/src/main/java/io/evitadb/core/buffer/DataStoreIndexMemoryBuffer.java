@@ -44,17 +44,17 @@ import static java.util.Optional.ofNullable;
  * {@link #popTrappedUpdates()} method.
  */
 @NotThreadSafe
-public class DataStoreIndexMemoryBuffer<IK extends IndexKey, I extends Index<IK>> implements DataStoreIndexChanges<IK, I> {
+public class DataStoreIndexMemoryBuffer implements DataStoreIndexChanges {
 	/**
 	 * This map contains index of "dirty" entity indexes - i.e. subset of {@link EntityCollection indexes} that were
 	 * modified and not yet persisted.
 	 */
-	private Map<IK, I> dirtyEntityIndexes = new HashMap<>(64);
+	private Map<IndexKey, Index<? extends IndexKey>> dirtyEntityIndexes = new HashMap<>(64);
 
 	@Override
 	@Nonnull
 	public Stream<StoragePart> popTrappedUpdates() {
-		final Map<IK, I> dirtyEntityIndexes = this.dirtyEntityIndexes;
+		final Map<IndexKey, Index<? extends IndexKey>> dirtyEntityIndexes = this.dirtyEntityIndexes;
 		this.dirtyEntityIndexes = new HashMap<>(64);
 		return dirtyEntityIndexes
 			.values()
@@ -64,22 +64,26 @@ public class DataStoreIndexMemoryBuffer<IK extends IndexKey, I extends Index<IK>
 
 	@Override
 	@Nonnull
-	public I getOrCreateIndexForModification(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		return dirtyEntityIndexes.computeIfAbsent(
-			indexKey, accessorWhenMissing
+	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
+		//noinspection unchecked,rawtypes
+		return (I) dirtyEntityIndexes.computeIfAbsent(
+			indexKey, (Function) accessorWhenMissing
 		);
 	}
 
 	@Override
 	@Nullable
-	public I getIndexIfExists(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		return ofNullable(dirtyEntityIndexes.get(indexKey)).orElseGet(() -> accessorWhenMissing.apply(indexKey));
+	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
+		//noinspection unchecked
+		return ofNullable((I)dirtyEntityIndexes.get(indexKey))
+			.orElseGet(() -> accessorWhenMissing.apply(indexKey));
 	}
 
 	@Override
 	@Nonnull
-	public I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
-		final I dirtyIndexesRemoval = dirtyEntityIndexes.remove(entityIndexKey);
+	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
+		//noinspection unchecked
+		final I dirtyIndexesRemoval = (I) dirtyEntityIndexes.remove(entityIndexKey);
 		final I baseIndexesRemoval = removalPropagation.apply(entityIndexKey);
 		return ofNullable(dirtyIndexesRemoval).orElse(baseIndexesRemoval);
 	}

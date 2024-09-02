@@ -691,6 +691,34 @@ private static final long serialVersionUID = 0L;
             mutationCase_ = 90;
             break;
           }
+          case 730: {
+            io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder subBuilder = null;
+            if (mutationCase_ == 91) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 91;
+            break;
+          }
+          case 738: {
+            io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder subBuilder = null;
+            if (mutationCase_ == 92) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 92;
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -772,6 +800,8 @@ private static final long serialVersionUID = 0L;
     REMOVEREFERENCESCHEMAMUTATION(88),
     SETREFERENCESCHEMAFACETEDMUTATION(89),
     SETREFERENCESCHEMAINDEXEDMUTATION(90),
+    CREATEREFLECTEDREFERENCESCHEMAMUTATION(91),
+    MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION(92),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -833,6 +863,8 @@ private static final long serialVersionUID = 0L;
         case 88: return REMOVEREFERENCESCHEMAMUTATION;
         case 89: return SETREFERENCESCHEMAFACETEDMUTATION;
         case 90: return SETREFERENCESCHEMAINDEXEDMUTATION;
+        case 91: return CREATEREFLECTEDREFERENCESCHEMAMUTATION;
+        case 92: return MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -2824,6 +2856,101 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.getDefaultInstance();
   }
 
+  public static final int CREATEREFLECTEDREFERENCESCHEMAMUTATION_FIELD_NUMBER = 91;
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+   * @return Whether the createReflectedReferenceSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasCreateReflectedReferenceSchemaMutation() {
+    return mutationCase_ == 91;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+   * @return The createReflectedReferenceSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation getCreateReflectedReferenceSchemaMutation() {
+    if (mutationCase_ == 91) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutationOrBuilder getCreateReflectedReferenceSchemaMutationOrBuilder() {
+    if (mutationCase_ == 91) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION_FIELD_NUMBER = 92;
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+   * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+   * @return Whether the modifyReflectedReferenceAttributeInheritanceSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasModifyReflectedReferenceAttributeInheritanceSchemaMutation() {
+    return mutationCase_ == 92;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+   * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+   * @return The modifyReflectedReferenceAttributeInheritanceSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation getModifyReflectedReferenceAttributeInheritanceSchemaMutation() {
+    if (mutationCase_ == 92) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+   * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder getModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder() {
+    if (mutationCase_ == 92) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -2969,6 +3096,12 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 90) {
       output.writeMessage(90, (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_);
+    }
+    if (mutationCase_ == 91) {
+      output.writeMessage(91, (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 92) {
+      output.writeMessage(92, (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_);
     }
     unknownFields.writeTo(output);
   }
@@ -3154,6 +3287,14 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 90) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(90, (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_);
+    }
+    if (mutationCase_ == 91) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(91, (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 92) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(92, (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -3348,6 +3489,14 @@ private static final long serialVersionUID = 0L;
         if (!getSetReferenceSchemaIndexedMutation()
             .equals(other.getSetReferenceSchemaIndexedMutation())) return false;
         break;
+      case 91:
+        if (!getCreateReflectedReferenceSchemaMutation()
+            .equals(other.getCreateReflectedReferenceSchemaMutation())) return false;
+        break;
+      case 92:
+        if (!getModifyReflectedReferenceAttributeInheritanceSchemaMutation()
+            .equals(other.getModifyReflectedReferenceAttributeInheritanceSchemaMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -3538,6 +3687,14 @@ private static final long serialVersionUID = 0L;
       case 90:
         hash = (37 * hash) + SETREFERENCESCHEMAINDEXEDMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getSetReferenceSchemaIndexedMutation().hashCode();
+        break;
+      case 91:
+        hash = (37 * hash) + CREATEREFLECTEDREFERENCESCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getCreateReflectedReferenceSchemaMutation().hashCode();
+        break;
+      case 92:
+        hash = (37 * hash) + MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getModifyReflectedReferenceAttributeInheritanceSchemaMutation().hashCode();
         break;
       case 0:
       default:
@@ -4015,6 +4172,20 @@ private static final long serialVersionUID = 0L;
           result.mutation_ = setReferenceSchemaIndexedMutationBuilder_.build();
         }
       }
+      if (mutationCase_ == 91) {
+        if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = createReflectedReferenceSchemaMutationBuilder_.build();
+        }
+      }
+      if (mutationCase_ == 92) {
+        if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.build();
+        }
+      }
       result.mutationCase_ = mutationCase_;
       onBuilt();
       return result;
@@ -4241,6 +4412,14 @@ private static final long serialVersionUID = 0L;
           mergeSetReferenceSchemaIndexedMutation(other.getSetReferenceSchemaIndexedMutation());
           break;
         }
+        case CREATEREFLECTEDREFERENCESCHEMAMUTATION: {
+          mergeCreateReflectedReferenceSchemaMutation(other.getCreateReflectedReferenceSchemaMutation());
+          break;
+        }
+        case MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION: {
+          mergeModifyReflectedReferenceAttributeInheritanceSchemaMutation(other.getModifyReflectedReferenceAttributeInheritanceSchemaMutation());
+          break;
+        }
         case MUTATION_NOT_SET: {
           break;
         }
@@ -4457,7 +4636,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutation createAssociatedDataSchemaMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateAssociatedDataSchemaMutationOrBuilder>
         getCreateAssociatedDataSchemaMutationFieldBuilder() {
       if (createAssociatedDataSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 1)) {
@@ -4643,7 +4822,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation modifyAssociatedDataSchemaDeprecationNoticeMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDeprecationNoticeMutationOrBuilder>
         getModifyAssociatedDataSchemaDeprecationNoticeMutationFieldBuilder() {
       if (modifyAssociatedDataSchemaDeprecationNoticeMutationBuilder_ == null) {
         if (!(mutationCase_ == 2)) {
@@ -4829,7 +5008,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutation modifyAssociatedDataSchemaDescriptionMutation = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaDescriptionMutationOrBuilder>
         getModifyAssociatedDataSchemaDescriptionMutationFieldBuilder() {
       if (modifyAssociatedDataSchemaDescriptionMutationBuilder_ == null) {
         if (!(mutationCase_ == 3)) {
@@ -5015,7 +5194,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutation modifyAssociatedDataSchemaNameMutation = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaNameMutationOrBuilder>
         getModifyAssociatedDataSchemaNameMutationFieldBuilder() {
       if (modifyAssociatedDataSchemaNameMutationBuilder_ == null) {
         if (!(mutationCase_ == 4)) {
@@ -5201,7 +5380,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutation modifyAssociatedDataSchemaTypeMutation = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAssociatedDataSchemaTypeMutationOrBuilder>
         getModifyAssociatedDataSchemaTypeMutationFieldBuilder() {
       if (modifyAssociatedDataSchemaTypeMutationBuilder_ == null) {
         if (!(mutationCase_ == 5)) {
@@ -5387,7 +5566,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutation removeAssociatedDataSchemaMutation = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataSchemaMutationOrBuilder>
         getRemoveAssociatedDataSchemaMutationFieldBuilder() {
       if (removeAssociatedDataSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 6)) {
@@ -5573,7 +5752,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutation setAssociatedDataSchemaLocalizedMutation = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaLocalizedMutationOrBuilder>
         getSetAssociatedDataSchemaLocalizedMutationFieldBuilder() {
       if (setAssociatedDataSchemaLocalizedMutationBuilder_ == null) {
         if (!(mutationCase_ == 7)) {
@@ -5759,7 +5938,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutation setAssociatedDataSchemaNullableMutation = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAssociatedDataSchemaNullableMutationOrBuilder>
         getSetAssociatedDataSchemaNullableMutationFieldBuilder() {
       if (setAssociatedDataSchemaNullableMutationBuilder_ == null) {
         if (!(mutationCase_ == 8)) {
@@ -5945,7 +6124,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation createAttributeSchemaMutation = 20;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutationOrBuilder>
         getCreateAttributeSchemaMutationFieldBuilder() {
       if (createAttributeSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 20)) {
@@ -6131,7 +6310,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation modifyAttributeSchemaDefaultValueMutation = 21;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutationOrBuilder>
         getModifyAttributeSchemaDefaultValueMutationFieldBuilder() {
       if (modifyAttributeSchemaDefaultValueMutationBuilder_ == null) {
         if (!(mutationCase_ == 21)) {
@@ -6317,7 +6496,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutation modifyAttributeSchemaDeprecationNoticeMutation = 22;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDeprecationNoticeMutationOrBuilder>
         getModifyAttributeSchemaDeprecationNoticeMutationFieldBuilder() {
       if (modifyAttributeSchemaDeprecationNoticeMutationBuilder_ == null) {
         if (!(mutationCase_ == 22)) {
@@ -6503,7 +6682,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutation modifyAttributeSchemaDescriptionMutation = 23;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDescriptionMutationOrBuilder>
         getModifyAttributeSchemaDescriptionMutationFieldBuilder() {
       if (modifyAttributeSchemaDescriptionMutationBuilder_ == null) {
         if (!(mutationCase_ == 23)) {
@@ -6689,7 +6868,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutation modifyAttributeSchemaNameMutation = 24;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaNameMutationOrBuilder>
         getModifyAttributeSchemaNameMutationFieldBuilder() {
       if (modifyAttributeSchemaNameMutationBuilder_ == null) {
         if (!(mutationCase_ == 24)) {
@@ -6875,7 +7054,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation modifyAttributeSchemaTypeMutation = 25;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaTypeMutationOrBuilder>
         getModifyAttributeSchemaTypeMutationFieldBuilder() {
       if (modifyAttributeSchemaTypeMutationBuilder_ == null) {
         if (!(mutationCase_ == 25)) {
@@ -7061,7 +7240,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutation removeAttributeSchemaMutation = 26;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeSchemaMutationOrBuilder>
         getRemoveAttributeSchemaMutationFieldBuilder() {
       if (removeAttributeSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 26)) {
@@ -7247,7 +7426,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation setAttributeSchemaFilterableMutation = 27;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutationOrBuilder>
         getSetAttributeSchemaFilterableMutationFieldBuilder() {
       if (setAttributeSchemaFilterableMutationBuilder_ == null) {
         if (!(mutationCase_ == 27)) {
@@ -7433,7 +7612,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 28;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaLocalizedMutationOrBuilder>
         getSetAttributeSchemaLocalizedMutationFieldBuilder() {
       if (setAttributeSchemaLocalizedMutationBuilder_ == null) {
         if (!(mutationCase_ == 28)) {
@@ -7619,7 +7798,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 29;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutationOrBuilder>
         getSetAttributeSchemaNullableMutationFieldBuilder() {
       if (setAttributeSchemaNullableMutationBuilder_ == null) {
         if (!(mutationCase_ == 29)) {
@@ -7805,7 +7984,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 30;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutationOrBuilder>
         getSetAttributeSchemaRepresentativeMutationFieldBuilder() {
       if (setAttributeSchemaRepresentativeMutationBuilder_ == null) {
         if (!(mutationCase_ == 30)) {
@@ -7991,7 +8170,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 31;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutationOrBuilder>
         getSetAttributeSchemaSortableMutationFieldBuilder() {
       if (setAttributeSchemaSortableMutationBuilder_ == null) {
         if (!(mutationCase_ == 31)) {
@@ -8177,7 +8356,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 32;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutationOrBuilder>
         getSetAttributeSchemaUniqueMutationFieldBuilder() {
       if (setAttributeSchemaUniqueMutationBuilder_ == null) {
         if (!(mutationCase_ == 32)) {
@@ -8354,7 +8533,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 33;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutationOrBuilder>
         getUseGlobalAttributeSchemaMutationFieldBuilder() {
       if (useGlobalAttributeSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 33)) {
@@ -8531,7 +8710,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation allowCurrencyInEntitySchemaMutation = 50;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutationOrBuilder>
         getAllowCurrencyInEntitySchemaMutationFieldBuilder() {
       if (allowCurrencyInEntitySchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 50)) {
@@ -8708,7 +8887,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation allowEvolutionModeInEntitySchemaMutation = 51;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutationOrBuilder>
         getAllowEvolutionModeInEntitySchemaMutationFieldBuilder() {
       if (allowEvolutionModeInEntitySchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 51)) {
@@ -8885,7 +9064,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation allowLocaleInEntitySchemaMutation = 52;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutationOrBuilder>
         getAllowLocaleInEntitySchemaMutationFieldBuilder() {
       if (allowLocaleInEntitySchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 52)) {
@@ -9062,7 +9241,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutation disallowCurrencyInEntitySchemaMutation = 53;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDisallowCurrencyInEntitySchemaMutationOrBuilder>
         getDisallowCurrencyInEntitySchemaMutationFieldBuilder() {
       if (disallowCurrencyInEntitySchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 53)) {
@@ -9239,7 +9418,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutation disallowEvolutionModeInEntitySchemaMutation = 54;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDisallowEvolutionModeInEntitySchemaMutationOrBuilder>
         getDisallowEvolutionModeInEntitySchemaMutationFieldBuilder() {
       if (disallowEvolutionModeInEntitySchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 54)) {
@@ -9416,7 +9595,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutation disallowLocaleInEntitySchemaMutation = 55;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDisallowLocaleInEntitySchemaMutationOrBuilder>
         getDisallowLocaleInEntitySchemaMutationFieldBuilder() {
       if (disallowLocaleInEntitySchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 55)) {
@@ -9593,7 +9772,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutation modifyEntitySchemaDeprecationNoticeMutation = 56;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDeprecationNoticeMutationOrBuilder>
         getModifyEntitySchemaDeprecationNoticeMutationFieldBuilder() {
       if (modifyEntitySchemaDeprecationNoticeMutationBuilder_ == null) {
         if (!(mutationCase_ == 56)) {
@@ -9770,7 +9949,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutation modifyEntitySchemaDescriptionMutation = 57;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaDescriptionMutationOrBuilder>
         getModifyEntitySchemaDescriptionMutationFieldBuilder() {
       if (modifyEntitySchemaDescriptionMutationBuilder_ == null) {
         if (!(mutationCase_ == 57)) {
@@ -9947,7 +10126,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation setEntitySchemaWithGeneratedPrimaryKeyMutation = 58;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutationOrBuilder>
         getSetEntitySchemaWithGeneratedPrimaryKeyMutationFieldBuilder() {
       if (setEntitySchemaWithGeneratedPrimaryKeyMutationBuilder_ == null) {
         if (!(mutationCase_ == 58)) {
@@ -10124,7 +10303,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation setEntitySchemaWithHierarchyMutation = 59;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutationOrBuilder>
         getSetEntitySchemaWithHierarchyMutationFieldBuilder() {
       if (setEntitySchemaWithHierarchyMutationBuilder_ == null) {
         if (!(mutationCase_ == 59)) {
@@ -10301,7 +10480,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation setEntitySchemaWithPriceMutation = 60;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutationOrBuilder>
         getSetEntitySchemaWithPriceMutationFieldBuilder() {
       if (setEntitySchemaWithPriceMutationBuilder_ == null) {
         if (!(mutationCase_ == 60)) {
@@ -10487,7 +10666,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation createReferenceSchemaMutation = 80;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutationOrBuilder>
         getCreateReferenceSchemaMutationFieldBuilder() {
       if (createReferenceSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 80)) {
@@ -10664,7 +10843,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation modifyReferenceAttributeSchemaMutation = 81;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutationOrBuilder>
         getModifyReferenceAttributeSchemaMutationFieldBuilder() {
       if (modifyReferenceAttributeSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 81)) {
@@ -10841,7 +11020,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation modifyReferenceSchemaCardinalityMutation = 82;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaCardinalityMutationOrBuilder>
         getModifyReferenceSchemaCardinalityMutationFieldBuilder() {
       if (modifyReferenceSchemaCardinalityMutationBuilder_ == null) {
         if (!(mutationCase_ == 82)) {
@@ -11018,7 +11197,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation modifyReferenceSchemaDeprecationNoticeMutation = 83;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutationOrBuilder>
         getModifyReferenceSchemaDeprecationNoticeMutationFieldBuilder() {
       if (modifyReferenceSchemaDeprecationNoticeMutationBuilder_ == null) {
         if (!(mutationCase_ == 83)) {
@@ -11204,7 +11383,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutation modifyReferenceSchemaDescriptionMutation = 84;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDescriptionMutationOrBuilder>
         getModifyReferenceSchemaDescriptionMutationFieldBuilder() {
       if (modifyReferenceSchemaDescriptionMutationBuilder_ == null) {
         if (!(mutationCase_ == 84)) {
@@ -11390,7 +11569,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutation modifyReferenceSchemaNameMutation = 85;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaNameMutationOrBuilder>
         getModifyReferenceSchemaNameMutationFieldBuilder() {
       if (modifyReferenceSchemaNameMutationBuilder_ == null) {
         if (!(mutationCase_ == 85)) {
@@ -11567,7 +11746,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutation modifyReferenceSchemaRelatedEntityGroupMutation = 86;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityGroupMutationOrBuilder>
         getModifyReferenceSchemaRelatedEntityGroupMutationFieldBuilder() {
       if (modifyReferenceSchemaRelatedEntityGroupMutationBuilder_ == null) {
         if (!(mutationCase_ == 86)) {
@@ -11753,7 +11932,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutation modifyReferenceSchemaRelatedEntityMutation = 87;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaRelatedEntityMutationOrBuilder>
         getModifyReferenceSchemaRelatedEntityMutationFieldBuilder() {
       if (modifyReferenceSchemaRelatedEntityMutationBuilder_ == null) {
         if (!(mutationCase_ == 87)) {
@@ -11939,7 +12118,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutation removeReferenceSchemaMutation = 88;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceSchemaMutationOrBuilder>
         getRemoveReferenceSchemaMutationFieldBuilder() {
       if (removeReferenceSchemaMutationBuilder_ == null) {
         if (!(mutationCase_ == 88)) {
@@ -12125,7 +12304,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation setReferenceSchemaFacetedMutation = 89;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutationOrBuilder>
         getSetReferenceSchemaFacetedMutationFieldBuilder() {
       if (setReferenceSchemaFacetedMutationBuilder_ == null) {
         if (!(mutationCase_ == 89)) {
@@ -12311,7 +12490,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutationOrBuilder>
         getSetReferenceSchemaIndexedMutationFieldBuilder() {
       if (setReferenceSchemaIndexedMutationBuilder_ == null) {
         if (!(mutationCase_ == 90)) {
@@ -12327,6 +12506,387 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 90;
       onChanged();;
       return setReferenceSchemaIndexedMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutationOrBuilder> createReflectedReferenceSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     * @return Whether the createReflectedReferenceSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasCreateReflectedReferenceSchemaMutation() {
+      return mutationCase_ == 91;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     * @return The createReflectedReferenceSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation getCreateReflectedReferenceSchemaMutation() {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 91) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 91) {
+          return createReflectedReferenceSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    public Builder setCreateReflectedReferenceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation value) {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        createReflectedReferenceSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 91;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    public Builder setCreateReflectedReferenceSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder builderForValue) {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        createReflectedReferenceSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 91;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    public Builder mergeCreateReflectedReferenceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation value) {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 91 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 91) {
+          createReflectedReferenceSchemaMutationBuilder_.mergeFrom(value);
+        }
+        createReflectedReferenceSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 91;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    public Builder clearCreateReflectedReferenceSchemaMutation() {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 91) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 91) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        createReflectedReferenceSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder getCreateReflectedReferenceSchemaMutationBuilder() {
+      return getCreateReflectedReferenceSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutationOrBuilder getCreateReflectedReferenceSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 91) && (createReflectedReferenceSchemaMutationBuilder_ != null)) {
+        return createReflectedReferenceSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 91) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutationOrBuilder>
+        getCreateReflectedReferenceSchemaMutationFieldBuilder() {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 91)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+        }
+        createReflectedReferenceSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 91;
+      onChanged();;
+      return createReflectedReferenceSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder> modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     * @return Whether the modifyReflectedReferenceAttributeInheritanceSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasModifyReflectedReferenceAttributeInheritanceSchemaMutation() {
+      return mutationCase_ == 92;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     * @return The modifyReflectedReferenceAttributeInheritanceSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation getModifyReflectedReferenceAttributeInheritanceSchemaMutation() {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 92) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 92) {
+          return modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    public Builder setModifyReflectedReferenceAttributeInheritanceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation value) {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 92;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    public Builder setModifyReflectedReferenceAttributeInheritanceSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder builderForValue) {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 92;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    public Builder mergeModifyReflectedReferenceAttributeInheritanceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation value) {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 92 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 92) {
+          modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.mergeFrom(value);
+        }
+        modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 92;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    public Builder clearModifyReflectedReferenceAttributeInheritanceSchemaMutation() {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 92) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 92) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder getModifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder() {
+      return getModifyReflectedReferenceAttributeInheritanceSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder getModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 92) && (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ != null)) {
+        return modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 92) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder>
+        getModifyReflectedReferenceAttributeInheritanceSchemaMutationFieldBuilder() {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 92)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+        }
+        modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 92;
+      onChanged();;
+      return modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

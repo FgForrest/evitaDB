@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -40,7 +41,6 @@ import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
@@ -82,6 +82,18 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Getter private final boolean indexed;
 	@Getter private final boolean faceted;
 
+	@Nullable
+	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
+		@Nonnull ReferenceSchemaContract createdVersion,
+		@Nonnull ReferenceSchemaContract existingVersion,
+		@Nonnull Function<ReferenceSchemaContract, T> propertyRetriever,
+		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
+	) {
+		final T newValue = propertyRetriever.apply(createdVersion);
+		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
+			null : mutationCreator.apply(newValue);
+	}
+
 	public CreateReferenceSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -117,64 +129,72 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	) {
 		// when the reference schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
-		if (existingMutation instanceof RemoveReferenceSchemaMutation removeReferenceMutation && Objects.equals(removeReferenceMutation.getName(), name)) {
-			final ReferenceSchemaContract createdVersion = mutate(currentEntitySchema, null);
-			final ReferenceSchemaContract existingVersion = currentEntitySchema.getReference(name)
-				.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
+		final Optional<ReferenceSchemaContract> currentReference = currentEntitySchema.getReference(name);
+		if (
+			existingMutation instanceof RemoveReferenceSchemaMutation removeReferenceMutation &&
+				Objects.equals(removeReferenceMutation.getName(), name) && currentReference.isPresent()
+		) {
+			// we can convert mutation to updates only if the reference type matches
+			final ReferenceSchemaContract existingVersion = currentReference.get();
+			if (!(existingVersion instanceof ReflectedReferenceSchemaContract)) {
+				final ReferenceSchemaContract createdVersion = mutate(currentEntitySchema, null);
 
-			return new MutationCombinationResult<>(
-				null,
-				Stream.of(
-						Stream.of(
-							makeMutationIfDifferent(
-								createdVersion, existingVersion,
-								NamedSchemaContract::getDescription,
-								newValue -> new ModifyReferenceSchemaDescriptionMutation(name, newValue)
+				return new MutationCombinationResult<>(
+					null,
+					Stream.of(
+							Stream.of(
+								makeMutationIfDifferent(
+									createdVersion, existingVersion,
+									NamedSchemaContract::getDescription,
+									newValue -> new ModifyReferenceSchemaDescriptionMutation(name, newValue)
+								),
+								makeMutationIfDifferent(
+									createdVersion, existingVersion,
+									NamedSchemaWithDeprecationContract::getDeprecationNotice,
+									newValue -> new ModifyReferenceSchemaDeprecationNoticeMutation(name, newValue)
+								),
+								makeMutationIfDifferent(
+									createdVersion, existingVersion,
+									ReferenceSchemaContract::getCardinality,
+									newValue -> new ModifyReferenceSchemaCardinalityMutation(name, newValue)
+								),
+								makeMutationIfDifferent(
+									createdVersion, existingVersion,
+									ReferenceSchemaContract::getReferencedEntityType,
+									newValue -> new ModifyReferenceSchemaRelatedEntityMutation(name, newValue, referencedEntityTypeManaged)
+								),
+								makeMutationIfDifferent(
+									createdVersion, existingVersion,
+									ReferenceSchemaContract::getReferencedGroupType,
+									newValue -> new ModifyReferenceSchemaRelatedEntityGroupMutation(name, newValue, referencedGroupTypeManaged)
+								),
+								makeMutationIfDifferent(
+									createdVersion, existingVersion,
+									ReferenceSchemaContract::isIndexed,
+									newValue -> new SetReferenceSchemaIndexedMutation(name, newValue)
+								),
+								makeMutationIfDifferent(
+									createdVersion, existingVersion,
+									ReferenceSchemaContract::isFaceted,
+									newValue -> new SetReferenceSchemaFacetedMutation(name, newValue)
+								)
 							),
-							makeMutationIfDifferent(
-								createdVersion, existingVersion,
-								NamedSchemaWithDeprecationContract::getDeprecationNotice,
-								newValue -> new ModifyReferenceSchemaDeprecationNoticeMutation(name, newValue)
-							),
-							makeMutationIfDifferent(
-								createdVersion, existingVersion,
-								ReferenceSchemaContract::getCardinality,
-								newValue -> new ModifyReferenceSchemaCardinalityMutation(name, newValue)
-							),
-							makeMutationIfDifferent(
-								createdVersion, existingVersion,
-								ReferenceSchemaContract::getReferencedEntityType,
-								newValue -> new ModifyReferenceSchemaRelatedEntityMutation(name, newValue, referencedEntityTypeManaged)
-							),
-							makeMutationIfDifferent(
-								createdVersion, existingVersion,
-								ReferenceSchemaContract::getReferencedGroupType,
-								newValue -> new ModifyReferenceSchemaRelatedEntityGroupMutation(name, newValue, referencedGroupTypeManaged)
-							),
-							makeMutationIfDifferent(
-								createdVersion, existingVersion,
-								ReferenceSchemaContract::isIndexed,
-								newValue -> new SetReferenceSchemaIndexedMutation(name, newValue)
-							),
-							makeMutationIfDifferent(
-								createdVersion, existingVersion,
-								ReferenceSchemaContract::isFaceted,
-								newValue -> new SetReferenceSchemaFacetedMutation(name, newValue)
-							)
-						),
-						existingVersion.getAttributes()
-							.values()
-							.stream()
-							.map(attribute -> new ModifyReferenceAttributeSchemaMutation(name, new RemoveAttributeSchemaMutation(attribute.getName()))),
-						existingVersion.getSortableAttributeCompounds()
-							.values()
-							.stream()
-							.map(attribute -> new ModifyReferenceSortableAttributeCompoundSchemaMutation(name, new RemoveSortableAttributeCompoundSchemaMutation(attribute.getName())))
-					)
-					.flatMap(Function.identity())
-					.filter(Objects::nonNull)
-					.toArray(LocalEntitySchemaMutation[]::new)
-			);
+							existingVersion.getAttributes()
+								.values()
+								.stream()
+								.map(attribute -> new ModifyReferenceAttributeSchemaMutation(name, new RemoveAttributeSchemaMutation(attribute.getName()))),
+							existingVersion.getSortableAttributeCompounds()
+								.values()
+								.stream()
+								.map(attribute -> new ModifyReferenceSortableAttributeCompoundSchemaMutation(name, new RemoveSortableAttributeCompoundSchemaMutation(attribute.getName())))
+						)
+						.flatMap(Function.identity())
+						.filter(Objects::nonNull)
+						.toArray(LocalEntitySchemaMutation[]::new)
+				);
+			} else {
+				return null;
+			}
 		} else {
 			return null;
 		}
@@ -182,7 +202,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		return ReferenceSchema._internalBuild(
 			name, description, deprecationNotice,
 			referencedEntityType, referencedEntityTypeManaged,
@@ -238,18 +258,6 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 					" has different definition. To alter existing reference schema you need to use different mutations."
 			);
 		}
-	}
-
-	@Nullable
-	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
-		@Nonnull ReferenceSchemaContract createdVersion,
-		@Nonnull ReferenceSchemaContract existingVersion,
-		@Nonnull Function<ReferenceSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
 	}
 
 	@Nonnull

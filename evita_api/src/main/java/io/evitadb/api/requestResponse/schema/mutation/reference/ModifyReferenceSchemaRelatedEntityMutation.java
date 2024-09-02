@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
@@ -84,16 +85,20 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		Assert.isPremiseValid(
+			!(referenceSchema instanceof ReflectedReferenceSchema),
+			() -> "Target entity type cannot be changed once the reflected reference is created!"
+		);
 		return ReferenceSchema._internalBuild(
-			name,
+			this.name,
 			referenceSchema.getNameVariants(),
 			referenceSchema.getDescription(),
 			referenceSchema.getDeprecationNotice(),
-			referencedEntityType,
-			referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(referencedEntityType),
-			referencedEntityTypeManaged,
+			this.referencedEntityType,
+			this.referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(this.referencedEntityType),
+			this.referencedEntityTypeManaged,
 			referenceSchema.getCardinality(),
 			referenceSchema.getReferencedGroupType(),
 			referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
@@ -124,8 +129,8 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 
 	@Override
 	public String toString() {
-		return "Modify entity reference `" + name + "` schema: " +
-			"entityType='" + referencedEntityType + '\'' +
-			", relatesToEntity=" + referencedEntityTypeManaged;
+		return "Modify entity reference `" + this.name + "` schema: " +
+			"entityType='" + this.referencedEntityType + '\'' +
+			", relatesToEntity=" + this.referencedEntityTypeManaged;
 	}
 }

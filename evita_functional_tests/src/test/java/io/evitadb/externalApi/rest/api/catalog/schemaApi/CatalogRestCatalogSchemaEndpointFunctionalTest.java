@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -392,7 +392,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 			)
 			.executeAndThen()
 			.statusCode(200)
-			.body(CatalogSchemaDescriptor.VERSION.name(), equalTo(initialCatalogSchemaVersion + 1))
+			.body(CatalogSchemaDescriptor.VERSION.name(), equalTo(initialCatalogSchemaVersion + 2))
 			.body(
 				"",
 				equalTo(
@@ -416,7 +416,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 			);
 
 		// remove new collection
-		removeCollection(tester, "myNewCollection", initialCatalogSchemaVersion + 2);
+		removeCollection(tester, "myNewCollection", initialCatalogSchemaVersion + 3);
 	}
 
 	@Test

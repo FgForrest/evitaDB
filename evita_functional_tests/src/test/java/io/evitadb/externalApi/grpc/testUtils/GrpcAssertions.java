@@ -61,6 +61,8 @@ import io.evitadb.externalApi.grpc.generated.*;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -72,6 +74,8 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.GRPC_MAX_INSTANT;
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.GRPC_MIN_INSTANT;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -577,8 +581,20 @@ public class GrpcAssertions {
 
 		if (expectedDateTimeRange != null) {
 			final DateTimeRange actualValidity = EvitaDataTypesConverter.toDateTimeRange(actualPrice.getValidity());
-			assertEquals(expectedDateTimeRange.getFrom(), actualValidity.getFrom());
-			assertEquals(expectedDateTimeRange.getTo(), actualValidity.getTo());
+			if (expectedDateTimeRange.getPreciseFrom() == null) {
+				assertNull(actualValidity.getPreciseFrom());
+			} else if (LocalDateTime.MIN.toInstant(ZoneOffset.UTC).equals(expectedDateTimeRange.getPreciseFrom().toInstant())) {
+				assertEquals(GRPC_MIN_INSTANT, actualValidity.getPreciseFrom().toInstant());
+			} else {
+				assertEquals(expectedDateTimeRange.getPreciseFrom().toInstant(), actualValidity.getPreciseFrom().toInstant());
+			}
+			if (expectedDateTimeRange.getPreciseTo() == null) {
+				assertNull(actualValidity.getPreciseTo());
+			} else if (LocalDateTime.MAX.toInstant(ZoneOffset.UTC).equals(expectedDateTimeRange.getPreciseTo().toInstant())) {
+				assertEquals(GRPC_MAX_INSTANT, actualValidity.getPreciseTo().toInstant());
+			} else {
+				assertEquals(expectedDateTimeRange.getPreciseTo().toInstant(), actualValidity.getPreciseTo().toInstant());
+			}
 		}
 	}
 

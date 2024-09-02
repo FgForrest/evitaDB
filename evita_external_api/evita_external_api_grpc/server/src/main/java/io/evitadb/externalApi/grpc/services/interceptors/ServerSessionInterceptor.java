@@ -189,8 +189,6 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		if (sessionId == null) {
 			return Optional.empty();
 		}
-		Assert.notNull(sessionId, "Both `catalogName` and `sessionId` must be specified to identify session.");
-
 		return evita.getSessionById(UUIDUtil.uuid(sessionId))
 			.map(session -> {
 				if (!session.isActive()) {

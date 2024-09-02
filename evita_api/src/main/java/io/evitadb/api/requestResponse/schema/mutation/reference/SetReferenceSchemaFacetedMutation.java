@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
@@ -57,10 +58,10 @@ import java.util.Optional;
 @EqualsAndHashCode(callSuper = true)
 public class SetReferenceSchemaFacetedMutation
 	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -8866197153007138452L;
-	@Getter private final boolean faceted;
+	@Serial private static final long serialVersionUID = 4847175066828277710L;
+	@Getter private final Boolean faceted;
 
-	public SetReferenceSchemaFacetedMutation(@Nonnull String name, boolean faceted) {
+	public SetReferenceSchemaFacetedMutation(@Nonnull String name, @Nullable Boolean faceted) {
 		super(name);
 		this.faceted = faceted;
 	}
@@ -81,28 +82,38 @@ public class SetReferenceSchemaFacetedMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		if (referenceSchema.isFaceted() == faceted) {
-			return referenceSchema;
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+			if ((reflectedReferenceSchema.isFacetedInherited() && this.faceted == null) ||
+				(!reflectedReferenceSchema.isFacetedInherited() && reflectedReferenceSchema.isFaceted() == this.faceted)) {
+				return reflectedReferenceSchema;
+			} else {
+				return reflectedReferenceSchema
+					.withFaceted(this.faceted);
+			}
 		} else {
-			return ReferenceSchema._internalBuild(
-				name,
-				referenceSchema.getNameVariants(),
-				referenceSchema.getDescription(),
-				referenceSchema.getDeprecationNotice(),
-				referenceSchema.getReferencedEntityType(),
-				referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-				referenceSchema.isReferencedEntityTypeManaged(),
-				referenceSchema.getCardinality(),
-				referenceSchema.getReferencedGroupType(),
-				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isIndexed(),
-				faceted,
-				referenceSchema.getAttributes(),
-				referenceSchema.getSortableAttributeCompounds()
-			);
+			if (referenceSchema.isFaceted() == this.faceted) {
+				return referenceSchema;
+			} else {
+				return ReferenceSchema._internalBuild(
+					this.name,
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.isIndexed(),
+					this.faceted,
+					referenceSchema.getAttributes(),
+					referenceSchema.getSortableAttributeCompounds()
+				);
+			}
 		}
 	}
 
@@ -110,11 +121,11 @@ public class SetReferenceSchemaFacetedMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
+		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
@@ -125,7 +136,7 @@ public class SetReferenceSchemaFacetedMutation
 
 	@Override
 	public String toString() {
-		return "Set entity reference `" + name + "` schema: " +
-			"faceted=" + faceted;
+		return "Set entity reference `" + this.name + "` schema: " +
+			"faceted=" + this.faceted;
 	}
 }

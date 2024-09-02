@@ -24,23 +24,15 @@
 package io.evitadb.driver;
 
 import com.github.javafaker.Faker;
-import io.evitadb.api.CatalogState;
-import io.evitadb.api.CatalogStatistics;
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.SessionTraits;
-import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.CategoryInterface;
 import io.evitadb.api.mock.ProductInterface;
 import io.evitadb.api.mock.TestEntity;
-import io.evitadb.api.query.Query;
-import io.evitadb.api.query.require.FacetStatisticsDepth;
-import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
@@ -56,21 +48,15 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary;
-import io.evitadb.api.requestResponse.extraResult.Hierarchy;
-import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
-import io.evitadb.api.requestResponse.extraResult.HistogramContract;
-import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
-import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.system.CatalogVersion;
-import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -78,7 +64,6 @@ import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.grpc.GrpcProvider;
@@ -99,12 +84,9 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -115,7 +97,6 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -130,12 +111,9 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.Assertions.assertDiffers;
-import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -146,12 +124,12 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Slf4j
 @ExtendWith(EvitaParameterResolver.class)
-class EvitaClientTest implements TestConstants, EvitaTestSupport {
+class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	public static final String ATTRIBUTE_ORDER = "order";
 	public static final String ATTRIBUTE_UUID = "uuid";
 	private final static int SEED = 42;
-	private static final String EVITA_CLIENT_DATA_SET = "EvitaClientDataSet";
-	private static final Map<Serializable, Integer> GENERATED_ENTITIES = new HashMap<>(2000);
+	private static final String EVITA_CLIENT_DATA_SET = "EvitaReadWriteClientDataSet";
+	private static final Map<Serializable, Integer> GENERATED_ENTITIES = new HashMap<>(20);
 	private static final BiFunction<String, Faker, Integer> RANDOM_ENTITY_PICKER = (entityType, faker) -> {
 		final int entityCount = GENERATED_ENTITIES.computeIfAbsent(entityType, serializable -> 0);
 		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
@@ -186,6 +164,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			.certificateFolderPath(clientCertificates)
 			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
 			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+			.timeoutUnit(10, TimeUnit.MINUTES)
 			.build();
 
 		final AtomicReference<EntitySchemaContract> productSchema = new AtomicReference<>();
@@ -597,6 +576,68 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertEquals("New product", loadedEntity.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
 	}
 
+	/**
+	 * Defines a reflected reference using EvitaClient in the specified catalog.
+	 *
+	 * @param evitaClient     the Evita client to use, must not be null
+	 * @param someCatalogName the name of the catalog, must not be null
+	 */
+	private static void defineReflectedReference(
+		@Nonnull EvitaClient evitaClient,
+		@Nonnull String someCatalogName
+	) {
+		evitaClient.defineCatalog(someCatalogName)
+			.withDescription("This is a tutorial catalog.")
+			// define category schema
+			.withEntitySchema(
+				Entities.CATEGORY,
+				whichIs -> whichIs.withDescription("A category of products.")
+					.withReflectedReferenceToEntity(
+						"productsInCategory", Entities.PRODUCT, "productCategory",
+						thatIs -> thatIs.withAttributesInheritedExcept("note")
+							.withCardinality(Cardinality.ZERO_OR_MORE)
+							.withAttribute("customNote", String.class)
+					)
+					.withAttribute(
+						"name", String.class,
+						thatIs -> thatIs.localized().filterable().sortable()
+					)
+					.withHierarchy()
+			)
+			// define product schema
+			.withEntitySchema(
+				Entities.PRODUCT,
+				whichIs -> whichIs.withDescription("A product in inventory.")
+					.withAttribute(
+						"name", String.class,
+						thatIs -> thatIs.localized().filterable().sortable()
+					)
+					.withAttribute(
+						"cores", Integer.class,
+						thatIs -> thatIs.withDescription("Number of CPU cores.")
+							.filterable()
+					)
+					.withAttribute(
+						"graphics", String.class,
+						thatIs -> thatIs.withDescription("Graphics card.")
+							.filterable()
+					)
+					.withPrice()
+					.withReferenceToEntity(
+						"productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						thatIs -> thatIs
+							.withDescription("Assigned category.")
+							.deprecated("Already deprecated.")
+							.withAttribute("categoryPriority", Long.class, that -> that.sortable())
+							.withAttribute("note", String.class)
+							.indexed()
+							.faceted()
+					)
+			)
+			// and now push all the definitions (mutations) to the server
+			.updateViaNewSession(evitaClient);
+	}
+
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldAllowCreatingCatalogAlongWithTheSchema(EvitaClient evitaClient) {
@@ -758,31 +799,76 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldBeAbleToRunParallelClients(EvitaClient evitaClient) {
-		final EvitaClient anotherParallelClient = new EvitaClient(evitaClient.getConfiguration());
-		shouldListCatalogNames(anotherParallelClient);
-		shouldListCatalogNames(evitaClient);
+	void shouldAllowCreatingReflectedReference(EvitaClient evitaClient) {
+		final String someCatalogName = "differentCatalog";
+		try {
+			defineReflectedReference(evitaClient, someCatalogName);
+
+			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
+			evitaClient.queryCatalog(someCatalogName, session -> {
+				final Set<String> allEntityTypes = session.getAllEntityTypes();
+				assertTrue(allEntityTypes.contains(Entities.CATEGORY));
+				assertTrue(allEntityTypes.contains(Entities.PRODUCT));
+
+				final ReferenceSchemaContract reference = session.getEntitySchemaOrThrowException(Entities.CATEGORY)
+					.getReferenceOrThrowException("productsInCategory");
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, reference);
+
+				assertEquals(Entities.PRODUCT, reference.getReferencedEntityType());
+				assertEquals("Assigned category.", reference.getDescription());
+				assertEquals("Already deprecated.", reference.getDeprecationNotice());
+				assertTrue(reference.isIndexed());
+				assertTrue(reference.isFaceted());
+
+				final Map<String, AttributeSchemaContract> attributes = reference.getAttributes();
+				assertEquals(2, attributes.size());
+				assertTrue(attributes.containsKey("customNote"));
+				assertTrue(attributes.containsKey("categoryPriority"));
+			});
+		} finally {
+			evitaClient.deleteCatalogIfExists(someCatalogName);
+		}
 	}
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldAbleToFetchNonCachedEntitySchemaFromCatalogSchema(EvitaClient evitaClient) {
-		final EvitaClient clientWithEmptyCache = new EvitaClient(evitaClient.getConfiguration());
-		clientWithEmptyCache.queryCatalog(
-			TEST_CATALOG,
+	void shouldModifyReflectedReferenceSchema(EvitaClient evitaClient) {
+		defineReflectedReference(evitaClient, "differentCatalog");
+
+		evitaClient.updateCatalog(
+			"differentCatalog",
 			session -> {
-				final Optional<EntitySchemaContract> productSchema = session.getCatalogSchema().getEntitySchema(Entities.PRODUCT);
-				assertNotNull(productSchema);
+				session.getEntitySchemaOrThrowException(Entities.CATEGORY)
+					.openForWrite()
+					.withReflectedReferenceToEntity(
+						"productsInCategory", Entities.PRODUCT, "productCategory",
+						thatIs -> thatIs.withAttributesInheritedExcept("categoryPriority")
+							.withCardinality(Cardinality.EXACTLY_ONE)
+							.withoutAttribute("customNote")
+							.withAttribute("newAttribute", String.class)
+							.withDescription("My description.")
+							.nonFaceted()
+					).updateVia(session);
 			}
 		);
-	}
 
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldListCatalogNames(EvitaClient evitaClient) {
-		final Set<String> catalogNames = evitaClient.getCatalogNames();
-		assertEquals(1, catalogNames.size());
-		assertTrue(catalogNames.contains(TEST_CATALOG));
+		evitaClient.queryCatalog(
+			"differentCatalog",
+			session -> {
+				final SealedEntitySchema entitySchema = session.getEntitySchemaOrThrowException(Entities.CATEGORY);
+				final ReferenceSchemaContract reference = entitySchema.getReferenceOrThrowException("productsInCategory");
+				assertEquals(Cardinality.EXACTLY_ONE, reference.getCardinality());
+				assertEquals(Entities.PRODUCT, reference.getReferencedEntityType());
+				assertEquals("My description.", reference.getDescription());
+				assertTrue(reference.isIndexed());
+				assertFalse(reference.isFaceted());
+
+				final Map<String, AttributeSchemaContract> attributes = reference.getAttributes();
+				assertEquals(2, attributes.size());
+				assertTrue(attributes.containsKey("newAttribute"));
+				assertTrue(attributes.containsKey("note"));
+			}
+		);
 	}
 
 	@Test
@@ -825,7 +911,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNames.contains(newCatalog));
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 		assertEquals(
-			Integer.valueOf(10),
+			Integer.valueOf(3),
 			evitaClient.queryCatalog(TEST_CATALOG, evitaSessionContract -> {
 				return evitaSessionContract.getCatalogSchema().version();
 			})
@@ -838,7 +924,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNamesAgain.contains(newCatalog));
 
 		assertEquals(
-			Integer.valueOf(11),
+			Integer.valueOf(4),
 			evitaClient.queryCatalog(newCatalog, evitaSessionContract -> {
 				return evitaSessionContract.getCatalogSchema().version();
 			})
@@ -854,7 +940,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertEquals(1, catalogNames.size());
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 		assertEquals(
-			Integer.valueOf(10),
+			Integer.valueOf(3),
 			evitaClient.queryCatalog(TEST_CATALOG, evitaSessionContract -> {
 				return evitaSessionContract.getCatalogSchema().version();
 			})
@@ -867,7 +953,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNamesAgain.contains(newCatalog));
 
 		assertEquals(
-			Integer.valueOf(11),
+			Integer.valueOf(4),
 			evitaClient.queryCatalog(newCatalog, evitaSessionContract -> {
 				return evitaSessionContract.getCatalogSchema().version();
 			})
@@ -945,99 +1031,6 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				return session.getEntityCollectionSize(Entities.PRODUCT);
 			})
 		);
-	}
-
-	@Test
-	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
-	void shouldListAndCancelTasks(EvitaClient evitaClient) {
-		final int numberOfTasks = 20;
-		final ExecutorService executorService = Executors.newFixedThreadPool(numberOfTasks);
-		final EvitaManagementContract management = evitaClient.management();
-
-		// Step 2: Generate backup tasks using the custom executor
-		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream.generate(
-				() -> CompletableFuture.supplyAsync(
-					() -> management.backupCatalog(TEST_CATALOG, null, true),
-					executorService
-				)
-			)
-			.limit(numberOfTasks)
-			.toList();
-
-		// Optional: Wait for all tasks to complete
-		CompletableFuture.allOf(backupTasks.toArray(new CompletableFuture[0])).join();
-		executorService.shutdown();
-
-		management.listTaskStatuses(1, numberOfTasks, null);
-
-		// cancel 7 of them immediately
-		final List<Boolean> cancellationResult = Stream.concat(
-				management.listTaskStatuses(1, 1, null)
-					.getData()
-					.stream()
-					.map(it -> management.cancelTask(it.taskId())),
-				backupTasks.subList(3, numberOfTasks - 1)
-					.stream()
-					.map(task -> task.getNow(null).cancel(true))
-			)
-			.toList();
-
-		// wait for all task to complete
-		assertThrows(
-			ExecutionException.class,
-			() -> CompletableFuture.allOf(
-				backupTasks.stream().map(it -> it.getNow(null)).toArray(CompletableFuture[]::new)
-			).get(3, TimeUnit.MINUTES)
-		);
-
-		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(1, numberOfTasks, null);
-		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
-		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
-		assertEquals(backupTasks.size() - cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FINISHED).count());
-		assertEquals(cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FAILED).count());
-
-		// fetch all tasks by their ids
-		management.getTaskStatuses(
-			taskStatuses.getData().stream().map(TaskStatus::taskId).toArray(UUID[]::new)
-		).forEach(Assertions::assertNotNull);
-
-		// fetch tasks individually
-		taskStatuses.getData().forEach(task -> assertNotNull(management.getTaskStatus(task.taskId())));
-
-		// list exported files
-		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, null);
-		// some task might have finished even if cancelled (if they were cancelled in terminal phase)
-		assertTrue(exportedFiles.getTotalRecordCount() >= backupTasks.size() - cancelled);
-		exportedFiles.getData().forEach(file -> assertTrue(file.totalSizeInBytes() > 0));
-
-		// get all files by their ids
-		exportedFiles.getData().forEach(file -> assertNotNull(management.getFileToFetch(file.fileId())));
-
-		// fetch all of them
-		exportedFiles.getData().forEach(
-			file -> {
-				try (final InputStream inputStream = management.fetchFile(file.fileId())) {
-					final Path tempFile = Files.createTempFile(String.valueOf(file.fileId()), ".zip");
-					Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
-					assertTrue(tempFile.toFile().exists());
-					assertEquals(file.totalSizeInBytes(), Files.size(tempFile));
-					Files.delete(tempFile);
-				} catch (IOException e) {
-					fail(e);
-				}
-			});
-
-		// delete them
-		final Set<UUID> deletedFiles = CollectionUtils.createHashSet(exportedFiles.getData().size());
-		exportedFiles.getData()
-			.forEach(file -> {
-				management.deleteFile(file.fileId());
-				deletedFiles.add(file.fileId());
-			});
-
-		// list them again and there should be none of them
-		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, null);
-		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
 	@Test
@@ -1169,802 +1162,6 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				final Optional<SealedEntity> entityFetchedAgain = session.getEntity(productSchema.getName(), expectedEntityPrimaryKey, entityFetchAllContent());
 				assertTrue(entityFetchedAgain.isPresent(), "Entity not found in catalog!");
 			}
-		);
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldQueryCatalog(EvitaClient evitaClient) {
-		final CatalogSchemaContract catalogSchema = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			EvitaSessionContract::getCatalogSchema
-		);
-
-		assertNotNull(catalogSchema);
-		assertEquals(TEST_CATALOG, catalogSchema.getName());
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldQueryCatalogAsynchronously(EvitaClient evitaClient) throws ExecutionException, InterruptedException {
-		final CompletableFuture<CatalogSchemaContract> catalogSchema = evitaClient.queryCatalogAsync(
-			TEST_CATALOG,
-			EvitaSessionContract::getCatalogSchema
-		);
-
-		assertNotNull(catalogSchema);
-		assertEquals(TEST_CATALOG, catalogSchema.get().getName());
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldQueryOneEntityReference(EvitaClient evitaClient) {
-		final EntityReference entityReference = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryOneEntityReference(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(1)
-						)
-					)
-				).orElseThrow();
-			}
-		);
-
-		assertNotNull(entityReference);
-		assertEquals(Entities.PRODUCT, entityReference.getType());
-		assertEquals(1, entityReference.getPrimaryKey());
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldNotQueryOneMissingEntity(EvitaClient evitaClient) {
-		final Optional<EntityReference> entityReference = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryOneEntityReference(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(-100)
-						)
-					)
-				);
-			}
-		);
-
-		assertTrue(entityReference.isEmpty());
-	}
-
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	@ParameterizedTest()
-	@MethodSource("returnRandomSeed")
-	void shouldQueryOneSealedEntity(long seed, EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
-		final Random rnd = new Random(seed);
-		final int primaryKey = new ArrayList<>(products.keySet()).get(rnd.nextInt(products.size()));
-		final boolean referencesOnly = rnd.nextBoolean();
-		final SealedEntity sealedEntity = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryOneSealedEntity(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(primaryKey)
-						),
-						require(
-							referencesOnly ?
-								entityFetch(
-									hierarchyContent(),
-									attributeContentAll(),
-									associatedDataContentAll(),
-									priceContentAll(),
-									referenceContentAllWithAttributes(),
-									dataInLocalesAll()
-								) :
-								entityFetch(
-									hierarchyContent(entityFetchAll()),
-									attributeContentAll(),
-									associatedDataContentAll(),
-									priceContentAll(),
-									referenceContentAllWithAttributes(entityFetchAll()),
-									dataInLocalesAll()
-								)
-						)
-					)
-				).orElseThrow();
-			}
-		);
-
-		assertNotNull(sealedEntity);
-		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertExactlyEquals(products.get(primaryKey), sealedEntity);
-	}
-
-	@DisplayName("Should return custom entity model instance")
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void queryOneCustomEntity(
-		EvitaClient evitaClient,
-		Map<Integer, SealedEntity> products,
-		Map<Integer, SealedEntity> originalCategories
-	) {
-		final Query query = query(
-			collection(Entities.PRODUCT),
-			filterBy(entityPrimaryKeyInSet(1)),
-			require(entityFetchAll())
-		);
-
-		final SealedEntity theProduct = products.get(1);
-
-		evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				assertProduct(
-					theProduct,
-					session.queryOne(query, ProductInterface.class).orElse(null),
-					originalCategories
-				);
-			}
-		);
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	@Disabled("Not working (yet)")
-	void shouldQueryOneSealedBinaryEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
-		final SealedEntity sealedEntity = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryOneSealedEntity(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(1)
-						),
-						require(
-							entityFetchAll()
-						)
-					)
-				);
-			},
-			SessionFlags.BINARY
-		).orElseThrow();
-
-		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertExactlyEquals(products.get(1), sealedEntity);
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldQueryListOfEntityReferences(EvitaClient evitaClient) {
-		final Integer[] requestedIds = {1, 2, 5};
-		final List<EntityReference> entityReferences = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryListOfEntityReferences(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(requestedIds)
-						)
-					)
-				);
-			}
-		);
-
-		assertNotNull(entityReferences);
-		assertEquals(3, entityReferences.size());
-
-		for (int i = 0; i < entityReferences.size(); i++) {
-			final EntityReference entityReference = entityReferences.get(i);
-			assertEquals(Entities.PRODUCT, entityReference.getType());
-			assertEquals(requestedIds[i], entityReference.getPrimaryKey());
-		}
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldQueryListOfSealedEntities(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
-		final Integer[] requestedIds = {1, 2, 5};
-		final List<SealedEntity> sealedEntities = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryListOfSealedEntities(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(requestedIds)
-						),
-						require(
-							entityFetchAll()
-						)
-					)
-				);
-			}
-		);
-
-		assertNotNull(sealedEntities);
-		assertEquals(3, sealedEntities.size());
-
-		for (int i = 0; i < sealedEntities.size(); i++) {
-			final SealedEntity sealedEntity = sealedEntities.get(i);
-			assertEquals(Entities.PRODUCT, sealedEntity.getType());
-			assertEquals(requestedIds[i], sealedEntity.getPrimaryKey());
-			assertExactlyEquals(products.get(requestedIds[i]), sealedEntity);
-		}
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldQueryListOfCustomEntities(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
-		final Integer[] requestedIds = {1, 2, 5};
-		final List<ProductInterface> fetchedProducts = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryList(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(requestedIds)
-						),
-						require(
-							entityFetchAll()
-						)
-					),
-					ProductInterface.class
-				);
-			}
-		);
-
-		assertNotNull(fetchedProducts);
-		assertEquals(3, fetchedProducts.size());
-
-		for (int i = 0; i < fetchedProducts.size(); i++) {
-			final ProductInterface product = fetchedProducts.get(i);
-			assertEquals(Entities.PRODUCT, product.getType());
-			assertEquals(requestedIds[i], product.getPrimaryKey());
-			assertProduct(products.get(requestedIds[i]), product, originalCategories);
-		}
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldGetListWithExtraResults(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
-		final SealedEntity someProductWithCategory = products.values()
-			.stream()
-			.filter(it -> !it.getReferences(Entities.CATEGORY).isEmpty())
-			.filter(it -> it.getAttributeValue(ATTRIBUTE_QUANTITY).isPresent())
-			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
-			.findFirst()
-			.orElseThrow();
-
-		final EvitaResponse<SealedEntity> result = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.querySealedEntity(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							priceInPriceLists(someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::priceList).toArray(String[]::new)),
-							priceInCurrency(someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::currency).findFirst().orElseThrow()),
-							entityLocaleEquals(someProductWithCategory.getAllLocales().stream().findFirst().orElseThrow())
-						),
-						require(
-							entityFetchAll(),
-							queryTelemetry(),
-							priceHistogram(20),
-							attributeHistogram(20, ATTRIBUTE_QUANTITY),
-							hierarchyOfReference(
-								Entities.CATEGORY,
-								fromRoot("megaMenu", entityFetchAll())
-							),
-							facetSummary(FacetStatisticsDepth.IMPACT)
-						)
-					)
-				);
-			}
-		);
-
-		assertNotNull(result);
-		assertTrue(result.getTotalRecordCount() > 0);
-
-		assertNotNull(result.getExtraResult(QueryTelemetry.class));
-
-		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
-		assertNotNull(priceHistogram);
-		assertTrue(priceHistogram.getMax().compareTo(priceHistogram.getMin()) >= 0);
-		assertTrue(priceHistogram.getMin().compareTo(BigDecimal.ZERO) > 0);
-		assertTrue(priceHistogram.getBuckets().length > 0);
-
-		final AttributeHistogram attributeHistogram = result.getExtraResult(AttributeHistogram.class);
-		assertNotNull(attributeHistogram);
-		final HistogramContract theHistogram = attributeHistogram.getHistogram(ATTRIBUTE_QUANTITY);
-		assertNotNull(attributeHistogram);
-		assertTrue(theHistogram.getMax().compareTo(theHistogram.getMin()) >= 0);
-		assertTrue(theHistogram.getMin().compareTo(BigDecimal.ZERO) > 0);
-		assertTrue(theHistogram.getBuckets().length > 0);
-
-		final Hierarchy hierarchy = result.getExtraResult(Hierarchy.class);
-		assertNotNull(hierarchy);
-		final Map<String, List<LevelInfo>> categoryHierarchy = hierarchy.getReferenceHierarchy(Entities.CATEGORY);
-		assertNotNull(categoryHierarchy);
-		assertFalse(categoryHierarchy.get("megaMenu").isEmpty());
-
-		final FacetSummary facetSummary = result.getExtraResult(FacetSummary.class);
-		assertNotNull(facetSummary);
-		assertFalse(facetSummary.getReferenceStatistics().isEmpty());
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldGetListOfCustomEntitiesWithExtraResults(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
-		final SealedEntity someProductWithCategory = products.values()
-			.stream()
-			.filter(it -> !it.getReferences(Entities.CATEGORY).isEmpty())
-			.filter(it -> it.getAttributeValue(ATTRIBUTE_QUANTITY).isPresent())
-			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
-			.findFirst()
-			.orElseThrow();
-
-		final String[] priceLists = someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::priceList).toArray(String[]::new);
-		final Currency currency = someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::currency).findFirst().orElseThrow();
-		final Locale locale = someProductWithCategory.getAllLocales().stream().findFirst().orElseThrow();
-
-		final EvitaResponse<ProductInterface> result = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							priceInPriceLists(priceLists),
-							priceInCurrency(currency),
-							entityLocaleEquals(locale)
-						),
-						require(
-							entityFetch(
-								attributeContentAll(), hierarchyContent(),
-								associatedDataContentAll(), priceContentAll(),
-								referenceContentAllWithAttributes()
-							),
-							queryTelemetry(),
-							priceHistogram(20),
-							attributeHistogram(20, ATTRIBUTE_QUANTITY),
-							hierarchyOfReference(
-								Entities.CATEGORY,
-								fromRoot("megaMenu", entityFetchAll())
-							),
-							facetSummary(FacetStatisticsDepth.IMPACT)
-						)
-					),
-					ProductInterface.class
-				);
-			}
-		);
-
-		final List<ProductInterface> resultData = result.getRecordData();
-		for (final ProductInterface product : resultData) {
-			assertEquals(Entities.PRODUCT, product.getType());
-			assertProduct(
-				products.get(product.getId()),
-				product,
-				originalCategories,
-				currency,
-				priceLists,
-				locale
-			);
-		}
-
-		assertNotNull(result);
-		assertTrue(result.getTotalRecordCount() > 0);
-
-		assertNotNull(result.getExtraResult(QueryTelemetry.class));
-
-		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
-		assertNotNull(priceHistogram);
-		assertTrue(priceHistogram.getMax().compareTo(priceHistogram.getMin()) >= 0);
-		assertTrue(priceHistogram.getMin().compareTo(BigDecimal.ZERO) > 0);
-		assertTrue(priceHistogram.getBuckets().length > 0);
-
-		final AttributeHistogram attributeHistogram = result.getExtraResult(AttributeHistogram.class);
-		assertNotNull(attributeHistogram);
-		final HistogramContract theHistogram = attributeHistogram.getHistogram(ATTRIBUTE_QUANTITY);
-		assertNotNull(attributeHistogram);
-		assertTrue(theHistogram.getMax().compareTo(theHistogram.getMin()) >= 0);
-		assertTrue(theHistogram.getMin().compareTo(BigDecimal.ZERO) > 0);
-		assertTrue(theHistogram.getBuckets().length > 0);
-
-		/* TOBEDONE #43 - provide access to entities of specific interface type */
-		final Hierarchy hierarchy = result.getExtraResult(Hierarchy.class);
-		assertNotNull(hierarchy);
-		final Map<String, List<LevelInfo>> categoryHierarchy = hierarchy.getReferenceHierarchy(Entities.CATEGORY);
-		assertNotNull(categoryHierarchy);
-		assertFalse(categoryHierarchy.get("megaMenu").isEmpty());
-
-		final FacetSummary facetSummary = result.getExtraResult(FacetSummary.class);
-		assertNotNull(facetSummary);
-		assertFalse(facetSummary.getReferenceStatistics().isEmpty());
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldGetSingleEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
-		final Optional<SealedEntity> sealedEntity = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(
-					Entities.PRODUCT,
-					7,
-					entityFetchAll().getRequirements()
-				);
-			}
-		);
-
-		assertTrue(sealedEntity.isPresent());
-
-		sealedEntity.ifPresent(it -> {
-			assertEquals(Entities.PRODUCT, it.getType());
-			assertEquals(7, it.getPrimaryKey());
-			assertEquals(products.get(7), it);
-		});
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldGetSingleCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
-		final Optional<ProductInterface> product = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(
-					ProductInterface.class,
-					7,
-					entityFetchAll().getRequirements()
-				);
-			}
-		);
-
-		assertTrue(product.isPresent());
-
-		product.ifPresent(it -> {
-			assertEquals(Entities.PRODUCT, it.getType());
-			assertEquals(7, it.getPrimaryKey());
-			assertProduct(products.get(7), it, originalCategories);
-		});
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldEnrichSingleEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
-		final SealedEntity sealedEntity = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(
-					Entities.PRODUCT,
-					7,
-					attributeContent()
-				);
-			}
-		).orElseThrow();
-
-		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertEquals(7, sealedEntity.getPrimaryKey());
-		assertDiffers(products.get(7), sealedEntity);
-
-		final SealedEntity enrichedEntity = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(
-					Entities.PRODUCT,
-					7,
-					entityFetchAll().getRequirements()
-				);
-			}
-		).orElseThrow();
-
-		assertEquals(Entities.PRODUCT, enrichedEntity.getType());
-		assertEquals(7, enrichedEntity.getPrimaryKey());
-		assertExactlyEquals(products.get(7), enrichedEntity);
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldEnrichSingleCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
-		final ProductInterface product = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(
-					ProductInterface.class,
-					7,
-					attributeContent()
-				);
-			}
-		).orElseThrow();
-
-		assertEquals(Entities.PRODUCT, product.getType());
-		assertEquals(7, product.getPrimaryKey());
-		assertProductBasicData(products.get(7), product);
-		assertProductAttributes(products.get(7), product, null);
-		assertThrows(ContextMissingException.class, product::getReferencedFileSet);
-		assertThrows(ContextMissingException.class, product::getReferencedFileSetAsDifferentProperty);
-
-		final ProductInterface enrichedEntity = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(
-					ProductInterface.class,
-					7,
-					entityFetchAll().getRequirements()
-				);
-			}
-		).orElseThrow();
-
-		assertEquals(Entities.PRODUCT, enrichedEntity.getType());
-		assertEquals(7, enrichedEntity.getPrimaryKey());
-		assertProduct(products.get(7), enrichedEntity, originalCategories);
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldLimitSingleEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
-		final SealedEntity sealedEntity = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(
-					Entities.PRODUCT,
-					7,
-					entityFetchAll().getRequirements()
-				);
-			}
-		).orElseThrow();
-
-		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertEquals(7, sealedEntity.getPrimaryKey());
-		assertExactlyEquals(products.get(7), sealedEntity);
-
-		final SealedEntity limitedEntity = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(
-					Entities.PRODUCT,
-					7,
-					attributeContent()
-				);
-			}
-		).orElseThrow();
-
-		assertEquals(Entities.PRODUCT, limitedEntity.getType());
-		assertEquals(7, limitedEntity.getPrimaryKey());
-		assertDiffers(products.get(7), limitedEntity);
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldLimitSingleCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
-		final ProductInterface sealedEntity = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(
-					ProductInterface.class,
-					7,
-					entityFetchAll().getRequirements()
-				);
-			}
-		).orElseThrow();
-
-		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertEquals(7, sealedEntity.getPrimaryKey());
-		assertProduct(products.get(7), sealedEntity, originalCategories);
-
-		final ProductInterface limitedProduct = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(
-					ProductInterface.class,
-					7,
-					attributeContent()
-				);
-			}
-		).orElseThrow();
-
-		assertEquals(Entities.PRODUCT, limitedProduct.getType());
-		assertEquals(7, limitedProduct.getPrimaryKey());
-		assertProductBasicData(products.get(7), limitedProduct);
-		assertProductAttributes(products.get(7), limitedProduct, null);
-		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSet);
-		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSetAsDifferentProperty);
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldRetrieveSystemStatus(EvitaClient evitaClient) {
-		final SystemStatus systemStatus = evitaClient.management().getSystemStatus();
-		assertNotNull(systemStatus);
-		assertEquals(1, systemStatus.catalogsOk());
-		assertEquals(0, systemStatus.catalogsCorrupted());
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldRetrieveSystemConfiguration(EvitaClient evitaClient) {
-		final String configuration = evitaClient.management().getConfiguration();
-		assertNotNull(configuration);
-		assertTrue(configuration.contains("name:"));
-		assertTrue(configuration.contains("server:"));
-		assertTrue(configuration.contains("api:"));
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldRetrieveCatalogStatistics(EvitaClient evitaClient) {
-		final CatalogStatistics[] catalogStatistics = evitaClient.management().getCatalogStatistics();
-
-		assertEquals(1, catalogStatistics.length);
-		final CatalogStatistics statistics = catalogStatistics[0];
-
-		assertEquals(TEST_CATALOG, statistics.catalogName());
-		assertFalse(statistics.corrupted());
-		assertEquals(CatalogState.ALIVE, statistics.catalogState());
-		assertEquals(1, statistics.catalogVersion());
-		assertTrue(statistics.totalRecords() > 1);
-		assertTrue(statistics.indexCount() > 1);
-		assertTrue(statistics.sizeOnDiskInBytes() > 1);
-		assertEquals(7, statistics.entityCollectionStatistics().length);
-
-		for (EntityCollectionStatistics entityCollectionStatistics : statistics.entityCollectionStatistics()) {
-			assertNotNull(entityCollectionStatistics.entityType());
-			assertTrue(entityCollectionStatistics.totalRecords() > 0);
-			assertTrue(entityCollectionStatistics.indexCount() > 0);
-			assertTrue(entityCollectionStatistics.sizeOnDiskInBytes() > 0);
-		}
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldRetrieveCatalogVersionAtTheMoment(EvitaClient evitaClient) {
-		final long lastCatalogVersion = Arrays.stream(evitaClient.management().getCatalogStatistics())
-			.filter(it -> TEST_CATALOG.equals(it.catalogName()))
-			.map(CatalogStatistics::catalogVersion)
-			.findFirst()
-			.orElseThrow();
-		evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final CatalogVersion catalogVersionAt = session.getCatalogVersionAt(OffsetDateTime.now());
-				assertEquals(lastCatalogVersion, catalogVersionAt.version());
-				assertNotNull(catalogVersionAt.introducedAt());
-
-				final CatalogVersion firstCatalogVersionAt = session.getCatalogVersionAt(null);
-				assertEquals(0, firstCatalogVersionAt.version());
-				assertNotNull(firstCatalogVersionAt.introducedAt());
-			}
-		);
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldRetrieveCollectionSize(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
-		final Integer productCount = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntityCollectionSize(Entities.PRODUCT);
-			}
-		);
-
-		assertEquals(products.size(), productCount);
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldQueryListOfSealedEntitiesEvenWithoutProperRequirements(EvitaClient evitaClient) {
-		final List<SealedEntity> sealedEntities = evitaClient.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryListOfSealedEntities(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(1, 2, 5)
-						)
-					)
-				);
-			}
-		);
-		assertEquals(3, sealedEntities.size());
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldCallTerminationCallbackWhenClientClosesSession(EvitaClient evitaClient) {
-		final AtomicReference<UUID> terminatedSessionId = new AtomicReference<>();
-		final EvitaSessionContract theSession = evitaClient.createSession(
-			new SessionTraits(
-				TEST_CATALOG,
-				session -> terminatedSessionId.set(session.getId())
-			)
-		);
-		theSession.close();
-		assertNotNull(terminatedSessionId.get());
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldCallTerminationCallbackWhenClientIsClosed(EvitaClient evitaClient) {
-		final EvitaClient newEvitaClient = new EvitaClient(evitaClient.getConfiguration());
-		final AtomicReference<UUID> terminatedSessionId = new AtomicReference<>();
-		newEvitaClient.createSession(
-			new SessionTraits(
-				TEST_CATALOG,
-				session -> terminatedSessionId.set(session.getId())
-			)
-		);
-		newEvitaClient.close();
-		assertNotNull(terminatedSessionId.get());
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldCallTerminationCallbackWhenServerClosesTheSession(EvitaClient evitaClient, EvitaServer evitaServer) {
-		final AtomicReference<UUID> terminatedSessionId = new AtomicReference<>();
-		final EvitaSessionContract clientSession = evitaClient.createSession(
-			new SessionTraits(
-				TEST_CATALOG,
-				session -> terminatedSessionId.set(session.getId())
-			)
-		);
-		final EvitaSessionContract serverSession = evitaServer.getEvita()
-			.getSessionById(clientSession.getId())
-			.orElseThrow(() -> new IllegalStateException("Server doesn't know the session!"));
-
-		serverSession.close();
-
-		// we don't know that the session is dead, yet
-		assertTrue(clientSession.isActive());
-		assertNull(terminatedSessionId.get());
-
-		try {
-			clientSession.getEntityCollectionSize(Entities.PRODUCT);
-		} catch (Exception ex) {
-			// now we know it
-			assertFalse(clientSession.isActive());
-			assertNotNull(terminatedSessionId.get());
-		}
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldTranslateErrorCorrectlyAndLeaveSessionOpen(EvitaClient evitaClient) {
-		final EvitaSessionContract clientSession = evitaClient.createReadOnlySession(TEST_CATALOG);
-		try {
-			clientSession.getEntity("nonExisting", 1, entityFetchAll().getRequirements());
-		} catch (EvitaInvalidUsageException ex) {
-			assertTrue(clientSession.isActive());
-			assertEquals("No collection found for entity type `nonExisting`!", ex.getPublicMessage());
-			assertEquals(ex.getPrivateMessage(), ex.getPublicMessage());
-			assertNotNull(ex.getErrorCode());
-		} finally {
-			clientSession.close();
-		}
-	}
-
-	@DisplayName("Should return entity schema directly or via model class")
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldReturnEntitySchema(EvitaSessionContract evitaSession) {
-		assertNotNull(evitaSession.getEntitySchema(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchema(ProductInterface.class));
-		assertEquals(
-			evitaSession.getEntitySchema(Entities.PRODUCT),
-			evitaSession.getEntitySchema(ProductInterface.class)
-		);
-
-		assertNotNull(evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchemaOrThrow(ProductInterface.class));
-		assertEquals(
-			evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT),
-			evitaSession.getEntitySchemaOrThrow(ProductInterface.class)
 		);
 	}
 
@@ -2352,6 +1549,99 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				assertTrue(mutations.size() > 10);
 			}
 		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldListAndCancelTasks(EvitaClient evitaClient) {
+		final int numberOfTasks = 20;
+		final ExecutorService executorService = Executors.newFixedThreadPool(numberOfTasks);
+		final EvitaManagementContract management = evitaClient.management();
+
+		// Step 2: Generate backup tasks using the custom executor
+		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream.generate(
+				() -> CompletableFuture.supplyAsync(
+					() -> management.backupCatalog(TEST_CATALOG, null, true),
+					executorService
+				)
+			)
+			.limit(numberOfTasks)
+			.toList();
+
+		// Optional: Wait for all tasks to complete
+		CompletableFuture.allOf(backupTasks.toArray(new CompletableFuture[0])).join();
+		executorService.shutdown();
+
+		management.listTaskStatuses(1, numberOfTasks, null);
+
+		// cancel 7 of them immediately
+		final List<Boolean> cancellationResult = Stream.concat(
+				management.listTaskStatuses(1, 1, null)
+					.getData()
+					.stream()
+					.map(it -> management.cancelTask(it.taskId())),
+				backupTasks.subList(3, numberOfTasks - 1)
+					.stream()
+					.map(task -> task.getNow(null).cancel(true))
+			)
+			.toList();
+
+		// wait for all task to complete
+		assertThrows(
+			ExecutionException.class,
+			() -> CompletableFuture.allOf(
+				backupTasks.stream().map(it -> it.getNow(null)).toArray(CompletableFuture[]::new)
+			).get(3, TimeUnit.MINUTES)
+		);
+
+		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(1, numberOfTasks, null);
+		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
+		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
+		assertEquals(backupTasks.size() - cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FINISHED).count());
+		assertEquals(cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FAILED).count());
+
+		// fetch all tasks by their ids
+		management.getTaskStatuses(
+			taskStatuses.getData().stream().map(TaskStatus::taskId).toArray(UUID[]::new)
+		).forEach(Assertions::assertNotNull);
+
+		// fetch tasks individually
+		taskStatuses.getData().forEach(task -> assertNotNull(management.getTaskStatus(task.taskId())));
+
+		// list exported files
+		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, null);
+		// some task might have finished even if cancelled (if they were cancelled in terminal phase)
+		assertTrue(exportedFiles.getTotalRecordCount() >= backupTasks.size() - cancelled);
+		exportedFiles.getData().forEach(file -> assertTrue(file.totalSizeInBytes() > 0));
+
+		// get all files by their ids
+		exportedFiles.getData().forEach(file -> assertNotNull(management.getFileToFetch(file.fileId())));
+
+		// fetch all of them
+		exportedFiles.getData().forEach(
+			file -> {
+				try (final InputStream inputStream = management.fetchFile(file.fileId())) {
+					final Path tempFile = Files.createTempFile(String.valueOf(file.fileId()), ".zip");
+					Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+					assertTrue(tempFile.toFile().exists());
+					assertEquals(file.totalSizeInBytes(), Files.size(tempFile));
+					Files.delete(tempFile);
+				} catch (IOException e) {
+					fail(e);
+				}
+			});
+
+		// delete them
+		final Set<UUID> deletedFiles = CollectionUtils.createHashSet(exportedFiles.getData().size());
+		exportedFiles.getData()
+			.forEach(file -> {
+				management.deleteFile(file.fileId());
+				deletedFiles.add(file.fileId());
+			});
+
+		// list them again and there should be none of them
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, null);
+		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
 }

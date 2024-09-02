@@ -299,7 +299,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			0,
 			null,
 			entityHeaders,
-			new WarmUpDataStoreMemoryBuffer<>(ioService.getStoragePartPersistenceService(0L))
+			new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
 		);
 
 		// try to deserialize again
@@ -512,7 +512,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				0,
 				null,
 				Collections.emptyList(),
-				new WarmUpDataStoreMemoryBuffer<>(cps.getStoragePartPersistenceService(0L))
+				new WarmUpDataStoreMemoryBuffer(cps.getStoragePartPersistenceService(0L))
 			);
 		}
 
@@ -730,7 +730,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				brandCollection.flush(),
 				storeCollection.flush()
 			),
-			new WarmUpDataStoreMemoryBuffer<>(ioService.getStoragePartPersistenceService(0L))
+			new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
 		);
 
 		final Path dataDirectory = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);

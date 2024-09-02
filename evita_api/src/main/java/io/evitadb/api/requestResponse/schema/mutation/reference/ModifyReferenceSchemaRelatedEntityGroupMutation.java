@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
@@ -84,10 +85,14 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		Assert.isPremiseValid(
+			!(referenceSchema instanceof ReflectedReferenceSchema),
+			() -> "Group cannot be changed on reflected reference. This mutation can be applied only on original reference!"
+		);
 		return ReferenceSchema._internalBuild(
-			name,
+			this.name,
 			referenceSchema.getNameVariants(),
 			referenceSchema.getDescription(),
 			referenceSchema.getDeprecationNotice(),
@@ -95,9 +100,10 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 			referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
 			referenceSchema.isReferencedEntityTypeManaged(),
 			referenceSchema.getCardinality(),
-			referencedGroupType,
-			referencedGroupTypeManaged || referencedGroupType == null ? Collections.emptyMap() : NamingConvention.generate(referencedGroupType),
-			referencedGroupTypeManaged,
+			this.referencedGroupType,
+			this.referencedGroupTypeManaged || this.referencedGroupType == null ?
+				Collections.emptyMap() : NamingConvention.generate(this.referencedGroupType),
+			this.referencedGroupTypeManaged,
 			referenceSchema.isIndexed(),
 			referenceSchema.isFaceted(),
 			referenceSchema.getAttributes(),
@@ -111,9 +117,9 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
 		if (existingReferenceSchema.isEmpty()) {
-			// ups, the associated data is missing
+			// ups, the reference is missing
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
@@ -124,8 +130,8 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 
 	@Override
 	public String toString() {
-		return "Modify entity reference `" + name + "` schema: " +
-			"referencedGroupType='" + referencedGroupType + '\'' +
-			", relatesToEntity=" + referencedGroupTypeManaged;
+		return "Modify entity reference `" + this.name + "` schema: " +
+			"referencedGroupType='" + this.referencedGroupType + '\'' +
+			", relatesToEntity=" + this.referencedGroupTypeManaged;
 	}
 }

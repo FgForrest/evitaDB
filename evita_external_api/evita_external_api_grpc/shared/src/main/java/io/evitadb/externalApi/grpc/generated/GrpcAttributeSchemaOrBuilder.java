@@ -302,7 +302,7 @@ public interface GrpcAttributeSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
       getNameVariantList();
   /**
    * <pre>
@@ -327,7 +327,7 @@ public interface GrpcAttributeSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getNameVariantOrBuilderList();
   /**
    * <pre>
@@ -338,4 +338,14 @@ public interface GrpcAttributeSchemaOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Contains true if the attribute was inherited from the original object via reflected reference relation
+   * </pre>
+   *
+   * <code>bool inherited = 16;</code>
+   * @return The inherited.
+   */
+  boolean getInherited();
 }

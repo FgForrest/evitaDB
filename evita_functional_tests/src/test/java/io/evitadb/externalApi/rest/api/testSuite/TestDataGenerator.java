@@ -242,7 +242,7 @@ public class TestDataGenerator {
 								)
 								.withReferenceTo(
 									REFERENCE_OBSOLETE_BRAND,
-									Entities.BRAND,
+									"nonManagedBrand",
 									Cardinality.ZERO_OR_ONE,
 									whichIs -> whichIs
 										.deprecated("This is deprecated.")
@@ -256,7 +256,7 @@ public class TestDataGenerator {
 								)
 								.withReferenceTo(
 									REFERENCE_STORE_WITH_GROUP,
-									Entities.STORE,
+									"nonManagedStore",
 									Cardinality.ZERO_OR_MORE,
 									whichIs -> whichIs.faceted().withGroupType(ENTITY_STORE_GROUP)
 								)

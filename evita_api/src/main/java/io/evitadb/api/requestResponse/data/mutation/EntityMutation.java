@@ -41,6 +41,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -133,7 +134,7 @@ public non-sealed interface EntityMutation extends Mutation {
 	 * Returns collection of all local mutations that modify this entity.
 	 */
 	@Nonnull
-	Collection<? extends LocalMutation<?, ?>> getLocalMutations();
+	List<? extends LocalMutation<?, ?>> getLocalMutations();
 
 	/**
 	 * Contains set of all possible expected states for the entity.

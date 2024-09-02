@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.APITestConstants;
 import io.evitadb.api.exception.AssociatedDataAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.AttributeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReferenceAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.query.order.OrderDirection;
@@ -37,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
@@ -51,6 +53,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
@@ -209,6 +212,87 @@ class EntitySchemaBuilderTest {
 			)
 			/* finally apply schema changes */
 			.toInstance();
+	}
+
+	private static void assertSchemaContents(EntitySchemaContract updatedSchema) {
+		assertTrue(updatedSchema.allows(EvolutionMode.ADDING_ASSOCIATED_DATA));
+		assertTrue(updatedSchema.allows(EvolutionMode.ADDING_REFERENCES));
+
+		assertFalse(updatedSchema.isWithHierarchy());
+
+		assertTrue(updatedSchema.isWithPrice());
+
+		assertTrue(updatedSchema.getLocales().contains(Locale.ENGLISH));
+		assertTrue(updatedSchema.getLocales().contains(new Locale("cs", "CZ")));
+
+		assertEquals(9, updatedSchema.getAttributes().size());
+		assertAttribute(updatedSchema.getAttribute("code").orElseThrow(), true, false, false, false, false, true, 0, String.class);
+		assertAttribute(updatedSchema.getAttribute("oldEntityUrls").orElseThrow(), false, true, false, true, false, false, 0, String[].class);
+		assertAttribute(updatedSchema.getAttribute("quantity").orElseThrow(), false, true, false, false, false, false, 2, BigDecimal.class);
+		assertAttribute(updatedSchema.getAttribute("priority").orElseThrow(), false, false, true, false, false, false, 0, Long.class);
+
+		assertEquals(2, updatedSchema.getSortableAttributeCompounds().size());
+		assertSortableAttributeCompound(
+			updatedSchema.getSortableAttributeCompound("codeWithEan").orElse(null),
+			attributeElement("code"), attributeElement("ean")
+		);
+		assertSortableAttributeCompound(
+			updatedSchema.getSortableAttributeCompound("priorityAndQuantity").orElse(null),
+			"Priority and quantity in descending order.",
+			"Already deprecated.",
+			attributeElement("priority", OrderDirection.DESC),
+			attributeElement("quantity", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
+		);
+
+		assertEquals(2, updatedSchema.getAssociatedData().size());
+		assertAssociatedData(updatedSchema.getAssociatedData("referencedFiles"), false, ComplexDataObject.class);
+		assertAssociatedData(updatedSchema.getAssociatedData("labels"), true, ComplexDataObject.class);
+
+		assertEquals(3, updatedSchema.getReferences().size());
+
+		final ReferenceSchemaContract categoryReference = updatedSchema.getReferenceOrThrowException(Entities.CATEGORY);
+		assertReference(of(categoryReference), false);
+		assertEquals(1, categoryReference.getAttributes().size());
+		assertAttribute(categoryReference.getAttribute("categoryPriority").orElseThrow(), false, false, true, false, false, 0, Long.class);
+
+		assertReference(updatedSchema.getReference(Entities.BRAND), true);
+		assertReference(updatedSchema.getReference(Entities.STORE), true);
+	}
+
+	private static void assertSortableAttributeCompound(SortableAttributeCompoundSchemaContract compound, AttributeElement... elements) {
+		assertSortableAttributeCompound(compound, null, null, elements);
+	}
+
+	private static void assertSortableAttributeCompound(SortableAttributeCompoundSchemaContract compound, String description, String deprecation, AttributeElement... elements) {
+		assertNotNull(compound);
+		if (description == null) {
+			assertNull(compound.getDescription());
+		} else {
+			assertEquals(description, compound.getDescription());
+		}
+
+		if (deprecation == null) {
+			assertNull(compound.getDeprecationNotice());
+		} else {
+			assertEquals(deprecation, compound.getDeprecationNotice());
+		}
+
+		assertArrayEquals(compound.getAttributeElements().toArray(), elements);
+	}
+
+	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+	private static void assertReference(Optional<ReferenceSchemaContract> reference, boolean indexed) {
+		assertTrue(reference.isPresent());
+		assertEquals(indexed, reference.get().isFaceted());
+	}
+
+	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+	private static void assertAssociatedData(Optional<AssociatedDataSchemaContract> associatedDataSchema, boolean localized, Class<? extends Serializable> ofType) {
+		assertTrue(associatedDataSchema.isPresent());
+		associatedDataSchema.ifPresent(it -> {
+			assertEquals(localized, it.isLocalized());
+			assertEquals(ofType, it.getType());
+		});
 	}
 
 	@Test
@@ -1103,7 +1187,7 @@ class EntitySchemaBuilderTest {
 		assertAttribute(updatedSchema.getAttribute("code").orElseThrow(), true, false, false, false, false, true, 0, String.class);
 		assertAttribute(updatedSchema.getAttribute("name").orElseThrow(), false, true, true, false, true, false, 0, String.class);
 		assertAttribute(updatedSchema.getAttribute("oldEntityUrls").orElseThrow(), false, true, false, true, false, false, 0, String[].class);
-		assertAttribute(updatedSchema.getAttribute("priority").orElseThrow(), false, false, true, false, false, false,0, Long.class);
+		assertAttribute(updatedSchema.getAttribute("priority").orElseThrow(), false, false, true, false, false, false, 0, Long.class);
 
 		assertEquals(1, updatedSchema.getAssociatedData().size());
 		assertAssociatedData(updatedSchema.getAssociatedData("labels"), true, ComplexDataObject.class);
@@ -1197,85 +1281,429 @@ class EntitySchemaBuilderTest {
 		);
 	}
 
-	private void assertSchemaContents(EntitySchemaContract updatedSchema) {
-		assertTrue(updatedSchema.allows(EvolutionMode.ADDING_ASSOCIATED_DATA));
-		assertTrue(updatedSchema.allows(EvolutionMode.ADDING_REFERENCES));
-
-		assertFalse(updatedSchema.isWithHierarchy());
-
-		assertTrue(updatedSchema.isWithPrice());
-
-		assertTrue(updatedSchema.getLocales().contains(Locale.ENGLISH));
-		assertTrue(updatedSchema.getLocales().contains(new Locale("cs", "CZ")));
-
-		assertEquals(9, updatedSchema.getAttributes().size());
-		assertAttribute(updatedSchema.getAttribute("code").orElseThrow(), true, false, false, false, false, true,0, String.class);
-		assertAttribute(updatedSchema.getAttribute("oldEntityUrls").orElseThrow(), false, true, false, true, false, false, 0, String[].class);
-		assertAttribute(updatedSchema.getAttribute("quantity").orElseThrow(), false, true, false, false, false, false, 2, BigDecimal.class);
-		assertAttribute(updatedSchema.getAttribute("priority").orElseThrow(), false, false, true, false, false, false, 0, Long.class);
-
-		assertEquals(2, updatedSchema.getSortableAttributeCompounds().size());
-		assertSortableAttributeCompound(
-			updatedSchema.getSortableAttributeCompound("codeWithEan").orElse(null),
-			attributeElement("code"), attributeElement("ean")
-		);
-		assertSortableAttributeCompound(
-			updatedSchema.getSortableAttributeCompound("priorityAndQuantity").orElse(null),
-			"Priority and quantity in descending order.",
-			"Already deprecated.",
-			attributeElement("priority", OrderDirection.DESC),
-			attributeElement("quantity", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
+	@Test
+	void shouldDefineBidirectionalReferenceWithImplicitAttributeInheritance() {
+		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
 		);
 
-		assertEquals(2, updatedSchema.getAssociatedData().size());
-		assertAssociatedData(updatedSchema.getAssociatedData("referencedFiles"), false, ComplexDataObject.class);
-		assertAssociatedData(updatedSchema.getAssociatedData("labels"), true, ComplexDataObject.class);
+		final String baseReferenceName = "productCategories";
+		productSchemaBuilder.withReferenceToEntity(
+			baseReferenceName, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+			whichIs -> whichIs
+				.withDescription("Assigned categories.")
+				.withGroupTypeRelatedToEntity(Entities.STORE)
+				.withAttribute("note", String.class)
+				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.indexed()
+				.faceted()
+		);
 
-		assertEquals(3, updatedSchema.getReferences().size());
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			categorySchema
+		);
 
-		final ReferenceSchemaContract categoryReference = updatedSchema.getReferenceOrThrowException(Entities.CATEGORY);
-		assertReference(of(categoryReference), false);
-		assertEquals(1, categoryReference.getAttributes().size());
-		assertAttribute(categoryReference.getAttribute("categoryPriority").orElseThrow(), false, false, true, false, false, 0, Long.class);
+		categorySchemaBuilder.withReflectedReferenceToEntity(
+			"categoryProducts", Entities.PRODUCT, baseReferenceName,
+			whichIs -> whichIs
+				.withDescription("Category products.")
+				.deprecated("No longer used.")
+				.withCardinality(Cardinality.ZERO_OR_MORE)
+				.withAttributesInheritedExcept("note")
+				.withAttribute("differentNote", String.class)
+				.nonIndexed()
+				.nonFaceted()
+		);
 
-		assertReference(updatedSchema.getReference(Entities.BRAND), true);
-		assertReference(updatedSchema.getReference(Entities.STORE), true);
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference("categoryProducts")
+			.orElseThrow();
+
+		assertInstanceOf(ReflectedReferenceSchema.class, categoryProducts);
+		ReflectedReferenceSchema categoryProductsWithReference = ((ReflectedReferenceSchema) categoryProducts)
+			.withReferencedSchema(productSchemaBuilder.toInstance().getReference(baseReferenceName).orElseThrow());
+
+		assertEquals("categoryProducts", categoryProductsWithReference.getName());
+		assertEquals("Category products.", categoryProductsWithReference.getDescription());
+		assertFalse(categoryProductsWithReference.isDescriptionInherited());
+		assertEquals(Cardinality.ZERO_OR_MORE, categoryProductsWithReference.getCardinality());
+		assertFalse(categoryProductsWithReference.isCardinalityInherited());
+		assertFalse(categoryProductsWithReference.isIndexed());
+		assertFalse(categoryProductsWithReference.isIndexedInherited());
+		assertFalse(categoryProductsWithReference.isFaceted());
+		assertFalse(categoryProductsWithReference.isFacetedInherited());
+		assertEquals("No longer used.", categoryProductsWithReference.getDeprecationNotice());
+		assertFalse(categoryProductsWithReference.isDeprecatedInherited());
+
+		final Map<String, AttributeSchemaContract> categoryAttributes = categoryProductsWithReference.getAttributes();
+		assertEquals(2, categoryAttributes.size());
+		assertTrue(categoryAttributes.containsKey("categoryPriority"));
+		assertTrue(categoryAttributes.containsKey("differentNote"));
 	}
 
-	private void assertSortableAttributeCompound(SortableAttributeCompoundSchemaContract compound, AttributeElement... elements) {
-		assertSortableAttributeCompound(compound, null, null, elements);
+	@Test
+	void shouldDefineBidirectionalReferenceWithExplicitAttributeInheritance() {
+		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		final String baseReferenceName = "productCategories";
+		productSchemaBuilder.withReferenceToEntity(
+			baseReferenceName, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+			whichIs -> whichIs
+				.withDescription("Assigned categories.")
+				.withGroupTypeRelatedToEntity(Entities.STORE)
+				.withAttribute("note", String.class)
+				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.indexed()
+				.faceted()
+		);
+
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			categorySchema
+		);
+
+		categorySchemaBuilder.withReflectedReferenceToEntity(
+			"categoryProducts", Entities.PRODUCT, baseReferenceName,
+			whichIs -> whichIs
+				.withDescription("Category products.")
+				.deprecated("No longer used.")
+				.withCardinality(Cardinality.ZERO_OR_MORE)
+				.withAttributesInherited("note")
+				.withAttribute("differentNote", String.class)
+				.nonIndexed()
+				.nonFaceted()
+		);
+
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference("categoryProducts")
+			.orElseThrow();
+
+		assertInstanceOf(ReflectedReferenceSchema.class, categoryProducts);
+		ReflectedReferenceSchema categoryProductsWithReference = ((ReflectedReferenceSchema) categoryProducts)
+			.withReferencedSchema(productSchemaBuilder.toInstance().getReference(baseReferenceName).orElseThrow());
+
+		assertEquals("categoryProducts", categoryProductsWithReference.getName());
+		assertEquals("Category products.", categoryProductsWithReference.getDescription());
+		assertFalse(categoryProductsWithReference.isDescriptionInherited());
+		assertEquals(Cardinality.ZERO_OR_MORE, categoryProductsWithReference.getCardinality());
+		assertFalse(categoryProductsWithReference.isCardinalityInherited());
+		assertFalse(categoryProductsWithReference.isIndexed());
+		assertFalse(categoryProductsWithReference.isIndexedInherited());
+		assertFalse(categoryProductsWithReference.isFaceted());
+		assertFalse(categoryProductsWithReference.isFacetedInherited());
+		assertEquals("No longer used.", categoryProductsWithReference.getDeprecationNotice());
+		assertFalse(categoryProductsWithReference.isDeprecatedInherited());
+
+		final Map<String, AttributeSchemaContract> categoryAttributes = categoryProductsWithReference.getAttributes();
+		assertEquals(2, categoryAttributes.size());
+		assertTrue(categoryAttributes.containsKey("note"));
+		assertTrue(categoryAttributes.containsKey("differentNote"));
 	}
 
-	private void assertSortableAttributeCompound(SortableAttributeCompoundSchemaContract compound, String description, String deprecation, AttributeElement... elements) {
-		assertNotNull(compound);
-		if (description == null) {
-			assertNull(compound.getDescription());
-		} else {
-			assertEquals(description, compound.getDescription());
-		}
+	@Test
+	void shouldDefineBidirectionalReferenceWithAllAttributesInherited() {
+		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
 
-		if (deprecation == null) {
-			assertNull(compound.getDeprecationNotice());
-		} else {
-			assertEquals(deprecation, compound.getDeprecationNotice());
-		}
+		final String baseReferenceName = "productCategories";
+		productSchemaBuilder.withReferenceToEntity(
+			baseReferenceName, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+			whichIs -> whichIs
+				.withDescription("Assigned categories.")
+				.withGroupTypeRelatedToEntity(Entities.STORE)
+				.withAttribute("note", String.class)
+				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.indexed()
+				.faceted()
+		);
 
-		assertArrayEquals(compound.getAttributeElements().toArray(), elements);
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			categorySchema
+		);
+
+		categorySchemaBuilder.withReflectedReferenceToEntity(
+			"categoryProducts", Entities.PRODUCT, baseReferenceName,
+			whichIs -> whichIs
+				.withDescription("Category products.")
+				.deprecated("No longer used.")
+				.withCardinality(Cardinality.ZERO_OR_MORE)
+				.withAttributesInherited()
+				.withAttribute("differentNote", String.class)
+				.nonIndexed()
+				.nonFaceted()
+		);
+
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference("categoryProducts")
+			.orElseThrow();
+
+		assertInstanceOf(ReflectedReferenceSchema.class, categoryProducts);
+		ReflectedReferenceSchema categoryProductsWithReference = ((ReflectedReferenceSchema) categoryProducts)
+			.withReferencedSchema(productSchemaBuilder.toInstance().getReference(baseReferenceName).orElseThrow());
+
+		assertEquals("categoryProducts", categoryProductsWithReference.getName());
+		assertEquals("Category products.", categoryProductsWithReference.getDescription());
+		assertFalse(categoryProductsWithReference.isDescriptionInherited());
+		assertEquals(Cardinality.ZERO_OR_MORE, categoryProductsWithReference.getCardinality());
+		assertFalse(categoryProductsWithReference.isCardinalityInherited());
+		assertFalse(categoryProductsWithReference.isIndexed());
+		assertFalse(categoryProductsWithReference.isIndexedInherited());
+		assertFalse(categoryProductsWithReference.isFaceted());
+		assertFalse(categoryProductsWithReference.isFacetedInherited());
+		assertEquals("No longer used.", categoryProductsWithReference.getDeprecationNotice());
+		assertFalse(categoryProductsWithReference.isDeprecatedInherited());
+
+		final Map<String, AttributeSchemaContract> categoryAttributes = categoryProductsWithReference.getAttributes();
+		assertEquals(3, categoryAttributes.size());
+		assertTrue(categoryAttributes.containsKey("note"));
+		assertTrue(categoryAttributes.containsKey("categoryPriority"));
+		assertTrue(categoryAttributes.containsKey("differentNote"));
 	}
 
-	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-	private void assertReference(Optional<ReferenceSchemaContract> reference, boolean indexed) {
-		assertTrue(reference.isPresent());
-		assertEquals(indexed, reference.get().isFaceted());
+	@Test
+	void shouldDefineBidirectionalReferenceWithNoneAttributesInherited() {
+		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		final String baseReferenceName = "productCategories";
+		productSchemaBuilder.withReferenceToEntity(
+			baseReferenceName, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+			whichIs -> whichIs
+				.withDescription("Assigned categories.")
+				.withGroupTypeRelatedToEntity(Entities.STORE)
+				.withAttribute("note", String.class)
+				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.indexed()
+				.faceted()
+		);
+
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			categorySchema
+		);
+
+		categorySchemaBuilder.withReflectedReferenceToEntity(
+			"categoryProducts", Entities.PRODUCT, baseReferenceName,
+			whichIs -> whichIs
+				.withDescription("Category products.")
+				.deprecated("No longer used.")
+				.withCardinality(Cardinality.ZERO_OR_MORE)
+				.withoutAttributesInherited()
+				.withAttribute("differentNote", String.class)
+				.nonIndexed()
+				.nonFaceted()
+		);
+
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference("categoryProducts")
+			.orElseThrow();
+
+		assertInstanceOf(ReflectedReferenceSchema.class, categoryProducts);
+		ReflectedReferenceSchema categoryProductsWithReference = ((ReflectedReferenceSchema) categoryProducts)
+			.withReferencedSchema(productSchemaBuilder.toInstance().getReference(baseReferenceName).orElseThrow());
+
+		assertEquals("categoryProducts", categoryProductsWithReference.getName());
+		assertEquals("Category products.", categoryProductsWithReference.getDescription());
+		assertFalse(categoryProductsWithReference.isDescriptionInherited());
+		assertEquals(Cardinality.ZERO_OR_MORE, categoryProductsWithReference.getCardinality());
+		assertFalse(categoryProductsWithReference.isCardinalityInherited());
+		assertFalse(categoryProductsWithReference.isIndexed());
+		assertFalse(categoryProductsWithReference.isIndexedInherited());
+		assertFalse(categoryProductsWithReference.isFaceted());
+		assertFalse(categoryProductsWithReference.isFacetedInherited());
+		assertEquals("No longer used.", categoryProductsWithReference.getDeprecationNotice());
+		assertFalse(categoryProductsWithReference.isDeprecatedInherited());
+
+		final Map<String, AttributeSchemaContract> categoryAttributes = categoryProductsWithReference.getAttributes();
+		assertEquals(1, categoryAttributes.size());
+		assertTrue(categoryAttributes.containsKey("differentNote"));
 	}
 
-	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-	private void assertAssociatedData(Optional<AssociatedDataSchemaContract> associatedDataSchema, boolean localized, Class<? extends Serializable> ofType) {
-		assertTrue(associatedDataSchema.isPresent());
-		associatedDataSchema.ifPresent(it -> {
-			assertEquals(localized, it.isLocalized());
-			assertEquals(ofType, it.getType());
-		});
+	@Test
+	void shouldDefineBidirectionalReferencesWithInheritedProperties() {
+		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			productSchema
+		);
+
+		final String baseReferenceName = "productCategories";
+		productSchemaBuilder.withReferenceToEntity(
+			baseReferenceName, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+			whichIs -> whichIs
+				.withDescription("Assigned categories.")
+				.withGroupTypeRelatedToEntity(Entities.STORE)
+				.withAttribute("note", String.class)
+				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+				.indexed()
+				.faceted()
+		);
+
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			categorySchema
+		);
+
+		categorySchemaBuilder.withReflectedReferenceToEntity(
+			"categoryProducts", Entities.PRODUCT, baseReferenceName,
+			ReflectedReferenceSchemaEditor::withAttributesInherited
+		);
+
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference("categoryProducts")
+			.orElseThrow();
+
+		assertInstanceOf(ReflectedReferenceSchema.class, categoryProducts);
+		ReflectedReferenceSchema categoryProductsWithReference = ((ReflectedReferenceSchema) categoryProducts)
+			.withReferencedSchema(productSchemaBuilder.toInstance().getReference(baseReferenceName).orElseThrow());
+
+		assertEquals("categoryProducts", categoryProductsWithReference.getName());
+		assertEquals("Assigned categories.", categoryProductsWithReference.getDescription());
+		assertTrue(categoryProductsWithReference.isDescriptionInherited());
+		assertEquals(Cardinality.ZERO_OR_ONE, categoryProductsWithReference.getCardinality());
+		assertTrue(categoryProductsWithReference.isCardinalityInherited());
+		assertTrue(categoryProductsWithReference.isIndexed());
+		assertTrue(categoryProductsWithReference.isIndexedInherited());
+		assertTrue(categoryProductsWithReference.isFaceted());
+		assertTrue(categoryProductsWithReference.isFacetedInherited());
+		assertNull(categoryProductsWithReference.getDeprecationNotice());
+		assertTrue(categoryProductsWithReference.isDeprecatedInherited());
+
+		final Map<String, AttributeSchemaContract> categoryAttributes = categoryProductsWithReference.getAttributes();
+		assertEquals(2, categoryAttributes.size());
+		assertTrue(categoryAttributes.containsKey("categoryPriority"));
+		assertTrue(categoryAttributes.containsKey("note"));
+	}
+
+	@Test
+	void shouldFailToDefineReferencesAndRedefineToBiDiDirectly() {
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			categorySchema
+		);
+
+		final String sharedReferenceName = "categoryProducts";
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> categorySchemaBuilder
+				.withReferenceToEntity(sharedReferenceName, Entities.PRODUCT, Cardinality.ONE_OR_MORE)
+				.withReflectedReferenceToEntity(sharedReferenceName, Entities.PRODUCT, "productCategories")
+		);
+	}
+
+	@Test
+	void shouldDefineReferencesAndRedefineToBiDi() {
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			categorySchema
+		);
+
+		final String sharedReferenceName = "categoryProducts";
+		categorySchemaBuilder.withReferenceToEntity(sharedReferenceName, Entities.PRODUCT, Cardinality.ONE_OR_MORE)
+			.withoutReferenceTo(sharedReferenceName)
+			.withReflectedReferenceToEntity(sharedReferenceName, Entities.PRODUCT, "productCategories");
+
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference(sharedReferenceName)
+			.orElseThrow();
+
+		assertInstanceOf(ReflectedReferenceSchema.class, categoryProducts);
+	}
+
+	@Test
+	void shouldDefineBidiReferenceAndRedefineToStandardOne() {
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			categorySchema
+		);
+
+		final String sharedReferenceName = "categoryProducts";
+		categorySchemaBuilder
+			.withReflectedReferenceToEntity(sharedReferenceName, Entities.PRODUCT, "productCategories")
+			.withoutReferenceTo(sharedReferenceName)
+			.withReferenceToEntity(sharedReferenceName, Entities.PRODUCT, Cardinality.ONE_OR_MORE);
+
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference(sharedReferenceName)
+			.orElseThrow();
+
+		assertFalse(categoryProducts instanceof ReflectedReferenceSchema);
+	}
+
+	@Test
+	void shouldFailToDefineReferencesAndRedefineToBiDiDirectlyOnPreviouslyStoredInstance() {
+		final String sharedReferenceName = "categoryProducts";
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			new InternalEntitySchemaBuilder(
+				catalogSchema,
+				categorySchema
+			).withReferenceToEntity(sharedReferenceName, Entities.PRODUCT, Cardinality.ONE_OR_MORE)
+				.toInstance()
+		);
+
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> categorySchemaBuilder
+				.withReflectedReferenceToEntity(sharedReferenceName, Entities.PRODUCT, "productCategories")
+		);
+	}
+
+	@Test
+	void shouldDefineReferencesAndRedefineToBiDiOnPreviouslyStoredInstance() {
+		final String sharedReferenceName = "categoryProducts";
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			new InternalEntitySchemaBuilder(
+				catalogSchema,
+				categorySchema
+			)
+				.withReferenceToEntity(sharedReferenceName, Entities.PRODUCT, Cardinality.ONE_OR_MORE)
+				.toInstance()
+		);
+
+		categorySchemaBuilder
+			.withoutReferenceTo(sharedReferenceName)
+			.withReflectedReferenceToEntity(sharedReferenceName, Entities.PRODUCT, "productCategories");
+
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference(sharedReferenceName)
+			.orElseThrow();
+
+		assertInstanceOf(ReflectedReferenceSchema.class, categoryProducts);
+	}
+
+	@Test
+	void shouldDefineBidiReferenceAndRedefineToStandardOneOnPreviouslyStoredInstance() {
+		final String sharedReferenceName = "categoryProducts";
+		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			new InternalEntitySchemaBuilder(
+				catalogSchema,
+				categorySchema
+			)
+				.withReflectedReferenceToEntity(sharedReferenceName, Entities.PRODUCT, "productCategories")
+				.toInstance()
+		);
+
+		categorySchemaBuilder
+			.withoutReferenceTo(sharedReferenceName)
+			.withReferenceToEntity(sharedReferenceName, Entities.PRODUCT, Cardinality.ONE_OR_MORE);
+
+		final ReferenceSchemaContract categoryProducts = categorySchemaBuilder.toInstance()
+			.getReference(sharedReferenceName)
+			.orElseThrow();
+
+		assertFalse(categoryProducts instanceof ReflectedReferenceSchema);
 	}
 
 	public static class ReferencedFileSet implements Serializable {

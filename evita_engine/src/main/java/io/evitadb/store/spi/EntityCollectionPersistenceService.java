@@ -40,7 +40,6 @@ import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 
@@ -56,7 +55,7 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public non-sealed interface EntityCollectionPersistenceService extends PersistenceService<EntityIndexKey, EntityIndex> {
+public non-sealed interface EntityCollectionPersistenceService extends PersistenceService {
 
 	/**
 	 * Returns underlying {@link StoragePartPersistenceService} which this instance uses for {@link StoragePart}
@@ -86,7 +85,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	);
 
 	/**
@@ -101,7 +100,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	);
 
 	/**
@@ -122,7 +121,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	) throws EntityAlreadyRemovedException;
 
 	/**
@@ -133,7 +132,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	int countEntities(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	);
 
 	/**
@@ -141,7 +140,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	boolean isEmpty(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	);
 
 	/**
@@ -158,7 +157,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull BinaryEntity entity,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
 	) throws EntityAlreadyRemovedException;
 
 	/**

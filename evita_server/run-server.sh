@@ -29,9 +29,11 @@ java \
         "configDir=../config/" \
         "logback.configurationFile=./logback.xml" \
         "storage.storageDirectory=../data " \
+        "api.exposedOn=localhost" \
         "api.accessLog=true" \
         "cache.enabled=false" \
         "api.endpoints.graphQL.tlsMode=FORCE_NO_TLS" \
         "api.endpoints.rest.tlsMode=FORCE_NO_TLS" \
         "api.endpoints.lab.tlsMode=FORCE_NO_TLS" \
+        "api.endpoints.gRPC.tlsMode=FORCE_NO_TLS" \
         "api.endpoints.gRPC.exposeDocsService=true"

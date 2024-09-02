@@ -515,16 +515,10 @@ public final class Evita implements EvitaContract {
 		try {
 			final EvitaInternalSessionContract theSession = createdSession.session();
 			theSession.execute(updater);
-			// join the transaction future and return
-			final CompletableFuture<Long> result = new CompletableFuture<>();
-			createdSession.closeFuture().whenComplete((txId, ex) -> {
-				if (ex != null) {
-					result.completeExceptionally(ex);
-				} else {
-					result.complete(txId);
-				}
-			});
-			return result;
+			return createdSession.closeFuture();
+		} catch (Throwable ex) {
+			createdSession.closeFuture().completeExceptionally(ex);
+			return createdSession.closeFuture();
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
 		}
@@ -946,15 +940,9 @@ public final class Evita implements EvitaContract {
 			)
 		);
 
-		final long catalogVersion = catalogContract.getVersion();
 		return new CreatedSession(
 			newSession,
-			newSession.getTransactionFinalizationFuture().orElseGet(() -> {
-				// complete immediately
-				final CompletableFuture<Long> result = new CompletableFuture<>();
-				result.complete(catalogVersion);
-				return result;
-			})
+			newSession.getFinalizationFuture()
 		);
 	}
 

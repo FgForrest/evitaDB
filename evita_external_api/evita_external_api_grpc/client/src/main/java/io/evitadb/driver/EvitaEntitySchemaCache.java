@@ -221,7 +221,7 @@ class EvitaEntitySchemaCache {
 	 * and if the version doesn't match new schema is retrieved using `schemaAccessor` lambda` and cached.
 	 */
 	@Nonnull
-	public SealedEntitySchema getEntitySchemaOrThrow(
+	public SealedEntitySchema getEntitySchemaOrThrowException(
 		@Nonnull String entityType,
 		int version,
 		@Nonnull Function<String, Optional<EntitySchema>> schemaAccessor,

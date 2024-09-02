@@ -48,6 +48,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
@@ -192,8 +193,18 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(ModifyReferenceSchemaRelatedEntityMutation.class, new SerialVersionBasedSerializer<>(new ModifyReferenceSchemaRelatedEntityMutationSerializer(), ModifyReferenceSchemaRelatedEntityMutation.class), index++);
 		kryo.register(ModifyReferenceSortableAttributeCompoundSchemaMutation.class, new SerialVersionBasedSerializer<>(new ModifyReferenceSortableAttributeCompoundSchemaMutationSerializer(), ModifyReferenceSortableAttributeCompoundSchemaMutation.class), index++);
 		kryo.register(RemoveReferenceSchemaMutation.class, new SerialVersionBasedSerializer<>(new RemoveReferenceSchemaMutationSerializer(), RemoveReferenceSchemaMutation.class), index++);
-		kryo.register(SetReferenceSchemaFacetedMutation.class, new SerialVersionBasedSerializer<>(new SetReferenceSchemaFacetedMutationSerializer(), SetReferenceSchemaFacetedMutation.class), index++);
-		kryo.register(SetReferenceSchemaIndexedMutation.class, new SerialVersionBasedSerializer<>(new SetReferenceSchemaIndexedMutationSerializer(), SetReferenceSchemaIndexedMutation.class), index++);
+		kryo.register(
+			SetReferenceSchemaFacetedMutation.class,
+			new SerialVersionBasedSerializer<>(new SetReferenceSchemaFacetedMutationSerializer(), SetReferenceSchemaFacetedMutation.class)
+				.addBackwardCompatibleSerializer(-8866197153007138452L, new SetReferenceSchemaFacetedMutationSerializer_2024_10()),
+			index++
+		);
+		kryo.register(
+			SetReferenceSchemaIndexedMutation.class,
+			new SerialVersionBasedSerializer<>(new SetReferenceSchemaIndexedMutationSerializer(), SetReferenceSchemaIndexedMutation.class)
+				.addBackwardCompatibleSerializer(6302709513348603359L, new SetReferenceSchemaIndexedMutationSerializer_2024_10()),
+			index++
+		);
 
 		kryo.register(CreateSortableAttributeCompoundSchemaMutation.class, new SerialVersionBasedSerializer<>(new CreateSortableAttributeCompoundSchemaMutationSerializer(), CreateSortableAttributeCompoundSchemaMutation.class), index++);
 		kryo.register(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.class, new SerialVersionBasedSerializer<>(new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationSerializer(), ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.class), index++);
@@ -220,6 +231,10 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(EntityUpsertMutation.class, new SerialVersionBasedSerializer<>(new EntityUpsertMutationSerializer(), EntityUpsertMutation.class), index++);
 
 		kryo.register(TransactionMutation.class, new SerialVersionBasedSerializer<>(new TransactionMutationSerializer(), TransactionMutation.class), index++);
+
+		kryo.register(CreateReflectedReferenceSchemaMutation.class, new SerialVersionBasedSerializer<>(new CreateReflectedReferenceSchemaMutationSerializer(), CreateReflectedReferenceSchemaMutation.class), index++);
+		kryo.register(ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class, new SerialVersionBasedSerializer<>(new ModifyReflectedReferenceAttributeInheritanceSchemaMutationSerializer(), ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class), index++);
+		kryo.register(AttributeInheritanceBehavior.class, new EnumNameSerializer<>(), index++);
 
 		Assert.isPremiseValid(index < 500, "Index count overflow.");
 	}

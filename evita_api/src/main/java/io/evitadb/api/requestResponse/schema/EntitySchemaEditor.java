@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -396,7 +397,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 
 	/**
 	 * Adds new {@link ReferenceSchemaContract} to the set of allowed references of the entity or updates existing.
-	 * {@link Reference#getReferenceName()} ()} will represent {@link Entity#getPrimaryKey()} of Evita managed entity of this
+	 * {@link Reference#getReferenceName()} will represent {@link Entity#getPrimaryKey()} of Evita managed entity of this
 	 * {@link EntitySchemaContract#getName()}.
 	 *
 	 * If you update existing reference type - existing {@link ReferenceSchemaContract#getReferencedGroupType()} and {@link ReferenceSchemaContract#getAttributes()}
@@ -416,13 +417,72 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 *
 	 * References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
 	 *
+	 * @param name name of the reference
+	 * @param entityType name of the target entity this reference relates to (either managed by evitaDB or not)
+	 * @param cardinality the cardinality of references for a given entity
 	 * @param whichIs lambda that allows to define reference specifics
 	 */
 	@Nonnull
-	S withReferenceToEntity(@Nonnull String name, @Nonnull String entityType, @Nonnull Cardinality cardinality, @Nullable Consumer<ReferenceSchemaEditor.ReferenceSchemaBuilder> whichIs);
+	S withReferenceToEntity(
+		@Nonnull String name,
+		@Nonnull String entityType,
+		@Nonnull Cardinality cardinality,
+		@Nullable Consumer<ReferenceSchemaEditor.ReferenceSchemaBuilder> whichIs
+	);
 
 	/**
-	 * Removes specific {@link ReferenceSchemaContract} from the set of allowed references of the entity.
+	 * Adds new {@link ReflectedReferenceSchemaContract} to the set of allowed references of the entity or updates existing.
+	 * {@link Reference#getReferenceName()} will represent {@link Entity#getPrimaryKey()} of Evita managed entity of this
+	 * {@link EntitySchemaContract#getName()}.
+	 *
+	 * Reflected reference sets up a bi-directional relation with target entity by selecting appropriate existing
+	 * uni-directional reference in the target entity schema. By default the reflected reference inherits all the reference
+	 * attributes of the original relation, cardinality, description and other properties. You can redefine most of them
+	 * using {@link ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder}. You may also define new unique
+	 * reference attributes which will be visible only from this entity point of view.
+	 *
+	 * References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
+	 *
+	 * @param name name of the reference
+	 * @param entityType name of the target entity this reference relates to
+	 * @param reflectedReferenceName name of the reference in the target entity, this reference should reflect
+	 */
+	@Nonnull
+	S withReflectedReferenceToEntity(
+		@Nonnull String name,
+		@Nonnull String entityType,
+		@Nonnull String reflectedReferenceName
+	);
+
+	/**
+	 * Adds new {@link ReflectedReferenceSchemaContract} to the set of allowed references of the entity or updates existing.
+	 * {@link Reference#getReferenceName()} will represent {@link Entity#getPrimaryKey()} of Evita managed entity of this
+	 * {@link EntitySchemaContract#getName()}.
+	 *
+	 * Reflected reference sets up a bi-directional relation with target entity by selecting appropriate existing
+	 * uni-directional reference in the target entity schema. By default the reflected reference inherits all the reference
+	 * attributes of the original relation, cardinality, description and other properties. You can redefine most of them
+	 * using {@link ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder}. You may also define new unique
+	 * reference attributes which will be visible only from this entity point of view.
+	 *
+	 * References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
+	 *
+	 * @param referenceName          name of the reference
+	 * @param entityType             name of the target entity this reference relates to
+	 * @param reflectedReferenceName name of the reference in the target entity, this reference should reflect
+	 * @param whichIs                lambda that allows to define reference specifics
+	 */
+	@Nonnull
+	S withReflectedReferenceToEntity(
+		@Nonnull String referenceName,
+		@Nonnull String entityType,
+		@Nonnull String reflectedReferenceName,
+		@Nullable Consumer<ReflectedReferenceSchemaBuilder> whichIs
+	);
+
+	/**
+	 * Removes specific {@link ReferenceSchemaContract} of {@link ReflectedReferenceSchemaContract} from the set of
+	 * allowed references of the entity.
 	 */
 	@Nonnull
 	S withoutReferenceTo(@Nonnull String name);

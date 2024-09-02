@@ -30,8 +30,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -70,7 +70,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationTest {
 		assertNull(result.origin());
 		assertNotNull(result.current());
 		assertInstanceOf(ModifyReferenceSortableAttributeCompoundSchemaMutation.class, result.current()[0]);
-		final ReferenceSchemaMutation attributeCompoundSchemaMutation = ((ModifyReferenceSortableAttributeCompoundSchemaMutation) result.current()[0]).getSortableAttributeCompoundSchemaMutation();
+		final ReferenceSortableAttributeCompoundSchemaMutation attributeCompoundSchemaMutation = ((ModifyReferenceSortableAttributeCompoundSchemaMutation) result.current()[0]).getSortableAttributeCompoundSchemaMutation();
 		assertInstanceOf(ModifySortableAttributeCompoundSchemaDescriptionMutation.class, attributeCompoundSchemaMutation);
 		assertEquals("newDescription", ((ModifySortableAttributeCompoundSchemaDescriptionMutation) attributeCompoundSchemaMutation).getDescription());
 	}

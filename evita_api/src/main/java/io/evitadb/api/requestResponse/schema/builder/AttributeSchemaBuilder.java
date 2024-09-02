@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import lombok.experimental.Delegate;
 
@@ -121,7 +122,7 @@ public final class AttributeSchemaBuilder
 	public Collection<ReferenceSchemaMutation> toReferenceMutation(@Nonnull String referenceName) {
 		return this.mutations
 			.stream()
-			.map(it -> new ModifyReferenceAttributeSchemaMutation(referenceName, (ReferenceSchemaMutation) it))
+			.map(it -> new ModifyReferenceAttributeSchemaMutation(referenceName, (ReferenceAttributeSchemaMutation) it))
 			.collect(Collectors.toList());
 	}
 

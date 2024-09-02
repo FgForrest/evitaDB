@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation;
+package io.evitadb.index.mutation.index;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -42,7 +42,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
-import io.evitadb.index.mutation.ReferenceIndexMutator.ReferenceAttributeValueSupplier;
+import io.evitadb.index.mutation.index.ReferenceIndexMutator.ReferenceAttributeValueSupplier;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;

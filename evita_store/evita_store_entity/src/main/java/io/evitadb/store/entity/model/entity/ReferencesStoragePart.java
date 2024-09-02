@@ -34,6 +34,7 @@ import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
@@ -122,6 +123,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 *
 	 * @return the internal reference contract that has been modified
 	 */
+	@Nonnull
 	public ReferenceContract replaceOrAddReference(@Nonnull ReferenceKey referenceKey, @Nonnull UnaryOperator<ReferenceContract> mutator) {
 		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			this.references, referenceKey,
@@ -149,7 +151,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public Collection<ReferenceContract> getReferencesAsCollection() {
-		return Arrays.stream(references).collect(Collectors.toList());
+		return Arrays.stream(this.references).collect(Collectors.toList());
 	}
 
 	/**
@@ -157,7 +159,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public int[] getReferencedIds(@Nonnull String referenceName) {
-		return Arrays.stream(references)
+		return Arrays.stream(this.references)
 			.filter(Droppable::exists)
 			.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
 			.mapToInt(it -> it.getReferenceKey().primaryKey())
@@ -169,7 +171,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public int[] getReferencedGroupIds(@Nonnull String referenceName) {
-		return Arrays.stream(references)
+		return Arrays.stream(this.references)
 			.filter(Droppable::exists)
 			.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
 			.map(ReferenceContract::getGroup)
@@ -184,7 +186,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 * Returns true if passed locale is found among localized attributes of any reference held in this storage part.
 	 */
 	public boolean isLocalePresent(@Nonnull Locale locale) {
-		return Arrays.stream(references)
+		return Arrays.stream(this.references)
 			.filter(Droppable::exists)
 			.anyMatch(it -> it.getAttributeLocales().contains(locale));
 	}
@@ -196,11 +198,14 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public ReferenceContract findReferenceOrThrowException(@Nonnull ReferenceKey referenceKey) {
-		return Arrays
-			.stream(references)
-			.filter(Droppable::exists)
-			.filter(it -> it.getReferenceKey().equals(referenceKey))
-			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("Reference " + referenceKey + " for entity `" + entityPrimaryKey + "` was not found!"));
+		final int index = ArrayUtils.binarySearch(
+			this.references, referenceKey,
+			(referenceContract, theReferenceKey) -> referenceContract.getReferenceKey().compareTo(theReferenceKey)
+		);
+		Assert.isPremiseValid(index >= 0, () -> "Reference " + referenceKey + " for entity `" + entityPrimaryKey + "` was not found!");
+		final ReferenceContract reference = this.references[index];
+		Assert.isPremiseValid(reference.exists(), () -> "Reference " + referenceKey + " for entity `" + entityPrimaryKey + "` was not found!");
+		return reference;
 	}
+
 }

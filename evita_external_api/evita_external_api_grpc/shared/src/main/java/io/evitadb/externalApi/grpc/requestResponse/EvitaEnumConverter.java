@@ -48,6 +48,7 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -859,6 +860,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts a {@link CaptureArea} to a {@link GrpcCaptureArea}.
+	 *
 	 * @param area The CaptureArea to convert.
 	 * @return The converted GrpcCaptureArea.
 	 */
@@ -889,6 +891,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts an {@link Operation} to a {@link GrpcCaptureOperation}.
+	 *
 	 * @param operation The Operation to convert.
 	 * @return The converted GrpcOperation.
 	 */
@@ -922,6 +925,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts a {@link ContainerType} to a {@link GrpcCaptureContainerType}.
+	 *
 	 * @param containerType The ContainerType to convert.
 	 * @return The converted GrpcCaptureContainerType.
 	 */
@@ -954,6 +958,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts a {@link CaptureContent} to a {@link GrpcCaptureContent}.
+	 *
 	 * @param content The CaptureContent to convert.
 	 * @return The converted GrpcCaptureContent.
 	 */
@@ -967,6 +972,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts a {@link HealthProblem} to a {@link GrpcHealthProblem}.
+	 *
 	 * @param problem The HealthProblem to convert.
 	 * @return The converted GrpcHealthProblem.
 	 */
@@ -982,6 +988,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts a {@link ReadinessState} to a {@link GrpcReadiness}.
+	 *
 	 * @param readinessState The ReadinessState to convert.
 	 * @return The converted GrpcReadiness.
 	 */
@@ -1025,7 +1032,40 @@ public class EvitaEnumConverter {
 			case TASK_RUNNING -> TaskSimplifiedState.RUNNING;
 			case TASK_FAILED -> TaskSimplifiedState.FAILED;
 			case TASK_FINISHED -> TaskSimplifiedState.FINISHED;
-			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized task simplified state: " + grpcState);
+			case UNRECOGNIZED ->
+				throw new GenericEvitaInternalError("Unrecognized task simplified state: " + grpcState);
+		};
+	}
+
+	/**
+	 * Converts an {@link AttributeInheritanceBehavior} to a {@link GrpcAttributeInheritanceBehavior}.
+	 *
+	 * @param attributeInheritanceBehavior The {@link AttributeInheritanceBehavior} to convert.
+	 * @return The converted {@link GrpcAttributeInheritanceBehavior}.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static GrpcAttributeInheritanceBehavior toGrpcAttributeInheritanceBehavior(@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior) {
+		return switch (attributeInheritanceBehavior) {
+			case INHERIT_ALL_EXCEPT -> GrpcAttributeInheritanceBehavior.INHERIT_ALL_EXCEPT;
+			case INHERIT_ONLY_SPECIFIED -> GrpcAttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcAttributeInheritanceBehavior} to an {@link AttributeInheritanceBehavior}.
+	 *
+	 * @param attributeInheritanceBehavior The {@link GrpcAttributeInheritanceBehavior} to convert.
+	 * @return The converted {@link AttributeInheritanceBehavior}.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static AttributeInheritanceBehavior toAttributeInheritanceBehavior(@Nonnull GrpcAttributeInheritanceBehavior attributeInheritanceBehavior) {
+		return switch (attributeInheritanceBehavior) {
+			case INHERIT_ALL_EXCEPT -> AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT;
+			case INHERIT_ONLY_SPECIFIED -> AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED;
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized attribute inheritance behavior: " + attributeInheritanceBehavior);
 		};
 	}
 

@@ -94,6 +94,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
@@ -637,6 +638,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 							.host(grpcConfig.getHost()[0].hostAddress())
 							.port(grpcConfig.getHost()[0].port())
 							.systemApiPort(systemConfig.getHost()[0].port())
+							.timeoutUnit(10, TimeUnit.MINUTES)
 							.build()
 					);
 				}
