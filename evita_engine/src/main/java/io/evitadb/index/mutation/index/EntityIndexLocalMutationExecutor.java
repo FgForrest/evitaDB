@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation;
+package io.evitadb.index.mutation.index;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.Droppable;
@@ -64,8 +64,8 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.mutation.AttributeIndexMutator.EntityAttributeValueSupplier;
-import io.evitadb.index.mutation.AttributeIndexMutator.ExistingAttributeValueSupplier;
+import io.evitadb.index.mutation.index.AttributeIndexMutator.EntityAttributeValueSupplier;
+import io.evitadb.index.mutation.index.AttributeIndexMutator.ExistingAttributeValueSupplier;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
@@ -88,8 +88,8 @@ import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import java.util.stream.Stream;
 
-import static io.evitadb.index.mutation.HierarchyPlacementMutator.removeParent;
-import static io.evitadb.index.mutation.HierarchyPlacementMutator.setParent;
+import static io.evitadb.index.mutation.index.HierarchyPlacementMutator.removeParent;
+import static io.evitadb.index.mutation.index.HierarchyPlacementMutator.setParent;
 import static io.evitadb.utils.Assert.isPremiseValid;
 
 /**

@@ -35,7 +35,9 @@ import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
-import io.evitadb.index.mutation.AttributeIndexMutator.EntityAttributeValueSupplier;
+import io.evitadb.index.mutation.index.AttributeIndexMutator;
+import io.evitadb.index.mutation.index.AttributeIndexMutator.EntityAttributeValueSupplier;
+import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
@@ -57,9 +59,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static io.evitadb.index.mutation.AttributeIndexMutator.executeAttributeDelta;
-import static io.evitadb.index.mutation.AttributeIndexMutator.executeAttributeRemoval;
-import static io.evitadb.index.mutation.AttributeIndexMutator.executeAttributeUpsert;
+import static io.evitadb.index.mutation.index.AttributeIndexMutator.executeAttributeDelta;
+import static io.evitadb.index.mutation.index.AttributeIndexMutator.executeAttributeRemoval;
+import static io.evitadb.index.mutation.index.AttributeIndexMutator.executeAttributeUpsert;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_EAN;
 import static org.junit.jupiter.api.Assertions.*;
