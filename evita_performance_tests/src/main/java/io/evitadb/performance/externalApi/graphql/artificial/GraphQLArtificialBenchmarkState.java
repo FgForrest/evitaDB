@@ -47,7 +47,8 @@ public abstract class GraphQLArtificialBenchmarkState extends AbstractArtificial
 				return new GraphQLClient(
 					"https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555",
 					false,
-					true
+					true,
+					1
 				);
 			} catch (UnknownHostException e) {
 				throw new GenericEvitaInternalError("Unknown host.", e);
