@@ -26,12 +26,14 @@ package io.evitadb.driver;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.time.OffsetDateTime;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -61,7 +63,8 @@ class ClientTaskTrackerTest implements TestConstants {
 			new TaskStatus<>(
 				"whatever", "whatever", UUIDUtil.randomUUID(), TEST_CATALOG,
 				OffsetDateTime.now(), null, null, 0,
-				null, null, null, null
+				null, null, null, null,
+				EnumSet.noneOf(TaskTrait.class)
 			)
 		);
 		assertEquals(TaskSimplifiedState.QUEUED, task.getStatus().simplifiedState());
@@ -71,7 +74,8 @@ class ClientTaskTrackerTest implements TestConstants {
 				new TaskStatus<>(
 					"whatever", "whatever", task.getStatus().taskId(), TEST_CATALOG,
 					OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now(), 0,
-					null, true, null, null
+					null, true, null, null,
+					EnumSet.noneOf(TaskTrait.class)
 				)
 			)
 		).when(evitaClientMock).getTaskStatuses(Mockito.any());
@@ -89,7 +93,8 @@ class ClientTaskTrackerTest implements TestConstants {
 			new TaskStatus<>(
 				"whatever", "whatever", UUIDUtil.randomUUID(), TEST_CATALOG,
 				OffsetDateTime.now(), null, null, 0,
-				null, null, null, null
+				null, null, null, null,
+				EnumSet.noneOf(TaskTrait.class)
 			)
 		);
 		assertEquals(TaskSimplifiedState.QUEUED, task.getStatus().simplifiedState());

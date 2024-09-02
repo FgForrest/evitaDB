@@ -25,6 +25,7 @@ package io.evitadb.store.catalog.task;
 
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.async.ClientCallableTask;
 import io.evitadb.core.async.Interruptible;
 import io.evitadb.core.file.ExportFileService;
@@ -100,7 +101,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				(pastMoment == null ? " now" : " at " + pastMoment) +
 				(includingWAL ? "" : ", including WAL: " + includingWAL),
 			new BackupSettings(pastMoment, includingWAL),
-			(task) -> ((BackupTask) task).doBackup()
+			(task) -> ((BackupTask) task).doBackup(),
+			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
 		);
 		this.catalogName = catalogName;
 		this.bootstrapRecord = bootstrapRecord;

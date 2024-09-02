@@ -619,3 +619,21 @@ enum GrpcAttributeInheritanceBehavior {
    */
   INHERIT_ONLY_SPECIFIED = 1;
 }
+
+// Enum describes traits of a GrpcTask task.
+enum GrpcTaskTrait {
+
+  /**
+   * Task can be manually started by the user.
+   */
+  TASK_CAN_BE_STARTED = 0;
+  /**
+   * Task can be manually cancelled by the user.
+   */
+  TASK_CAN_BE_CANCELLED = 1;
+  /**
+   * Task needs to be manually stopped by the user (otherwise it will run indefinitely).
+   */
+  TASK_NEEDS_TO_BE_STOPPED = 2;
+
+}

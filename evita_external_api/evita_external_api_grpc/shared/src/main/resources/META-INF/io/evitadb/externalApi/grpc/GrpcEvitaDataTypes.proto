@@ -332,6 +332,11 @@ message GrpcFile {
 // Record representing status of particular asynchronous task
 message GrpcTaskStatus {
   // Type of the task (shortName of the task)
+  // Available tasks:
+  // - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+  // - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+  // - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+  // - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
   string taskType = 1;
   // Longer, human-readable name of the task
   string taskName = 2;
@@ -360,6 +365,8 @@ message GrpcTaskStatus {
   }
   // Exception that occurred during the task execution
   google.protobuf.StringValue exception = 13;
+  // List of task traits
+  repeated GrpcTaskTrait trait = 14;
 }
 
 // Aggregates basic data about the catalog and entity types stored in it.

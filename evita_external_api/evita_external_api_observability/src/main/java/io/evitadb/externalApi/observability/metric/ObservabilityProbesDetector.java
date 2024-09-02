@@ -71,6 +71,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	private static final Set<HealthProblem> NO_HEALTH_PROBLEMS = EnumSet.noneOf(HealthProblem.class);
 	private static final Set<String> OLD_GENERATION_GC_NAMES = Set.of("G1 Old Generation", "PS MarkSweep", "ConcurrentMarkSweep");
 	private static final Duration HEALTH_CHECK_READINESS_RENEW_INTERVAL = Duration.ofSeconds(30);
+	private static final AtomicBoolean HEALTH_CHECK_RUNNING = new AtomicBoolean(false);
 
 	private final Runtime runtime = Runtime.getRuntime();
 	private final List<GarbageCollectorMXBean> garbageCollectorMXBeans = ManagementFactory.getGarbageCollectorMXBeans()
@@ -147,7 +148,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		final Readiness currentReadiness;
 		if (readinessWithTimestamp == null ||
 			(OffsetDateTime.now().minus(HEALTH_CHECK_READINESS_RENEW_INTERVAL).isAfter(readinessWithTimestamp.timestamp()) ||
-				readinessWithTimestamp.result().state() != ReadinessState.READY)
+				readinessWithTimestamp.result().state() != ReadinessState.READY) && !HEALTH_CHECK_RUNNING.getAndSet(true)
 		) {
 			// enforce renewal of readiness check
 			final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
@@ -174,6 +175,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 			this.lastReadinessSeen.set(
 				new ReadinessWithTimestamp(currentReadiness, OffsetDateTime.now())
 			);
+			HEALTH_CHECK_RUNNING.set(false);
 		} else {
 			currentReadiness = readinessWithTimestamp.result();
 		}

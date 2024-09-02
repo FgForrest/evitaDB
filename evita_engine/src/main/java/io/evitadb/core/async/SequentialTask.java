@@ -32,10 +32,12 @@ import io.evitadb.utils.UUIDUtil;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
+import java.util.EnumSet;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -68,7 +70,13 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 				null,
 				null,
 				null,
-				null
+				null,
+				EnumSet.copyOf(
+					Stream.concat(
+						step1.getStatus().traits().stream(),
+						step2.getStatus().traits().stream()
+					).toList()
+				)
 			)
 		);
 		this.currentStep = new AtomicReference<>();
