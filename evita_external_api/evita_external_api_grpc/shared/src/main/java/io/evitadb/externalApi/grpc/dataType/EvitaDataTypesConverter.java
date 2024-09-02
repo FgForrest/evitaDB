@@ -57,6 +57,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -1429,6 +1430,10 @@ public class EvitaDataTypesConverter {
 						.build()
 				)
 			);
+		taskStatus.traits()
+			.stream()
+			.map(EvitaEnumConverter::toGrpcTaskTrait)
+			.forEach(builder::addTrait);
 		return builder.build();
 	}
 
@@ -1454,7 +1459,13 @@ public class EvitaDataTypesConverter {
 				EvitaDataTypesConverter.toFileForFetch(taskStatus.getFile()) :
 				taskStatus.hasText() ? taskStatus.getText().getValue() : null,
 			taskStatus.hasException() ? taskStatus.getException().getValue() : null,
-			null
+			null,
+			EnumSet.copyOf(
+				taskStatus.getTraitList()
+					.stream()
+					.map(EvitaEnumConverter::toTaskTrait)
+					.toList()
+			)
 		);
 	}
 

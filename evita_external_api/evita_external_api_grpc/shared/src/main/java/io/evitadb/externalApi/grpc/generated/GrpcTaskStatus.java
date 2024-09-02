@@ -46,6 +46,7 @@ private static final long serialVersionUID = 0L;
     taskType_ = "";
     taskName_ = "";
     simplifiedState_ = 0;
+    trait_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -68,6 +69,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -220,6 +222,29 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
+          case 112: {
+            int rawValue = input.readEnum();
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              trait_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            trait_.add(rawValue);
+            break;
+          }
+          case 114: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+                trait_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000001;
+              }
+              trait_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -235,6 +260,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        trait_ = java.util.Collections.unmodifiableList(trait_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -298,6 +326,11 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Type of the task (shortName of the task)
+   * Available tasks:
+   * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+   * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+   * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+   * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
    * </pre>
    *
    * <code>string taskType = 1;</code>
@@ -319,6 +352,11 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Type of the task (shortName of the task)
+   * Available tasks:
+   * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+   * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+   * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+   * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
    * </pre>
    *
    * <code>string taskType = 1;</code>
@@ -779,6 +817,84 @@ private static final long serialVersionUID = 0L;
     return getException();
   }
 
+  public static final int TRAIT_FIELD_NUMBER = 14;
+  private java.util.List<java.lang.Integer> trait_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskTrait> trait_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskTrait>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcTaskTrait convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcTaskTrait result = io.evitadb.externalApi.grpc.generated.GrpcTaskTrait.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTaskTrait.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return A list containing the trait.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskTrait> getTraitList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskTrait>(trait_, trait_converter_);
+  }
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return The count of trait.
+   */
+  @java.lang.Override
+  public int getTraitCount() {
+    return trait_.size();
+  }
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @param index The index of the element to return.
+   * @return The trait at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcTaskTrait getTrait(int index) {
+    return trait_converter_.convert(trait_.get(index));
+  }
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return A list containing the enum numeric values on the wire for trait.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getTraitValueList() {
+    return trait_;
+  }
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of trait at the given index.
+   */
+  @java.lang.Override
+  public int getTraitValue(int index) {
+    return trait_.get(index);
+  }
+  private int traitMemoizedSerializedSize;
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -793,6 +909,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(taskType_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, taskType_);
     }
@@ -831,6 +948,13 @@ private static final long serialVersionUID = 0L;
     }
     if (exception_ != null) {
       output.writeMessage(13, getException());
+    }
+    if (getTraitList().size() > 0) {
+      output.writeUInt32NoTag(114);
+      output.writeUInt32NoTag(traitMemoizedSerializedSize);
+    }
+    for (int i = 0; i < trait_.size(); i++) {
+      output.writeEnumNoTag(trait_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -891,6 +1015,18 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(13, getException());
     }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < trait_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(trait_.get(i));
+      }
+      size += dataSize;
+      if (!getTraitList().isEmpty()) {  size += 1;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }traitMemoizedSerializedSize = dataSize;
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -948,6 +1084,7 @@ private static final long serialVersionUID = 0L;
       if (!getException()
           .equals(other.getException())) return false;
     }
+    if (!trait_.equals(other.trait_)) return false;
     if (!getResultCase().equals(other.getResultCase())) return false;
     switch (resultCase_) {
       case 11:
@@ -1007,6 +1144,10 @@ private static final long serialVersionUID = 0L;
     if (hasException()) {
       hash = (37 * hash) + EXCEPTION_FIELD_NUMBER;
       hash = (53 * hash) + getException().hashCode();
+    }
+    if (getTraitCount() > 0) {
+      hash = (37 * hash) + TRAIT_FIELD_NUMBER;
+      hash = (53 * hash) + trait_.hashCode();
     }
     switch (resultCase_) {
       case 11:
@@ -1207,6 +1348,8 @@ private static final long serialVersionUID = 0L;
         exception_ = null;
         exceptionBuilder_ = null;
       }
+      trait_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
       resultCase_ = 0;
       result_ = null;
       return this;
@@ -1235,6 +1378,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcTaskStatus result = new io.evitadb.externalApi.grpc.generated.GrpcTaskStatus(this);
+      int from_bitField0_ = bitField0_;
       result.taskType_ = taskType_;
       result.taskName_ = taskName_;
       if (taskIdBuilder_ == null) {
@@ -1288,6 +1432,11 @@ private static final long serialVersionUID = 0L;
       } else {
         result.exception_ = exceptionBuilder_.build();
       }
+      if (((bitField0_ & 0x00000001) != 0)) {
+        trait_ = java.util.Collections.unmodifiableList(trait_);
+        bitField0_ = (bitField0_ & ~0x00000001);
+      }
+      result.trait_ = trait_;
       result.resultCase_ = resultCase_;
       onBuilt();
       return result;
@@ -1372,6 +1521,16 @@ private static final long serialVersionUID = 0L;
       if (other.hasException()) {
         mergeException(other.getException());
       }
+      if (!other.trait_.isEmpty()) {
+        if (trait_.isEmpty()) {
+          trait_ = other.trait_;
+          bitField0_ = (bitField0_ & ~0x00000001);
+        } else {
+          ensureTraitIsMutable();
+          trait_.addAll(other.trait_);
+        }
+        onChanged();
+      }
       switch (other.getResultCase()) {
         case TEXT: {
           mergeText(other.getText());
@@ -1428,11 +1587,17 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private int bitField0_;
 
     private java.lang.Object taskType_ = "";
     /**
      * <pre>
      * Type of the task (shortName of the task)
+     * Available tasks:
+     * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+     * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+     * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+     * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
      * </pre>
      *
      * <code>string taskType = 1;</code>
@@ -1453,6 +1618,11 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Type of the task (shortName of the task)
+     * Available tasks:
+     * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+     * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+     * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+     * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
      * </pre>
      *
      * <code>string taskType = 1;</code>
@@ -1474,6 +1644,11 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Type of the task (shortName of the task)
+     * Available tasks:
+     * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+     * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+     * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+     * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
      * </pre>
      *
      * <code>string taskType = 1;</code>
@@ -1493,6 +1668,11 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Type of the task (shortName of the task)
+     * Available tasks:
+     * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+     * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+     * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+     * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
      * </pre>
      *
      * <code>string taskType = 1;</code>
@@ -1507,6 +1687,11 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Type of the task (shortName of the task)
+     * Available tasks:
+     * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+     * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+     * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+     * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
      * </pre>
      *
      * <code>string taskType = 1;</code>
@@ -3175,6 +3360,194 @@ private static final long serialVersionUID = 0L;
         exception_ = null;
       }
       return exceptionBuilder_;
+    }
+
+    private java.util.List<java.lang.Integer> trait_ =
+      java.util.Collections.emptyList();
+    private void ensureTraitIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        trait_ = new java.util.ArrayList<java.lang.Integer>(trait_);
+        bitField0_ |= 0x00000001;
+      }
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @return A list containing the trait.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskTrait> getTraitList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskTrait>(trait_, trait_converter_);
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @return The count of trait.
+     */
+    public int getTraitCount() {
+      return trait_.size();
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param index The index of the element to return.
+     * @return The trait at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcTaskTrait getTrait(int index) {
+      return trait_converter_.convert(trait_.get(index));
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param index The index to set the value at.
+     * @param value The trait to set.
+     * @return This builder for chaining.
+     */
+    public Builder setTrait(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcTaskTrait value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureTraitIsMutable();
+      trait_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param value The trait to add.
+     * @return This builder for chaining.
+     */
+    public Builder addTrait(io.evitadb.externalApi.grpc.generated.GrpcTaskTrait value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureTraitIsMutable();
+      trait_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param values The trait to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllTrait(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskTrait> values) {
+      ensureTraitIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcTaskTrait value : values) {
+        trait_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearTrait() {
+      trait_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @return A list containing the enum numeric values on the wire for trait.
+     */
+    public java.util.List<java.lang.Integer>
+    getTraitValueList() {
+      return java.util.Collections.unmodifiableList(trait_);
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of trait at the given index.
+     */
+    public int getTraitValue(int index) {
+      return trait_.get(index);
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of trait at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setTraitValue(
+        int index, int value) {
+      ensureTraitIsMutable();
+      trait_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param value The enum numeric value on the wire for trait to add.
+     * @return This builder for chaining.
+     */
+    public Builder addTraitValue(int value) {
+      ensureTraitIsMutable();
+      trait_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param values The enum numeric values on the wire for trait to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllTraitValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureTraitIsMutable();
+      for (int value : values) {
+        trait_.add(value);
+      }
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

@@ -51,6 +51,7 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -1025,6 +1026,38 @@ public class EvitaEnumConverter {
 			case TASK_FAILED -> TaskSimplifiedState.FAILED;
 			case TASK_FINISHED -> TaskSimplifiedState.FINISHED;
 			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized task simplified state: " + grpcState);
+		};
+	}
+
+	/**
+	 * Converts a {@link TaskTrait} to a {@link GrpcTaskTrait}.
+	 *
+	 * @param taskTrait The TaskTrait to convert.
+	 * @return The converted GrpcTaskTrait.
+	 */
+	@Nonnull
+	public static GrpcTaskTrait toGrpcTaskTrait(@Nonnull TaskTrait taskTrait) {
+		return switch (taskTrait) {
+			case CAN_BE_STARTED -> GrpcTaskTrait.TASK_CAN_BE_STARTED;
+			case CAN_BE_CANCELLED -> GrpcTaskTrait.TASK_CAN_BE_CANCELLED;
+			case NEEDS_TO_BE_STOPPED -> GrpcTaskTrait.TASK_NEEDS_TO_BE_STOPPED;
+			default -> throw new GenericEvitaInternalError("Unrecognized task trait: " + taskTrait);
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcTaskTrait} to a {@link TaskTrait}.
+	 *
+	 * @param grpcTaskTrait The GrpcTaskTrait to convert.
+	 * @return The converted TaskTrait.
+	 */
+	@Nonnull
+	public static TaskTrait toTaskTrait(@Nonnull GrpcTaskTrait grpcTaskTrait) {
+		return switch (grpcTaskTrait) {
+			case TASK_CAN_BE_STARTED -> TaskTrait.CAN_BE_STARTED;
+			case TASK_CAN_BE_CANCELLED -> TaskTrait.CAN_BE_CANCELLED;
+			case TASK_NEEDS_TO_BE_STOPPED -> TaskTrait.NEEDS_TO_BE_STOPPED;
+			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized grpc task trait: " + grpcTaskTrait);
 		};
 	}
 

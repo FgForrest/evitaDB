@@ -31,6 +31,7 @@ import java.io.PrintWriter;
 import java.io.Serializable;
 import java.io.StringWriter;
 import java.time.OffsetDateTime;
+import java.util.EnumSet;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 
@@ -63,8 +64,9 @@ public record TaskStatus<S, T>(
 	@Nonnull S settings,
 	@Nullable T result,
 	@Nullable String publicExceptionMessage,
-	@Nullable String exceptionWithStackTrace
-) implements Serializable {
+	@Nullable String exceptionWithStackTrace,
+	@Nonnull EnumSet<TaskTrait> traits
+	) implements Serializable {
 
 	/**
 	 * Returns the shortened state of the task.
@@ -105,7 +107,8 @@ public record TaskStatus<S, T>(
 				this.settings,
 				this.result,
 				this.publicExceptionMessage,
-				this.exceptionWithStackTrace
+				this.exceptionWithStackTrace,
+				this.traits
 			);
 		} else {
 			return this;
@@ -131,7 +134,8 @@ public record TaskStatus<S, T>(
 			this.settings,
 			this.result,
 			this.publicExceptionMessage,
-			this.exceptionWithStackTrace
+			this.exceptionWithStackTrace,
+			this.traits
 		);
 	}
 
@@ -155,7 +159,8 @@ public record TaskStatus<S, T>(
 			this.settings,
 			result,
 			null,
-			null
+			null,
+			this.traits
 		);
 	}
 
@@ -192,7 +197,8 @@ public record TaskStatus<S, T>(
 			this.settings,
 			null,
 			publicException,
-			exception.getClass().getName() + ": " + exception.getMessage() + "\n" + sw
+			exception.getClass().getName() + ": " + exception.getMessage() + "\n" + sw,
+			this.traits
 		);
 	}
 
@@ -216,6 +222,28 @@ public record TaskStatus<S, T>(
 		 * Task has failed.
 		 */
 		FAILED
+	}
+
+	/**
+	 * Enum describes traits of a {@link ServerTask} task.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+	 */
+	public enum TaskTrait {
+
+		/**
+		 * Task can be manually started by the user.
+		 */
+		CAN_BE_STARTED,
+		/**
+		 * Task can be manually cancelled by the user.
+		 */
+		CAN_BE_CANCELLED,
+		/**
+		 * Task needs to be manually stopped by the user (otherwise it will run indefinitely).
+		 */
+		NEEDS_TO_BE_STOPPED
+
 	}
 
 }

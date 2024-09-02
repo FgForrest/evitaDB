@@ -33,6 +33,11 @@ public interface GrpcTaskStatusOrBuilder extends
   /**
    * <pre>
    * Type of the task (shortName of the task)
+   * Available tasks:
+   * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+   * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+   * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+   * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
    * </pre>
    *
    * <code>string taskType = 1;</code>
@@ -42,6 +47,11 @@ public interface GrpcTaskStatusOrBuilder extends
   /**
    * <pre>
    * Type of the task (shortName of the task)
+   * Available tasks:
+   * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+   * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+   * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+   * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
    * </pre>
    *
    * <code>string taskType = 1;</code>
@@ -341,6 +351,55 @@ public interface GrpcTaskStatusOrBuilder extends
    * <code>.google.protobuf.StringValue exception = 13;</code>
    */
   com.google.protobuf.StringValueOrBuilder getExceptionOrBuilder();
+
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return A list containing the trait.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskTrait> getTraitList();
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return The count of trait.
+   */
+  int getTraitCount();
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @param index The index of the element to return.
+   * @return The trait at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcTaskTrait getTrait(int index);
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return A list containing the enum numeric values on the wire for trait.
+   */
+  java.util.List<java.lang.Integer>
+  getTraitValueList();
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of trait at the given index.
+   */
+  int getTraitValue(int index);
 
   public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.ResultCase getResultCase();
 }
