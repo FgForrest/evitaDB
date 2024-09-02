@@ -151,7 +151,7 @@ public enum GrpcTaskTrait
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(28);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(29);
   }
 
   private static final GrpcTaskTrait[] VALUES = values();
