@@ -108,7 +108,7 @@ abstract class ApiClient {
 
 	@Nonnull
 	protected Optional<String> getResponseBodyString(@Nonnull Request request) {
-		RuntimeException lastException = null;
+		RuntimeException firstException = null;
 		for (int i = 0; i < numberOfRetries; i++) {
 			try (Response response = client.newCall(request).execute()) {
 				final int responseCode = response.code();
@@ -118,15 +118,15 @@ abstract class ApiClient {
 					return Optional.empty();
 				} else if (responseCode >= 400 && responseCode <= 499) {
 					final String errorResponseString = response.body() != null ? response.body().string() : "no response body";
-					lastException = new GenericEvitaInternalError("Call to web server `" + request.url() + "` ended with status " + responseCode + " and response: \n" + errorResponseString);
+					firstException = firstException == null ? new GenericEvitaInternalError("Call to web server `" + request.url() + "` ended with status " + responseCode + " and response: \n" + errorResponseString) : firstException;
 				} else {
-					lastException = new GenericEvitaInternalError("Call to web server `" + request.url() + "` ended with status " + responseCode);
+					firstException = firstException == null ? new GenericEvitaInternalError("Call to web server `" + request.url() + "` ended with status " + responseCode) : firstException;
 				}
 			} catch (IOException e) {
-				lastException = new GenericEvitaInternalError("Unexpected error.", e);
+				firstException = firstException == null ? new GenericEvitaInternalError("Unexpected error.", e) : firstException;
 			}
 		}
-		throw new GenericEvitaInternalError("Error calling server even with " + numberOfRetries + " retries:", lastException);
+		throw new GenericEvitaInternalError("Error calling server even with " + numberOfRetries + " retries:", firstException);
 	}
 
 	@Nonnull
