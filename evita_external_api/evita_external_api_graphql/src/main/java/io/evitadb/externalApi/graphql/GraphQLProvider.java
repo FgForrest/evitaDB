@@ -28,6 +28,7 @@ import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
@@ -41,6 +42,7 @@ import static io.evitadb.externalApi.graphql.io.GraphQLRouter.SYSTEM_PREFIX;
  * @see GraphQLProviderRegistrar
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Slf4j
 @RequiredArgsConstructor
 public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
 
@@ -79,7 +81,10 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
 	@Override
     public boolean isReady() {
         final Predicate<String> isReady = url -> {
-            final Optional<String> post = NetworkUtils.fetchContent(url, "POST", "application/json", "{\"query\":\"{liveness}\"}");
+            final Optional<String> post = NetworkUtils.fetchContent(
+				url, "POST", "application/json", "{\"query\":\"{liveness}\"}",
+	            error -> log.error("Error while checking readiness of GraphQL API: {}", error)
+            );
             return post.map(content -> content.contains("true")).orElse(false);
         };
         final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());

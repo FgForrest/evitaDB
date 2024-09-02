@@ -148,7 +148,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		final Readiness currentReadiness;
 		if (readinessWithTimestamp == null ||
 			(OffsetDateTime.now().minus(HEALTH_CHECK_READINESS_RENEW_INTERVAL).isAfter(readinessWithTimestamp.timestamp()) ||
-				readinessWithTimestamp.result().state() != ReadinessState.READY) && !HEALTH_CHECK_RUNNING.getAndSet(true)
+				readinessWithTimestamp.result().state() != ReadinessState.READY) && !HEALTH_CHECK_RUNNING.compareAndSet(false, true)
 		) {
 			// enforce renewal of readiness check
 			final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);

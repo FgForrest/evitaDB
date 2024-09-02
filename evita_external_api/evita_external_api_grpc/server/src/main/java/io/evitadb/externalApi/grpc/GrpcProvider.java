@@ -132,9 +132,11 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 				reachableUrl = uri;
 				return true;
 			} else {
+				log.error("gRPC API is not ready at: {}", uri);
 				return false;
 			}
 		} catch (Exception e) {
+			log.error("Error while checking readiness of gRPC API: {}", e.getMessage());
 			return false;
 		}
 	}

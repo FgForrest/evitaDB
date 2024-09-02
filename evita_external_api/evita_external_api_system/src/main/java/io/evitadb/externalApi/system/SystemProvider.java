@@ -35,6 +35,7 @@ import io.evitadb.utils.NetworkUtils;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.LinkedHashMap;
@@ -48,6 +49,7 @@ import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SER
  * @author Tomáš Pozler, 2023
  * @see SystemProviderRegistrar
  */
+@Slf4j
 @RequiredArgsConstructor
 public class SystemProvider implements ExternalApiProviderWithConsoleOutput<SystemConfig> {
 	public static final String CODE = "system";
@@ -96,14 +98,22 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
 				final String nameUrl = baseUrl + ENDPOINT_SERVER_NAME;
-				if (NetworkUtils.isReachable(nameUrl)) {
+				if (
+					NetworkUtils.isReachable(
+						nameUrl,
+						error -> log.error("Error while checking readiness of System API: {}", error)
+					)
+				) {
 					this.reachableUrl = nameUrl;
 					return true;
 				}
 			}
 			return false;
 		} else {
-			return NetworkUtils.isReachable(this.reachableUrl);
+			return NetworkUtils.isReachable(
+				this.reachableUrl,
+				error -> log.error("Error while checking readiness of System API: {}", error)
+			);
 		}
 	}
 

@@ -235,7 +235,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					url,
 					"GET",
 					"application/json",
-					null
+					null,
+					error -> log.error("Error while checking readiness of API: {}", error)
 				);
 
 				if (readiness.isPresent() && readiness.get().contains("\"status\": \"READY\"")) {
@@ -265,7 +266,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				baseUrls[0] + "liveness",
 				"GET",
 				"application/json",
-				null
+				null,
+				error -> log.error("Error while checking readiness of API: {}", error)
 			);
 
 			assertTrue(liveness.isPresent());
@@ -278,7 +280,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				baseUrls[0] + "status",
 				"GET",
 				"application/json",
-				null
+				null,
+				error -> log.error("Error while checking readiness of API: {}", error)
 			);
 
 			assertTrue(status.isPresent());

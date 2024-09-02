@@ -51,6 +51,11 @@ import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * Utility class for network related operations.
@@ -101,7 +106,10 @@ public class NetworkUtils {
 	 * @param url URL to check
 	 * @return true if the URL is reachable and returns some content
 	 */
-	public static boolean isReachable(@Nonnull String url) {
+	public static boolean isReachable(
+		@Nonnull String url,
+		@Nullable Consumer<String> errorConsumer
+	) {
 		try {
 			try (
 				final Response response = getHttpClient().newCall(
@@ -111,9 +119,16 @@ public class NetworkUtils {
 						.build()
 				).execute()
 			) {
+				if (!response.isSuccessful()) {
+					ofNullable(errorConsumer)
+						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code()  + " - " + response.message()));
+					return false;
+				}
 				return response.code() == 200;
 			}
 		} catch (IOException e) {
+			ofNullable(errorConsumer)
+				.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " - " + e.getMessage()));
 			return false;
 		}
 	}
@@ -133,10 +148,11 @@ public class NetworkUtils {
 		@Nonnull String url,
 		@Nullable String method,
 		@Nonnull String contentType,
-		@Nullable String body
-	) {
+		@Nullable String body,
+		@Nullable Consumer<String> errorConsumer
+		) {
 		try {
-			final RequestBody requestBody = Optional.ofNullable(body)
+			final RequestBody requestBody = ofNullable(body)
 				.map(theBody -> RequestBody.create(theBody, MediaType.parse(contentType)))
 				.orElse(null);
 			try (
@@ -149,10 +165,18 @@ public class NetworkUtils {
 					)
 				).execute()
 			) {
-				return Optional.of(response.body().string());
+				if (!response.isSuccessful()) {
+					ofNullable(errorConsumer)
+						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code()  + " - " + response.message()));
+					return empty();
+				} else {
+					return of(response.body().string());
+				}
 			}
 		} catch (IOException e) {
-			return Optional.empty();
+			ofNullable(errorConsumer)
+				.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " - " + e.getMessage()));
+			return empty();
 		}
 	}
 
