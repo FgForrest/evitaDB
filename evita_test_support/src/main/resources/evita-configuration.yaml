@@ -97,6 +97,7 @@ api:
     lab:
       enabled: ${api.endpoints.lab.enabled:true}
       host: ${api.endpoints.lab.host:localhost:5555}
+      exposedHost: ${api.endpoints.lab.exposedHost:null}
       tlsMode: ${api.endpoints.lab.tlsMode:FORCE_TLS}
       allowedOrigins: ${api.endpoints.lab.allowedOrigins:null}
       gui:
