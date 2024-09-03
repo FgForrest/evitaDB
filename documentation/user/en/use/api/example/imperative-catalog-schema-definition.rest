@@ -187,7 +187,7 @@ PUT /rest/evita/schema
             "createReferenceSchemaMutation": {
               "name": "stock",
               "referencedEntityType": "Stock",
-              "referencedEntityTypeManaged": false,
+              "referencedEntityTypeManaged": true,
               "cardinality": "ZERO_OR_MORE",
               "indexed": true,
               "faceted": true
