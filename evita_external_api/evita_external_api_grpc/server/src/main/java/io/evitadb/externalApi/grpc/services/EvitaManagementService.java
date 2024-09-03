@@ -54,6 +54,7 @@ import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.UUIDUtil;
 import io.grpc.Metadata;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
@@ -289,7 +290,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				responseObserver.onCompleted();
 			},
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 	/**
@@ -376,6 +378,76 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 			}
 			return new NoopStreamObserver<>();
 		}
+	}
+
+	/**
+	 * Restores catalog from uploaded backup binary file into a new catalog.
+	 * Unary variant of {@link #restoreCatalog(StreamObserver)}
+	 *
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaManagementContract#restoreCatalog(String, long, InputStream)
+	 */
+	@Override
+	public void restoreCatalogUnary(GrpcRestoreCatalogUnaryRequest request, StreamObserver<GrpcRestoreCatalogResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				UUID fileId = request.hasFileId() ? toUuid(request.getFileId()) : null;
+				final long totalSizeInBytes = request.getTotalSizeInBytes();
+
+				try {
+					final Path workDirectory = evita.getConfiguration().transaction().transactionWorkDirectory();
+					Path backupFilePath;
+					if (fileId == null) {
+						if (!workDirectory.toFile().exists()) {
+							Assert.isTrue(workDirectory.toFile().mkdirs(), "Failed to create work directory for catalog restore.");
+						}
+						fileId = UUIDUtil.randomUUID();
+						backupFilePath = Files.createFile(workDirectory.resolve("catalog_backup_for_restore-" + fileId + ".zip"));
+						backupFilePath.toFile().deleteOnExit();
+					} else {
+						backupFilePath = workDirectory.resolve("catalog_backup_for_restore-" + fileId + ".zip");
+					}
+
+					try (final OutputStream outputStream = Files.newOutputStream(backupFilePath, StandardOpenOption.APPEND)) {
+						final ByteString backupFile = request.getBackupFile();
+						backupFile.writeTo(outputStream);
+					}
+
+					// we've reached the expected size of the file
+					final long actualSize = Files.size(backupFilePath);
+					if (actualSize == totalSizeInBytes) {
+						final String catalogNameToRestore = request.getCatalogName();
+						Assert.isPremiseValid(catalogNameToRestore != null, "Catalog name to restore must be provided.");
+						final Task<?, Void> restorationTask = management.restoreCatalog(
+							catalogNameToRestore,
+							Files.size(backupFilePath),
+							Files.newInputStream(backupFilePath, StandardOpenOption.READ)
+						);
+						responseObserver.onNext(
+							GrpcRestoreCatalogResponse.newBuilder()
+								.setTask(toGrpcTaskStatus(restorationTask.getStatus()))
+								.setRead(actualSize)
+								.build()
+						);
+						responseObserver.onCompleted();
+					} if (actualSize > totalSizeInBytes) {
+						deleteFileIfExists(backupFilePath, "restore");
+						throw new UnexpectedIOException(
+							"Backup file size exceeds the expected size.",
+							"Backup file size exceeds the expected size (expected " + totalSizeInBytes + ", actual " + actualSize + " Bytes)."
+						);
+					}
+				} catch (IOException e) {
+					throw new UnexpectedIOException(
+						"Failed to store data to the designated file: " + e.getMessage(),
+						"Failed to store data to the designated file.",
+						e
+					);
+				}
+			},
+			evita.getTransactionExecutor(),
+			responseObserver
+		);
 	}
 
 	/**
@@ -591,7 +663,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				}
 			},
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 	/**

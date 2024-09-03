@@ -231,12 +231,6 @@
 				<groupId>com.linecorp.armeria</groupId>
 				<artifactId>armeria</artifactId>
 				<version>${armeria.version}</version>
-				<exclusions>
-					<exclusion>
-						<groupId>io.micrometer</groupId>
-						<artifactId>micrometer-core</artifactId>
-					</exclusion>
-				</exclusions>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
