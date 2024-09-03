@@ -27,8 +27,6 @@ import io.evitadb.exception.InvalidHostDefinitionException;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.ConnectionPool;
-import okhttp3.Headers;
-import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
@@ -157,12 +155,12 @@ public class NetworkUtils {
 				.orElse(null);
 			try (
 				final Response response = getHttpClient().newCall(
-					new Request(
-						HttpUrl.parse(url),
-						Headers.of("Content-Type", contentType),
-						method != null ? method : "GET",
-						requestBody
-					)
+					new Request.Builder()
+						.url(url)
+						.addHeader("Accept", contentType)
+						.addHeader("Content-Type", contentType)
+						.method(method != null ? method : "GET", requestBody)
+						.build()
 				).execute()
 			) {
 				if (!response.isSuccessful()) {
