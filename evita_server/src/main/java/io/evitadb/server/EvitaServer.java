@@ -34,11 +34,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
-import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -311,18 +307,7 @@ public class EvitaServer {
 				final Map<String, Object> loadedYaml = loadYamlContents(readerFactory.apply(new FileInputStream(file.toFile())), yamlParser.get());
 				finalYaml = combine(finalYaml, loadedYaml);
 			}
-
-			// if the final configuration is null, return default configuration, otherwise convert it to the object
-			return finalYaml == null ?
-				new EvitaServerConfiguration(
-					"evitaDB",
-					ServerOptions.builder().build(),
-					StorageOptions.builder().build(),
-					TransactionOptions.builder().build(),
-					CacheOptions.builder().build(),
-					ApiOptions.builder().build()
-				) :
-				yamlMapper.convertValue(finalYaml, EvitaServerConfiguration.class);
+			return yamlMapper.convertValue(finalYaml, EvitaServerConfiguration.class);
 		} catch (IOException e) {
 			throw new ConfigurationParseException(
 				"Failed to parse configuration files in folder `" + configDirLocation + "` due to: " + e.getMessage() + ".",
