@@ -107,7 +107,7 @@ class SchedulerTest {
 			}
 		}
 
-		final PaginatedList<TaskStatus<?, ?>> statusFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, null, TaskSimplifiedState.FINISHED);
+		final PaginatedList<TaskStatus<?, ?>> statusFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, null, TaskSimplifiedState.QUEUED);
 		assertEquals(0, statusFilteredJobStatuses.getTotalRecordCount());
 
 		final PaginatedList<TaskStatus<?, ?>> typeFilteredOutJobStatuses = scheduler.listTaskStatuses(1, 20, "Non-existing task");
