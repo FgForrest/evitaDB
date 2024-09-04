@@ -609,20 +609,10 @@ public interface GrpcReferenceSchemaOrBuilder extends
 
   /**
    * <pre>
-   * Contains true if the indexed property settings of the reflected reference is inherited from the target reference.
-   * </pre>
-   *
-   * <code>bool indexedInherited = 22;</code>
-   * @return The indexedInherited.
-   */
-  boolean getIndexedInherited();
-
-  /**
-   * <pre>
    * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
    * </pre>
    *
-   * <code>bool facetedInherited = 23;</code>
+   * <code>bool facetedInherited = 22;</code>
    * @return The facetedInherited.
    */
   boolean getFacetedInherited();
@@ -632,7 +622,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * Contains true if the attributes of the reflected reference are inherited from the target reference.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
    * @return The enum numeric value on the wire for attributeInheritanceBehavior.
    */
   int getAttributeInheritanceBehaviorValue();
@@ -641,7 +631,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * Contains true if the attributes of the reflected reference are inherited from the target reference.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
    * @return The attributeInheritanceBehavior.
    */
   io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior getAttributeInheritanceBehavior();
@@ -652,7 +642,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 25;</code>
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
    * @return A list containing the attributeInheritanceFilter.
    */
   java.util.List<java.lang.String>
@@ -663,7 +653,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 25;</code>
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
    * @return The count of attributeInheritanceFilter.
    */
   int getAttributeInheritanceFilterCount();
@@ -673,7 +663,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 25;</code>
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
    * @param index The index of the element to return.
    * @return The attributeInheritanceFilter at the given index.
    */
@@ -684,7 +674,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 25;</code>
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
    * @param index The index of the value to return.
    * @return The bytes of the attributeInheritanceFilter at the given index.
    */

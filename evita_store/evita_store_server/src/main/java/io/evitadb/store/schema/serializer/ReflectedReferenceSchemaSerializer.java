@@ -68,11 +68,6 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 
 		kryo.writeObjectOrNull(
 			output,
-			referenceSchema.isIndexedInherited() ? null : referenceSchema.isIndexed(),
-			Boolean.class
-		);
-		kryo.writeObjectOrNull(
-			output,
 			referenceSchema.isFacetedInherited() ? null : referenceSchema.isFaceted(),
 			Boolean.class
 		);
@@ -118,7 +113,6 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		final String entityType = input.readString();
 		final String reflectedReferenceName = input.readString();
 		final Cardinality cardinality = kryo.readObjectOrNull(input, Cardinality.class);
-		final Boolean indexed = kryo.readObjectOrNull(input, Boolean.class);
 		final Boolean faceted = kryo.readObjectOrNull(input, Boolean.class);
 
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
@@ -146,7 +140,7 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		return ReflectedReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
-			indexed, faceted, attributes, sortableAttributeCompounds,
+			faceted, attributes, sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance
 		);
 	}

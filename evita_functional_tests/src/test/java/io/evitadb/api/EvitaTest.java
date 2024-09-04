@@ -1475,7 +1475,7 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldChangeReferenceToNonIndexedWhenThereIsNoSensitiveInheritedAttributeInReflectedReference() {
+	void shouldFailToChangeReferenceToNonIndexed() {
 		// set-up correctly created indexed schema with filterable attribute
 		evita.updateCatalog(
 			TEST_CATALOG,

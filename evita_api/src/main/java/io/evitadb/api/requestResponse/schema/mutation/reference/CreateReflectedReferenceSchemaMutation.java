@@ -79,7 +79,6 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 	@Getter @Nullable private final Cardinality cardinality;
 	@Getter @Nonnull private final String referencedEntityType;
 	@Getter @Nonnull private final String reflectedReferenceName;
-	@Getter @Nullable private final Boolean indexed;
 	@Getter @Nullable private final Boolean faceted;
 	@Getter @Nonnull private final AttributeInheritanceBehavior attributesInheritanceBehavior;
 	@Getter @Nullable private final String[] attributeInheritanceFilter;
@@ -91,7 +90,6 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		@Nullable Cardinality cardinality,
 		@Nonnull String referencedEntityType,
 		@Nonnull String reflectedReferenceName,
-		@Nullable Boolean indexed,
 		@Nullable Boolean faceted,
 		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter
@@ -104,7 +102,6 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		this.cardinality = cardinality;
 		this.referencedEntityType = referencedEntityType;
 		this.reflectedReferenceName = reflectedReferenceName;
-		this.indexed = indexed;
 		this.faceted = faceted;
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter;
@@ -185,7 +182,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			name, description, deprecationNotice,
 			referencedEntityType, reflectedReferenceName,
 			cardinality,
-			indexed, faceted,
+			faceted,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			attributesInheritanceBehavior,
@@ -271,7 +268,6 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			", cardinality=" + cardinality +
 			", entityType='" + referencedEntityType + '\'' +
 			", reflectedReferenceName='" + reflectedReferenceName + '\'' +
-			", indexed=" + indexed +
 			", faceted=" + faceted +
 			", attributesInherited=" + attributesInheritanceBehavior +
 			", attributesExcludedFromInheritance=" + Arrays.toString(attributeInheritanceFilter);

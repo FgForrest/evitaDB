@@ -135,19 +135,6 @@ private static final long serialVersionUID = 0L;
           }
           case 58: {
             com.google.protobuf.BoolValue.Builder subBuilder = null;
-            if (filterable_ != null) {
-              subBuilder = filterable_.toBuilder();
-            }
-            filterable_ = input.readMessage(com.google.protobuf.BoolValue.parser(), extensionRegistry);
-            if (subBuilder != null) {
-              subBuilder.mergeFrom(filterable_);
-              filterable_ = subBuilder.buildPartial();
-            }
-
-            break;
-          }
-          case 66: {
-            com.google.protobuf.BoolValue.Builder subBuilder = null;
             if (faceted_ != null) {
               subBuilder = faceted_.toBuilder();
             }
@@ -159,13 +146,13 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
-          case 72: {
+          case 64: {
             int rawValue = input.readEnum();
 
             attributeInheritanceBehavior_ = rawValue;
             break;
           }
-          case 82: {
+          case 74: {
             java.lang.String s = input.readStringRequireUtf8();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
               attributeInheritanceFilter_ = new com.google.protobuf.LazyStringArrayList();
@@ -470,63 +457,7 @@ private static final long serialVersionUID = 0L;
     }
   }
 
-  public static final int FILTERABLE_FIELD_NUMBER = 7;
-  private com.google.protobuf.BoolValue filterable_;
-  /**
-   * <pre>
-   * Whether the index for this reference should be created and maintained allowing to filter by
-   * `referenceHaving` filtering constraints. Index is also required when reference is
-   * `faceted`.
-   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-   * alongside other references if requested.
-   * </pre>
-   *
-   * <code>.google.protobuf.BoolValue filterable = 7;</code>
-   * @return Whether the filterable field is set.
-   */
-  @java.lang.Override
-  public boolean hasFilterable() {
-    return filterable_ != null;
-  }
-  /**
-   * <pre>
-   * Whether the index for this reference should be created and maintained allowing to filter by
-   * `referenceHaving` filtering constraints. Index is also required when reference is
-   * `faceted`.
-   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-   * alongside other references if requested.
-   * </pre>
-   *
-   * <code>.google.protobuf.BoolValue filterable = 7;</code>
-   * @return The filterable.
-   */
-  @java.lang.Override
-  public com.google.protobuf.BoolValue getFilterable() {
-    return filterable_ == null ? com.google.protobuf.BoolValue.getDefaultInstance() : filterable_;
-  }
-  /**
-   * <pre>
-   * Whether the index for this reference should be created and maintained allowing to filter by
-   * `referenceHaving` filtering constraints. Index is also required when reference is
-   * `faceted`.
-   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-   * alongside other references if requested.
-   * </pre>
-   *
-   * <code>.google.protobuf.BoolValue filterable = 7;</code>
-   */
-  @java.lang.Override
-  public com.google.protobuf.BoolValueOrBuilder getFilterableOrBuilder() {
-    return getFilterable();
-  }
-
-  public static final int FACETED_FIELD_NUMBER = 8;
+  public static final int FACETED_FIELD_NUMBER = 7;
   private com.google.protobuf.BoolValue faceted_;
   /**
    * <pre>
@@ -538,7 +469,7 @@ private static final long serialVersionUID = 0L;
    * Reference that was marked as faceted is called Facet.
    * </pre>
    *
-   * <code>.google.protobuf.BoolValue faceted = 8;</code>
+   * <code>.google.protobuf.BoolValue faceted = 7;</code>
    * @return Whether the faceted field is set.
    */
   @java.lang.Override
@@ -555,7 +486,7 @@ private static final long serialVersionUID = 0L;
    * Reference that was marked as faceted is called Facet.
    * </pre>
    *
-   * <code>.google.protobuf.BoolValue faceted = 8;</code>
+   * <code>.google.protobuf.BoolValue faceted = 7;</code>
    * @return The faceted.
    */
   @java.lang.Override
@@ -572,21 +503,21 @@ private static final long serialVersionUID = 0L;
    * Reference that was marked as faceted is called Facet.
    * </pre>
    *
-   * <code>.google.protobuf.BoolValue faceted = 8;</code>
+   * <code>.google.protobuf.BoolValue faceted = 7;</code>
    */
   @java.lang.Override
   public com.google.protobuf.BoolValueOrBuilder getFacetedOrBuilder() {
     return getFaceted();
   }
 
-  public static final int ATTRIBUTEINHERITANCEBEHAVIOR_FIELD_NUMBER = 9;
+  public static final int ATTRIBUTEINHERITANCEBEHAVIOR_FIELD_NUMBER = 8;
   private int attributeInheritanceBehavior_;
   /**
    * <pre>
    * Contains true if the attributes of the reflected reference are inherited from the target reference.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 8;</code>
    * @return The enum numeric value on the wire for attributeInheritanceBehavior.
    */
   @java.lang.Override public int getAttributeInheritanceBehaviorValue() {
@@ -597,7 +528,7 @@ private static final long serialVersionUID = 0L;
    * Contains true if the attributes of the reflected reference are inherited from the target reference.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 8;</code>
    * @return The attributeInheritanceBehavior.
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior getAttributeInheritanceBehavior() {
@@ -606,7 +537,7 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.UNRECOGNIZED : result;
   }
 
-  public static final int ATTRIBUTEINHERITANCEFILTER_FIELD_NUMBER = 10;
+  public static final int ATTRIBUTEINHERITANCEFILTER_FIELD_NUMBER = 9;
   private com.google.protobuf.LazyStringList attributeInheritanceFilter_;
   /**
    * <pre>
@@ -614,7 +545,7 @@ private static final long serialVersionUID = 0L;
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 10;</code>
+   * <code>repeated string attributeInheritanceFilter = 9;</code>
    * @return A list containing the attributeInheritanceFilter.
    */
   public com.google.protobuf.ProtocolStringList
@@ -627,7 +558,7 @@ private static final long serialVersionUID = 0L;
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 10;</code>
+   * <code>repeated string attributeInheritanceFilter = 9;</code>
    * @return The count of attributeInheritanceFilter.
    */
   public int getAttributeInheritanceFilterCount() {
@@ -639,7 +570,7 @@ private static final long serialVersionUID = 0L;
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 10;</code>
+   * <code>repeated string attributeInheritanceFilter = 9;</code>
    * @param index The index of the element to return.
    * @return The attributeInheritanceFilter at the given index.
    */
@@ -652,7 +583,7 @@ private static final long serialVersionUID = 0L;
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 10;</code>
+   * <code>repeated string attributeInheritanceFilter = 9;</code>
    * @param index The index of the value to return.
    * @return The bytes of the attributeInheritanceFilter at the given index.
    */
@@ -693,17 +624,14 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(reflectedReferenceName_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 6, reflectedReferenceName_);
     }
-    if (filterable_ != null) {
-      output.writeMessage(7, getFilterable());
-    }
     if (faceted_ != null) {
-      output.writeMessage(8, getFaceted());
+      output.writeMessage(7, getFaceted());
     }
     if (attributeInheritanceBehavior_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.getNumber()) {
-      output.writeEnum(9, attributeInheritanceBehavior_);
+      output.writeEnum(8, attributeInheritanceBehavior_);
     }
     for (int i = 0; i < attributeInheritanceFilter_.size(); i++) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 10, attributeInheritanceFilter_.getRaw(i));
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 9, attributeInheritanceFilter_.getRaw(i));
     }
     unknownFields.writeTo(output);
   }
@@ -735,17 +663,13 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(reflectedReferenceName_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(6, reflectedReferenceName_);
     }
-    if (filterable_ != null) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(7, getFilterable());
-    }
     if (faceted_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(8, getFaceted());
+        .computeMessageSize(7, getFaceted());
     }
     if (attributeInheritanceBehavior_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(9, attributeInheritanceBehavior_);
+        .computeEnumSize(8, attributeInheritanceBehavior_);
     }
     {
       int dataSize = 0;
@@ -787,11 +711,6 @@ private static final long serialVersionUID = 0L;
         .equals(other.getReferencedEntityType())) return false;
     if (!getReflectedReferenceName()
         .equals(other.getReflectedReferenceName())) return false;
-    if (hasFilterable() != other.hasFilterable()) return false;
-    if (hasFilterable()) {
-      if (!getFilterable()
-          .equals(other.getFilterable())) return false;
-    }
     if (hasFaceted() != other.hasFaceted()) return false;
     if (hasFaceted()) {
       if (!getFaceted()
@@ -827,10 +746,6 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getReferencedEntityType().hashCode();
     hash = (37 * hash) + REFLECTEDREFERENCENAME_FIELD_NUMBER;
     hash = (53 * hash) + getReflectedReferenceName().hashCode();
-    if (hasFilterable()) {
-      hash = (37 * hash) + FILTERABLE_FIELD_NUMBER;
-      hash = (53 * hash) + getFilterable().hashCode();
-    }
     if (hasFaceted()) {
       hash = (37 * hash) + FACETED_FIELD_NUMBER;
       hash = (53 * hash) + getFaceted().hashCode();
@@ -999,12 +914,6 @@ private static final long serialVersionUID = 0L;
 
       reflectedReferenceName_ = "";
 
-      if (filterableBuilder_ == null) {
-        filterable_ = null;
-      } else {
-        filterable_ = null;
-        filterableBuilder_ = null;
-      }
       if (facetedBuilder_ == null) {
         faceted_ = null;
       } else {
@@ -1056,11 +965,6 @@ private static final long serialVersionUID = 0L;
       result.cardinality_ = cardinality_;
       result.referencedEntityType_ = referencedEntityType_;
       result.reflectedReferenceName_ = reflectedReferenceName_;
-      if (filterableBuilder_ == null) {
-        result.filterable_ = filterable_;
-      } else {
-        result.filterable_ = filterableBuilder_.build();
-      }
       if (facetedBuilder_ == null) {
         result.faceted_ = faceted_;
       } else {
@@ -1140,9 +1044,6 @@ private static final long serialVersionUID = 0L;
       if (!other.getReflectedReferenceName().isEmpty()) {
         reflectedReferenceName_ = other.reflectedReferenceName_;
         onChanged();
-      }
-      if (other.hasFilterable()) {
-        mergeFilterable(other.getFilterable());
       }
       if (other.hasFaceted()) {
         mergeFaceted(other.getFaceted());
@@ -1915,215 +1816,6 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private com.google.protobuf.BoolValue filterable_;
-    private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder> filterableBuilder_;
-    /**
-     * <pre>
-     * Whether the index for this reference should be created and maintained allowing to filter by
-     * `referenceHaving` filtering constraints. Index is also required when reference is
-     * `faceted`.
-     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-     * alongside other references if requested.
-     * </pre>
-     *
-     * <code>.google.protobuf.BoolValue filterable = 7;</code>
-     * @return Whether the filterable field is set.
-     */
-    public boolean hasFilterable() {
-      return filterableBuilder_ != null || filterable_ != null;
-    }
-    /**
-     * <pre>
-     * Whether the index for this reference should be created and maintained allowing to filter by
-     * `referenceHaving` filtering constraints. Index is also required when reference is
-     * `faceted`.
-     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-     * alongside other references if requested.
-     * </pre>
-     *
-     * <code>.google.protobuf.BoolValue filterable = 7;</code>
-     * @return The filterable.
-     */
-    public com.google.protobuf.BoolValue getFilterable() {
-      if (filterableBuilder_ == null) {
-        return filterable_ == null ? com.google.protobuf.BoolValue.getDefaultInstance() : filterable_;
-      } else {
-        return filterableBuilder_.getMessage();
-      }
-    }
-    /**
-     * <pre>
-     * Whether the index for this reference should be created and maintained allowing to filter by
-     * `referenceHaving` filtering constraints. Index is also required when reference is
-     * `faceted`.
-     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-     * alongside other references if requested.
-     * </pre>
-     *
-     * <code>.google.protobuf.BoolValue filterable = 7;</code>
-     */
-    public Builder setFilterable(com.google.protobuf.BoolValue value) {
-      if (filterableBuilder_ == null) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        filterable_ = value;
-        onChanged();
-      } else {
-        filterableBuilder_.setMessage(value);
-      }
-
-      return this;
-    }
-    /**
-     * <pre>
-     * Whether the index for this reference should be created and maintained allowing to filter by
-     * `referenceHaving` filtering constraints. Index is also required when reference is
-     * `faceted`.
-     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-     * alongside other references if requested.
-     * </pre>
-     *
-     * <code>.google.protobuf.BoolValue filterable = 7;</code>
-     */
-    public Builder setFilterable(
-        com.google.protobuf.BoolValue.Builder builderForValue) {
-      if (filterableBuilder_ == null) {
-        filterable_ = builderForValue.build();
-        onChanged();
-      } else {
-        filterableBuilder_.setMessage(builderForValue.build());
-      }
-
-      return this;
-    }
-    /**
-     * <pre>
-     * Whether the index for this reference should be created and maintained allowing to filter by
-     * `referenceHaving` filtering constraints. Index is also required when reference is
-     * `faceted`.
-     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-     * alongside other references if requested.
-     * </pre>
-     *
-     * <code>.google.protobuf.BoolValue filterable = 7;</code>
-     */
-    public Builder mergeFilterable(com.google.protobuf.BoolValue value) {
-      if (filterableBuilder_ == null) {
-        if (filterable_ != null) {
-          filterable_ =
-            com.google.protobuf.BoolValue.newBuilder(filterable_).mergeFrom(value).buildPartial();
-        } else {
-          filterable_ = value;
-        }
-        onChanged();
-      } else {
-        filterableBuilder_.mergeFrom(value);
-      }
-
-      return this;
-    }
-    /**
-     * <pre>
-     * Whether the index for this reference should be created and maintained allowing to filter by
-     * `referenceHaving` filtering constraints. Index is also required when reference is
-     * `faceted`.
-     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-     * alongside other references if requested.
-     * </pre>
-     *
-     * <code>.google.protobuf.BoolValue filterable = 7;</code>
-     */
-    public Builder clearFilterable() {
-      if (filterableBuilder_ == null) {
-        filterable_ = null;
-        onChanged();
-      } else {
-        filterable_ = null;
-        filterableBuilder_ = null;
-      }
-
-      return this;
-    }
-    /**
-     * <pre>
-     * Whether the index for this reference should be created and maintained allowing to filter by
-     * `referenceHaving` filtering constraints. Index is also required when reference is
-     * `faceted`.
-     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-     * alongside other references if requested.
-     * </pre>
-     *
-     * <code>.google.protobuf.BoolValue filterable = 7;</code>
-     */
-    public com.google.protobuf.BoolValue.Builder getFilterableBuilder() {
-
-      onChanged();
-      return getFilterableFieldBuilder().getBuilder();
-    }
-    /**
-     * <pre>
-     * Whether the index for this reference should be created and maintained allowing to filter by
-     * `referenceHaving` filtering constraints. Index is also required when reference is
-     * `faceted`.
-     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-     * alongside other references if requested.
-     * </pre>
-     *
-     * <code>.google.protobuf.BoolValue filterable = 7;</code>
-     */
-    public com.google.protobuf.BoolValueOrBuilder getFilterableOrBuilder() {
-      if (filterableBuilder_ != null) {
-        return filterableBuilder_.getMessageOrBuilder();
-      } else {
-        return filterable_ == null ?
-            com.google.protobuf.BoolValue.getDefaultInstance() : filterable_;
-      }
-    }
-    /**
-     * <pre>
-     * Whether the index for this reference should be created and maintained allowing to filter by
-     * `referenceHaving` filtering constraints. Index is also required when reference is
-     * `faceted`.
-     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-     * alongside other references if requested.
-     * </pre>
-     *
-     * <code>.google.protobuf.BoolValue filterable = 7;</code>
-     */
-    private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder>
-        getFilterableFieldBuilder() {
-      if (filterableBuilder_ == null) {
-        filterableBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder>(
-                getFilterable(),
-                getParentForChildren(),
-                isClean());
-        filterable_ = null;
-      }
-      return filterableBuilder_;
-    }
-
     private com.google.protobuf.BoolValue faceted_;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder> facetedBuilder_;
@@ -2137,7 +1829,7 @@ private static final long serialVersionUID = 0L;
      * Reference that was marked as faceted is called Facet.
      * </pre>
      *
-     * <code>.google.protobuf.BoolValue faceted = 8;</code>
+     * <code>.google.protobuf.BoolValue faceted = 7;</code>
      * @return Whether the faceted field is set.
      */
     public boolean hasFaceted() {
@@ -2153,7 +1845,7 @@ private static final long serialVersionUID = 0L;
      * Reference that was marked as faceted is called Facet.
      * </pre>
      *
-     * <code>.google.protobuf.BoolValue faceted = 8;</code>
+     * <code>.google.protobuf.BoolValue faceted = 7;</code>
      * @return The faceted.
      */
     public com.google.protobuf.BoolValue getFaceted() {
@@ -2173,7 +1865,7 @@ private static final long serialVersionUID = 0L;
      * Reference that was marked as faceted is called Facet.
      * </pre>
      *
-     * <code>.google.protobuf.BoolValue faceted = 8;</code>
+     * <code>.google.protobuf.BoolValue faceted = 7;</code>
      */
     public Builder setFaceted(com.google.protobuf.BoolValue value) {
       if (facetedBuilder_ == null) {
@@ -2198,7 +1890,7 @@ private static final long serialVersionUID = 0L;
      * Reference that was marked as faceted is called Facet.
      * </pre>
      *
-     * <code>.google.protobuf.BoolValue faceted = 8;</code>
+     * <code>.google.protobuf.BoolValue faceted = 7;</code>
      */
     public Builder setFaceted(
         com.google.protobuf.BoolValue.Builder builderForValue) {
@@ -2221,7 +1913,7 @@ private static final long serialVersionUID = 0L;
      * Reference that was marked as faceted is called Facet.
      * </pre>
      *
-     * <code>.google.protobuf.BoolValue faceted = 8;</code>
+     * <code>.google.protobuf.BoolValue faceted = 7;</code>
      */
     public Builder mergeFaceted(com.google.protobuf.BoolValue value) {
       if (facetedBuilder_ == null) {
@@ -2248,7 +1940,7 @@ private static final long serialVersionUID = 0L;
      * Reference that was marked as faceted is called Facet.
      * </pre>
      *
-     * <code>.google.protobuf.BoolValue faceted = 8;</code>
+     * <code>.google.protobuf.BoolValue faceted = 7;</code>
      */
     public Builder clearFaceted() {
       if (facetedBuilder_ == null) {
@@ -2271,7 +1963,7 @@ private static final long serialVersionUID = 0L;
      * Reference that was marked as faceted is called Facet.
      * </pre>
      *
-     * <code>.google.protobuf.BoolValue faceted = 8;</code>
+     * <code>.google.protobuf.BoolValue faceted = 7;</code>
      */
     public com.google.protobuf.BoolValue.Builder getFacetedBuilder() {
 
@@ -2288,7 +1980,7 @@ private static final long serialVersionUID = 0L;
      * Reference that was marked as faceted is called Facet.
      * </pre>
      *
-     * <code>.google.protobuf.BoolValue faceted = 8;</code>
+     * <code>.google.protobuf.BoolValue faceted = 7;</code>
      */
     public com.google.protobuf.BoolValueOrBuilder getFacetedOrBuilder() {
       if (facetedBuilder_ != null) {
@@ -2308,7 +2000,7 @@ private static final long serialVersionUID = 0L;
      * Reference that was marked as faceted is called Facet.
      * </pre>
      *
-     * <code>.google.protobuf.BoolValue faceted = 8;</code>
+     * <code>.google.protobuf.BoolValue faceted = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder>
@@ -2330,7 +2022,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 8;</code>
      * @return The enum numeric value on the wire for attributeInheritanceBehavior.
      */
     @java.lang.Override public int getAttributeInheritanceBehaviorValue() {
@@ -2341,7 +2033,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 8;</code>
      * @param value The enum numeric value on the wire for attributeInheritanceBehavior to set.
      * @return This builder for chaining.
      */
@@ -2356,7 +2048,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 8;</code>
      * @return The attributeInheritanceBehavior.
      */
     @java.lang.Override
@@ -2370,7 +2062,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 8;</code>
      * @param value The attributeInheritanceBehavior to set.
      * @return This builder for chaining.
      */
@@ -2388,7 +2080,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 8;</code>
      * @return This builder for chaining.
      */
     public Builder clearAttributeInheritanceBehavior() {
@@ -2411,7 +2103,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 10;</code>
+     * <code>repeated string attributeInheritanceFilter = 9;</code>
      * @return A list containing the attributeInheritanceFilter.
      */
     public com.google.protobuf.ProtocolStringList
@@ -2424,7 +2116,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 10;</code>
+     * <code>repeated string attributeInheritanceFilter = 9;</code>
      * @return The count of attributeInheritanceFilter.
      */
     public int getAttributeInheritanceFilterCount() {
@@ -2436,7 +2128,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 10;</code>
+     * <code>repeated string attributeInheritanceFilter = 9;</code>
      * @param index The index of the element to return.
      * @return The attributeInheritanceFilter at the given index.
      */
@@ -2449,7 +2141,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 10;</code>
+     * <code>repeated string attributeInheritanceFilter = 9;</code>
      * @param index The index of the value to return.
      * @return The bytes of the attributeInheritanceFilter at the given index.
      */
@@ -2463,7 +2155,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 10;</code>
+     * <code>repeated string attributeInheritanceFilter = 9;</code>
      * @param index The index to set the value at.
      * @param value The attributeInheritanceFilter to set.
      * @return This builder for chaining.
@@ -2484,7 +2176,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 10;</code>
+     * <code>repeated string attributeInheritanceFilter = 9;</code>
      * @param value The attributeInheritanceFilter to add.
      * @return This builder for chaining.
      */
@@ -2504,7 +2196,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 10;</code>
+     * <code>repeated string attributeInheritanceFilter = 9;</code>
      * @param values The attributeInheritanceFilter to add.
      * @return This builder for chaining.
      */
@@ -2522,7 +2214,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 10;</code>
+     * <code>repeated string attributeInheritanceFilter = 9;</code>
      * @return This builder for chaining.
      */
     public Builder clearAttributeInheritanceFilter() {
@@ -2537,7 +2229,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 10;</code>
+     * <code>repeated string attributeInheritanceFilter = 9;</code>
      * @param value The bytes of the attributeInheritanceFilter to add.
      * @return This builder for chaining.
      */

@@ -101,12 +101,6 @@ public @interface ReflectedReference {
 	InheritableBoolean allowEmpty() default InheritableBoolean.INHERITED;
 
 	/**
-	 * Enables filtering / sorting by attributes of reference of this name.
-	 * Propagates to {@link ReflectedReferenceSchemaContract#isIndexed()}.
-	 */
-	InheritableBoolean indexed() default InheritableBoolean.INHERITED;
-
-	/**
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReflectedReferenceSchemaContract#isFaceted()}.
 	 */

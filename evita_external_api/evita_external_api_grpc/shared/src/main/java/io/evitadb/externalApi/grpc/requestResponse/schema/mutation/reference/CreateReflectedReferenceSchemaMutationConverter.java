@@ -56,7 +56,6 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 			toCardinality(mutation.getCardinality()),
 			mutation.getReferencedEntityType(),
 			mutation.getReflectedReferenceName(),
-			mutation.hasFilterable() ? mutation.getFilterable().getValue() : null,
 			mutation.hasFaceted() ? mutation.getFaceted().getValue() : null,
 			toAttributeInheritanceBehavior(mutation.getAttributeInheritanceBehavior()),
 			mutation.getAttributeInheritanceFilterList().toArray(String[]::new)
@@ -77,9 +76,6 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 		}
 		if (mutation.getDeprecationNotice() != null) {
 			builder.setDeprecationNotice(StringValue.of(mutation.getDeprecationNotice()));
-		}
-		if (mutation.getIndexed() != null) {
-			builder.setFilterable(BoolValue.newBuilder().setValue(mutation.getIndexed()).build());
 		}
 		if (mutation.getFaceted() != null) {
 			builder.setFaceted(BoolValue.newBuilder().setValue(mutation.getFaceted()).build());

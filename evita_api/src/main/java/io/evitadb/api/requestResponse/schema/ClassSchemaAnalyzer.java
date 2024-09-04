@@ -1052,11 +1052,7 @@ public class ClassSchemaAnalyzer {
 			if (!reference.deprecated().isBlank()) {
 				editor.deprecated(reference.deprecated());
 			}
-			if (reference.indexed() == InheritableBoolean.TRUE) {
-				editor.indexed();
-			} else if (reference.indexed() == InheritableBoolean.FALSE) {
-				editor.nonIndexed();
-			}
+
 			if (reference.faceted() == InheritableBoolean.TRUE) {
 				editor.faceted();
 			} else if (reference.faceted() == InheritableBoolean.FALSE) {

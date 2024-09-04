@@ -86,13 +86,7 @@ public class SetReferenceSchemaIndexedMutation
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-			if ((reflectedReferenceSchema.isIndexedInherited() && this.indexed == null) ||
-				(!reflectedReferenceSchema.isIndexedInherited() &&reflectedReferenceSchema.isIndexed() == this.indexed)) {
-				return reflectedReferenceSchema;
-			} else {
-				return reflectedReferenceSchema
-					.withIndexed(this.indexed);
-			}
+			return reflectedReferenceSchema;
 		} else {
 			if (referenceSchema.isIndexed() == this.indexed) {
 				// schema is already indexed

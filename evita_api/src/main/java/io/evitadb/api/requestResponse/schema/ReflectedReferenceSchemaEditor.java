@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema;
 
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -109,13 +110,12 @@ public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSche
 	@Nonnull
 	S withAttributesInheritedExcept(@Nonnull String... attributeNames);
 
-	/**
-	 * Specifies that {@link ReferenceSchemaContract#isIndexed()} property settings is inherited from the target reference.
-	 *
-	 * @return this
-	 */
-	@Nonnull
-	S withIndexedInherited();
+	@Override
+	default S nonIndexed() {
+		throw new InvalidSchemaMutationException(
+			"Reflected schema and original schema must always be indexed!"
+		);
+	}
 
 	/**
 	 * Specifies that {@link ReferenceSchemaContract#isFaceted()} property settings is inherited from the target reference.

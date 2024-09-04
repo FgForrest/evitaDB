@@ -82,15 +82,6 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // of such name and this reference must target the entity where the reflected reference is defined, and the target
   // entity must be managed on both sides of the relation.
   string reflectedReferenceName = 6;
-  // Whether the index for this reference should be created and maintained allowing to filter by
-  // `referenceHaving` filtering constraints. Index is also required when reference is
-  // `faceted`.
-  //
-  // Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-  // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-  // the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-  // alongside other references if requested.
-  google.protobuf.BoolValue filterable = 7;
   // Whether the statistics data for this reference should be maintained and this allowing to get
   // `facetSummary` for this reference or use `facetInSet`
   // filtering query.
@@ -98,12 +89,12 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
   // occupies (memory/disk) space in the form of index.
   // Reference that was marked as faceted is called Facet.
-  google.protobuf.BoolValue faceted = 8;
+  google.protobuf.BoolValue faceted = 7;
   // Contains true if the attributes of the reflected reference are inherited from the target reference.
-  GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 9;
+  GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 8;
   // The array of attribute names that are inherited / excluded from inheritance based on the value of
   // attributeInheritanceBehavior property.
-  repeated string attributeInheritanceFilter = 10;
+  repeated string attributeInheritanceFilter = 9;
 }
 
 // Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.

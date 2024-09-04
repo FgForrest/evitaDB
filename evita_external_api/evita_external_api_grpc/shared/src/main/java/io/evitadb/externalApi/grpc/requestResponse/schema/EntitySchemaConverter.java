@@ -457,7 +457,6 @@ public class EntitySchemaConverter {
 				.setDescriptionInherited(reflectedSchema.isDescriptionInherited())
 				.setDeprecationNoticeInherited(reflectedSchema.isDeprecatedInherited())
 				.setCardinalityInherited(reflectedSchema.isCardinalityInherited())
-				.setIndexedInherited(reflectedSchema.isIndexedInherited())
 				.setFacetedInherited(reflectedSchema.isFacetedInherited())
 				.setAttributeInheritanceBehavior(toGrpcAttributeInheritanceBehavior(reflectedSchema.getAttributesInheritanceBehavior()));
 			for (String attributeName : reflectedSchema.getAttributeInheritanceFilter()) {
@@ -612,7 +611,6 @@ public class EntitySchemaConverter {
 				referenceSchema.getReferencedGroupTypeManaged(),
 				referenceSchema.getReflectedReferenceName().getValue(),
 				cardinality,
-				referenceSchema.getIndexed(),
 				referenceSchema.getFaceted(),
 				referenceSchema.getAttributesMap()
 					.entrySet()
@@ -633,7 +631,6 @@ public class EntitySchemaConverter {
 				referenceSchema.getDescriptionInherited(),
 				referenceSchema.getDeprecationNoticeInherited(),
 				referenceSchema.getCardinalityInherited(),
-				referenceSchema.getIndexedInherited(),
 				referenceSchema.getFacetedInherited(),
 				toAttributeInheritanceBehavior(referenceSchema.getAttributeInheritanceBehavior()),
 				referenceSchema.getAttributeInheritanceFilterList().toArray(String[]::new),

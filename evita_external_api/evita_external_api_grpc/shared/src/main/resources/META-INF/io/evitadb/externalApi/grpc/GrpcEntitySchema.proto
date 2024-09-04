@@ -332,15 +332,13 @@ message GrpcReferenceSchema {
   bool deprecationNoticeInherited = 20;
   // Contains true if the cardinality of the reflected reference is inherited from the target reference.
   bool cardinalityInherited = 21;
-  // Contains true if the indexed property settings of the reflected reference is inherited from the target reference.
-  bool indexedInherited = 22;
   // Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
-  bool facetedInherited = 23;
+  bool facetedInherited = 22;
   // Contains true if the attributes of the reflected reference are inherited from the target reference.
-  GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;
+  GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;
   // The array of attribute names that are inherited / excluded from inheritance based on the value of
   // attributeInheritanceBehavior property.
-  repeated string attributeInheritanceFilter = 25;
+  repeated string attributeInheritanceFilter = 24;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB

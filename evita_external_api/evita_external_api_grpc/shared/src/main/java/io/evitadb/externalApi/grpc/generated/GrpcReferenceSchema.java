@@ -267,21 +267,16 @@ private static final long serialVersionUID = 0L;
           }
           case 176: {
 
-            indexedInherited_ = input.readBool();
-            break;
-          }
-          case 184: {
-
             facetedInherited_ = input.readBool();
             break;
           }
-          case 192: {
+          case 184: {
             int rawValue = input.readEnum();
 
             attributeInheritanceBehavior_ = rawValue;
             break;
           }
-          case 202: {
+          case 194: {
             java.lang.String s = input.readStringRequireUtf8();
             if (!((mutable_bitField0_ & 0x00000020) != 0)) {
               attributeInheritanceFilter_ = new com.google.protobuf.LazyStringArrayList();
@@ -1201,29 +1196,14 @@ private static final long serialVersionUID = 0L;
     return cardinalityInherited_;
   }
 
-  public static final int INDEXEDINHERITED_FIELD_NUMBER = 22;
-  private boolean indexedInherited_;
-  /**
-   * <pre>
-   * Contains true if the indexed property settings of the reflected reference is inherited from the target reference.
-   * </pre>
-   *
-   * <code>bool indexedInherited = 22;</code>
-   * @return The indexedInherited.
-   */
-  @java.lang.Override
-  public boolean getIndexedInherited() {
-    return indexedInherited_;
-  }
-
-  public static final int FACETEDINHERITED_FIELD_NUMBER = 23;
+  public static final int FACETEDINHERITED_FIELD_NUMBER = 22;
   private boolean facetedInherited_;
   /**
    * <pre>
    * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
    * </pre>
    *
-   * <code>bool facetedInherited = 23;</code>
+   * <code>bool facetedInherited = 22;</code>
    * @return The facetedInherited.
    */
   @java.lang.Override
@@ -1231,14 +1211,14 @@ private static final long serialVersionUID = 0L;
     return facetedInherited_;
   }
 
-  public static final int ATTRIBUTEINHERITANCEBEHAVIOR_FIELD_NUMBER = 24;
+  public static final int ATTRIBUTEINHERITANCEBEHAVIOR_FIELD_NUMBER = 23;
   private int attributeInheritanceBehavior_;
   /**
    * <pre>
    * Contains true if the attributes of the reflected reference are inherited from the target reference.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
    * @return The enum numeric value on the wire for attributeInheritanceBehavior.
    */
   @java.lang.Override public int getAttributeInheritanceBehaviorValue() {
@@ -1249,7 +1229,7 @@ private static final long serialVersionUID = 0L;
    * Contains true if the attributes of the reflected reference are inherited from the target reference.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
    * @return The attributeInheritanceBehavior.
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior getAttributeInheritanceBehavior() {
@@ -1258,7 +1238,7 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.UNRECOGNIZED : result;
   }
 
-  public static final int ATTRIBUTEINHERITANCEFILTER_FIELD_NUMBER = 25;
+  public static final int ATTRIBUTEINHERITANCEFILTER_FIELD_NUMBER = 24;
   private com.google.protobuf.LazyStringList attributeInheritanceFilter_;
   /**
    * <pre>
@@ -1266,7 +1246,7 @@ private static final long serialVersionUID = 0L;
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 25;</code>
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
    * @return A list containing the attributeInheritanceFilter.
    */
   public com.google.protobuf.ProtocolStringList
@@ -1279,7 +1259,7 @@ private static final long serialVersionUID = 0L;
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 25;</code>
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
    * @return The count of attributeInheritanceFilter.
    */
   public int getAttributeInheritanceFilterCount() {
@@ -1291,7 +1271,7 @@ private static final long serialVersionUID = 0L;
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 25;</code>
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
    * @param index The index of the element to return.
    * @return The attributeInheritanceFilter at the given index.
    */
@@ -1304,7 +1284,7 @@ private static final long serialVersionUID = 0L;
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 25;</code>
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
    * @param index The index of the value to return.
    * @return The bytes of the attributeInheritanceFilter at the given index.
    */
@@ -1396,17 +1376,14 @@ private static final long serialVersionUID = 0L;
     if (cardinalityInherited_ != false) {
       output.writeBool(21, cardinalityInherited_);
     }
-    if (indexedInherited_ != false) {
-      output.writeBool(22, indexedInherited_);
-    }
     if (facetedInherited_ != false) {
-      output.writeBool(23, facetedInherited_);
+      output.writeBool(22, facetedInherited_);
     }
     if (attributeInheritanceBehavior_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.getNumber()) {
-      output.writeEnum(24, attributeInheritanceBehavior_);
+      output.writeEnum(23, attributeInheritanceBehavior_);
     }
     for (int i = 0; i < attributeInheritanceFilter_.size(); i++) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 25, attributeInheritanceFilter_.getRaw(i));
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 24, attributeInheritanceFilter_.getRaw(i));
     }
     unknownFields.writeTo(output);
   }
@@ -1511,17 +1488,13 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(21, cardinalityInherited_);
     }
-    if (indexedInherited_ != false) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(22, indexedInherited_);
-    }
     if (facetedInherited_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(23, facetedInherited_);
+        .computeBoolSize(22, facetedInherited_);
     }
     if (attributeInheritanceBehavior_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(24, attributeInheritanceBehavior_);
+        .computeEnumSize(23, attributeInheritanceBehavior_);
     }
     {
       int dataSize = 0;
@@ -1599,8 +1572,6 @@ private static final long serialVersionUID = 0L;
         != other.getDeprecationNoticeInherited()) return false;
     if (getCardinalityInherited()
         != other.getCardinalityInherited()) return false;
-    if (getIndexedInherited()
-        != other.getIndexedInherited()) return false;
     if (getFacetedInherited()
         != other.getFacetedInherited()) return false;
     if (attributeInheritanceBehavior_ != other.attributeInheritanceBehavior_) return false;
@@ -1686,9 +1657,6 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + CARDINALITYINHERITED_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getCardinalityInherited());
-    hash = (37 * hash) + INDEXEDINHERITED_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getIndexedInherited());
     hash = (37 * hash) + FACETEDINHERITED_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getFacetedInherited());
@@ -1945,8 +1913,6 @@ private static final long serialVersionUID = 0L;
 
       cardinalityInherited_ = false;
 
-      indexedInherited_ = false;
-
       facetedInherited_ = false;
 
       attributeInheritanceBehavior_ = 0;
@@ -2043,7 +2009,6 @@ private static final long serialVersionUID = 0L;
       result.descriptionInherited_ = descriptionInherited_;
       result.deprecationNoticeInherited_ = deprecationNoticeInherited_;
       result.cardinalityInherited_ = cardinalityInherited_;
-      result.indexedInherited_ = indexedInherited_;
       result.facetedInherited_ = facetedInherited_;
       result.attributeInheritanceBehavior_ = attributeInheritanceBehavior_;
       if (((bitField0_ & 0x00000020) != 0)) {
@@ -2230,9 +2195,6 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getCardinalityInherited() != false) {
         setCardinalityInherited(other.getCardinalityInherited());
-      }
-      if (other.getIndexedInherited() != false) {
-        setIndexedInherited(other.getIndexedInherited());
       }
       if (other.getFacetedInherited() != false) {
         setFacetedInherited(other.getFacetedInherited());
@@ -4985,56 +4947,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private boolean indexedInherited_ ;
-    /**
-     * <pre>
-     * Contains true if the indexed property settings of the reflected reference is inherited from the target reference.
-     * </pre>
-     *
-     * <code>bool indexedInherited = 22;</code>
-     * @return The indexedInherited.
-     */
-    @java.lang.Override
-    public boolean getIndexedInherited() {
-      return indexedInherited_;
-    }
-    /**
-     * <pre>
-     * Contains true if the indexed property settings of the reflected reference is inherited from the target reference.
-     * </pre>
-     *
-     * <code>bool indexedInherited = 22;</code>
-     * @param value The indexedInherited to set.
-     * @return This builder for chaining.
-     */
-    public Builder setIndexedInherited(boolean value) {
-
-      indexedInherited_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Contains true if the indexed property settings of the reflected reference is inherited from the target reference.
-     * </pre>
-     *
-     * <code>bool indexedInherited = 22;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearIndexedInherited() {
-
-      indexedInherited_ = false;
-      onChanged();
-      return this;
-    }
-
     private boolean facetedInherited_ ;
     /**
      * <pre>
      * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
      * </pre>
      *
-     * <code>bool facetedInherited = 23;</code>
+     * <code>bool facetedInherited = 22;</code>
      * @return The facetedInherited.
      */
     @java.lang.Override
@@ -5046,7 +4965,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
      * </pre>
      *
-     * <code>bool facetedInherited = 23;</code>
+     * <code>bool facetedInherited = 22;</code>
      * @param value The facetedInherited to set.
      * @return This builder for chaining.
      */
@@ -5061,7 +4980,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
      * </pre>
      *
-     * <code>bool facetedInherited = 23;</code>
+     * <code>bool facetedInherited = 22;</code>
      * @return This builder for chaining.
      */
     public Builder clearFacetedInherited() {
@@ -5077,7 +4996,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
      * @return The enum numeric value on the wire for attributeInheritanceBehavior.
      */
     @java.lang.Override public int getAttributeInheritanceBehaviorValue() {
@@ -5088,7 +5007,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
      * @param value The enum numeric value on the wire for attributeInheritanceBehavior to set.
      * @return This builder for chaining.
      */
@@ -5103,7 +5022,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
      * @return The attributeInheritanceBehavior.
      */
     @java.lang.Override
@@ -5117,7 +5036,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
      * @param value The attributeInheritanceBehavior to set.
      * @return This builder for chaining.
      */
@@ -5135,7 +5054,7 @@ private static final long serialVersionUID = 0L;
      * Contains true if the attributes of the reflected reference are inherited from the target reference.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
      * @return This builder for chaining.
      */
     public Builder clearAttributeInheritanceBehavior() {
@@ -5158,7 +5077,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 25;</code>
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
      * @return A list containing the attributeInheritanceFilter.
      */
     public com.google.protobuf.ProtocolStringList
@@ -5171,7 +5090,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 25;</code>
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
      * @return The count of attributeInheritanceFilter.
      */
     public int getAttributeInheritanceFilterCount() {
@@ -5183,7 +5102,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 25;</code>
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
      * @param index The index of the element to return.
      * @return The attributeInheritanceFilter at the given index.
      */
@@ -5196,7 +5115,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 25;</code>
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
      * @param index The index of the value to return.
      * @return The bytes of the attributeInheritanceFilter at the given index.
      */
@@ -5210,7 +5129,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 25;</code>
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
      * @param index The index to set the value at.
      * @param value The attributeInheritanceFilter to set.
      * @return This builder for chaining.
@@ -5231,7 +5150,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 25;</code>
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
      * @param value The attributeInheritanceFilter to add.
      * @return This builder for chaining.
      */
@@ -5251,7 +5170,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 25;</code>
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
      * @param values The attributeInheritanceFilter to add.
      * @return This builder for chaining.
      */
@@ -5269,7 +5188,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 25;</code>
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
      * @return This builder for chaining.
      */
     public Builder clearAttributeInheritanceFilter() {
@@ -5284,7 +5203,7 @@ private static final long serialVersionUID = 0L;
      * attributeInheritanceBehavior property.
      * </pre>
      *
-     * <code>repeated string attributeInheritanceFilter = 25;</code>
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
      * @param value The bytes of the attributeInheritanceFilter to add.
      * @return This builder for chaining.
      */

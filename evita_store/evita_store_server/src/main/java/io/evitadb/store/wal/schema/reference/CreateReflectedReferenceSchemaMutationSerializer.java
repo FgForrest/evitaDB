@@ -46,7 +46,6 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 		kryo.writeObjectOrNull(output, mutation.getCardinality(), Cardinality.class);
 		output.writeString(mutation.getReferencedEntityType());
 		output.writeString(mutation.getReflectedReferenceName());
-		kryo.writeObjectOrNull(output, mutation.getIndexed(), Boolean.class);
 		kryo.writeObjectOrNull(output, mutation.getFaceted(), Boolean.class);
 		kryo.writeObject(output, mutation.getAttributesInheritanceBehavior());
 
@@ -65,7 +64,6 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 		final Cardinality cardinality = kryo.readObjectOrNull(input, Cardinality.class);
 		final String referencedEntityType = input.readString();
 		final String reflectedReferenceName = input.readString();
-		final Boolean indexed = kryo.readObjectOrNull(input, Boolean.class);
 		final Boolean faceted = kryo.readObjectOrNull(input, Boolean.class);
 		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
 		final int attributesExcludedFromInheritanceLength = input.readVarInt(true);
@@ -81,7 +79,6 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			cardinality,
 			referencedEntityType,
 			reflectedReferenceName,
-			indexed,
 			faceted,
 			attributeInheritanceBehavior,
 			attributesExcludedFromInheritance

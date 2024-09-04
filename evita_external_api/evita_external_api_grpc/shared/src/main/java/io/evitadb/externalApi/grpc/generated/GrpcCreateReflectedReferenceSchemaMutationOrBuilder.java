@@ -185,51 +185,6 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
 
   /**
    * <pre>
-   * Whether the index for this reference should be created and maintained allowing to filter by
-   * `referenceHaving` filtering constraints. Index is also required when reference is
-   * `faceted`.
-   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-   * alongside other references if requested.
-   * </pre>
-   *
-   * <code>.google.protobuf.BoolValue filterable = 7;</code>
-   * @return Whether the filterable field is set.
-   */
-  boolean hasFilterable();
-  /**
-   * <pre>
-   * Whether the index for this reference should be created and maintained allowing to filter by
-   * `referenceHaving` filtering constraints. Index is also required when reference is
-   * `faceted`.
-   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-   * alongside other references if requested.
-   * </pre>
-   *
-   * <code>.google.protobuf.BoolValue filterable = 7;</code>
-   * @return The filterable.
-   */
-  com.google.protobuf.BoolValue getFilterable();
-  /**
-   * <pre>
-   * Whether the index for this reference should be created and maintained allowing to filter by
-   * `referenceHaving` filtering constraints. Index is also required when reference is
-   * `faceted`.
-   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
-   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
-   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
-   * alongside other references if requested.
-   * </pre>
-   *
-   * <code>.google.protobuf.BoolValue filterable = 7;</code>
-   */
-  com.google.protobuf.BoolValueOrBuilder getFilterableOrBuilder();
-
-  /**
-   * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
    * `facetSummary` for this reference or use `facetInSet`
    * filtering query.
@@ -238,7 +193,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Reference that was marked as faceted is called Facet.
    * </pre>
    *
-   * <code>.google.protobuf.BoolValue faceted = 8;</code>
+   * <code>.google.protobuf.BoolValue faceted = 7;</code>
    * @return Whether the faceted field is set.
    */
   boolean hasFaceted();
@@ -252,7 +207,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Reference that was marked as faceted is called Facet.
    * </pre>
    *
-   * <code>.google.protobuf.BoolValue faceted = 8;</code>
+   * <code>.google.protobuf.BoolValue faceted = 7;</code>
    * @return The faceted.
    */
   com.google.protobuf.BoolValue getFaceted();
@@ -266,7 +221,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Reference that was marked as faceted is called Facet.
    * </pre>
    *
-   * <code>.google.protobuf.BoolValue faceted = 8;</code>
+   * <code>.google.protobuf.BoolValue faceted = 7;</code>
    */
   com.google.protobuf.BoolValueOrBuilder getFacetedOrBuilder();
 
@@ -275,7 +230,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Contains true if the attributes of the reflected reference are inherited from the target reference.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 8;</code>
    * @return The enum numeric value on the wire for attributeInheritanceBehavior.
    */
   int getAttributeInheritanceBehaviorValue();
@@ -284,7 +239,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Contains true if the attributes of the reflected reference are inherited from the target reference.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 8;</code>
    * @return The attributeInheritanceBehavior.
    */
   io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior getAttributeInheritanceBehavior();
@@ -295,7 +250,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 10;</code>
+   * <code>repeated string attributeInheritanceFilter = 9;</code>
    * @return A list containing the attributeInheritanceFilter.
    */
   java.util.List<java.lang.String>
@@ -306,7 +261,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 10;</code>
+   * <code>repeated string attributeInheritanceFilter = 9;</code>
    * @return The count of attributeInheritanceFilter.
    */
   int getAttributeInheritanceFilterCount();
@@ -316,7 +271,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 10;</code>
+   * <code>repeated string attributeInheritanceFilter = 9;</code>
    * @param index The index of the element to return.
    * @return The attributeInheritanceFilter at the given index.
    */
@@ -327,7 +282,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * attributeInheritanceBehavior property.
    * </pre>
    *
-   * <code>repeated string attributeInheritanceFilter = 10;</code>
+   * <code>repeated string attributeInheritanceFilter = 9;</code>
    * @param index The index of the value to return.
    * @return The bytes of the attributeInheritanceFilter at the given index.
    */

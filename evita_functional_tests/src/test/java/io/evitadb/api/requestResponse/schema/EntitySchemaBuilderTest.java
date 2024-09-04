@@ -1330,8 +1330,7 @@ class EntitySchemaBuilderTest {
 		assertFalse(categoryProductsWithReference.isDescriptionInherited());
 		assertEquals(Cardinality.ZERO_OR_MORE, categoryProductsWithReference.getCardinality());
 		assertFalse(categoryProductsWithReference.isCardinalityInherited());
-		assertFalse(categoryProductsWithReference.isIndexed());
-		assertFalse(categoryProductsWithReference.isIndexedInherited());
+		assertTrue(categoryProductsWithReference.isIndexed());
 		assertFalse(categoryProductsWithReference.isFaceted());
 		assertFalse(categoryProductsWithReference.isFacetedInherited());
 		assertEquals("No longer used.", categoryProductsWithReference.getDeprecationNotice());
@@ -1392,8 +1391,7 @@ class EntitySchemaBuilderTest {
 		assertFalse(categoryProductsWithReference.isDescriptionInherited());
 		assertEquals(Cardinality.ZERO_OR_MORE, categoryProductsWithReference.getCardinality());
 		assertFalse(categoryProductsWithReference.isCardinalityInherited());
-		assertFalse(categoryProductsWithReference.isIndexed());
-		assertFalse(categoryProductsWithReference.isIndexedInherited());
+		assertTrue(categoryProductsWithReference.isIndexed());
 		assertFalse(categoryProductsWithReference.isFaceted());
 		assertFalse(categoryProductsWithReference.isFacetedInherited());
 		assertEquals("No longer used.", categoryProductsWithReference.getDeprecationNotice());
@@ -1454,8 +1452,7 @@ class EntitySchemaBuilderTest {
 		assertFalse(categoryProductsWithReference.isDescriptionInherited());
 		assertEquals(Cardinality.ZERO_OR_MORE, categoryProductsWithReference.getCardinality());
 		assertFalse(categoryProductsWithReference.isCardinalityInherited());
-		assertFalse(categoryProductsWithReference.isIndexed());
-		assertFalse(categoryProductsWithReference.isIndexedInherited());
+		assertTrue(categoryProductsWithReference.isIndexed());
 		assertFalse(categoryProductsWithReference.isFaceted());
 		assertFalse(categoryProductsWithReference.isFacetedInherited());
 		assertEquals("No longer used.", categoryProductsWithReference.getDeprecationNotice());
@@ -1517,8 +1514,7 @@ class EntitySchemaBuilderTest {
 		assertFalse(categoryProductsWithReference.isDescriptionInherited());
 		assertEquals(Cardinality.ZERO_OR_MORE, categoryProductsWithReference.getCardinality());
 		assertFalse(categoryProductsWithReference.isCardinalityInherited());
-		assertFalse(categoryProductsWithReference.isIndexed());
-		assertFalse(categoryProductsWithReference.isIndexedInherited());
+		assertTrue(categoryProductsWithReference.isIndexed());
 		assertFalse(categoryProductsWithReference.isFaceted());
 		assertFalse(categoryProductsWithReference.isFacetedInherited());
 		assertEquals("No longer used.", categoryProductsWithReference.getDeprecationNotice());
@@ -1572,7 +1568,6 @@ class EntitySchemaBuilderTest {
 		assertEquals(Cardinality.ZERO_OR_ONE, categoryProductsWithReference.getCardinality());
 		assertTrue(categoryProductsWithReference.isCardinalityInherited());
 		assertTrue(categoryProductsWithReference.isIndexed());
-		assertTrue(categoryProductsWithReference.isIndexedInherited());
 		assertTrue(categoryProductsWithReference.isFaceted());
 		assertTrue(categoryProductsWithReference.isFacetedInherited());
 		assertNull(categoryProductsWithReference.getDeprecationNotice());

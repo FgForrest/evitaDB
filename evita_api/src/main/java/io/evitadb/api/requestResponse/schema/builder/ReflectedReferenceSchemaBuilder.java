@@ -106,7 +106,6 @@ public final class ReflectedReferenceSchemaBuilder
 					baseSchema.isCardinalityInherited() ? null : baseSchema.getCardinality(),
 					entityType,
 					reflectedReferenceName,
-					baseSchema.isIndexedInherited() ? null : baseSchema.isIndexed(),
 					baseSchema.isFacetedInherited() ? null : baseSchema.isFaceted(),
 					baseSchema.getAttributesInheritanceBehavior(),
 					baseSchema.getAttributeInheritanceFilter()
@@ -256,19 +255,6 @@ public final class ReflectedReferenceSchemaBuilder
 
 	@Nonnull
 	@Override
-	public ReflectedReferenceSchemaBuilder withIndexedInherited() {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaIndexedMutation(getName(), null)
-			)
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
 	public ReflectedReferenceSchemaBuilder withFacetedInherited() {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
@@ -315,25 +301,7 @@ public final class ReflectedReferenceSchemaBuilder
 
 	@Override
 	public ReflectedReferenceSchemaBuilder indexed() {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaIndexedMutation(getName(), true)
-			)
-		);
-		return this;
-	}
-
-	@Override
-	public ReflectedReferenceSchemaBuilder nonIndexed() {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaIndexedMutation(getName(), false)
-			)
-		);
+		// reflected references are required to be indexed and are indexed by default
 		return this;
 	}
 
