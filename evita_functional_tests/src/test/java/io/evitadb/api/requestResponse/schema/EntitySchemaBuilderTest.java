@@ -1313,7 +1313,7 @@ class EntitySchemaBuilderTest {
 				.withCardinality(Cardinality.ZERO_OR_MORE)
 				.withAttributesInheritedExcept("note")
 				.withAttribute("differentNote", String.class)
-				.nonIndexed()
+				.indexed()
 				.nonFaceted()
 		);
 
@@ -1374,7 +1374,7 @@ class EntitySchemaBuilderTest {
 				.withCardinality(Cardinality.ZERO_OR_MORE)
 				.withAttributesInherited("note")
 				.withAttribute("differentNote", String.class)
-				.nonIndexed()
+				.indexed()
 				.nonFaceted()
 		);
 
@@ -1435,7 +1435,7 @@ class EntitySchemaBuilderTest {
 				.withCardinality(Cardinality.ZERO_OR_MORE)
 				.withAttributesInherited()
 				.withAttribute("differentNote", String.class)
-				.nonIndexed()
+				.indexed()
 				.nonFaceted()
 		);
 
@@ -1497,7 +1497,7 @@ class EntitySchemaBuilderTest {
 				.withCardinality(Cardinality.ZERO_OR_MORE)
 				.withoutAttributesInherited()
 				.withAttribute("differentNote", String.class)
-				.nonIndexed()
+				.indexed()
 				.nonFaceted()
 		);
 

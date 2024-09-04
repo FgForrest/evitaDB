@@ -1497,25 +1497,20 @@ class EvitaTest implements EvitaTestSupport {
 			}
 		);
 		// now try to un-index the reference, and it should be ok
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session
-					.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
-						whichIs -> whichIs.nonIndexed()
-					)
-					.updateVia(session);
-			}
-		);
-		// check the result
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				assertFalse(session.getEntitySchemaOrThrow(Entities.CATEGORY).getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow().isIndexed());
-				assertTrue(session.getEntitySchemaOrThrow(Entities.PRODUCT).getReference(REFERENCE_PRODUCT_CATEGORY).orElseThrow().isIndexed());
-			}
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.CATEGORY)
+						.withReflectedReferenceToEntity(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+							whichIs -> whichIs.nonIndexed()
+						)
+						.updateVia(session);
+				}
+			)
 		);
 	}
 
