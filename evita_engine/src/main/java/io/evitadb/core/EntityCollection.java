@@ -980,8 +980,11 @@ public final class EntityCollection implements
 			}
 			final ReferenceSchemaContract referenceInStake = referenceInStakeRef.get();
 			if (referenceInStake instanceof ReflectedReferenceSchema reflectedReferenceSchema && updatedReference.isPresent()) {
-				final ReferenceSchemaContract originalReference = this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType())
-					.flatMap(it -> it.getSchema().getReference(reflectedReferenceSchema.getReflectedReferenceName()))
+				final Optional<EntitySchemaContract> referencedEntitySchema = reflectedReferenceSchema.getReferencedEntityType().equals(updatedSchema.getName()) ?
+					of(updatedSchema) :
+					this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType()).map(EntityCollectionContract::getSchema);
+				final ReferenceSchemaContract originalReference = referencedEntitySchema
+					.flatMap(it -> it.getReference(reflectedReferenceSchema.getReflectedReferenceName()))
 					.orElse(null);
 				if (originalReference != null) {
 					updatedSchema = updatedSchema.withReplacedReferenceSchema(
