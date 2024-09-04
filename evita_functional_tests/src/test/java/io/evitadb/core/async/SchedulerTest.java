@@ -101,7 +101,7 @@ class SchedulerTest {
 		final PaginatedList<TaskStatus<?, ?>> typeFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, ClientCallableTask.class.getSimpleName());
 		assertEquals(1, typeFilteredJobStatuses.getTotalRecordCount());
 
-		final PaginatedList<TaskStatus<?, ?>> statusFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, null, TaskSimplifiedState.FINISHED);
+		final PaginatedList<TaskStatus<?, ?>> statusFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, null, typeFilteredJobStatuses.getData().get(0).simplifiedState());
 		assertEquals(0, statusFilteredJobStatuses.getTotalRecordCount());
 
 		final PaginatedList<TaskStatus<?, ?>> typeFilteredOutJobStatuses = scheduler.listTaskStatuses(1, 20, "Non-existing task");
@@ -109,10 +109,10 @@ class SchedulerTest {
 
 		assertEquals(5, result.get());
 
-		final PaginatedList<TaskStatus<?, ?>> statusFilteredJobStatusesWhenDone = scheduler.listTaskStatuses(1, 20, null, TaskSimplifiedState.FINISHED);
+		final PaginatedList<TaskStatus<?, ?>> statusFilteredJobStatusesWhenDone = scheduler.listTaskStatuses(1, 20, null, typeFilteredJobStatuses.getData().get(0).simplifiedState());
 		assertEquals(1, statusFilteredJobStatusesWhenDone.getTotalRecordCount());
 
-		final PaginatedList<TaskStatus<?, ?>> nonMatchingFilteredJobStatusesWhenDone = scheduler.listTaskStatuses(1, 20, "Non-existing task", TaskSimplifiedState.FINISHED);
+		final PaginatedList<TaskStatus<?, ?>> nonMatchingFilteredJobStatusesWhenDone = scheduler.listTaskStatuses(1, 20, "Non-existing task", typeFilteredJobStatuses.getData().get(0).simplifiedState());
 		assertEquals(0, nonMatchingFilteredJobStatusesWhenDone.getTotalRecordCount());
 
 		final Optional<TaskStatus<?, ?>> jobStatus = scheduler.getTaskStatus(typeFilteredJobStatuses.getData().get(0).taskId());
