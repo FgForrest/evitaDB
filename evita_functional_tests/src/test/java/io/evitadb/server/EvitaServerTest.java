@@ -144,12 +144,12 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	void shouldReplaceEndpointVariables() {
+		final Map<String, Object> endpointDefaults = Map.of(
+			"enabled", false,
+			"exposeOn", "http://whatnot:7787"
+		);
 		final Map<String, Object> initialMap = Map.of(
 			"api", Map.of(
-				"endpointDefaults", Map.of(
-					"enabled", false,
-					"exposeOn", "http://whatnot:7787"
-				),
 				"endpoints", Map.of(
 					"rest", Map.of(
 						"enabled", true,
@@ -169,7 +169,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		);
 
 		final Map<String, Object> configuration = convertImmutableMapsToHashMaps(initialMap);
-		EvitaServer.applyEndpointDefaults(configuration);
+		EvitaServer.applyEndpointDefaults(configuration, endpointDefaults);
 
 		assertNull(getMapValue(configuration, "api.endpointDefaults"));
 		assertEquals(true, getMapValue(configuration, "api.endpoints.rest.enabled"));
