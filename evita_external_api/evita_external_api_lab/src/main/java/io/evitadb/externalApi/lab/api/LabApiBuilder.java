@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,6 @@ import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
@@ -68,8 +67,8 @@ public class LabApiBuilder extends FinalRestBuilder<LabApiBuildingContext> {
 	/**
 	 * Creates new builder.
 	 */
-	public LabApiBuilder(@Nullable String exposedOn, @Nonnull LabConfig labConfig, @Nonnull Evita evita) {
-		super(new LabApiBuildingContext(exposedOn, labConfig, evita));
+	public LabApiBuilder(@Nonnull LabConfig labConfig, @Nonnull Evita evita) {
+		super(new LabApiBuildingContext(labConfig, evita));
 		this.endpointBuilder = new LabApiEndpointBuilder(operationPathParameterBuilderTransformer);
 
 		this.entityObjectBuilder = new GenericEntityObjectBuilder(

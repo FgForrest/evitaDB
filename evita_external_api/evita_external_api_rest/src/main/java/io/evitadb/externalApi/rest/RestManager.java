@@ -77,7 +77,6 @@ public class RestManager {
 	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Nonnull private final Evita evita;
-	@Nullable private final String exposedOn;
 	@Nonnull private final RestConfig restConfig;
 
 	/**
@@ -94,9 +93,8 @@ public class RestManager {
 
 	@Nonnull private final TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction;
 
-	public RestManager(@Nonnull Evita evita, @Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction) {
+	public RestManager(@Nonnull Evita evita, @Nonnull RestConfig restConfig, @Nonnull TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction) {
 		this.evita = evita;
-		this.exposedOn = exposedOn;
 		this.restConfig = restConfig;
 		this.restRouter = new RestRouter(objectMapper, restConfig);
 		this.apiHandlerPortSslValidatingFunction = apiHandlerPortSslValidatingFunction;
@@ -123,7 +121,7 @@ public class RestManager {
 	private void registerSystemApi() {
 		final long instanceBuildStartTime = System.currentTimeMillis();
 
-		final SystemRestBuilder systemRestBuilder = new SystemRestBuilder(exposedOn, restConfig, evita);
+		final SystemRestBuilder systemRestBuilder = new SystemRestBuilder(restConfig.getExposeOn(), restConfig, evita);
 		final long schemaBuildStartTime = System.currentTimeMillis();
 		final Rest api = systemRestBuilder.build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
@@ -157,7 +155,7 @@ public class RestManager {
 		try {
 			final long instanceBuildStartTime = System.currentTimeMillis();
 
-			final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
+			final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig.getExposeOn(), restConfig, evita, catalog);
 			final long schemaBuildStartTime = System.currentTimeMillis();
 			final Rest api = catalogRestBuilder.build();
 			final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
@@ -214,7 +212,7 @@ public class RestManager {
 		final long instanceBuildStartTime = System.currentTimeMillis();
 
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
-		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
+		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig.getExposeOn(), restConfig, evita, catalog);
 		final long schemaBuildStartTime = System.currentTimeMillis();
 		final Rest newApi = catalogRestBuilder.build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;

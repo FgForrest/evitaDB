@@ -36,7 +36,6 @@ import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
-import io.evitadb.externalApi.lab.LabManager;
 import io.evitadb.externalApi.lab.configuration.GuiConfig;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
@@ -180,10 +179,10 @@ public class GuiHandler implements HttpService {
 		final EvitaDBConnection selfConnection = new EvitaDBConnection(
 			null,
 			serverName,
-			Optional.ofNullable(systemConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElseThrow(() -> new ExternalApiInternalError("Missing system API.")),
-			Optional.ofNullable(grpcConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElseThrow(() -> new ExternalApiInternalError("Missing gRPC API.")),
-			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null),
-			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null)
+			Optional.ofNullable(systemConfig).map(it -> it.getBaseUrls()[0]).orElseThrow(() -> new ExternalApiInternalError("Missing system API.")),
+			Optional.ofNullable(grpcConfig).map(it -> it.getBaseUrls()[0]).orElseThrow(() -> new ExternalApiInternalError("Missing gRPC API.")),
+			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls()[0]).orElse(null),
+			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls()[0]).orElse(null)
 		);
 		return List.of(selfConnection);
 	}

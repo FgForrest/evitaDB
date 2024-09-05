@@ -181,6 +181,35 @@ public class EvitaServer {
 	}
 
 	/**
+	 * Applies default settings to API endpoints in the provided configuration map.
+	 *
+	 * @param configuration a non-null map containing the configuration, which should
+	 *                      include an "api" key with nested maps for "endpointDefaults"
+	 *                      and "endpoints". The method applies each default setting
+	 *                      in "endpointDefaults" to every endpoint in "endpoints" if
+	 *                      the endpoint does not already have that setting.
+	 */
+	@SuppressWarnings("unchecked")
+	static void applyEndpointDefaults(@Nonnull Map<String, Object> configuration) {
+		ofNullable(configuration.get("api"))
+			.map(it -> (Map<String, Object>) it)
+			.map(it -> it.remove("endpointDefaults"))
+			.map(it -> (Map<String, Object>) it)
+			.ifPresent(
+				endpointDefaults -> ofNullable(configuration.get("api"))
+					.map(it -> (Map<String, Object>) it)
+					.map(it -> it.get("endpoints"))
+					.map(it -> (Map<String, Object>) it)
+					.ifPresent(
+						endpoints -> endpoints.values().forEach(
+							endpoint -> endpointDefaults.forEach(
+								(key, value) -> ((Map<String, Object>) endpoint).putIfAbsent(key, value)
+							))
+					)
+			);
+	}
+
+	/**
 	 * Initializes the file from the specified location.
 	 */
 	@Nonnull
@@ -318,24 +347,26 @@ public class EvitaServer {
 
 	/**
 	 * Method loads the contents of the YAML file into a map.
+	 *
 	 * @param reader reader to read the contents of the file
-	 * @param yaml YAML parser to use
+	 * @param yaml   YAML parser to use
 	 * @return map with the contents of the YAML file
 	 */
 	@Nonnull
 	private static Map<String, Object> loadYamlContents(@Nonnull Reader reader, @Nonnull Yaml yaml) {
 		final Map<String, Object> values = yaml.load(reader);
 		// backward compatibility with the old configuration format
-		replaceDeprecatedSettings(values);
+		replaceDeprecatedSettings("", values);
+		// apply the api.endpointDefaults
+		applyEndpointDefaults(values);
 		return values;
 	}
 
 	/**
 	 * Method replaces deprecated settings in the configuration.
 	 * TOBEDONE #538 - remove in the future
-	 * @param values
 	 */
-	private static void replaceDeprecatedSettings(@Nonnull Map<String, Object> values) {
+	private static void replaceDeprecatedSettings(@Nonnull String prefix, @Nonnull Map<String, Object> values) {
 		final List<Object[]> itemsToAdd = new LinkedList<>();
 		final Iterator<Entry<String, Object>> entryIterator = values.entrySet().iterator();
 		while (entryIterator.hasNext()) {
@@ -343,7 +374,15 @@ public class EvitaServer {
 			//noinspection rawtypes
 			if (entry.getValue() instanceof Map map) {
 				//noinspection unchecked
-				replaceDeprecatedSettings(map);
+				replaceDeprecatedSettings((prefix.isBlank() ? "" : prefix + ".") + entry.getKey(), map);
+			} else if (entry.getKey().equals("exposeOn") && prefix.equals("api")) {
+				itemsToAdd.add(
+					new Object[]{
+						"endpointDefaults",
+						Map.of("exposeOn", entry.getValue())
+					}
+				);
+				entryIterator.remove();
 			} else if (entry.getKey().equals("tlsEnabled")) {
 				entryIterator.remove();
 				itemsToAdd.add(
@@ -355,7 +394,27 @@ public class EvitaServer {
 			}
 		}
 		for (Object[] replacedValues : itemsToAdd) {
-			values.put((String) replacedValues[0], replacedValues[1]);
+			final String replacedKey = (String) replacedValues[0];
+			final Object replacedValue = replacedValues[1];
+			replaceValue(values, replacedKey, replacedValue);
+		}
+	}
+
+	/**
+	 * Replaces a value in a map. If the replaced value is a map, it applies the replacement recursively.
+	 *
+	 * @param values        the map in which the value should be replaced
+	 * @param replacedKey   the key of the value to be replaced
+	 * @param replacedValue the new value that will replace the old one
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private static void replaceValue(@Nonnull Map values, String replacedKey, Object replacedValue) {
+		if (replacedValue instanceof Map replacedMap) {
+			final Object existingValues = values.get(replacedKey);
+			Assert.isPremiseValid(existingValues instanceof Map, () -> "Expected map, got: " + existingValues);
+			replacedMap.forEach((key, value) -> replaceValue((Map) existingValues, (String) key, value));
+		} else {
+			values.put(replacedKey, replacedValue);
 		}
 	}
 
@@ -479,7 +538,20 @@ public class EvitaServer {
 	}
 
 	/**
+	 * Method stops {@link ExternalApiServer} and closes all opened ports.
+	 */
+	@Nonnull
+	public CompletableFuture<Void> stop() {
+		if (this.stopFuture == null) {
+			this.stopFuture = externalApiServer.closeAsynchronously()
+				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n\n"));
+		}
+		return this.stopFuture;
+	}
+
+	/**
 	 * Method serializes the configuration to a YAML string.
+	 *
 	 * @return serialized configuration
 	 */
 	@Nonnull
@@ -497,18 +569,6 @@ public class EvitaServer {
 			log.error("Failed to serialize configuration.", e);
 			return "Failed to serialize configuration.";
 		}
-	}
-
-	/**
-	 * Method stops {@link ExternalApiServer} and closes all opened ports.
-	 */
-	@Nonnull
-	public CompletableFuture<Void> stop() {
-		if (this.stopFuture == null) {
-			this.stopFuture = externalApiServer.closeAsynchronously()
-				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n\n"));
-		}
-		return this.stopFuture;
 	}
 
 	/**

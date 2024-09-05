@@ -94,7 +94,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 
 	@Override
 	public boolean isReady() {
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
 				final String nameUrl = baseUrl + ENDPOINT_SERVER_NAME;

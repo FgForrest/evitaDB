@@ -70,7 +70,7 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 
 
 	public CatalogRestBuildingContext(@Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull Evita evita, @Nonnull CatalogContract catalog) {
-		super(exposedOn, restConfig, evita);
+		super(restConfig, evita);
 		this.catalog = catalog;
 		this.supportedLocales = createHashSet(20);
 		this.supportedCurrencies = createHashSet(20);
@@ -95,7 +95,7 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	@Nonnull
 	@Override
 	protected List<Server> buildOpenApiServers() {
-		return Arrays.stream(restConfig.getBaseUrls(getExposedOn()))
+		return Arrays.stream(restConfig.getBaseUrls())
 			.map(baseUrl -> new Server()
 				.url(baseUrl + getSchema().getName()))
 			.toList();
