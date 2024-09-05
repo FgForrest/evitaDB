@@ -181,32 +181,31 @@ public class EvitaServer {
 	}
 
 	/**
-	 * Applies default settings to API endpoints in the provided configuration map.
+	 * Applies default values to endpoints in the configuration map.
+	 * The method checks if the configuration map contains an "api" key
+	 * with nested "endpoints" maps, and then it adds default values
+	 * to each endpoint from the provided endpointDefaults map if any
+	 * default values are missing.
 	 *
-	 * @param configuration a non-null map containing the configuration, which should
-	 *                      include an "api" key with nested maps for "endpointDefaults"
-	 *                      and "endpoints". The method applies each default setting
-	 *                      in "endpointDefaults" to every endpoint in "endpoints" if
-	 *                      the endpoint does not already have that setting.
+	 * @param configuration    the main configuration map which includes endpoint configurations, must not be null
+	 * @param endpointDefaults a map containing default values for the endpoints, must not be null
 	 */
 	@SuppressWarnings("unchecked")
-	static void applyEndpointDefaults(@Nonnull Map<String, Object> configuration) {
+	static void applyEndpointDefaults(
+		@Nonnull Map<String, Object> configuration,
+		@Nonnull Map<String, Object> endpointDefaults
+	) {
 		ofNullable(configuration.get("api"))
 			.map(it -> (Map<String, Object>) it)
-			.map(it -> it.remove("endpointDefaults"))
+			.map(it -> it.get("endpoints"))
 			.map(it -> (Map<String, Object>) it)
 			.ifPresent(
-				endpointDefaults -> ofNullable(configuration.get("api"))
-					.map(it -> (Map<String, Object>) it)
-					.map(it -> it.get("endpoints"))
-					.map(it -> (Map<String, Object>) it)
-					.ifPresent(
-						endpoints -> endpoints.values().forEach(
-							endpoint -> endpointDefaults.forEach(
-								(key, value) -> ((Map<String, Object>) endpoint).putIfAbsent(key, value)
-							))
-					)
+				endpoints -> endpoints.values().forEach(
+					endpoint -> endpointDefaults.forEach(
+						(key, value) -> ((Map<String, Object>) endpoint).putIfAbsent(key, value)
+					))
 			);
+
 	}
 
 	/**
@@ -332,10 +331,14 @@ public class EvitaServer {
 		try {
 			// iterate over all files in the directory and merge them into a single configuration
 			Map<String, Object> finalYaml = loadYamlContents(readerFactory.apply(EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION)), yamlParser.get());
+			Map<String, Object> endpointDefaults = updateEndpointDefaults(Map.of(), finalYaml);
 			for (Path file : files) {
 				final Map<String, Object> loadedYaml = loadYamlContents(readerFactory.apply(new FileInputStream(file.toFile())), yamlParser.get());
+				endpointDefaults = updateEndpointDefaults(endpointDefaults, loadedYaml);
 				finalYaml = combine(finalYaml, loadedYaml);
 			}
+			// apply the api.endpointDefaults
+			applyEndpointDefaults(finalYaml, endpointDefaults);
 			return yamlMapper.convertValue(finalYaml, EvitaServerConfiguration.class);
 		} catch (IOException e) {
 			throw new ConfigurationParseException(
@@ -357,8 +360,6 @@ public class EvitaServer {
 		final Map<String, Object> values = yaml.load(reader);
 		// backward compatibility with the old configuration format
 		replaceDeprecatedSettings("", values);
-		// apply the api.endpointDefaults
-		applyEndpointDefaults(values);
 		return values;
 	}
 
@@ -398,6 +399,27 @@ public class EvitaServer {
 			final Object replacedValue = replacedValues[1];
 			replaceValue(values, replacedKey, replacedValue);
 		}
+	}
+
+	/**
+	 * Updates the endpoint defaults by combining the provided defaults with those loaded from a YAML configuration.
+	 *
+	 * @param endpointDefaults the base map of endpoint defaults, must not be null
+	 * @param loadedYaml       the loaded YAML map, must not be null
+	 * @return the updated map of endpoint defaults
+	 */
+	@SuppressWarnings("unchecked")
+	@Nonnull
+	private static Map<String, Object> updateEndpointDefaults(
+		@Nonnull Map<String, Object> endpointDefaults,
+		@Nonnull Map<String, Object> loadedYaml
+	) {
+		return ofNullable(loadedYaml.get("api"))
+			.map(it -> (Map<String, Object>) it)
+			.map(it -> it.remove("endpointDefaults"))
+			.map(it -> (Map<String, Object>) it)
+			.map(it -> combine(endpointDefaults, it))
+			.orElse(endpointDefaults);
 	}
 
 	/**
