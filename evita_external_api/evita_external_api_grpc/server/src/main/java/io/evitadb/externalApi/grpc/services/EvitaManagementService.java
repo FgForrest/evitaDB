@@ -207,7 +207,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 						externalApiProviderByCode
 							.ifPresent(provider -> {
 								final AbstractApiConfiguration configuration = provider.getConfiguration();
-								Arrays.stream(configuration.getBaseUrls(configuration.getExposedHost()))
+								Arrays.stream(configuration.getBaseUrls())
 									.forEach(apiBuilder::addBaseUrl);
 
 								provider.getKeyEndPoints()

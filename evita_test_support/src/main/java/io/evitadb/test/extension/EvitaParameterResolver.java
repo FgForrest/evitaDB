@@ -469,7 +469,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		Exception lastException = null;
 		int initAttempt = 0;
 		do {
-			for (String baseUrl : cfg.getBaseUrls(apiOptions.exposedOn())) {
+			for (String baseUrl : cfg.getBaseUrls()) {
 				final String testUrl = baseUrl + "server-name";
 				try {
 					final URL website = new URL(testUrl);
@@ -479,7 +479,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 						// try to read server name from the system endpoint
 						final char[] buffer = new char[50];
 						final int read = reader.read(buffer);
-						log.info("Server name available on url `{}`: {}", cfg.getBaseUrls(apiOptions.exposedOn())[0], new String(buffer, 0, read));
+						log.info("Server name available on url `{}`: {}", cfg.getBaseUrls()[0], new String(buffer, 0, read));
 						return evitaServer;
 					}
 				} catch (Exception ex) {
@@ -497,7 +497,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		} while (initAttempt < 3000);
 
 		throw new IllegalStateException(
-			"Evita server hasn't started on url " + Arrays.stream(cfg.getBaseUrls(apiOptions.exposedOn())).map(it -> "`" + it + "server-name`").collect(Collectors.joining(", ")) + " within 10 minutes!",
+			"Evita server hasn't started on url " + Arrays.stream(cfg.getBaseUrls()).map(it -> "`" + it + "server-name`").collect(Collectors.joining(", ")) + " within 10 minutes!",
 			lastException
 		);
 	}

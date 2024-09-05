@@ -207,14 +207,12 @@ You can do both in one command using `docker run`. This is the easiest way to ru
 
 ```shell
 # Linux variant: run on foreground, destroy container after exit, use host ports without NAT
-docker run --name evitadb -i --rm --net=host \
-       -e "EVITA_ARGS=api.exposedOn=localhost" \
+docker run --name evitadb -i --rm --net=host \       
        index.docker.io/evitadb/evitadb:latest
 
 # Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238
 # and you need to open ports manually and propagate host IP address to the container
-docker run --name evitadb -i --rm -p 5555:5555 \
-       -e "EVITA_ARGS=api.exposedOn=localhost" \
+docker run --name evitadb -i --rm -p 5555:5555 \      
        index.docker.io/evitadb/evitadb:latest
 ```
 

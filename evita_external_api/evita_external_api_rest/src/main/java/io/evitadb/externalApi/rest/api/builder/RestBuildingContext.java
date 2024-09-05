@@ -75,7 +75,6 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 public abstract class RestBuildingContext {
 
 	@Nonnull protected final AbstractApiConfiguration restConfig;
-	@Nonnull @Getter private final String exposedOn;
 	@Nonnull @Getter private final Evita evita;
 
 	/**
@@ -93,10 +92,9 @@ public abstract class RestBuildingContext {
 	@Nonnull
 	private final Map<String, Class<? extends Enum<?>>> registeredCustomEnums = createHashMap(32);
 
-	protected RestBuildingContext(@Nonnull String exposedOn, @Nonnull AbstractApiConfiguration restConfig, @Nonnull Evita evita) {
+	protected RestBuildingContext(@Nonnull AbstractApiConfiguration restConfig, @Nonnull Evita evita) {
 		this.restConfig = restConfig;
 		this.evita = evita;
-		this.exposedOn = exposedOn;
 		this.objectMapper = setupObjectMapper();
 	}
 

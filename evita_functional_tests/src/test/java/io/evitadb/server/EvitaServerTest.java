@@ -88,6 +88,50 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		return output;
 	}
 
+	/**
+	 * Retrieves the value from a nested map using a dot-separated key string.
+	 *
+	 * @param map The map from which the value is to be retrieved.
+	 * @param key The dot-separated key string used to navigate the nested maps.
+	 * @return The value associated with the specified key, or null if the key does not exist.
+	 */
+	@SuppressWarnings("unchecked")
+	@Nullable
+	private static Object getMapValue(@Nonnull Map<String, Object> map, @Nonnull String key) {
+		final String[] keysArray = key.split("\\.");
+		Map<String, Object> tempMap = map;
+
+		for (int i = 0; i < keysArray.length - 1; i++) {
+			Object value = tempMap.get(keysArray[i]);
+			if (value instanceof Map) {
+				tempMap = (Map<String, Object>) value;
+			} else {
+				return null;
+			}
+		}
+		return tempMap.get(keysArray[keysArray.length - 1]);
+	}
+
+	/**
+	 * Converts a given immutable map into a mutable HashMap, recursively converting any nested immutable maps as well.
+	 *
+	 * @param immutableMap the immutable map to be converted
+	 * @return a mutable HashMap with the same entries as the specified immutable map
+	 */
+	@SuppressWarnings("unchecked")
+	@Nonnull
+	private static Map<String, Object> convertImmutableMapsToHashMaps(@Nonnull Map<String, Object> immutableMap) {
+		Map<String, Object> result = new HashMap<>();
+		for (Map.Entry<String, Object> entry : immutableMap.entrySet()) {
+			Object value = entry.getValue();
+			if (value instanceof Map) {
+				value = convertImmutableMapsToHashMaps((Map<String, Object>) value);
+			}
+			result.put(entry.getKey(), value);
+		}
+		return result;
+	}
+
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(DIR_EVITA_SERVER_TEST);
@@ -96,6 +140,47 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	@AfterEach
 	void tearDown() throws IOException {
 		cleanTestSubDirectory(DIR_EVITA_SERVER_TEST);
+	}
+
+	@Test
+	void shouldReplaceEndpointVariables() {
+		final Map<String, Object> initialMap = Map.of(
+			"api", Map.of(
+				"endpointDefaults", Map.of(
+					"enabled", false,
+					"exposeOn", "http://whatnot:7787"
+				),
+				"endpoints", Map.of(
+					"rest", Map.of(
+						"enabled", true,
+						"exposeOn", "http://localhost:5555"
+					),
+					"system", Map.of(
+						"exposeOn", "http://localhost:5556"
+					),
+					"graphQL", Map.of(
+						"enabled", true
+					),
+					"lab", Map.of(
+						"tlsMode", "FORCE_TLS"
+					)
+				)
+			)
+		);
+
+		final Map<String, Object> configuration = convertImmutableMapsToHashMaps(initialMap);
+		EvitaServer.applyEndpointDefaults(configuration);
+
+		assertNull(getMapValue(configuration, "api.endpointDefaults"));
+		assertEquals(true, getMapValue(configuration, "api.endpoints.rest.enabled"));
+		assertEquals("http://localhost:5555", getMapValue(configuration, "api.endpoints.rest.exposeOn"));
+		assertEquals(false, getMapValue(configuration, "api.endpoints.system.enabled"));
+		assertEquals("http://localhost:5556", getMapValue(configuration, "api.endpoints.system.exposeOn"));
+		assertEquals(true, getMapValue(configuration, "api.endpoints.graphQL.enabled"));
+		assertEquals("http://whatnot:7787", getMapValue(configuration, "api.endpoints.graphQL.exposeOn"));
+		assertEquals(false, getMapValue(configuration, "api.endpoints.lab.enabled"));
+		assertEquals("http://whatnot:7787", getMapValue(configuration, "api.endpoints.lab.exposeOn"));
+		assertEquals("FORCE_TLS", getMapValue(configuration, "api.endpoints.lab.tlsMode"));
 	}
 
 	@Test
@@ -224,7 +309,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			evitaServer.run();
 			final String[] baseUrls = evitaServer.getExternalApiServer().getExternalApiProviderByCode(SystemProvider.CODE)
 				.getConfiguration()
-				.getBaseUrls(null);
+				.getBaseUrls();
 
 			Optional<String> readiness;
 			final long start = System.currentTimeMillis();
@@ -300,31 +385,37 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					   "apis": [
 					      {
 					         "system": [
+					            "http://VARIABLE/system/",
 					            "http://VARIABLE/system/"
 					         ]
 					      },
 					      {
 					         "graphQL": [
+					            "https://VARIABLE/gql/",
 					            "https://VARIABLE/gql/"
 					         ]
 					      },
 					      {
 					         "rest": [
+					            "https://VARIABLE/rest/",
 					            "https://VARIABLE/rest/"
 					         ]
 					      },
 					      {
 					         "gRPC": [
+					            "https://VARIABLE/",
 					            "https://VARIABLE/"
 					         ]
 					      },
 					      {
 					         "lab": [
+					            "https://VARIABLE/lab/",
 					            "https://VARIABLE/lab/"
 					         ]
 					      },
 					      {
 					         "observability": [
+					            "http://VARIABLE/observability/",
 					            "http://VARIABLE/observability/"
 					         ]
 					      }
@@ -469,6 +560,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 								}
 								return Stream.of(
 									property("api.endpoints." + it + ".host", "localhost:" + allocatedPort),
+									property("api.endpoints." + it + ".exposeOn", "localhost:" + allocatedPort),
 									property("api.endpoints." + it + ".enabled", "true")
 								);
 							}

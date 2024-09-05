@@ -87,7 +87,7 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
             );
             return post.map(content -> content.contains("true")).orElse(false);
         };
-        final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+        final String[] baseUrls = this.configuration.getBaseUrls();
         if (this.reachableUrl == null) {
 	        for (String baseUrl : baseUrls) {
 		        final String url = baseUrl + SYSTEM_PREFIX;

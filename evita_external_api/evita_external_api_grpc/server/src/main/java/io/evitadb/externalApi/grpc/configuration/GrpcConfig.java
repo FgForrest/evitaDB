@@ -94,13 +94,13 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 	@JsonCreator
 	public GrpcConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                  @Nonnull @JsonProperty("host") String host,
-	                  @Nullable @JsonProperty("exposedHost") String exposedHost,
+	                  @Nullable @JsonProperty("exposeOn") String exposeOn,
 					  @Nullable @JsonProperty("tlsMode") String tlsMode,
 					  @Nullable @JsonProperty("exposeDocsService") Boolean exposeDocsService,
 	                  @Nullable @JsonProperty("prefix") String prefix,
 	                  @Nullable @JsonProperty("allowedOrigins") String allowedOrigins,
 	                  @Nonnull @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration) {
-		super(enabled, host, exposedHost, tlsMode);
+		super(enabled, host, exposeOn, tlsMode);
 		this.exposeDocsService = ofNullable(exposeDocsService).orElse(false);
 		this.mtlsConfiguration = mtlsConfiguration;
 		this.prefix = ofNullable(prefix).orElse(BASE_GRPC_PATH);

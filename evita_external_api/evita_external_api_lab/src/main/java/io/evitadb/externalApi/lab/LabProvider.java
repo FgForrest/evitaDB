@@ -80,7 +80,7 @@ public class LabProvider implements ExternalApiProvider<LabConfig> {
 			)
 			.map(content -> content.contains("evitaLab app"))
 			.orElse(false);
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
 				if (isReady.test(baseUrl)) {

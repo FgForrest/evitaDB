@@ -87,7 +87,7 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 			)
 			.map(content -> !content.isEmpty())
 			.orElse(false);
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
 				final String url = baseUrl + METRICS_SUFFIX;

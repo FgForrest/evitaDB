@@ -44,7 +44,6 @@ import static java.util.Optional.ofNullable;
 /**
  * This DTO record encapsulates common settings shared among all the API endpoints.
  *
- * @param exposedOn                 the name of the host the APIs will be exposed on when evitaDB is running inside a container
  * @param accessLog                 defines whether the access logs will be enabled or not
  * @param endpoints                 contains specific configuration for all the API endpoints
  * @param certificate               defines the certificate settings that will be used to secure connections to the web servers providing APIs
@@ -62,7 +61,6 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ApiOptions(
-	@Nonnull String exposedOn,
 	@Nullable Integer workerGroupThreads,
 	int idleTimeoutInMillis,
 	int requestTimeoutInMillis,
@@ -86,14 +84,12 @@ public record ApiOptions(
 	}
 
 	public ApiOptions(
-		@Nonnull String exposedOn,
 		@Nullable Integer workerGroupThreads,
 		int idleTimeoutInMillis, int requestTimeoutInMillis,
 		boolean keepAlive, long maxEntitySizeInBytes, boolean accessLog,
 		@Nonnull CertificateSettings certificate,
 		@Nonnull Map<String, AbstractApiConfiguration> endpoints
 	) {
-		this.exposedOn = exposedOn;
 		this.workerGroupThreads = ofNullable(workerGroupThreads).orElse(DEFAULT_WORKER_GROUP_THREADS);
 		this.idleTimeoutInMillis = idleTimeoutInMillis <= 0 ? DEFAULT_IDLE_TIMEOUT : idleTimeoutInMillis;
 		this.requestTimeoutInMillis = requestTimeoutInMillis <= 0 ? DEFAULT_REQUEST_TIMEOUT : requestTimeoutInMillis;
@@ -107,7 +103,7 @@ public record ApiOptions(
 
 	public ApiOptions() {
 		this(
-			null, DEFAULT_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT,
+			DEFAULT_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT,
 			DEFAULT_KEEP_ALIVE, DEFAULT_MAX_ENTITY_SIZE, false,
 			new CertificateSettings(), new HashMap<>(8)
 		);
@@ -202,7 +198,6 @@ public record ApiOptions(
 		private boolean keepAlive = DEFAULT_KEEP_ALIVE;
 		private long maxEntitySizeInBytes = DEFAULT_MAX_ENTITY_SIZE;
 		private CertificateSettings certificate;
-		@Nullable private String exposedOn;
 		private int workerGroupThreads = DEFAULT_WORKER_GROUP_THREADS;
 		private boolean accessLog;
 
@@ -218,12 +213,6 @@ public record ApiOptions(
 				);
 			enabledProviders = CollectionUtils.createHashMap(apiProviders.size());
 			certificate = new CertificateSettings.Builder().build();
-		}
-
-		@Nonnull
-		public ApiOptions.Builder exposedOn(@Nonnull String exposedOn) {
-			this.exposedOn = exposedOn;
-			return this;
 		}
 
 		@Nonnull
@@ -302,7 +291,7 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions build() {
 			return new ApiOptions(
-				exposedOn, workerGroupThreads,
+				workerGroupThreads,
 				idleTimeoutInMillis, requestTimeoutInMillis,
 				keepAlive, maxEntitySizeInBytes, accessLog, certificate, enabledProviders
 			);

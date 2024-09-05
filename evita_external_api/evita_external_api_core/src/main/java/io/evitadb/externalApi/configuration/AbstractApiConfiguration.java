@@ -61,7 +61,7 @@ public abstract class AbstractApiConfiguration {
 	/**
 	 * Defines external host the API will be exposed on when database is running in a container.
 	 */
-	@Getter private final String exposedHost;
+	@Getter private final String exposeOn;
 	/**
 	 * By enabling this internal flag, the API will be forced to use unencrypted HTTP protocol. The only purpose of this
 	 * flag is to allow accessing the system API, from where the client obtains to access all of evita's APIs. All of
@@ -95,7 +95,7 @@ public abstract class AbstractApiConfiguration {
 	protected AbstractApiConfiguration() {
 		this.enabled = true;
 		this.tlsMode = TlsMode.RELAXED;
-		this.exposedHost = null;
+		this.exposeOn = null;
 		this.host = new HostDefinition[]{
 			new HostDefinition(NetworkUtils.getByName("0.0.0.0"), true, DEFAULT_PORT)
 		};
@@ -116,28 +116,27 @@ public abstract class AbstractApiConfiguration {
 	 *                   (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
 	 * @param tlsMode    allows the API to run with TLS encryption
 	 */
-	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nonnull String exposedHost, @Nullable String tlsMode) {
+	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nonnull String exposeOn, @Nullable String tlsMode) {
 		this.enabled = ofNullable(enabled).orElse(true);
 		this.tlsMode = TlsMode.getByName(tlsMode);
 		this.host = Arrays.stream(host.split(","))
 			.map(AbstractApiConfiguration::parseHost)
 			.flatMap(Arrays::stream)
 			.toArray(HostDefinition[]::new);
-		this.exposedHost = exposedHost;
+		this.exposeOn = exposeOn;
 	}
 
 	/**
 	 * Returns base url for the API.
 	 */
 	@Nonnull
-	public String[] getBaseUrls(@Nullable String exposedOn) {
+	public String[] getBaseUrls() {
 		return Stream.concat(
 				Arrays.stream(getHost())
 					.map(HostDefinition::port)
 					.distinct()
 					.flatMap(
-						port -> ofNullable(getExposedHost())
-							.or(() -> ofNullable(exposedOn))
+						port -> ofNullable(getExposeOn())
 							.map(it -> it.contains(":") ? it : it + ":" + port)
 							.stream()
 					),

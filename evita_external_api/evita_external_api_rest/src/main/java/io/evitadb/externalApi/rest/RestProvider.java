@@ -84,7 +84,7 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 			)
 			.map(content -> content.contains("true"))
 			.orElse(false);
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
 				final String url = baseUrl + OpenApiSystemEndpoint.URL_PREFIX + "/" + LivenessDescriptor.LIVENESS_SUFFIX;
