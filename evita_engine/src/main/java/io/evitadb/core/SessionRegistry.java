@@ -207,8 +207,10 @@ final class SessionRegistry {
 						finalizationResult.minimalActiveCatalogVersion()
 					);
 				} else {
-					/* TODO JNO - remove me eventually */
-					log.error("Catalog is not available for the session finalization.", new IllegalStateException());
+					log.error(
+						"Catalog is not available for the session finalization.",
+						new GenericEvitaInternalError("Catalog is not available for the session finalization.")
+					);
 				}
 			}
 

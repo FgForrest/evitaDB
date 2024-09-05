@@ -469,20 +469,21 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	}
 
 	Catalog(
-		long versionId,
+		long catalogVersion,
 		@Nonnull CatalogState catalogState,
 		@Nonnull CatalogIndex catalogIndex,
 		@Nonnull Collection<EntityCollection> entityCollections,
 		@Nonnull Catalog previousCatalogVersion
 	) {
 		this(
-			versionId,
+			catalogVersion,
 			catalogState,
 			catalogIndex,
 			entityCollections,
 			previousCatalogVersion.persistenceService,
 			previousCatalogVersion,
-			previousCatalogVersion.tracingContext
+			previousCatalogVersion.tracingContext,
+			false
 		);
 	}
 
@@ -493,7 +494,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull Collection<EntityCollection> entityCollections,
 		@Nonnull CatalogPersistenceService persistenceService,
 		@Nonnull Catalog previousCatalogVersion,
-		@Nonnull TracingContext tracingContext
+		@Nonnull TracingContext tracingContext,
+		boolean initSchemas
 	) {
 		this.catalogId = previousCatalogVersion.catalogId;
 		this.tracingContext = tracingContext;
@@ -536,6 +538,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		// finally attach every collection to this instance of the catalog
 		for (EntityCollection entityCollection : entityCollections) {
 			entityCollection.attachToCatalog(null, this);
+		}
+		// and retrieve their schemas
+		for (EntityCollection entityCollection : entityCollections) {
+			if (initSchemas) {
+				// and init its schema
+				entityCollection.initSchema();
+			}
 			// when the collection is attached to the catalog, we can access its schema and put it into the schema index
 			newEntitySchemaIndex.put(entityCollection.getEntityType(), entityCollection.getSchema());
 		}
@@ -772,7 +781,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 					this.sequenceService,
 					this.tracingContext
 				)
-			).toList();
+			)
+			.toList();
 
 		this.transactionManager.advanceVersion(catalogVersionAfterRename);
 		return new Catalog(
@@ -782,7 +792,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			newCollections,
 			newIoService,
 			this,
-			this.tracingContext
+			this.tracingContext,
+			true
 		);
 	}
 
@@ -825,7 +836,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				newCollections,
 				this.persistenceService,
 				this,
-				this.tracingContext
+				this.tracingContext,
+				true
 			);
 
 			this.transactionManager.advanceVersion(newCatalog.getVersion());

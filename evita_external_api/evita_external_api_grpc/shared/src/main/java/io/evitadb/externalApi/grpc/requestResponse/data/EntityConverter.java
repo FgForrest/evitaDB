@@ -223,17 +223,19 @@ public class EntityConverter {
 	) {
 		final GroupEntityReference group;
 		if (grpcReference.hasGroupReferencedEntityReference()) {
+			final GrpcEntityReference grpcGroupReference = grpcReference.getGroupReferencedEntityReference();
 			group = new GroupEntityReference(
-				grpcReference.getGroupReferencedEntityReference().getEntityType(),
-				grpcReference.getGroupReferencedEntityReference().getPrimaryKey(),
-				grpcReference.getGroupReferencedEntityReference().getVersion(),
+				grpcGroupReference.getEntityType(),
+				grpcGroupReference.getPrimaryKey(),
+				grpcGroupReference.hasReferenceVersion() ? grpcGroupReference.getReferenceVersion().getValue() : grpcGroupReference.getVersion(),
 				false
 			);
 		} else if (grpcReference.hasGroupReferencedEntity()) {
+			final GrpcSealedEntity grpcEntityReference = grpcReference.getGroupReferencedEntity();
 			group = new GroupEntityReference(
-				grpcReference.getGroupReferencedEntity().getEntityType(),
-				grpcReference.getGroupReferencedEntity().getPrimaryKey(),
-				grpcReference.getGroupReferencedEntity().getVersion(),
+				grpcEntityReference.getEntityType(),
+				grpcEntityReference.getPrimaryKey(),
+				grpcEntityReference.getVersion(),
 				false
 			);
 		} else {
@@ -344,7 +346,11 @@ public class EntityConverter {
 				} else {
 					grpcReferenceBuilder.setReferencedEntityReference(GrpcEntityReference.newBuilder()
 						.setEntityType(reference.getReferencedEntityType())
-						.setPrimaryKey(reference.getReferencedPrimaryKey()).build());
+						.setPrimaryKey(reference.getReferencedPrimaryKey())
+						.setReferenceVersion(Int32Value.newBuilder().setValue(reference.version()).build())
+						.setVersion(reference.version())
+						.build()
+					);
 				}
 
 				if (reference.getGroupEntity().isPresent()) {
@@ -354,6 +360,7 @@ public class EntityConverter {
 					grpcReferenceBuilder.setGroupReferencedEntityReference(GrpcEntityReference.newBuilder()
 						.setEntityType(theGroup.getType())
 						.setPrimaryKey(theGroup.getPrimaryKey())
+						.setReferenceVersion(Int32Value.newBuilder().setValue(reference.version()).build())
 						.setVersion(theGroup.version())
 						.build()
 					);
@@ -545,8 +552,6 @@ public class EntityConverter {
 		final GrpcEntityReferenceWithParent.Builder builder = GrpcEntityReferenceWithParent.newBuilder()
 			.setEntityType(entityReference.getType())
 			.setPrimaryKey(entityReference.getPrimaryKey());
-
-		// TODO JNO: fix missing passing entity version to gRPC
 
 		entityReference.getParentEntity()
 			.ifPresent(

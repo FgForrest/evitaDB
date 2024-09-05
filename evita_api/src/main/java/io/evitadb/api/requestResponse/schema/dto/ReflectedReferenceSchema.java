@@ -651,6 +651,12 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 						"contains reference `" + this.reflectedReferenceName + "`, " +
 						"but it's not managed entity type!")
 			);
+		} else if (this.reflectedReference == null) {
+			referenceErrors = Stream.concat(
+				referenceErrors,
+				Stream.of(
+					"Reflected reference schema `" + getName() + "` is not properly initialized!")
+			);
 		}
 
 		referenceErrors = Stream.concat(

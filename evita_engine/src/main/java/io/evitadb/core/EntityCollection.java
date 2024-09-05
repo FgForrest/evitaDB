@@ -939,8 +939,16 @@ public final class EntityCollection implements
 		final List<ReferenceSchemaContract> updatedReferenceSchemas = new ArrayList<>(referenceSchemas.size());
 		for (ReferenceSchemaContract referenceSchema : referenceSchemas) {
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-				this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType())
-					.flatMap(it -> it.getSchema().getReference(reflectedReferenceSchema.getReflectedReferenceName()))
+				final Optional<EntitySchemaContract> targetEntitySchema;
+				if (originalSchema.getName().equals(reflectedReferenceSchema.getReferencedEntityType())) {
+					// self referenced schema
+					targetEntitySchema = of(originalSchema);
+				} else {
+					targetEntitySchema = this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType())
+						.map(EntityCollectionContract::getSchema);
+				}
+				targetEntitySchema
+					.flatMap(it -> it.getReference(reflectedReferenceSchema.getReflectedReferenceName()))
 					.ifPresent(originalReference -> updatedReferenceSchemas.add(reflectedReferenceSchema.withReferencedSchema(originalReference)));
 			}
 		}

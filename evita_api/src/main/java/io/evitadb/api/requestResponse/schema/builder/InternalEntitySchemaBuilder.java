@@ -850,10 +850,13 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param newReference
-	 * @param mutation
-	 * @return
+	 * Determines whether a reference mutation should be removed based on provided schema mutation.
+	 * Method handles the situation when stored version of the schema contains reference with particular name, and
+	 * we need to keep record of its removal and replacement with completely different reference sharing the same name.
+	 *
+	 * @param newReference The new reference schema contract to be checked.
+	 * @param mutation     The local entity schema mutation to evaluate.
+	 * @return true if the reference mutation should be removed, otherwise false.
 	 */
 	private boolean shouldRemoveReferenceMutation(
 		@Nonnull ReferenceSchemaContract newReference,

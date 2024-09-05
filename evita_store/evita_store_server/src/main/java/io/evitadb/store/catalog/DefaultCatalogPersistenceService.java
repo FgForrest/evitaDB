@@ -1077,9 +1077,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				lookupIndex >= 0 && lookupIndex < this.catalogPersistenceServiceVersions.length,
 				() -> new GenericEvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
 			);
-			return this.catalogStoragePartPersistenceService.get(
+			final CatalogOffsetIndexStoragePartPersistenceService persistenceService = this.catalogStoragePartPersistenceService.get(
 				this.catalogPersistenceServiceVersions[lookupIndex]
 			);
+			Assert.isPremiseValid(
+				persistenceService != null,
+				() -> new GenericEvitaInternalError("Catalog persistence service not found for version " + catalogVersion + "!")
+			);
+			return persistenceService;
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError(
 				"Interrupted while trying to lock the catalog persistence service versions!",
