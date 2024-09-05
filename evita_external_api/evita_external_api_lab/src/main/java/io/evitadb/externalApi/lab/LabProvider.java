@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.lab;
 
 import com.linecorp.armeria.server.HttpService;
-import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.http.ProxyingEndpointProvider;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
@@ -41,7 +41,7 @@ import java.util.function.Predicate;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class LabProvider implements ExternalApiProvider<LabConfig> {
+public class LabProvider implements ProxyingEndpointProvider<LabConfig> {
 
 	public static final String CODE = "lab";
 
