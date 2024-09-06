@@ -394,10 +394,7 @@ public final class Evita implements EvitaContract {
 
 	@Override
 	public void update(@Nonnull TopLevelCatalogSchemaMutation... catalogMutations) {
-		assertActive();
-		if (readOnly) {
-			throw new ReadOnlyException();
-		}
+		assertActiveAndWritable();
 		// TOBEDONE JNO #502 - we have to have a special WAL for the evitaDB server instance as well
 		for (CatalogSchemaMutation catalogMutation : catalogMutations) {
 			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
@@ -853,6 +850,16 @@ public final class Evita implements EvitaContract {
 	void assertActive() {
 		if (!active) {
 			throw new InstanceTerminatedException("instance");
+		}
+	}
+
+	/**
+	 * Verifies this instance is still active and not in read-only mode.
+	 */
+	void assertActiveAndWritable() {
+		assertActive();
+		if (readOnly) {
+			throw new ReadOnlyException();
 		}
 	}
 
