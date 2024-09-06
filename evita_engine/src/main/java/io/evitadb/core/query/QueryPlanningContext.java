@@ -738,7 +738,10 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Sets resolved hierarchy having/exclusion predicate to be shared among filter and requirement phase.
 	 */
 	public void setHierarchyHavingPredicate(@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate) {
-		Assert.isPremiseValid(this.hierarchyHavingPredicate == null, "The hierarchy exclusion predicate can be set only once!");
+		Assert.isPremiseValid(
+			this.hierarchyHavingPredicate == null || this.hierarchyHavingPredicate.equals(hierarchyHavingPredicate),
+			"The hierarchy exclusion predicate can be set only once!"
+		);
 		this.hierarchyHavingPredicate = hierarchyHavingPredicate;
 	}
 
