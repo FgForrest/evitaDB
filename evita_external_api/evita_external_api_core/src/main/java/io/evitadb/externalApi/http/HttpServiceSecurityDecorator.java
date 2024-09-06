@@ -77,8 +77,8 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 	public HttpResponse serve(@Nonnull HttpService delegate, @Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
 		final URI uri = ctx.uri();
 		final String scheme = uri.getScheme();
-		final int port = uri.getPort();
-		final InetSocketAddress address = ctx.remoteAddress();
+		final InetSocketAddress address = ctx.localAddress();
+		final int port = address.getPort();
 		boolean hostAndPortMatching = false;
 		for (int i = 0; i < peak; i++) {
 			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
@@ -101,8 +101,8 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 	public RpcResponse serve(@Nonnull RpcService delegate, @Nonnull ServiceRequestContext ctx, @Nonnull RpcRequest req) throws Exception {
 		final URI uri = ctx.uri();
 		final String scheme = uri.getScheme();
-		final int port = uri.getPort();
-		final InetSocketAddress address = ctx.remoteAddress();
+		final InetSocketAddress address = ctx.localAddress();
+		final int port = address.getPort();
 		boolean portMatching = false;
 		for (int i = 0; i < peak; i++) {
 			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
