@@ -26,7 +26,7 @@ captures all the critical information already at disposal. In this article, we w
 looks like, what graphs it contains, and how they are constructed. You can also download the JSON configuration for 
 the dashboard and import it into your Grafana instance to quickly bootstrap your own.
 
-## The Big Picture: High-Level Metrics Visualization
+## The Big Picture: High-Level Metrics Visualization (⚙️ System)
 
 ![High-Level Metrics Visualization](assets/images/14-bird-view.png)
 
@@ -176,6 +176,96 @@ sum(
 ) by (taskName)
 ```
 
-## Java Virtual Machine
+## 💻 JVM metrics
 
-TODO
+![JVM Metrics](assets/images/14-jvm-metrics.png)
+
+Two most important panels are *CPU usage* and *JVM process CPU*. 
+
+The first shows overall CPU utilization on the host machine:
+
+```promql
+## CPU UILIZATION
+sum(rate(node_cpu_seconds_total{host="$host",mode!="idle"}[$i])) / count(count by (cpu)(node_cpu_seconds_total{host="$host"}))
+## IO WAIT
+sum(rate(node_cpu_seconds_total{host="$host",mode="iowait"}[$i])) / count(count by (cpu)(node_cpu_seconds_total{host="$host"}))
+```
+
+... while the second one focuses on the utilization attributed solely to the process of evitaDB:
+
+```promql
+rate(process_cpu_seconds_total{host="$host",job="$job"}[$i])
+```
+
+Next panels visualize *Compilation overhead*:
+
+```promql
+rate(jvm_compilation_time_seconds_total{host="$host",job="$job"}[$i])
+```
+
+... and *GC overhead* (garbage collection) share on the process CPU utilization attributed to different GC types:
+
+```promql
+## line per type of GC
+sum by (gc) (rate(jvm_gc_collection_seconds_sum{host="$host",job="$job"}[$i]))
+## total consumption by GC
+sum by () (rate(jvm_gc_collection_seconds_sum{host="$host",job="$job"}[$i]))
+```
+
+The next row is dedicated to the JVM memory consumption. First panel *Heap* tracks heap limits and current allocations / 
+usage:
+
+```promql
+## USED MEMORY
+sum(avg_over_time(jvm_memory_used_bytes{host="$host",job="$job"}[$i]))
+## COMMITTED MEMORY
+sum(avg_over_time(jvm_memory_committed_bytes{host="$host",job="$job"}[$i]))
+## MEMORY LIMITS (XMX)
+sum(avg_over_time(jvm_memory_max_bytes{host="$host",job="$job"}[$i]))
+```
+
+Next three panels track different parts of *Non-heap memory*:
+
+```promql
+## USED MEMORY
+avg_over_time(jvm_memory_used_bytes{host="$host",job="$job",area="nonheap"}[$i])
+## COMMITTED MEMORY
+avg_over_time(jvm_memory_committed_bytes{host="$host",job="$job",area="nonheap"}[$i])
+```
+
+Memory consumed by *Direct Buffers*:
+
+```promql
+## USED MEMORY
+avg_over_time(jvm_buffer_pool_used_bytes{host="$host",job="$job",pool="direct"}[$i])
+## COMMITTED MEMORY
+avg_over_time(jvm_buffer_pool_capacity_bytes{host="$host",job="$job",pool="direct"}[$i])
+## MEMORY LIMITS (XMX)
+avg_over_time(jvm_memory_max_bytes{host="$host",job="$job",area="heap"}[$i])
+```
+
+And finally *Mapped memory*:
+
+```promql
+## USED MEMORY
+avg_over_time(jvm_buffer_pool_used_bytes{host="$host",job="$job",pool="mapped"}[$i])
+## COMMITTED MEMORY
+avg_over_time(jvm_buffer_pool_capacity_bytes{host="$host",job="$job",pool="mapped"}[$i])
+```
+
+Last row visualizes information about threads in the JVM process. First, monitors the count of threads by *Thread states*:
+
+```promql
+## INDIVIDUAL STATES TRACKING
+sum by (state) (avg_over_time(jvm_threads_state{host="$host",job="$job"}[$i]))
+## TOTAL
+sum by () (avg_over_time(jvm_threads_state{host="$host",job="$job"}[$i]))
+```
+
+The second, tracks how many *New threads* are being created:
+
+```promql
+rate(jvm_threads_started_total{host="$host",job="$job"}[$i])
+```
+
+## 📰 Queries & 🪑 sessions
