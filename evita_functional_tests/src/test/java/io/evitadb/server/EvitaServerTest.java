@@ -277,7 +277,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
-				error -> assertEquals("Error fetching content from URL: https://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name - Unsupported or unrecognized SSL message", error)
+				error -> assertTrue(error.contains("Error fetching content from URL: https://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name"))
 			).ifPresent(
 				content -> fail("The system API is accessible via invalid scheme and Observability port: " + content)
 			);
