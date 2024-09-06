@@ -61,7 +61,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 */
 	@Nullable
 	protected static HierarchyFilteringPredicate createAndStoreHavingPredicate(
-		@Nullable Integer parentId,
+		@Nullable int[] parentId,
 		@Nonnull QueryPlanningContext queryContext,
 		@Nullable FilterBy havingFilter,
 		@Nullable FilterBy exclusionFilter,
