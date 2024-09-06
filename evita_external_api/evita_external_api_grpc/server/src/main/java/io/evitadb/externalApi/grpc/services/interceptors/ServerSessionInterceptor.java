@@ -28,14 +28,10 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
-import io.evitadb.externalApi.configuration.TlsMode;
-import io.evitadb.externalApi.exception.InvalidSchemeException;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Context;
 import io.grpc.Contexts;
-import io.grpc.InternalMetadata;
 import io.grpc.Metadata;
 import io.grpc.Metadata.Key;
 import io.grpc.ServerCall;
@@ -110,11 +106,6 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	private final Evita evita;
 
 	/**
-	 * Flag indicating whether TLS is enabled.
-	 */
-	private final TlsMode tlsMode;
-
-	/**
 	 * This method is intercepting calls to gRPC services. If client provided session type and sessionId in metadata, an attempt
 	 * for getting matching session will occur. If session is not found and is required by endpoint, then
 	 * unauthenticated status will be returned to the client.
@@ -137,30 +128,6 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			Metadata.Key.of(METHOD_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER),
 			serverCall.getMethodDescriptor().getBareMethodName()
 		);
-
-		if (tlsMode != TlsMode.RELAXED) {
-			final String scheme = metadata.get(InternalMetadata.keyOf(":scheme", Metadata.ASCII_STRING_MARSHALLER));
-			if ("https".equals(scheme) && tlsMode == TlsMode.FORCE_NO_TLS) {
-				final Status status = Status.UNAUTHENTICATED
-					.withCause(new InvalidSchemeException("TLS is not required for this endpoint."))
-					.withDescription("TLS is not required for this endpoint.");
-				Metadata trailers = new Metadata();
-				trailers.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "invalidProtocol");
-				serverCall.sendHeaders(trailers);
-				serverCall.close(status, metadata);
-				return new ServerCall.Listener<>() {};
-			}
-			if ("http".equals(scheme) && tlsMode == TlsMode.FORCE_TLS) {
-				final Status status = Status.UNAUTHENTICATED
-					.withCause(new InvalidSchemeException("TLS is required for this endpoint."))
-					.withDescription("TLS is required for this endpoint.");
-				Metadata trailers = new Metadata();
-				trailers.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "invalidProtocol");
-				serverCall.sendHeaders(trailers);
-				serverCall.close(status, metadata);
-				return new ServerCall.Listener<>() {};
-			}
-		}
 
 		final Metadata.Key<String> sessionMetadata = Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER);
 		final String sessionId = metadata.get(sessionMetadata);

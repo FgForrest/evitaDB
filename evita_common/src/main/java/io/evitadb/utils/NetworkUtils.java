@@ -119,7 +119,7 @@ public class NetworkUtils {
 			) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
-						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code()  + " - " + response.message()));
+						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code() + " - " + response.message()));
 					return false;
 				}
 				return response.code() == 200;
@@ -134,7 +134,7 @@ public class NetworkUtils {
 	/**
 	 * Returns content of the URL if it is reachable and returns some content.
 	 *
-	 * @param url URL to check
+	 * @param url         URL to check
 	 * @param method      HTTP method to use
 	 * @param contentType content type to use
 	 * @param body        body to send
@@ -148,7 +148,7 @@ public class NetworkUtils {
 		@Nonnull String contentType,
 		@Nullable String body,
 		@Nullable Consumer<String> errorConsumer
-		) {
+	) {
 		try {
 			final RequestBody requestBody = ofNullable(body)
 				.map(theBody -> RequestBody.create(theBody, MediaType.parse(contentType)))
@@ -165,7 +165,9 @@ public class NetworkUtils {
 			) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
-						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code()  + " - " + response.message()));
+						.ifPresent(it -> it.accept(
+							"Error fetching content from URL: " + url + " HTTP status " + response.code() + (response.message().isBlank() ? "" : " - " + response.message()) + (response.body().contentLength() > 0 ? ": " + readBodyString(response) : ""))
+						);
 					return empty();
 				} else {
 					return of(response.body().string());
@@ -180,6 +182,7 @@ public class NetworkUtils {
 
 	/**
 	 * Returns the IP address of the given host.
+	 *
 	 * @param host host to get the IP address for
 	 * @return the IP address of the given host
 	 */
@@ -193,6 +196,20 @@ public class NetworkUtils {
 				"Invalid host definition `" + host + "` in evita server configuration!",
 				e
 			);
+		}
+	}
+
+	/**
+	 * Reads the body string from the given response.
+	 *
+	 * @param response the HTTP response, must not be null
+	 * @return the body of the response as a string, or an error message if an exception occurs, never null
+	 */
+	private static String readBodyString(@Nonnull Response response) {
+		try {
+			return response.body().string();
+		} catch (IOException e) {
+			return "Error reading response body: " + e.getMessage();
 		}
 	}
 
