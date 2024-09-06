@@ -84,9 +84,9 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
 				if (schemes[i] == null || scheme.equals(schemes[i])) {
 					return delegate.serve(ctx, req);
+				} else {
+					hostAndPortMatching = true;
 				}
-			} else {
-				hostAndPortMatching = true;
 			}
 		}
 		if (hostAndPortMatching) {
@@ -108,9 +108,9 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
 				if (schemes[i] == null || scheme.equals(schemes[i])) {
 					return delegate.serve(ctx, req);
+				} else {
+					portMatching = true;
 				}
-			} else {
-				portMatching = true;
 			}
 		}
 		if (portMatching) {
