@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.observability.task;
 
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.async.ClientInfiniteCallableTask;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.externalApi.observability.exception.JfRException;
@@ -82,7 +83,8 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 		super(
 			"JFR recording",
 			new RecordingSettings(allowedEvents, maxSizeInBytes, maxAgeInSeconds),
-			(task) -> ((JfrRecorderTask) task).start()
+			(task) -> ((JfrRecorderTask) task).start(),
+			TaskTrait.CAN_BE_STARTED, TaskTrait.NEEDS_TO_BE_STOPPED
 		);
 		this.recording = new Recording();
 		this.targetFile = exportFileService.createFile(

@@ -23,10 +23,9 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingSortableAttributeCompoundSchemaMutationConverter;
@@ -50,7 +49,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter
 	public ModifyReferenceSortableAttributeCompoundSchemaMutation convert(@Nonnull GrpcModifyReferenceSortableAttributeCompoundSchemaMutation mutation) {
 		return new ModifyReferenceSortableAttributeCompoundSchemaMutation(
 			mutation.getName(),
-			(ReferenceSchemaMutation) DelegatingSortableAttributeCompoundSchemaMutationConverter.INSTANCE.convert(mutation.getSortableAttributeCompoundSchemaMutation())
+			(ReferenceSortableAttributeCompoundSchemaMutation) DelegatingSortableAttributeCompoundSchemaMutationConverter.INSTANCE.convert(mutation.getSortableAttributeCompoundSchemaMutation())
 		);
 	}
 
@@ -58,7 +57,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter
 	public GrpcModifyReferenceSortableAttributeCompoundSchemaMutation convert(@Nonnull ModifyReferenceSortableAttributeCompoundSchemaMutation mutation) {
 		return GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.newBuilder()
 			.setName(mutation.getName())
-			.setSortableAttributeCompoundSchemaMutation(DelegatingSortableAttributeCompoundSchemaMutationConverter.INSTANCE.convert((SortableAttributeCompoundSchemaMutation) mutation.getSortableAttributeCompoundSchemaMutation()))
+			.setSortableAttributeCompoundSchemaMutation(DelegatingSortableAttributeCompoundSchemaMutationConverter.INSTANCE.convert(mutation.getSortableAttributeCompoundSchemaMutation()))
 			.build();
 	}
 }

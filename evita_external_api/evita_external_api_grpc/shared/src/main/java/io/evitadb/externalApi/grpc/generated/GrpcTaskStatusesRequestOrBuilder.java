@@ -49,4 +49,88 @@ public interface GrpcTaskStatusesRequestOrBuilder extends
    * @return The pageSize.
    */
   int getPageSize();
+
+  /**
+   * <pre>
+   * Optional taskType of the listed task, passing non-null value
+   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue taskType = 3;</code>
+   * @return Whether the taskType field is set.
+   */
+  boolean hasTaskType();
+  /**
+   * <pre>
+   * Optional taskType of the listed task, passing non-null value
+   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue taskType = 3;</code>
+   * @return The taskType.
+   */
+  com.google.protobuf.StringValue getTaskType();
+  /**
+   * <pre>
+   * Optional taskType of the listed task, passing non-null value
+   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue taskType = 3;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getTaskTypeOrBuilder();
+
+  /**
+   * <pre>
+   * Optional set of simplified task states, passing list of enums in this argument
+   * filters the returned statuses to only those that match this simplified status
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+   * @return A list containing the simplifiedState.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState> getSimplifiedStateList();
+  /**
+   * <pre>
+   * Optional set of simplified task states, passing list of enums in this argument
+   * filters the returned statuses to only those that match this simplified status
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+   * @return The count of simplifiedState.
+   */
+  int getSimplifiedStateCount();
+  /**
+   * <pre>
+   * Optional set of simplified task states, passing list of enums in this argument
+   * filters the returned statuses to only those that match this simplified status
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+   * @param index The index of the element to return.
+   * @return The simplifiedState at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState getSimplifiedState(int index);
+  /**
+   * <pre>
+   * Optional set of simplified task states, passing list of enums in this argument
+   * filters the returned statuses to only those that match this simplified status
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+   * @return A list containing the enum numeric values on the wire for simplifiedState.
+   */
+  java.util.List<java.lang.Integer>
+  getSimplifiedStateValueList();
+  /**
+   * <pre>
+   * Optional set of simplified task states, passing list of enums in this argument
+   * filters the returned statuses to only those that match this simplified status
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of simplifiedState at the given index.
+   */
+  int getSimplifiedStateValue(int index);
 }

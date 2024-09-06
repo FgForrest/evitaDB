@@ -93,6 +93,19 @@ private static final long serialVersionUID = 0L;
             version_ = input.readInt32();
             break;
           }
+          case 34: {
+            com.google.protobuf.Int32Value.Builder subBuilder = null;
+            if (referenceVersion_ != null) {
+              subBuilder = referenceVersion_.toBuilder();
+            }
+            referenceVersion_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(referenceVersion_);
+              referenceVersion_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -143,7 +156,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -165,7 +178,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -195,16 +208,59 @@ private static final long serialVersionUID = 0L;
   private int version_;
   /**
    * <pre>
-   * Contains version of this entity and gets increased with any entity type update. Allows to execute
-   * optimistic locking i.e. avoiding parallel modifications.
+   * value is deprecated, it was available only for entity references used in entity body, in other use-cases it was left
+   * as zero - which was a mistake in the design.
+   * in order to get the entity version you need to fetch the entity itself (with entity body).
    * </pre>
    *
-   * <code>int32 version = 3;</code>
+   * <code>int32 version = 3 [deprecated = true];</code>
+   * @deprecated
    * @return The version.
    */
   @java.lang.Override
-  public int getVersion() {
+  @java.lang.Deprecated public int getVersion() {
     return version_;
+  }
+
+  public static final int REFERENCEVERSION_FIELD_NUMBER = 4;
+  private com.google.protobuf.Int32Value referenceVersion_;
+  /**
+   * <pre>
+   * Contains version of this reference and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+   * @return Whether the referenceVersion field is set.
+   */
+  @java.lang.Override
+  public boolean hasReferenceVersion() {
+    return referenceVersion_ != null;
+  }
+  /**
+   * <pre>
+   * Contains version of this reference and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+   * @return The referenceVersion.
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32Value getReferenceVersion() {
+    return referenceVersion_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : referenceVersion_;
+  }
+  /**
+   * <pre>
+   * Contains version of this reference and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getReferenceVersionOrBuilder() {
+    return getReferenceVersion();
   }
 
   private byte memoizedIsInitialized = -1;
@@ -230,6 +286,9 @@ private static final long serialVersionUID = 0L;
     if (version_ != 0) {
       output.writeInt32(3, version_);
     }
+    if (referenceVersion_ != null) {
+      output.writeMessage(4, getReferenceVersion());
+    }
     unknownFields.writeTo(output);
   }
 
@@ -249,6 +308,10 @@ private static final long serialVersionUID = 0L;
     if (version_ != 0) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(3, version_);
+    }
+    if (referenceVersion_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(4, getReferenceVersion());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -271,6 +334,11 @@ private static final long serialVersionUID = 0L;
         != other.getPrimaryKey()) return false;
     if (getVersion()
         != other.getVersion()) return false;
+    if (hasReferenceVersion() != other.hasReferenceVersion()) return false;
+    if (hasReferenceVersion()) {
+      if (!getReferenceVersion()
+          .equals(other.getReferenceVersion())) return false;
+    }
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -288,6 +356,10 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getPrimaryKey();
     hash = (37 * hash) + VERSION_FIELD_NUMBER;
     hash = (53 * hash) + getVersion();
+    if (hasReferenceVersion()) {
+      hash = (37 * hash) + REFERENCEVERSION_FIELD_NUMBER;
+      hash = (53 * hash) + getReferenceVersion().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -432,6 +504,12 @@ private static final long serialVersionUID = 0L;
 
       version_ = 0;
 
+      if (referenceVersionBuilder_ == null) {
+        referenceVersion_ = null;
+      } else {
+        referenceVersion_ = null;
+        referenceVersionBuilder_ = null;
+      }
       return this;
     }
 
@@ -461,6 +539,11 @@ private static final long serialVersionUID = 0L;
       result.entityType_ = entityType_;
       result.primaryKey_ = primaryKey_;
       result.version_ = version_;
+      if (referenceVersionBuilder_ == null) {
+        result.referenceVersion_ = referenceVersion_;
+      } else {
+        result.referenceVersion_ = referenceVersionBuilder_.build();
+      }
       onBuilt();
       return result;
     }
@@ -518,6 +601,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getVersion() != 0) {
         setVersion(other.getVersion());
+      }
+      if (other.hasReferenceVersion()) {
+        mergeReferenceVersion(other.getReferenceVersion());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -585,7 +671,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -610,7 +696,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       entityType_ = value;
       onChanged();
       return this;
@@ -626,7 +712,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-      
+
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
@@ -648,7 +734,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       entityType_ = value;
       onChanged();
       return this;
@@ -679,7 +765,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPrimaryKey(int value) {
-      
+
       primaryKey_ = value;
       onChanged();
       return this;
@@ -694,7 +780,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPrimaryKey() {
-      
+
       primaryKey_ = 0;
       onChanged();
       return this;
@@ -703,47 +789,217 @@ private static final long serialVersionUID = 0L;
     private int version_ ;
     /**
      * <pre>
-     * Contains version of this entity and gets increased with any entity type update. Allows to execute
-     * optimistic locking i.e. avoiding parallel modifications.
+     * value is deprecated, it was available only for entity references used in entity body, in other use-cases it was left
+     * as zero - which was a mistake in the design.
+     * in order to get the entity version you need to fetch the entity itself (with entity body).
      * </pre>
      *
-     * <code>int32 version = 3;</code>
+     * <code>int32 version = 3 [deprecated = true];</code>
+     * @deprecated
      * @return The version.
      */
     @java.lang.Override
-    public int getVersion() {
+    @java.lang.Deprecated public int getVersion() {
       return version_;
     }
     /**
      * <pre>
-     * Contains version of this entity and gets increased with any entity type update. Allows to execute
-     * optimistic locking i.e. avoiding parallel modifications.
+     * value is deprecated, it was available only for entity references used in entity body, in other use-cases it was left
+     * as zero - which was a mistake in the design.
+     * in order to get the entity version you need to fetch the entity itself (with entity body).
      * </pre>
      *
-     * <code>int32 version = 3;</code>
+     * <code>int32 version = 3 [deprecated = true];</code>
+     * @deprecated
      * @param value The version to set.
      * @return This builder for chaining.
      */
-    public Builder setVersion(int value) {
-      
+    @java.lang.Deprecated public Builder setVersion(int value) {
+
       version_ = value;
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Contains version of this entity and gets increased with any entity type update. Allows to execute
-     * optimistic locking i.e. avoiding parallel modifications.
+     * value is deprecated, it was available only for entity references used in entity body, in other use-cases it was left
+     * as zero - which was a mistake in the design.
+     * in order to get the entity version you need to fetch the entity itself (with entity body).
      * </pre>
      *
-     * <code>int32 version = 3;</code>
+     * <code>int32 version = 3 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearVersion() {
-      
+    @java.lang.Deprecated public Builder clearVersion() {
+
       version_ = 0;
       onChanged();
       return this;
+    }
+
+    private com.google.protobuf.Int32Value referenceVersion_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> referenceVersionBuilder_;
+    /**
+     * <pre>
+     * Contains version of this reference and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+     * @return Whether the referenceVersion field is set.
+     */
+    public boolean hasReferenceVersion() {
+      return referenceVersionBuilder_ != null || referenceVersion_ != null;
+    }
+    /**
+     * <pre>
+     * Contains version of this reference and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+     * @return The referenceVersion.
+     */
+    public com.google.protobuf.Int32Value getReferenceVersion() {
+      if (referenceVersionBuilder_ == null) {
+        return referenceVersion_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : referenceVersion_;
+      } else {
+        return referenceVersionBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Contains version of this reference and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+     */
+    public Builder setReferenceVersion(com.google.protobuf.Int32Value value) {
+      if (referenceVersionBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        referenceVersion_ = value;
+        onChanged();
+      } else {
+        referenceVersionBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains version of this reference and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+     */
+    public Builder setReferenceVersion(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (referenceVersionBuilder_ == null) {
+        referenceVersion_ = builderForValue.build();
+        onChanged();
+      } else {
+        referenceVersionBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains version of this reference and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+     */
+    public Builder mergeReferenceVersion(com.google.protobuf.Int32Value value) {
+      if (referenceVersionBuilder_ == null) {
+        if (referenceVersion_ != null) {
+          referenceVersion_ =
+            com.google.protobuf.Int32Value.newBuilder(referenceVersion_).mergeFrom(value).buildPartial();
+        } else {
+          referenceVersion_ = value;
+        }
+        onChanged();
+      } else {
+        referenceVersionBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains version of this reference and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+     */
+    public Builder clearReferenceVersion() {
+      if (referenceVersionBuilder_ == null) {
+        referenceVersion_ = null;
+        onChanged();
+      } else {
+        referenceVersion_ = null;
+        referenceVersionBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains version of this reference and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getReferenceVersionBuilder() {
+
+      onChanged();
+      return getReferenceVersionFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Contains version of this reference and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getReferenceVersionOrBuilder() {
+      if (referenceVersionBuilder_ != null) {
+        return referenceVersionBuilder_.getMessageOrBuilder();
+      } else {
+        return referenceVersion_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : referenceVersion_;
+      }
+    }
+    /**
+     * <pre>
+     * Contains version of this reference and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        getReferenceVersionFieldBuilder() {
+      if (referenceVersionBuilder_ == null) {
+        referenceVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getReferenceVersion(),
+                getParentForChildren(),
+                isClean());
+        referenceVersion_ = null;
+      }
+      return referenceVersionBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

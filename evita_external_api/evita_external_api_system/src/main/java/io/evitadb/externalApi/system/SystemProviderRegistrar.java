@@ -160,7 +160,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 								.filter(entry -> Arrays.stream(enabledEndPoints).anyMatch(it -> it.equals(entry.getKey())))
 								.map(
 									entry -> "      {\n         \"" + entry.getKey() + "\": " +
-										"[\n" + Arrays.stream(entry.getValue().getBaseUrls(apiOptions.exposedOn()))
+										"[\n" + Arrays.stream(entry.getValue().getBaseUrls())
 										.map(it -> "            \"" + it + "\"")
 										.collect(Collectors.joining(",\n")) +
 										"\n         ]" +
@@ -405,14 +405,14 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		final LinkedHashMap<String, String[]> endpoints = new LinkedHashMap<>(16);
 		endpoints.put(
 			SystemProvider.SERVER_NAME_URL,
-			Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+			Arrays.stream(systemConfig.getBaseUrls())
 				.map(it -> it + ENDPOINT_SERVER_NAME)
 				.toArray(String[]::new)
 		);
 		if (fileName != null) {
 			endpoints.put(
 				SystemProvider.ROOT_CERTIFICATE_URL,
-				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+				Arrays.stream(systemConfig.getBaseUrls())
 					.map(it -> it + fileName)
 					.toArray(String[]::new)
 			);
@@ -420,7 +420,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		if (certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresTls) {
 			endpoints.put(
 				SystemProvider.SERVER_CERTIFICATE_URL,
-				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+				Arrays.stream(systemConfig.getBaseUrls())
 					.map(it -> it + CertificateUtils.getGeneratedServerCertificateFileName())
 					.toArray(String[]::new)
 			);
@@ -428,13 +428,13 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		if (certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresMtls) {
 			endpoints.put(
 				SystemProvider.CLIENT_CERTIFICATE_URL,
-				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+				Arrays.stream(systemConfig.getBaseUrls())
 					.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
 					.toArray(String[]::new)
 			);
 			endpoints.put(
 				SystemProvider.CLIENT_PRIVATE_KEY_URL,
-				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+				Arrays.stream(systemConfig.getBaseUrls())
 					.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
 					.toArray(String[]::new)
 			);

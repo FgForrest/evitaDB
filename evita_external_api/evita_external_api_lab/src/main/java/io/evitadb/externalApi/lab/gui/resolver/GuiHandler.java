@@ -31,14 +31,18 @@ import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.file.HttpFile;
 import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
-import io.evitadb.externalApi.lab.LabManager;
+import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.lab.configuration.GuiConfig;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.system.SystemProvider;
+import io.evitadb.externalApi.system.configuration.SystemConfig;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -168,14 +172,17 @@ public class GuiHandler implements HttpService {
 			return preconfiguredConnections;
 		}
 
-		final RestConfig restConfig = apiOptions.getEndpointConfiguration(RestProvider.CODE);
+		final SystemConfig systemConfig = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
+		final GrpcConfig grpcConfig = apiOptions.getEndpointConfiguration(GrpcProvider.CODE);
 		final GraphQLConfig graphQLConfig = apiOptions.getEndpointConfiguration(GraphQLProvider.CODE);
+		final RestConfig restConfig = apiOptions.getEndpointConfiguration(RestProvider.CODE);
 		final EvitaDBConnection selfConnection = new EvitaDBConnection(
 			null,
 			serverName,
-			labConfig.getBaseUrls(apiOptions.exposedOn())[0] + LabManager.LAB_API_URL_PREFIX,
-			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null),
-			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null)
+			Optional.ofNullable(systemConfig).map(it -> it.getBaseUrls()[0]).orElseThrow(() -> new ExternalApiInternalError("Missing system API.")),
+			Optional.ofNullable(grpcConfig).map(it -> it.getBaseUrls()[0]).orElseThrow(() -> new ExternalApiInternalError("Missing gRPC API.")),
+			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls()[0]).orElse(null),
+			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls()[0]).orElse(null)
 		);
 		return List.of(selfConnection);
 	}

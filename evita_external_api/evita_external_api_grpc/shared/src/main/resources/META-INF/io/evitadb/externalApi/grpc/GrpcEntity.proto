@@ -21,15 +21,30 @@ message GrpcEntityReference {
   // Unique Integer positive number representing the entity. Can be used for fast lookup for
   // entity (entities). Primary key must be unique within the same entity type.
   int32 primaryKey = 2;
-  // Contains version of this entity and gets increased with any entity type update. Allows to execute
+  // value is deprecated, it was available only for entity references used in entity body, in other use-cases it was left
+  // as zero - which was a mistake in the design.
+  // in order to get the entity version you need to fetch the entity itself (with entity body).
+  int32 version = 3 [deprecated = true];
+  // Contains version of this reference and gets increased with any entity type update. Allows to execute
   // optimistic locking i.e. avoiding parallel modifications.
-  int32 version = 3;
+  google.protobuf.Int32Value referenceVersion = 4;
 }
 
+// Entity reference which contains information about parent entity.
 message GrpcEntityReferenceWithParent {
+  // Type of entity.
+  // Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+  // entity type entity is uniquely represented by primary key.
   string entityType = 1;
+  // Unique Integer positive number representing the entity. Can be used for fast lookup for
+  // entity (entities). Primary key must be unique within the same entity type.
   int32 primaryKey = 2;
-  int32 version = 3;
+  // Contains version of this entity and gets increased with any entity type update. Allows to execute
+  // optimistic locking i.e. avoiding parallel modifications.
+  // value is deprecated, it was never available in the first place - it was a mistake in the design.
+  // in order to get the entity version you need to fetch the entity itself (with entity body).
+  int32 version = 3 [deprecated = true];
+  // Recursive pointer to parent entity.
   GrpcEntityReferenceWithParent parent = 4;
 }
 

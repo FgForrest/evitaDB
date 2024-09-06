@@ -52,7 +52,7 @@ import java.time.OffsetDateTime;
 public class TransactionFinishedEvent extends AbstractTransactionEvent {
 
 	@Label("Transaction resolution")
-	@Description("The resolution of the transaction - either commit or rollback.")
+	@Description("The resolution of the transaction (either commit or rollback).")
 	@ExportMetricLabel
 	private String resolution;
 

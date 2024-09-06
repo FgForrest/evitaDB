@@ -81,13 +81,13 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	@JsonCreator
 	public ObservabilityConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                           @Nonnull @JsonProperty("host") String host,
-	                           @Nullable @JsonProperty("exposedHost") String exposedHost,
+	                           @Nullable @JsonProperty("exposeOn") String exposeOn,
 	                           @Nullable @JsonProperty("tlsMode") String tlsMode,
 	                           @Nullable @JsonProperty("prefix") String prefix,
 	                           @Nullable @JsonProperty("allowedOrigins") String allowedOrigins,
 							   @Nullable @JsonProperty("tracing") TracingConfig tracing,
 	                           @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents) {
-		super(enabled, host, exposedHost, tlsMode);
+		super(enabled, host, exposeOn, tlsMode);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_OBSERVABILITY_PATH);
 		if (allowedOrigins == null) {
 			this.allowedOrigins = null;

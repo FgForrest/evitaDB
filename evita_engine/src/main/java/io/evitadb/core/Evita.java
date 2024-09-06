@@ -394,10 +394,7 @@ public final class Evita implements EvitaContract {
 
 	@Override
 	public void update(@Nonnull TopLevelCatalogSchemaMutation... catalogMutations) {
-		assertActive();
-		if (readOnly) {
-			throw new ReadOnlyException();
-		}
+		assertActiveAndWritable();
 		// TOBEDONE JNO #502 - we have to have a special WAL for the evitaDB server instance as well
 		for (CatalogSchemaMutation catalogMutation : catalogMutations) {
 			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
@@ -515,16 +512,10 @@ public final class Evita implements EvitaContract {
 		try {
 			final EvitaInternalSessionContract theSession = createdSession.session();
 			theSession.execute(updater);
-			// join the transaction future and return
-			final CompletableFuture<Long> result = new CompletableFuture<>();
-			createdSession.closeFuture().whenComplete((txId, ex) -> {
-				if (ex != null) {
-					result.completeExceptionally(ex);
-				} else {
-					result.complete(txId);
-				}
-			});
-			return result;
+			return createdSession.closeFuture();
+		} catch (Throwable ex) {
+			createdSession.closeFuture().completeExceptionally(ex);
+			return createdSession.closeFuture();
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
 		}
@@ -863,6 +854,16 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Verifies this instance is still active and not in read-only mode.
+	 */
+	void assertActiveAndWritable() {
+		assertActive();
+		if (readOnly) {
+			throw new ReadOnlyException();
+		}
+	}
+
+	/**
 	 * Method will examine changes in `newCatalog` compared to `currentCatalog` and notify {@link #structuralChangeObservers}
 	 * in case there is any key structural change identified.
 	 */
@@ -946,15 +947,9 @@ public final class Evita implements EvitaContract {
 			)
 		);
 
-		final long catalogVersion = catalogContract.getVersion();
 		return new CreatedSession(
 			newSession,
-			newSession.getTransactionFinalizationFuture().orElseGet(() -> {
-				// complete immediately
-				final CompletableFuture<Long> result = new CompletableFuture<>();
-				result.complete(catalogVersion);
-				return result;
-			})
+			newSession.getFinalizationFuture()
 		);
 	}
 

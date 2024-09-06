@@ -44,7 +44,7 @@ public abstract class RestArtificialBenchmarkState extends AbstractArtificialBen
 	public RestClient getSession() {
 		return getSession(() -> {
 			try {
-				return new RestClient("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555", false, true);
+				return new RestClient("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555", false, true, 1);
 			} catch (UnknownHostException e) {
 				throw new GenericEvitaInternalError("Could not create REST API URL:", e);
 			}

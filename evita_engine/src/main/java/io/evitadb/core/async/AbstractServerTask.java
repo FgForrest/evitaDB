@@ -25,7 +25,8 @@ package io.evitadb.core.async;
 
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.utils.UUIDUtil;
@@ -34,6 +35,8 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -62,7 +65,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	 */
 	protected final AtomicReference<TaskStatus<S, T>> status;
 
-	public AbstractServerTask(@Nonnull String taskName, @Nullable S settings) {
+	protected AbstractServerTask(@Nonnull String taskName, @Nullable S settings, @Nonnull TaskTrait... traits) {
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -77,13 +80,14 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = null;
 	}
 
-	public AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings) {
+	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull TaskTrait... traits) {
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -98,13 +102,14 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = null;
 	}
 
-	public AbstractServerTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
+	protected AbstractServerTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -119,13 +124,14 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = exceptionHandler;
 	}
 
-	public AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
+	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -140,7 +146,8 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = exceptionHandler;
@@ -173,7 +180,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 		// emit the start event
 		final TaskStatus<S, T> theStatus = getStatus();
 
-		if (theStatus.state() == State.QUEUED) {
+		if (theStatus.simplifiedState() == TaskSimplifiedState.QUEUED) {
 			new BackgroundTaskStartedEvent(theStatus.catalogName(), theStatus.taskName()).commit();
 
 			this.status.updateAndGet(

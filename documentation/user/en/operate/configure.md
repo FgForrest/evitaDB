@@ -62,7 +62,6 @@ cache:                                            # [see Cache configuration](#c
   cacheSizeInBytes: null
 
 api:                                              # [see API configuration](#api-configuration)
-  exposedOn: null
   workerGroupThreads: 4
   idleTimeoutInMillis: 2K
   requestTimeoutInMillis: 2K
@@ -76,45 +75,56 @@ api:                                              # [see API configuration](#api
       certificate: null
       privateKey: null
       privateKeyPassword: null
+  endpointDefaults:
+    enabled: true
+    host: ":5555"
+    exposeOn: "localhost:5555"
+    tlsMode: FORCE_TLS
+    allowedOrigins: null
   endpoints:
     system:                                       # [see System API configuration](#system-api-configuration)
-      enabled: true
-      host: ":5555"
+      enabled: null
+      host: null
+      exposeOn: null
       tlsMode: FORCE_NO_TLS
       allowedOrigins: null
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
-      enabled: true
-      host: ":5555"
-      tlsMode: FORCE_TLS
+      enabled: null
+      host: null
+      exposeOn: null
+      tlsMode: null
       allowedOrigins: null
       parallelize: true
     rest:                                         # [see REST API configuration](#rest-api-configuration)
-      enabled: true
-      host: ":5555"
-      tlsMode: FORCE_TLS
+      enabled: null
+      host: null
+      exposeOn: null
+      tlsMode: null
       allowedOrigins: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
-      enabled: true
-      host: ":5555"
-      tlsMode: FORCE_TLS
+      enabled: null
+      host: null
+      exposeOn: null
+      tlsMode: null
       exposeDocsService: false
       mTLS:
         enabled: false
         allowedClientCertificatePaths: []
     lab:                                          # [see evitaLab configuration](#evitalab-configuration)
-      enabled: true
-      host: ":5555"
-      tlsMode: FORCE_TLS
+      enabled: null
+      host: null
+      exposeOn: null
+      tlsMode: null
       allowedOrigins: null
       gui:
         enabled: true
         readOnly: false
         preconfiguredConnections: null
     observability:                                # [see Observability configuration](#observability-configuration)
-      enabled: true
-      host: ":5555"
-      exposedHost: null
-      tlsMode: FORCE_NO_TLS
+      enabled: null
+      host: null
+      exposeOn: null
+      tlsMode: null
       allowedOrigins: null
       tracing:
         endpoint: null
@@ -606,14 +616,6 @@ is resolved.
 This section of the configuration allows you to selectively enable, disable, and tweak specific APIs.
 
 <dl>
-    <dt>exposedOn</dt>
-    <dd>
-        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
-           the internally resolved local host name and port usually don't match the host name and port 
-           evitaDB is available on that host system. By specifying the `exposedOn` property you can specify
-           the name (without port) of the host system host name that will be used by all API endpoints without
-           specific `exposedHost` configuration property to use that host name and appropriate port.</p>
-    </dd>
     <dt>workerGroupThreads</dt>
     <dd>
         <p>**Default:** `number of CPUs`</p>
@@ -713,34 +715,41 @@ It allows configuring these settings:
 If no custom certificate is configured, the server will not start and an exception will be thrown. The server doesn't
 provide an unsecured connection for security reasons.
 
-### GraphQL API configuration
+### Default endpoint configuration
+
+Default endpoint settings are used as the basis for all endpoints unless overridden in the specific endpoint.
+This allows you to set common settings for all endpoints in one place.
 
 <dl>
     <dt>enabled</dt>
     <dd>
         <p>**Default:** `true`</p>
-        <p>It enables / disables GraphQL web API.</p>
+        <p>It enables / disables a particular web API.</p>
     </dd>
     <dt>host</dt>
     <dd>
         <p>**Default:** `:5555`</p>
-        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
+        <p>It specifies the host and port that a particular API should listen on. If the host is not defined, 
         the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
         IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
         DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
         logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
+        <p>You may define multiple hosts / ports separated by a comma. The server will listen on all of them.</p>
     </dd>
-    <dt>exposedHost</dt>
+    <dt>exposeOn</dt>
     <dd>
+        <p>**Default:** `localhost`</p>
         <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
            the internally resolved local host name and port usually don't match the host name and port 
-           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
-           is no longer used.</p>
+           evitaDB is available on that host system.</p> 
+        <p>The `exposedHost` property allows you to override not only the external hostname, scheme, but also to specify 
+        an external port, but the minimum configuration is the hostname. If you don't specify scheme / port, exposed 
+        host will assume that the default scheme / port configured for a web API should be used.</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
-        <p>Whether to enable the [TLS](./tls.md) for the GraphQL API. Three modes are available:</p>
+        <p>Whether to enable the [TLS](./tls.md) for a particular API. Three modes are available:</p>
         <ol>
             <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
             <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
@@ -751,8 +760,38 @@ provide an unsecured connection for security reasons.
     <dd>
         <p>**Default:** `null`</p>
         <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
-        that are allowed to consume the GraphQL API. If no origins are specified, i.e. `null`, all origins are 
+        that are allowed to consume a particular web API. If no origins are specified, i.e. `null`, all origins are 
         allowed automatically.</p>
+    </dd>
+</dl>
+
+### GraphQL API configuration
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>host</dt>
+    <dd>
+        <p>**Default:** `:5555`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>**Default:** `localhost:5555`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>tlsMode</dt>
+    <dd>
+        <p>**Default:** `FORCE_TLS`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>parallelize</dt>
     <dd>
@@ -767,39 +806,27 @@ provide an unsecured connection for security reasons.
     <dt>enabled</dt>
     <dd>
         <p>**Default:** `true`</p>
-        <p>It enables / disables REST web API.</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
+    <dt>host</dt>
     <dd>
         <p>**Default:** `:5555`</p>
-        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
-        the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
-        IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
-        DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
-        logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>exposedHost</dt>
     <dd>
-        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
-           the internally resolved local host name and port usually don't match the host name and port 
-           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
-           is no longer used.</p>
+        <p>**Default:** `localhost:5555`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
-        <p>Whether to enable the [TLS](./tls.md) for the REST API. Three modes are available:</p>
-        <ol>
-            <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
-            <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
-            <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
-        </ol>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>allowedOrigins</dt>
     <dd>
         <p>**Default:** `null`</p>
-        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
-        that are allowed to consume the GraphQL API. If no origins are specified, i.e. `null`, all origins are 
-        allowed automatically.</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>
 
@@ -809,32 +836,27 @@ provide an unsecured connection for security reasons.
     <dt>enabled</dt>
     <dd>
         <p>**Default:** `true`</p>
-        <p>It enables / disables gRPC web API.</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
+    <dt>host</dt>
     <dd>
         <p>**Default:** `:5555`</p>
-        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
-        the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
-        IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
-        DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
-        logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>exposedHost</dt>
     <dd>
-        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
-           the internally resolved local host name and port usually don't match the host name and port 
-           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
-           is no longer used.</p>
+        <p>**Default:** `localhost:5555`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
-        <p>Whether to enable the [TLS](./tls.md) for the gRPC API. Three modes are available:</p>
-        <ol>
-            <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
-            <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
-            <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
-        </ol>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>exposeDocsService</dt>
     <dd>
@@ -874,38 +896,27 @@ more information.
     <dt>enabled</dt>
     <dd>
         <p>**Default:** `true`</p>
-        <p>It enables / disables system web API.</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
+    <dt>host</dt>
     <dd>
         <p>**Default:** `:5555`</p>
-        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
-        the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
-        IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
-        DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
-        logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
-        <p>The system endpoint allows anyone to view public <Term location="/documentation/user/en/operate/tls.md">certificate authority</Term> 
-        <Term location="/documentation/user/en/operate/tls.md">certificate</Term> and it also provides information for 
-        [default `mTLS` implementation](tls.md#default-mtls-behaviour-not-secure) and therefore it's always provided
-        on plain (insecure) HTTP protocol.</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>**Default:** `localhost:5555`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>
-        <p>Whether to enable the [TLS](./tls.md) for the System API. Although all modes are available, if you need 
-        the client to retrieve the self-signed server certificate to add it to the "trusted" certificate store, you must 
-        leave the unencrypted channel open.</p>
-        <ol>
-            <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
-            <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
-            <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
-        </ol>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>allowedOrigins</dt>
     <dd>
         <p>**Default:** `null`</p>
-        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
-        that are allowed to consume the GraphQL API. If no origins are specified, i.e. `null`, all origins are 
-        allowed automatically.</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>
 
@@ -918,39 +929,27 @@ Besides that, it can also serve an entire evitaLab web client as its copy is bui
     <dt>enabled</dt>
     <dd>
         <p>**Default:** `true`</p>
-        <p>It enables / disables evitaLab API.</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
+    <dt>host</dt>
     <dd>
         <p>**Default:** `:5555`</p>
-        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
-        the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
-        IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
-        DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
-        logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>exposedHost</dt>
     <dd>
-        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
-           the internally resolved local host name and port usually don't match the host name and port 
-           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
-           is no longer used.</p>
+        <p>**Default:** `localhost:5555`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
-        <p>Whether to enable the [TLS](./tls.md) for the evitaLab web client. Three modes are available:</p>
-        <ol>
-            <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
-            <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
-            <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
-        </ol>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>allowedOrigins</dt>
     <dd>
         <p>**Default:** `null`</p>
-        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
-        that are allowed to consume the evitaLab API/evitaLab web client. If no origins are specified, i.e. `null`,
-        all origins are allowed automatically.</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>gui</dt>
     <dd>
@@ -989,15 +988,19 @@ This configuration controls how the actual evitaLab web client will be served th
 
         ```yaml
         - name: "evitaDB local" # name displayed in evitaLab in connection manager
-          labApiUrl: "https://your-server:5555/lab/api" # URL of the evitaLab API accessible from the web browser 
-          gqlUrl: "https://your-server:5555/gql" # URL of the GraphQL API accessible from the web browser
+          systemUrl: "http://your-server:5555/system" # mandatory URL of the evitaDB's system API accessible from the web browser
+          grpcUrl: "http://your-server:5555/" # mandatory URL of the evitaDB's gRPC API accessible from the web browser
+          gqlUrl: "http://your-server:5555/gql" # mandatory URL of the GraphQL API accessible from the web browser
+          restUrl: "http://your-server:5555/rest" # optional URL of the GraphQL API accessible from the web browser
         ```
         </p>
 
         <p>
-        This is especially useful for when the evitaDB server is running locally on a server behind a reverse proxy and 
-        it is exposed on a different public domain and port, not on a localhost. Without custom connection configuration
-        pointing to the public domain, the evitaLab web client would try to connect to the server on localhost.
+        In most cases, evitaDB should be able generate correct configuration by it self. More so, if the `api.endpointDefaults.exposeOn`
+        property is configured correctly, then it should generate correct configuration even for evitaDB server being
+        behind a proxy.
+        In special cases, this can be overriden by this configuration property, allowing completelly custom connections
+        to multiple different evitaDB server (not just this one).
         </p>
     </dd>
 </dl>
@@ -1011,38 +1014,27 @@ pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
     <dt>enabled</dt>
     <dd>
         <p>**Default:** `true`</p>
-        <p>It enables / disables observability API.</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
+    <dt>host</dt>
     <dd>
         <p>**Default:** `:5555`</p>
-        <p>It specifies the host and port that the GraphQL API should listen on. If the host is not defined, 
-        the wildcard address `0.0.0.0` for IPv4 and `::` for IPv6 is used instead. If the host is defined as a valid 
-        IP address, it's used directly. If the domain name is specified, it's translated into an IP address by the Java 
-        DNS lookup and used instead (the resolved IP address may not be the one, you expected - but the result IP is 
-        logged to the log and console during the evitaDB server startup, so you can easily check it there).</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>exposedHost</dt>
     <dd>
-        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
-           the internally resolved local host name and port usually don't match the host name and port 
-           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
-           is no longer used.</p>
+        <p>**Default:** `localhost:5555`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
+    <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>
-        <p>Whether to enable the [TLS](./tls.md) for the observability endpoints. Three modes are available:</p>
-        <ol>
-            <li>`FORCE_TLS`: Only encrypted (TLS) communication is allowed.</li>
-            <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
-            <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
-        </ol>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>allowedOrigins</dt>
     <dd>
         <p>**Default:** `null`</p>
-        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
-        that are allowed to consume the evitaLab API/evitaLab web client. If no origins are specified, i.e. `null`,
-        all origins are allowed automatically.</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>tracing.endpoint</dt>
     <dd>

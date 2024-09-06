@@ -24,11 +24,12 @@
 package io.evitadb.externalApi.lab;
 
 import com.linecorp.armeria.server.HttpService;
-import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.http.ProxyingEndpointProvider;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.function.Predicate;
@@ -38,8 +39,9 @@ import java.util.function.Predicate;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Slf4j
 @RequiredArgsConstructor
-public class LabProvider implements ExternalApiProvider<LabConfig> {
+public class LabProvider implements ProxyingEndpointProvider<LabConfig> {
 
 	public static final String CODE = "lab";
 
@@ -65,17 +67,20 @@ public class LabProvider implements ExternalApiProvider<LabConfig> {
 	@Nonnull
 	@Override
 	public HttpServiceDefinition[] getHttpServiceDefinitions() {
-		return new HttpServiceDefinition[] {
+		return new HttpServiceDefinition[]{
 			new HttpServiceDefinition(apiHandler, PathHandlingMode.DYNAMIC_PATH_HANDLING)
 		};
 	}
 
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(url, null, "text/html", null)
-			.map(content -> content.contains("https://github.com/FgForrest/evitaDB/blob/master/LICENSE"))
+		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(
+				url, null, "text/html", null,
+				error -> log.error("Error while checking readiness of Lab API: {}", error)
+			)
+			.map(content -> content.contains("evitaLab app"))
 			.orElse(false);
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
 				if (isReady.test(baseUrl)) {

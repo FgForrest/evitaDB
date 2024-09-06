@@ -37,6 +37,7 @@ import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaMan
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.lab.LabProvider;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.system.SystemProvider;
@@ -88,6 +89,50 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		return output;
 	}
 
+	/**
+	 * Retrieves the value from a nested map using a dot-separated key string.
+	 *
+	 * @param map The map from which the value is to be retrieved.
+	 * @param key The dot-separated key string used to navigate the nested maps.
+	 * @return The value associated with the specified key, or null if the key does not exist.
+	 */
+	@SuppressWarnings("unchecked")
+	@Nullable
+	private static Object getMapValue(@Nonnull Map<String, Object> map, @Nonnull String key) {
+		final String[] keysArray = key.split("\\.");
+		Map<String, Object> tempMap = map;
+
+		for (int i = 0; i < keysArray.length - 1; i++) {
+			Object value = tempMap.get(keysArray[i]);
+			if (value instanceof Map) {
+				tempMap = (Map<String, Object>) value;
+			} else {
+				return null;
+			}
+		}
+		return tempMap.get(keysArray[keysArray.length - 1]);
+	}
+
+	/**
+	 * Converts a given immutable map into a mutable HashMap, recursively converting any nested immutable maps as well.
+	 *
+	 * @param immutableMap the immutable map to be converted
+	 * @return a mutable HashMap with the same entries as the specified immutable map
+	 */
+	@SuppressWarnings("unchecked")
+	@Nonnull
+	private static Map<String, Object> convertImmutableMapsToHashMaps(@Nonnull Map<String, Object> immutableMap) {
+		Map<String, Object> result = new HashMap<>();
+		for (Map.Entry<String, Object> entry : immutableMap.entrySet()) {
+			Object value = entry.getValue();
+			if (value instanceof Map) {
+				value = convertImmutableMapsToHashMaps((Map<String, Object>) value);
+			}
+			result.put(entry.getKey(), value);
+		}
+		return result;
+	}
+
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(DIR_EVITA_SERVER_TEST);
@@ -96,6 +141,47 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	@AfterEach
 	void tearDown() throws IOException {
 		cleanTestSubDirectory(DIR_EVITA_SERVER_TEST);
+	}
+
+	@Test
+	void shouldReplaceEndpointVariables() {
+		final Map<String, Object> endpointDefaults = Map.of(
+			"enabled", false,
+			"exposeOn", "http://whatnot:7787"
+		);
+		final Map<String, Object> initialMap = Map.of(
+			"api", Map.of(
+				"endpoints", Map.of(
+					"rest", Map.of(
+						"enabled", true,
+						"exposeOn", "http://localhost:5555"
+					),
+					"system", Map.of(
+						"exposeOn", "http://localhost:5556"
+					),
+					"graphQL", Map.of(
+						"enabled", true
+					),
+					"lab", Map.of(
+						"tlsMode", "FORCE_TLS"
+					)
+				)
+			)
+		);
+
+		final Map<String, Object> configuration = convertImmutableMapsToHashMaps(initialMap);
+		EvitaServer.applyEndpointDefaults(configuration, endpointDefaults);
+
+		assertNull(getMapValue(configuration, "api.endpointDefaults"));
+		assertEquals(true, getMapValue(configuration, "api.endpoints.rest.enabled"));
+		assertEquals("http://localhost:5555", getMapValue(configuration, "api.endpoints.rest.exposeOn"));
+		assertEquals(false, getMapValue(configuration, "api.endpoints.system.enabled"));
+		assertEquals("http://localhost:5556", getMapValue(configuration, "api.endpoints.system.exposeOn"));
+		assertEquals(true, getMapValue(configuration, "api.endpoints.graphQL.enabled"));
+		assertEquals("http://whatnot:7787", getMapValue(configuration, "api.endpoints.graphQL.exposeOn"));
+		assertEquals(false, getMapValue(configuration, "api.endpoints.lab.enabled"));
+		assertEquals("http://whatnot:7787", getMapValue(configuration, "api.endpoints.lab.exposeOn"));
+		assertEquals("FORCE_TLS", getMapValue(configuration, "api.endpoints.lab.tlsMode"));
 	}
 
 	@Test
@@ -134,6 +220,168 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} finally {
 			try {
 				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
+				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
+			} catch (Exception ex) {
+				fail(ex.getMessage(), ex);
+			}
+		}
+	}
+
+	@Test
+	void shouldRestrictAccessViaNonSupportedProtocolsAndPortsExceptLab() {
+		final Map<String, Integer> servicePorts = new HashMap<>();
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments(
+				servicePorts,
+				List.of(
+					property("api.endpoints.rest.tlsMode", "RELAXED"),
+					property("api.endpoints.graphQL.tlsMode", "FORCE_NO_TLS"),
+					property("api.endpoints.gRPC.tlsMode", "FORCE_NO_TLS"),
+					property("api.endpoints.lab.tlsMode", "RELAXED")
+				),
+				Set.of(
+					RestProvider.CODE, GraphQLProvider.CODE, SystemProvider.CODE
+				)
+			)
+		);
+
+		try {
+			evitaServer.run();
+
+			// attempt to access the system API via GraphQL port
+			NetworkUtils.fetchContent(
+				"http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name",
+				"GET",
+				"text/plain",
+				null,
+				error -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", error)
+			).ifPresent(
+				content -> fail("The system API is accessible via Observability port: " + content)
+			);
+
+			// attempt to access the system API via invalid scheme and correct port
+			NetworkUtils.fetchContent(
+				"https://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name",
+				"GET",
+				"text/plain",
+				null,
+				error -> assertEquals("Error fetching content from URL: https://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name HTTP status 403: This endpoint requires TLS.", error)
+			).ifPresent(
+				content -> fail("The system API is accessible via invalid scheme: " + content)
+			);
+
+			// attempt to access the system API via both invalid scheme and port
+			NetworkUtils.fetchContent(
+				"https://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name",
+				"GET",
+				"text/plain",
+				null,
+				error -> assertTrue(error.contains("Error fetching content from URL: https://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name"))
+			).ifPresent(
+				content -> fail("The system API is accessible via invalid scheme and Observability port: " + content)
+			);
+
+			// attempt to access the system API via correct scheme and port
+			NetworkUtils.fetchContent(
+				"http://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name",
+				"GET",
+				"text/plain",
+				null,
+				error -> fail("The system API should be accessible via correct scheme and port: " + error)
+			).ifPresent(
+				content -> assertTrue(content.contains("evitaDB-"), "The system API should be accessible via correct scheme and port: " + content)
+			);
+
+			// attempt to access the system API via correct scheme and Lab port
+			NetworkUtils.fetchContent(
+				"http://localhost:" + servicePorts.get(LabProvider.CODE) + "/system/server-name",
+				"GET",
+				"text/plain",
+				null,
+				error -> fail("The system API should be accessible via Lab scheme and port: " + error)
+			).ifPresent(
+				content -> assertTrue(content.contains("evitaDB-"), "The system API should be accessible via Lab scheme and port: " + content)
+			);
+
+			// attempt to access the system API via correct scheme and Lab port
+			NetworkUtils.fetchContent(
+				"https://localhost:" + servicePorts.get(LabProvider.CODE) + "/system/server-name",
+				"GET",
+				"text/plain",
+				null,
+				error -> fail("The system API should be accessible via Lab scheme and port: " + error)
+			).ifPresent(
+				content -> assertTrue(content.contains("evitaDB-"), "The system API should be accessible via Lab scheme and port: " + content)
+			);
+
+			final EvitaClient evitaClientBadPort = new EvitaClient(
+				EvitaClientConfiguration.builder()
+					.host("localhost")
+					.port(servicePorts.get(ObservabilityProvider.CODE))
+					.systemApiPort(servicePorts.get(SystemProvider.CODE))
+					.tlsEnabled(false)
+					.build()
+			);
+
+			try {
+				evitaClientBadPort.getCatalogNames();
+				fail("gRPC call should have failed on bad port!");
+			} catch (Exception ex) {
+				assertEquals("io.grpc.StatusRuntimeException: UNIMPLEMENTED: HTTP status code 404", ex.getCause().getMessage());
+			}
+
+			final EvitaClient evitaClientBadScheme = new EvitaClient(
+				EvitaClientConfiguration.builder()
+					.host("localhost")
+					.port(servicePorts.get(GrpcProvider.CODE))
+					.systemApiPort(servicePorts.get(SystemProvider.CODE))
+					.build()
+			);
+
+			try {
+				evitaClientBadScheme.getCatalogNames();
+				fail("gRPC call should have failed on bad scheme!");
+			} catch (Exception ex) {
+				assertEquals("io.grpc.StatusRuntimeException: UNAVAILABLE", ex.getCause().getMessage());
+			}
+
+			// we should be able to access gRCP via correct scheme and port
+			final EvitaClient correctEvitaClient = new EvitaClient(
+				EvitaClientConfiguration.builder()
+					.host("localhost")
+					.port(servicePorts.get(GrpcProvider.CODE))
+					.systemApiPort(servicePorts.get(SystemProvider.CODE))
+					.tlsEnabled(false)
+					.build()
+			);
+
+			assertEquals(0, correctEvitaClient.getCatalogNames().size());
+
+			// we should be able to access gRCP via Lab scheme and port
+			final EvitaClient labPortEvitaClient = new EvitaClient(
+				EvitaClientConfiguration.builder()
+					.host("localhost")
+					.port(servicePorts.get(LabProvider.CODE))
+					.systemApiPort(servicePorts.get(SystemProvider.CODE))
+					.tlsEnabled(false)
+					.build()
+			);
+
+			assertEquals(0, labPortEvitaClient.getCatalogNames().size());
+
+			// we should be able to access gRCP via Lab scheme and port
+			final EvitaClient labPortEvitaClientDifferentScheme = new EvitaClient(
+				EvitaClientConfiguration.builder()
+					.host("localhost")
+					.port(servicePorts.get(LabProvider.CODE))
+					.systemApiPort(servicePorts.get(SystemProvider.CODE))
+					.build()
+			);
+
+			assertEquals(0, labPortEvitaClientDifferentScheme.getCatalogNames().size());
+		} finally {
+			try {
 				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
 			} catch (Exception ex) {
 				fail(ex.getMessage(), ex);
@@ -224,7 +472,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			evitaServer.run();
 			final String[] baseUrls = evitaServer.getExternalApiServer().getExternalApiProviderByCode(SystemProvider.CODE)
 				.getConfiguration()
-				.getBaseUrls(null);
+				.getBaseUrls();
 
 			Optional<String> readiness;
 			final long start = System.currentTimeMillis();
@@ -235,7 +483,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					url,
 					"GET",
 					"application/json",
-					null
+					null,
+					error -> log.error("Error while checking readiness of API: {}", error)
 				);
 
 				if (readiness.isPresent() && readiness.get().contains("\"status\": \"READY\"")) {
@@ -265,7 +514,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				baseUrls[0] + "liveness",
 				"GET",
 				"application/json",
-				null
+				null,
+				error -> log.error("Error while checking readiness of API: {}", error)
 			);
 
 			assertTrue(liveness.isPresent());
@@ -278,7 +528,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				baseUrls[0] + "status",
 				"GET",
 				"application/json",
-				null
+				null,
+				error -> log.error("Error while checking readiness of API: {}", error)
 			);
 
 			assertTrue(status.isPresent());
@@ -297,31 +548,37 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					   "apis": [
 					      {
 					         "system": [
+					            "http://VARIABLE/system/",
 					            "http://VARIABLE/system/"
 					         ]
 					      },
 					      {
 					         "graphQL": [
+					            "https://VARIABLE/gql/",
 					            "https://VARIABLE/gql/"
 					         ]
 					      },
 					      {
 					         "rest": [
+					            "https://VARIABLE/rest/",
 					            "https://VARIABLE/rest/"
 					         ]
 					      },
 					      {
 					         "gRPC": [
+					            "https://VARIABLE/",
 					            "https://VARIABLE/"
 					         ]
 					      },
 					      {
 					         "lab": [
+					            "https://VARIABLE/lab/",
 					            "https://VARIABLE/lab/"
 					         ]
 					      },
 					      {
 					         "observability": [
+					            "http://VARIABLE/observability/",
 					            "http://VARIABLE/observability/"
 					         ]
 					      }
@@ -423,7 +680,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private Map<String, String> constructTestArguments(
 		@Nonnull String... enabledApis
 	) {
-		return constructTestArguments(null, null, enabledApis);
+		return constructTestArguments(null, null, Set.of(), enabledApis);
 	}
 
 	@Nonnull
@@ -431,13 +688,23 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		@Nullable Map<String, Integer> servicePorts,
 		@Nonnull String... enabledApis
 	) {
-		return constructTestArguments(servicePorts, null, enabledApis);
+		return constructTestArguments(servicePorts, null, Set.of(), enabledApis);
 	}
 
 	@Nonnull
 	private Map<String, String> constructTestArguments(
 		@Nullable Map<String, Integer> servicePorts,
 		@Nullable List<Property> properties,
+		@Nonnull String... enabledApis
+	) {
+		return constructTestArguments(servicePorts, properties, Set.of(), enabledApis);
+	}
+
+	@Nonnull
+	private Map<String, String> constructTestArguments(
+		@Nullable Map<String, Integer> servicePorts,
+		@Nullable List<Property> properties,
+		@Nonnull Set<String> apisWithSharedPorts,
 		@Nonnull String... enabledApis
 	) {
 		final Set<String> allApis = ExternalApiServer.gatherExternalApiProviders()
@@ -460,12 +727,20 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 						.filter(apis::contains)
 						.flatMap(
 							it -> {
-								final int allocatedPort = ports[index.getAndIncrement()];
+								final int allocatedPort;
+								if (apisWithSharedPorts.contains(it) && apis.stream().anyMatch(servicePorts::containsKey)) {
+									allocatedPort = servicePorts.get(apis.stream().filter(servicePorts::containsKey)
+										.findFirst()
+										.orElseThrow());
+								} else {
+									allocatedPort = ports[index.getAndIncrement()];
+								}
 								if (servicePorts != null) {
 									servicePorts.put(it, allocatedPort);
 								}
 								return Stream.of(
 									property("api.endpoints." + it + ".host", "localhost:" + allocatedPort),
+									property("api.endpoints." + it + ".exposeOn", "localhost:" + allocatedPort),
 									property("api.endpoints." + it + ".enabled", "true")
 								);
 							}

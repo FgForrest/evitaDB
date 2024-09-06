@@ -25,6 +25,7 @@ package io.evitadb.store.catalog.task;
 
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.async.ClientRunnableTask;
 import io.evitadb.core.async.Interruptible;
 import io.evitadb.core.file.ExportFileService.ExportFileInputStream;
@@ -106,7 +107,8 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			catalogName,
 			"Restore catalog `" + catalogName + "`",
 			new RestoreSettings(inputStream, storageOptions.exportDirectory(), totalSizeInBytes),
-			task -> ((RestoreTask) task).doRestore()
+			task -> ((RestoreTask) task).doRestore(),
+			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
 		);
 		this.storageOptions = storageOptions;
 	}

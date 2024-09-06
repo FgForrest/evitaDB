@@ -39,7 +39,7 @@ public final class GrpcEnums {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_fieldAccessorTable;
 
@@ -162,7 +162,15 @@ public final class GrpcEnums {
       "RLOADED\020\002\022\030\n\024JAVA_INTERNAL_ERRORS\020\003*e\n\rG" +
       "rpcReadiness\022\020\n\014API_STARTING\020\000\022\r\n\tAPI_RE" +
       "ADY\020\001\022\020\n\014API_STALLING\020\002\022\020\n\014API_SHUTDOWN\020" +
-      "\003\022\017\n\013API_UNKNOWN\020\004B\014P\001\252\002\007EvitaDBb\006proto3"
+      "\003\022\017\n\013API_UNKNOWN\020\004*`\n\027GrpcTaskSimplified" +
+      "State\022\017\n\013TASK_QUEUED\020\000\022\020\n\014TASK_RUNNING\020\001" +
+      "\022\021\n\rTASK_FINISHED\020\002\022\017\n\013TASK_FAILED\020\003*V\n " +
+      "GrpcAttributeInheritanceBehavior\022\026\n\022INHE" +
+      "RIT_ALL_EXCEPT\020\000\022\032\n\026INHERIT_ONLY_SPECIFI" +
+      "ED\020\001*a\n\rGrpcTaskTrait\022\027\n\023TASK_CAN_BE_STA" +
+      "RTED\020\000\022\031\n\025TASK_CAN_BE_CANCELLED\020\001\022\034\n\030TAS" +
+      "K_NEEDS_TO_BE_STOPPED\020\002B\014P\001\252\002\007EvitaDBb\006p" +
+      "roto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

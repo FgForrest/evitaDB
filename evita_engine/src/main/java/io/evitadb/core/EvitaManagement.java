@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.async.SequentialTask;
 import io.evitadb.core.file.ExportFileService;
@@ -118,7 +119,7 @@ public class EvitaManagement implements EvitaManagementContract {
 		@Nullable OffsetDateTime pastMoment,
 		boolean includingWAL
 	) throws TemporalDataNotAvailableException {
-		this.evita.assertActive();
+		this.evita.assertActiveAndWritable();
 		try (final EvitaSessionContract session = this.evita.createSession(new SessionTraits(catalogName))) {
 			return session.backupCatalog(pastMoment, includingWAL).getFutureResult();
 		}
@@ -131,7 +132,7 @@ public class EvitaManagement implements EvitaManagementContract {
 		long totalBytesExpected,
 		@Nonnull InputStream inputStream
 	) throws UnexpectedIOException {
-		this.evita.assertActive();
+		this.evita.assertActiveAndWritable();
 		final SequentialTask<Void> task = new SequentialTask<>(
 			catalogName,
 			"Restore catalog " + catalogName + " from backup.",
@@ -147,7 +148,7 @@ public class EvitaManagement implements EvitaManagementContract {
 	@Nonnull
 	@Override
 	public Task<?, Void> restoreCatalog(@Nonnull String catalogName, @Nonnull UUID fileId) throws FileForFetchNotFoundException {
-		this.evita.assertActive();
+		this.evita.assertActiveAndWritable();
 		final FileForFetch file = this.exportFileService.getFile(fileId)
 			.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
 		try {
@@ -182,9 +183,9 @@ public class EvitaManagement implements EvitaManagementContract {
 
 	@Nonnull
 	@Override
-	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
+	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize, @Nullable String taskType, @Nonnull TaskSimplifiedState... states) {
 		this.evita.assertActive();
-		return this.serviceExecutor.listTaskStatuses(page, pageSize);
+		return this.serviceExecutor.listTaskStatuses(page, pageSize, taskType, states);
 	}
 
 	@Nonnull
@@ -203,7 +204,7 @@ public class EvitaManagement implements EvitaManagementContract {
 
 	@Override
 	public boolean cancelTask(@Nonnull UUID jobId) {
-		this.evita.assertActive();
+		this.evita.assertActiveAndWritable();
 		return this.serviceExecutor.cancelTask(jobId);
 	}
 
@@ -229,7 +230,7 @@ public class EvitaManagement implements EvitaManagementContract {
 
 	@Override
 	public void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
-		this.evita.assertActive();
+		this.evita.assertActiveAndWritable();
 		this.exportFileService.deleteFile(fileId);
 	}
 

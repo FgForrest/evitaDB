@@ -56,7 +56,7 @@ public class AbstractRestRequestEvent extends CustomMetricsExecutionEvent {
 	@Description("Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG")
 	@ExportMetricLabel
 	@Nonnull
-	private final String restInstanceType;
+	final String restInstanceType;
 
 	protected AbstractRestRequestEvent(@Nonnull RestInstanceType restInstanceType) {
 		this.restInstanceType = restInstanceType.name();

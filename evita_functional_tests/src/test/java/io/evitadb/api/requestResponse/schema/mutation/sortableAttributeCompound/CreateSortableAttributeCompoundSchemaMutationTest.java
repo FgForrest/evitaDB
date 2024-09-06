@@ -119,7 +119,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 		final SortableAttributeCompoundSchemaContract compoundSchema = mutation.mutate(
 			Mockito.mock(EntitySchemaContract.class),
 			Mockito.mock(ReferenceSchemaContract.class),
-			null
+			(SortableAttributeCompoundSchemaContract) null
 		);
 		assertNotNull(compoundSchema);
 		assertEquals(ATTRIBUTE_COMPOUND_NAME, compoundSchema.getName());

@@ -132,5 +132,13 @@ message GrpcEntitySchemaMutation {
     // Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
     // Mutation can be used for altering also the existing `ReferenceSchema` alone.
     GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;
+    // Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+    // Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+    GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;
+    // Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+    // `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+    // Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+    GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;
+
   }
 }

@@ -30,6 +30,7 @@ import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.function.Predicate;
@@ -39,6 +40,7 @@ import java.util.function.Predicate;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Slf4j
 @RequiredArgsConstructor
 public class RestProvider implements ExternalApiProvider<RestConfig> {
 
@@ -76,10 +78,13 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(url, "GET", "application/json", null)
+		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(
+				url, "GET", "application/json", null,
+				error -> log.error("Error while checking readiness of REST API: {}", error)
+			)
 			.map(content -> content.contains("true"))
 			.orElse(false);
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
 				final String url = baseUrl + OpenApiSystemEndpoint.URL_PREFIX + "/" + LivenessDescriptor.LIVENESS_SUFFIX;

@@ -25,17 +25,15 @@ package io.evitadb.externalApi.grpc.services.interceptors;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
-import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.configuration.TlsMode;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Context;
 import io.grpc.Contexts;
-import io.grpc.InternalMetadata;
 import io.grpc.Metadata;
+import io.grpc.Metadata.Key;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
@@ -61,6 +59,8 @@ import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADE
 @RequiredArgsConstructor
 public class ServerSessionInterceptor implements ServerInterceptor {
 	private static final Set<String> ENDPOINTS_NOT_REQUIRING_SESSION = CollectionUtils.createHashSet(32);
+	public static final String METADATA_CAUSE = "cause";
+
 	static {
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/IsReady");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateReadOnlySession");
@@ -106,11 +106,6 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	private final Evita evita;
 
 	/**
-	 * Flag indicating whether TLS is enabled.
-	 */
-	private final TlsMode tlsMode;
-
-	/**
 	 * This method is intercepting calls to gRPC services. If client provided session type and sessionId in metadata, an attempt
 	 * for getting matching session will occur. If session is not found and is required by endpoint, then
 	 * unauthenticated status will be returned to the client.
@@ -134,32 +129,17 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			serverCall.getMethodDescriptor().getBareMethodName()
 		);
 
-		if (tlsMode != TlsMode.RELAXED) {
-			final String scheme = metadata.get(InternalMetadata.keyOf(":scheme", Metadata.ASCII_STRING_MARSHALLER));
-			if ("https".equals(scheme) && tlsMode == TlsMode.FORCE_NO_TLS) {
-				final Status status = Status.UNAUTHENTICATED
-					.withCause(new EvitaInvalidUsageException("TLS is not required for this endpoint."))
-					.withDescription("TLS is not required for this endpoint.");
-				serverCall.close(status, metadata);
-				return new ServerCall.Listener<>() {};
-			}
-			if ("http".equals(scheme) && tlsMode == TlsMode.FORCE_TLS) {
-				final Status status = Status.UNAUTHENTICATED
-					.withCause(new EvitaInvalidUsageException("TLS is required for this endpoint."))
-					.withDescription("TLS is required for this endpoint.");
-				serverCall.close(status, metadata);
-				return new ServerCall.Listener<>() {};
-			}
-		}
-
 		final Metadata.Key<String> sessionMetadata = Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER);
 		final String sessionId = metadata.get(sessionMetadata);
 		final Optional<EvitaInternalSessionContract> activeSession = resolveActiveSession(sessionId);
 		if (activeSession.isEmpty() && isEndpointRequiresSession(serverCall)) {
 			final Status status = Status.UNAUTHENTICATED
-				.withCause(new EvitaInvalidUsageException("Your session is either not set or is not active."))
+				.withCause(new SessionNotFoundException("Your session is either not set or is not active."))
 				.withDescription("Your session (session id: " + sessionId + ") is either not set or is not active.");
-			serverCall.close(status, metadata);
+			Metadata trailers = new Metadata();
+			trailers.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "sessionNotFound");
+			serverCall.sendHeaders(trailers);
+			serverCall.close(status, trailers);
 			return new ServerCall.Listener<>() {};
 		}
 
@@ -176,8 +156,6 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		if (sessionId == null) {
 			return Optional.empty();
 		}
-		Assert.notNull(sessionId, "Both `catalogName` and `sessionId` must be specified to identify session.");
-
 		return evita.getSessionById(UUIDUtil.uuid(sessionId))
 			.map(session -> {
 				if (!session.isActive()) {

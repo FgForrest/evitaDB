@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ComparatorUtils;
 import io.evitadb.utils.NamingConvention;
@@ -122,13 +123,17 @@ public final class EntitySchema implements EntitySchemaContract {
 	 */
 	private final Map<String, ReferenceSchema[]> referenceNameIndex;
 	/**
+	 * List of all reflected reference schemas within {@link #references}, prepared for quick lookup.
+	 */
+	private final Map<String, ReflectedReferenceSchema> reflectedReferences;
+	/**
 	 * Contains allowed evolution modes for the entity schema.
 	 */
 	@Getter private final Set<EvolutionMode> evolutionMode;
 	/**
 	 * Contains all definitions of the attributes that return false in method {@link AttributeSchema#isNullable()}.
 	 */
-	@Getter private final Collection<EntityAttributeSchemaContract> nonNullableAttributes;
+	@Getter private final Collection<EntityAttributeSchemaContract> nonNullableOrDefaultValueAttributes;
 	/**
 	 * Contains all definitions of the associated data that return false in method {@link AssociatedDataSchema#isNullable()}.
 	 */
@@ -142,6 +147,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	/**
 	 * Method generates name variant index used for quickly looking up for schemas by name in specific name convention.
 	 */
+	@Nonnull
 	public static <T> Map<String, T[]> _internalGenerateNameVariantIndex(
 		@Nonnull Collection<T> items,
 		@Nonnull Function<T, Map<NamingConvention, String>> nameVariantsFetcher
@@ -162,6 +168,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static EntitySchema _internalBuild(@Nonnull String name) {
 		return new EntitySchema(
 			1,
@@ -184,6 +191,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static EntitySchema _internalBuild(
 		int version,
 		@Nonnull String name,
@@ -216,6 +224,13 @@ public final class EntitySchema implements EntitySchemaContract {
 		);
 	}
 
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
+	 * package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
 	public static EntitySchema _internalBuild(
 		int version,
 		@Nonnull String name,
@@ -463,11 +478,22 @@ public final class EntitySchema implements EntitySchemaContract {
 		);
 		;
 		this.referenceNameIndex = _internalGenerateNameVariantIndex(this.references.values(), ReferenceSchemaContract::getNameVariants);
-		this.evolutionMode = Collections.unmodifiableSet(evolutionMode);
-		this.nonNullableAttributes = this.attributes
+		this.reflectedReferences = this.references
 			.values()
 			.stream()
-			.filter(it -> !it.isNullable())
+			.filter(ReflectedReferenceSchema.class::isInstance)
+			.map(ReflectedReferenceSchema.class::cast)
+			.collect(
+				Collectors.toMap(
+					ReflectedReferenceSchema::getReflectedReferenceName,
+					Function.identity()
+				)
+			);
+		this.evolutionMode = Collections.unmodifiableSet(evolutionMode);
+		this.nonNullableOrDefaultValueAttributes = this.attributes
+			.values()
+			.stream()
+			.filter(it -> !it.isNullable() || it.getDefaultValue() != null)
 			.toList();
 		this.nonNullableAssociatedData = this.associatedData
 			.values()
@@ -646,23 +672,18 @@ public final class EntitySchema implements EntitySchemaContract {
 			.values()
 			.stream()
 			.flatMap(ref -> {
-				Stream<String> referenceErrors = Stream.empty();
-				if (ref.isReferencedEntityTypeManaged() && catalogSchema.getEntitySchema(ref.getReferencedEntityType()).isEmpty()) {
-					referenceErrors = Stream.concat(
-						referenceErrors,
-						Stream.of("Referenced entity type `" + ref.getReferencedEntityType() + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
+				try {
+					ref.validate(catalogSchema, this);
+					return Stream.empty();
+				} catch (SchemaAlteringException e) {
+					return Stream.of(e.getMessage());
 				}
-				if (ref.isReferencedGroupTypeManaged() && catalogSchema.getEntitySchema(ref.getReferencedGroupType()).isEmpty()) {
-					referenceErrors = Stream.concat(
-						referenceErrors,
-						Stream.of("Referenced group entity type `" + ref.getReferencedGroupType() + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
-				}
-				return referenceErrors;
 			})
+			.map(it -> "\t" + it)
 			.toList();
 		if (!errors.isEmpty()) {
 			throw new InvalidSchemaMutationException(
-				"Schema `" + getName() + "` contains validation errors: " + String.join(", ", errors)
+				"Schema `" + getName() + "` contains validation errors:\n" + String.join("\n", errors)
 			);
 		}
 	}
@@ -706,6 +727,75 @@ public final class EntitySchema implements EntitySchemaContract {
 		}
 
 		return !evolutionMode.equals(otherSchema.getEvolutionMode());
+	}
+
+	/**
+	 * Replaces the given reference schema in the current EntitySchema.
+	 *
+	 * @param referenceSchema the reference schema to replace
+	 * @return a new instance of EntitySchema with the replaced reference schema
+	 */
+	@Nonnull
+	public EntitySchema withReplacedReferenceSchema(@Nonnull ReferenceSchemaContract... referenceSchema) {
+		final Stream<ReferenceSchemaContract> newSchemaStream;
+		if (referenceSchema.length == 1) {
+			newSchemaStream = Stream.concat(
+					this.references.values().stream().filter(it -> !it.getName().equals(referenceSchema[0].getName())),
+					Stream.of(referenceSchema)
+				);
+		} else if (referenceSchema.length == 0) {
+			return this;
+		} else {
+			final Set<String> reflectedReferenceSchemaNames = Arrays.stream(referenceSchema)
+				.map(ReferenceSchemaContract::getName)
+				.collect(Collectors.toSet());
+			newSchemaStream = Stream.concat(
+				this.references.values().stream().filter(it -> !reflectedReferenceSchemaNames.contains(it.getName())),
+				Stream.of(referenceSchema)
+			);
+		}
+		final Map<String, ReferenceSchemaContract> replacedReferenceIndex = newSchemaStream.collect(
+			Collectors.toMap(
+				ReferenceSchemaContract::getName,
+				Function.identity()
+			)
+		);
+		// sanity check
+		Assert.isPremiseValid(
+			this.references.size() == replacedReferenceIndex.size(),
+			"Reflected reference schema was not found in the current EntitySchema!"
+		);
+		return EntitySchema._internalBuild(
+			this.version,
+			this.name,
+			this.nameVariants,
+			this.description,
+			this.deprecationNotice,
+			this.withGeneratedPrimaryKey,
+			this.withHierarchy,
+			this.withPrice,
+			this.indexedPricePlaces,
+			this.locales,
+			this.currencies,
+			this.attributes,
+			this.getAssociatedData(),
+			replacedReferenceIndex,
+			this.evolutionMode,
+			this.getSortableAttributeCompounds()
+		);
+	}
+
+	/**
+	 * Retrieves the reflected reference schema for the given reference name.
+	 *
+	 * @param referenceName The name of the reference for which to retrieve the reflected reference schema.
+	 *                      Must not be null.
+	 * @return The optional reflected reference schema for the given reference name. If the reference name is not found,
+	 *         an empty optional is returned.
+	 */
+	@Nonnull
+	public Optional<ReflectedReferenceSchema> getReflectedReferenceFor(@Nonnull String referenceName) {
+		return ofNullable(this.reflectedReferences.get(referenceName));
 	}
 
 	/**

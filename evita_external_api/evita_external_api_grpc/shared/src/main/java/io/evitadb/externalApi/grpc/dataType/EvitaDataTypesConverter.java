@@ -57,6 +57,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -93,11 +94,11 @@ public class EvitaDataTypesConverter {
 	/**
 	 * Representation of minimal supported timestamp by gRPC. More info at <a href="https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto">official google docs</a>.
 	 */
-	private static final Instant GRPC_MIN_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MIN, 1, 1).toEpochSecond(LocalTime.of(0, 0, 0), ZoneOffset.UTC));
+	public static final Instant GRPC_MIN_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MIN, 1, 1).toEpochSecond(LocalTime.of(0, 0, 0), ZoneOffset.UTC));
 	/**
 	 * Representation of maximal supported timestamp by gRPC. More info at <a href="https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto">official google docs</a>.
 	 */
-	private static final Instant GRPC_MAX_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MAX, 12, 31).toEpochSecond(LocalTime.of(23, 59, 59), ZoneOffset.UTC));
+	public static final Instant GRPC_MAX_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MAX, 12, 31).toEpochSecond(LocalTime.of(23, 59, 59), ZoneOffset.UTC));
 
 	/**
 	 * Converts the given {@link GrpcEvitaValue} to a {@link Serializable} value.
@@ -1395,6 +1396,7 @@ public class EvitaDataTypesConverter {
 			.setTaskName(taskStatus.taskName())
 			.setTaskId(toGrpcUuid(taskStatus.taskId()))
 			.setIssued(toGrpcOffsetDateTime(taskStatus.issued()))
+			.setSimplifiedState(EvitaEnumConverter.toGrpcSimplifiedStatus(taskStatus.simplifiedState()))
 			.setProgress(taskStatus.progress());
 		ofNullable(taskStatus.catalogName())
 			.ifPresent(
@@ -1428,6 +1430,10 @@ public class EvitaDataTypesConverter {
 						.build()
 				)
 			);
+		taskStatus.traits()
+			.stream()
+			.map(EvitaEnumConverter::toGrpcTaskTrait)
+			.forEach(builder::addTrait);
 		return builder.build();
 	}
 
@@ -1453,7 +1459,13 @@ public class EvitaDataTypesConverter {
 				EvitaDataTypesConverter.toFileForFetch(taskStatus.getFile()) :
 				taskStatus.hasText() ? taskStatus.getText().getValue() : null,
 			taskStatus.hasException() ? taskStatus.getException().getValue() : null,
-			null
+			null,
+			EnumSet.copyOf(
+				taskStatus.getTraitList()
+					.stream()
+					.map(EvitaEnumConverter::toTaskTrait)
+					.toList()
+			)
 		);
 	}
 

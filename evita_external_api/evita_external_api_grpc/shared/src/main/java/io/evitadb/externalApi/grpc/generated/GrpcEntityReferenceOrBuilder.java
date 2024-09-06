@@ -67,12 +67,44 @@ public interface GrpcEntityReferenceOrBuilder extends
 
   /**
    * <pre>
-   * Contains version of this entity and gets increased with any entity type update. Allows to execute
+   * value is deprecated, it was available only for entity references used in entity body, in other use-cases it was left
+   * as zero - which was a mistake in the design.
+   * in order to get the entity version you need to fetch the entity itself (with entity body).
+   * </pre>
+   *
+   * <code>int32 version = 3 [deprecated = true];</code>
+   * @deprecated
+   * @return The version.
+   */
+  @java.lang.Deprecated int getVersion();
+
+  /**
+   * <pre>
+   * Contains version of this reference and gets increased with any entity type update. Allows to execute
    * optimistic locking i.e. avoiding parallel modifications.
    * </pre>
    *
-   * <code>int32 version = 3;</code>
-   * @return The version.
+   * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+   * @return Whether the referenceVersion field is set.
    */
-  int getVersion();
+  boolean hasReferenceVersion();
+  /**
+   * <pre>
+   * Contains version of this reference and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+   * @return The referenceVersion.
+   */
+  com.google.protobuf.Int32Value getReferenceVersion();
+  /**
+   * <pre>
+   * Contains version of this reference and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getReferenceVersionOrBuilder();
 }

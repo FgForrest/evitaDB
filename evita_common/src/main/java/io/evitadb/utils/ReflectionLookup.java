@@ -111,10 +111,8 @@ public class ReflectionLookup {
 	public static boolean isGetter(@Nonnull String methodName) {
 		if (methodName.startsWith("get") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3))) {
 			return true;
-		} else if (methodName.startsWith("is") && methodName.length() > 2 && Character.isUpperCase(methodName.charAt(2))) {
-			return true;
 		} else {
-			return false;
+			return methodName.startsWith("is") && methodName.length() > 2 && Character.isUpperCase(methodName.charAt(2));
 		}
 	}
 
@@ -122,11 +120,7 @@ public class ReflectionLookup {
 	 * Returns true if method matches the setter format.
 	 */
 	public static boolean isSetter(@Nonnull String methodName) {
-		if (methodName.startsWith("set") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3))) {
-			return true;
-		} else {
-			return false;
-		}
+		return methodName.startsWith("set") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3));
 	}
 
 	/**
@@ -176,7 +170,21 @@ public class ReflectionLookup {
 		return interfaces;
 	}
 
-	private static void registerMethods(Map<Method, List<Annotation>> cachedInformations, Set<MethodAnnotationKey> foundMethodAnnotations, Class<?> tmpClass) {
+	/**
+	 * Registers methods and their annotations.
+	 *
+	 * @param cachedInformations a non-null map to cache method and its annotations
+	 * @param foundMethodAnnotations a non-null set to track found method annotations
+	 * @param tmpClass a nullable class from which methods are to be registered
+	 */
+	private static void registerMethods(
+		@Nonnull Map<Method, List<Annotation>> cachedInformations,
+		@Nonnull Set<MethodAnnotationKey> foundMethodAnnotations,
+		@Nullable Class<?> tmpClass
+	) {
+		if (tmpClass == null) {
+			return;
+		}
 		for (Method method : tmpClass.getDeclaredMethods()) {
 			final Annotation[] someAnnotation = method.getAnnotations();
 			if (someAnnotation != null && someAnnotation.length > 0) {
@@ -193,8 +201,15 @@ public class ReflectionLookup {
 		}
 	}
 
+	/**
+	 * Retrieves the repeatable container annotation class for a given annotation type.
+	 *
+	 * @param annotationType the annotation type for which to retrieve the repeatable container.
+	 * @param <T>            the type of the annotation.
+	 * @return the repeatable container annotation class if found, otherwise {@code null}.
+	 */
 	@Nullable
-	private static <T extends Annotation> Class<?> getRepeatableContainerAnnotation(Class<T> annotationType) {
+	private static <T extends Annotation> Class<?> getRepeatableContainerAnnotation(@Nonnull Class<T> annotationType) {
 		final Class<?> containerAnnotation;
 		final Repeatable repeatable = annotationType.getAnnotation(Repeatable.class);
 		if (repeatable != null) {
@@ -205,7 +220,22 @@ public class ReflectionLookup {
 		return containerAnnotation;
 	}
 
-	private static <T extends Annotation> void addAnnotationIfMatches(Class<T> annotationType, Class<?> containerAnnotation, List<T> fieldResult, Annotation annotation) {
+	/**
+	 * Adds an annotation to a list if it matches the specified criteria.
+	 *
+	 * @param annotationType the type of annotation to be matched, must not be null
+	 * @param containerAnnotation the type of container annotation, can be null
+	 * @param fieldResult the list to which the matching annotations will be added, must not be null
+	 * @param annotation the annotation to be checked, must not be null
+	 * @param <T> the type of the annotation
+	 * @throws IllegalArgumentException if there is an error unwinding a repeatable annotation
+	 */
+	private static <T extends Annotation> void addAnnotationIfMatches(
+		@Nonnull Class<T> annotationType,
+		@Nullable Class<?> containerAnnotation,
+		@Nonnull List<T> fieldResult,
+		@Nonnull Annotation annotation
+	) {
 		if (annotationType.isInstance(annotation)) {
 			//noinspection unchecked
 			fieldResult.add((T) annotation);
@@ -224,7 +254,20 @@ public class ReflectionLookup {
 		}
 	}
 
-	private static <T extends Annotation> T getAnnotation(Class<T> searchedAnnotationType, Class<?> type, Deque<Class<? extends Annotation>> processedAnnotations) {
+	/**
+	 * Retrieves an annotation of a specified type from a given class, searching recursively through annotations.
+	 *
+	 * @param searchedAnnotationType the type of the annotation to search for, should not be null
+	 * @param type the class to search for the annotation, should not be null
+	 * @param processedAnnotations a deque to keep track of processed annotations, should not be null
+	 * @param <T> the type of the annotation
+	 * @return the annotation if found, otherwise null
+	 */
+	private static <T extends Annotation> @Nullable T getAnnotation(
+		@Nonnull Class<T> searchedAnnotationType,
+		@Nonnull Class<?> type,
+		@Nonnull Deque<Class<? extends Annotation>> processedAnnotations
+	) {
 		final Annotation[] annotations = type.getAnnotations();
 		for (Annotation annItem : annotations) {
 			if (searchedAnnotationType.isInstance(annItem)) {
@@ -249,7 +292,14 @@ public class ReflectionLookup {
 		return null;
 	}
 
-	private static List<Annotation> expand(Annotation[] annotation) {
+	/**
+	 * Expands the given array of annotations by including all nested annotations.
+	 *
+	 * @param annotation the array of annotations to expand, may be {@code null}
+	 * @return a list of expanded annotations, never {@code null}
+	 */
+	@Nonnull
+	private static List<Annotation> expand(@Nullable Annotation[] annotation) {
 		if (ArrayUtils.isEmpty(annotation)) {
 			return emptyList();
 		} else {
@@ -264,7 +314,16 @@ public class ReflectionLookup {
 		}
 	}
 
-	private static Map<String, PropertyDescriptor> mapGettersAndSetters(Class<?> onClass) {
+	/**
+	 * Maps the getters and setters of a given class to their respective property descriptors.
+	 *
+	 * @param onClass the class to map the getters and setters from
+	 * @return a map of property descriptors, where the keys are the property names and the values are the descriptors
+	 *
+	 * @throws NullPointerException if onClass is null
+	 */
+	@Nonnull
+	private static Map<String, PropertyDescriptor> mapGettersAndSetters(@Nonnull Class<?> onClass) {
 		final Map<String, PropertyDescriptor> result = new LinkedHashMap<>();
 		if (onClass.isRecord()) {
 			final RecordComponent[] recordComponents = onClass.getRecordComponents();
@@ -299,7 +358,16 @@ public class ReflectionLookup {
 		return result;
 	}
 
-	private static Map<ConstructorKey, Constructor<?>> mapConstructors(Class<?> onClass) {
+	/**
+	 * Maps constructors of the given class.
+	 *
+	 * @param onClass the class whose constructors are to be mapped
+	 * @return a map of constructor keys to constructors
+	 * @throws IllegalArgumentException if the source file was not compiled with -parameters option
+	 * @throws NullPointerException if the given class is null
+	 */
+	@Nonnull
+	private static Map<ConstructorKey, Constructor<?>> mapConstructors(@Nonnull Class<?> onClass) {
 		final HashMap<ConstructorKey, Constructor<?>> mappedConstructors = new HashMap<>();
 		for (Constructor<?> constructor : onClass.getConstructors()) {
 			try {
@@ -393,6 +461,7 @@ public class ReflectionLookup {
 	/**
 	 * Finds field on passed class. If field is not found, it traverses through super classes to find it.
 	 */
+	@Nullable
 	private static Field mapField(@Nonnull Class<?> onClass, @Nonnull String propertyName) {
 		try {
 			return onClass.getDeclaredField(propertyName);
@@ -422,9 +491,23 @@ public class ReflectionLookup {
 		} while (examinedClass != null && !Objects.equals(Object.class, examinedClass));
 	}
 
-	private static void processRepeatableAnnotations(Set<Annotation> annotations, Set<Class<?>> alreadyDetectedAnnotations, Set<Class<?>> addedAnnotationsInThisRound, Annotation annotation) {
+	/**
+	 * Processes repeatable annotations within a set.
+	 *
+	 * @param annotations                  the set of annotations to which repeatable annotations might be added
+	 * @param alreadyDetectedAnnotations   the set of annotations that have already been detected
+	 * @param addedAnnotationsInThisRound  the set of annotations that have been added in the current round of processing
+	 * @param annotation                   the annotation being processed
+	 */
+	private static void processRepeatableAnnotations(
+		@Nonnull Set<Annotation> annotations,
+		@Nonnull Set<Class<?>> alreadyDetectedAnnotations,
+		@Nonnull Set<Class<?>> addedAnnotationsInThisRound,
+		@Nonnull Annotation annotation
+	) {
 		final Class<?> containerAnnotation = getRepeatableContainerAnnotation(annotation.annotationType());
-		if (!alreadyDetectedAnnotations.contains(annotation.annotationType()) && (containerAnnotation == null || !alreadyDetectedAnnotations.contains(containerAnnotation))) {
+		if (!alreadyDetectedAnnotations.contains(annotation.annotationType()) &&
+			(containerAnnotation == null || !alreadyDetectedAnnotations.contains(containerAnnotation))) {
 			annotations.add(annotation);
 			addedAnnotationsInThisRound.add(annotation.annotationType());
 			ofNullable(containerAnnotation).ifPresent(addedAnnotationsInThisRound::add);
@@ -433,8 +516,14 @@ public class ReflectionLookup {
 
 	/**
 	 * Registers property descriptor.
+	 *
+	 * @param result        the map where property descriptor will be registered, must not be null
+	 * @param method        the method associated with the property descriptor, must not be null
+	 * @param propertyName  the name of the property, must not be null
+	 * @param isGetter      flag indicating if the method is a getter
+	 * @param propertyField the field associated with the property descriptor, may be null
 	 */
-	private static void registerPropertyDescriptor(Map<String, PropertyDescriptor> result, Method method, String propertyName, boolean isGetter, Field propertyField) {
+	private static void registerPropertyDescriptor(@Nonnull Map<String, PropertyDescriptor> result, @Nonnull Method method, @Nonnull String propertyName, boolean isGetter, @Nullable Field propertyField) {
 		final PropertyDescriptor existingTuple = result.get(propertyName);
 		if (existingTuple == null) {
 			result.put(
@@ -805,6 +894,38 @@ public class ReflectionLookup {
 	/**
 	 * Returns true if method has at least one annotation in the same package as the passed annotation.
 	 */
+	public boolean hasAnnotationInSamePackage(
+		@Nonnull Class<?> onClass,
+		@Nonnull Parameter parameter,
+		@Nonnull Class<? extends Annotation> annotation
+	) {
+		if (Arrays.stream(parameter.getAnnotations())
+			.anyMatch(ann -> Objects.equals(ann.annotationType().getPackage(), annotation.getPackage()))) {
+			return true;
+		} else if (
+			onClass.isRecord() &&
+				Arrays.stream(onClass.getRecordComponents())
+					.filter(it -> Objects.equals(parameter.getName(), it.getName()))
+					.anyMatch(it -> Arrays.stream(it.getAnnotations())
+						.anyMatch(ann -> Objects.equals(ann.annotationType().getPackage(), annotation.getPackage())))
+		) {
+			return true;
+		} else {
+			final Map<String, PropertyDescriptor> properties = mapGettersAndSetters(onClass);
+			final PropertyDescriptor propertyDescriptor = properties.get(parameter.getName());
+			if (propertyDescriptor != null && propertyDescriptor.getter() != null && hasAnnotationInSamePackage(propertyDescriptor.getter(), annotation)) {
+				return true;
+			} else if (propertyDescriptor != null && propertyDescriptor.setter() != null && hasAnnotationInSamePackage(propertyDescriptor.setter(), annotation)) {
+				return true;
+			} else {
+				return propertyDescriptor != null && propertyDescriptor.field() != null && hasAnnotationInSamePackage(propertyDescriptor.field(), annotation);
+			}
+		}
+	}
+
+	/**
+	 * Returns true if method has at least one annotation in the same package as the passed annotation.
+	 */
 	public boolean hasAnnotationForPropertyInSamePackage(@Nonnull Method method, @Nonnull Class<? extends Annotation> annotation) {
 		if (hasAnnotationInSamePackage(method, annotation)) {
 			return true;
@@ -1098,14 +1219,29 @@ public class ReflectionLookup {
 		}
 	}
 
+	/**
+	 * Maps and caches the getters and setters for the given class.
+	 *
+	 * @param onClass the class for which to map and cache getters and setters
+	 * @return a map of property descriptors
+	 * @throws IllegalArgumentException if the provided class is null
+	 */
+	@Nonnull
 	private Map<String, PropertyDescriptor> mapAndCacheGettersAndSetters(@Nonnull Class<?> onClass) {
-		final Map<String, PropertyDescriptor> index = mapGettersAndSetters(onClass);
+		final @Nonnull Map<String, PropertyDescriptor> index = mapGettersAndSetters(onClass);
 		if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
 			propertiesCache.put(onClass, index);
 		}
 		return index;
 	}
 
+	/**
+	 * Maps and caches constructors for the specified class.
+	 *
+	 * @param onClass the class to map and cache constructors for
+	 * @return a map of constructor keys to constructors
+	 */
+	@Nonnull
 	private Map<ConstructorKey, Constructor<?>> mapAndCacheConstructors(@Nonnull Class<?> onClass) {
 		final Map<ConstructorKey, Constructor<?>> cachedResult = constructorCache.get(onClass);
 		if (cachedResult == null) {
@@ -1219,10 +1355,42 @@ public class ReflectionLookup {
 		} while (examinedClass != null && !Objects.equals(Object.class, examinedClass));
 	}
 
-	private record MethodAnnotationKey(String methodName, Annotation annotation) {
+	/**
+	 * Represents a key used for indexing method annotations.
+	 *
+	 * This class is a record that provides a convenient way to store and retrieve
+	 * method annotations. It consists of two properties: the name of the method
+	 * and the annotation associated with the method.
+	 */
+	private record MethodAnnotationKey(@Nonnull String methodName, @Nonnull Annotation annotation) {
 	}
 
-	private record PropertyDescriptor(Field field, Method getter, Method setter) {
+	/**
+	 * Represents a property descriptor that encapsulates information about a property of a class.
+	 *
+	 * <p>
+	 * The {@code PropertyDescriptor} class is a record type that contains the field, getter method, and setter method
+	 * associated with a property.
+	 * </p>
+	 *
+	 * <p>
+	 * This class provides a convenient way to extract information about a property, such as its name, type, and accessors,
+	 * without directly accessing the class's field, getter method, and setter method.
+	 * </p>
+	 *
+	 * <p>
+	 * The {@code PropertyDescriptor} class is immutable and should be used to represent read-only information about a property.
+	 * It is recommended to create a new instance of this class for each property being described.
+	 * </p>
+	 *
+	 * @param field
+	 *            The field associated with the property.
+	 * @param getter
+	 *            The getter method associated with the property, or {@code null} if the property does not have a getter.
+	 * @param setter
+	 *            The setter method associated with the property, or {@code null} if the property does not have a setter.
+	 */
+	private record PropertyDescriptor(@Nullable Field field, @Nullable Method getter, @Nullable Method setter) {
 	}
 
 	/**
@@ -1230,7 +1398,6 @@ public class ReflectionLookup {
 	 *
 	 * @param arguments this SHOULD BE LinkedHashSet implementation or emptySet
 	 */
-
 	private record ConstructorKey(Class<?> type, Set<ArgumentKey> arguments) {
 		@Override
 		public String toString() {
@@ -1245,7 +1412,6 @@ public class ReflectionLookup {
 	/**
 	 * Contains constructor key and its weight (i.e. match with non-assigned properties).
 	 */
-
 	private record WeightedConstructorKey(ConstructorKey constructorKey, long weight) {
 		@Override
 		public String toString() {
@@ -1269,16 +1435,18 @@ public class ReflectionLookup {
 	 */
 	private record MethodAndPackage(
 		@Nonnull Method method,
-		@Nonnull Package annotationPackage) {
+		@Nonnull Package annotationPackage
+	) {
 
 	}
 
 	/**
-	 * Cache key for {@link #hasAnnotationForPropertyInSamePackage(Method, Class)}.
+	 * Cache key for {@link #hasAnnotationInSamePackage(Field, Class)}.
 	 */
 	private record FieldAndPackage(
 		@Nonnull Field field,
-		@Nonnull Package annotationPackage) {
+		@Nonnull Package annotationPackage
+	) {
 
 	}
 

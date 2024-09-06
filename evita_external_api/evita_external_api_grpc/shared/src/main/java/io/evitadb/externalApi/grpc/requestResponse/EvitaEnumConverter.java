@@ -48,8 +48,11 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -63,6 +66,11 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_FAILED;
+import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_FINISHED;
+import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_QUEUED;
+import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_RUNNING;
 
 /**
  * Class contains static methods for converting enums from and to gRPC representation.
@@ -852,6 +860,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts a {@link CaptureArea} to a {@link GrpcCaptureArea}.
+	 *
 	 * @param area The CaptureArea to convert.
 	 * @return The converted GrpcCaptureArea.
 	 */
@@ -882,6 +891,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts an {@link Operation} to a {@link GrpcCaptureOperation}.
+	 *
 	 * @param operation The Operation to convert.
 	 * @return The converted GrpcOperation.
 	 */
@@ -915,6 +925,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts a {@link ContainerType} to a {@link GrpcCaptureContainerType}.
+	 *
 	 * @param containerType The ContainerType to convert.
 	 * @return The converted GrpcCaptureContainerType.
 	 */
@@ -947,6 +958,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts a {@link CaptureContent} to a {@link GrpcCaptureContent}.
+	 *
 	 * @param content The CaptureContent to convert.
 	 * @return The converted GrpcCaptureContent.
 	 */
@@ -960,6 +972,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts a {@link HealthProblem} to a {@link GrpcHealthProblem}.
+	 *
 	 * @param problem The HealthProblem to convert.
 	 * @return The converted GrpcHealthProblem.
 	 */
@@ -975,6 +988,7 @@ public class EvitaEnumConverter {
 
 	/**
 	 * Converts a {@link ReadinessState} to a {@link GrpcReadiness}.
+	 *
 	 * @param readinessState The ReadinessState to convert.
 	 * @return The converted GrpcReadiness.
 	 */
@@ -988,4 +1002,103 @@ public class EvitaEnumConverter {
 			case UNKNOWN -> GrpcReadiness.API_UNKNOWN;
 		};
 	}
+
+	/**
+	 * Converts a {@link TaskSimplifiedState} to a {@link GrpcTaskSimplifiedState}.
+	 *
+	 * @param state the simplified state of the task
+	 * @return the corresponding gRPC task simplified state
+	 */
+	@Nonnull
+	public static GrpcTaskSimplifiedState toGrpcSimplifiedStatus(@Nonnull TaskSimplifiedState state) {
+		return switch (state) {
+			case QUEUED -> TASK_QUEUED;
+			case RUNNING -> TASK_RUNNING;
+			case FAILED -> TASK_FAILED;
+			case FINISHED -> TASK_FINISHED;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcTaskSimplifiedState} to a {@link TaskSimplifiedState}.
+	 *
+	 * @param grpcState the gRPC task simplified state
+	 * @return the corresponding simplified state of the task
+	 */
+	@Nonnull
+	public static TaskSimplifiedState toSimplifiedStatus(@Nonnull GrpcTaskSimplifiedState grpcState) {
+		return switch (grpcState) {
+			case TASK_QUEUED -> TaskSimplifiedState.QUEUED;
+			case TASK_RUNNING -> TaskSimplifiedState.RUNNING;
+			case TASK_FAILED -> TaskSimplifiedState.FAILED;
+			case TASK_FINISHED -> TaskSimplifiedState.FINISHED;
+			case UNRECOGNIZED ->
+				throw new GenericEvitaInternalError("Unrecognized task simplified state: " + grpcState);
+		};
+	}
+
+	/**
+	 * Converts an {@link AttributeInheritanceBehavior} to a {@link GrpcAttributeInheritanceBehavior}.
+	 *
+	 * @param attributeInheritanceBehavior The {@link AttributeInheritanceBehavior} to convert.
+	 * @return The converted {@link GrpcAttributeInheritanceBehavior}.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static GrpcAttributeInheritanceBehavior toGrpcAttributeInheritanceBehavior(@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior) {
+		return switch (attributeInheritanceBehavior) {
+			case INHERIT_ALL_EXCEPT -> GrpcAttributeInheritanceBehavior.INHERIT_ALL_EXCEPT;
+			case INHERIT_ONLY_SPECIFIED -> GrpcAttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcAttributeInheritanceBehavior} to an {@link AttributeInheritanceBehavior}.
+	 *
+	 * @param attributeInheritanceBehavior The {@link GrpcAttributeInheritanceBehavior} to convert.
+	 * @return The converted {@link AttributeInheritanceBehavior}.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static AttributeInheritanceBehavior toAttributeInheritanceBehavior(@Nonnull GrpcAttributeInheritanceBehavior attributeInheritanceBehavior) {
+		return switch (attributeInheritanceBehavior) {
+			case INHERIT_ALL_EXCEPT -> AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT;
+			case INHERIT_ONLY_SPECIFIED -> AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED;
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized attribute inheritance behavior: " + attributeInheritanceBehavior);
+		};
+	}
+
+	/**
+	 * Converts a {@link TaskTrait} to a {@link GrpcTaskTrait}.
+	 *
+	 * @param taskTrait The TaskTrait to convert.
+	 * @return The converted GrpcTaskTrait.
+	 */
+	@Nonnull
+	public static GrpcTaskTrait toGrpcTaskTrait(@Nonnull TaskTrait taskTrait) {
+		return switch (taskTrait) {
+			case CAN_BE_STARTED -> GrpcTaskTrait.TASK_CAN_BE_STARTED;
+			case CAN_BE_CANCELLED -> GrpcTaskTrait.TASK_CAN_BE_CANCELLED;
+			case NEEDS_TO_BE_STOPPED -> GrpcTaskTrait.TASK_NEEDS_TO_BE_STOPPED;
+			default -> throw new GenericEvitaInternalError("Unrecognized task trait: " + taskTrait);
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcTaskTrait} to a {@link TaskTrait}.
+	 *
+	 * @param grpcTaskTrait The GrpcTaskTrait to convert.
+	 * @return The converted TaskTrait.
+	 */
+	@Nonnull
+	public static TaskTrait toTaskTrait(@Nonnull GrpcTaskTrait grpcTaskTrait) {
+		return switch (grpcTaskTrait) {
+			case TASK_CAN_BE_STARTED -> TaskTrait.CAN_BE_STARTED;
+			case TASK_CAN_BE_CANCELLED -> TaskTrait.CAN_BE_CANCELLED;
+			case TASK_NEEDS_TO_BE_STOPPED -> TaskTrait.NEEDS_TO_BE_STOPPED;
+			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized grpc task trait: " + grpcTaskTrait);
+		};
+	}
+
 }

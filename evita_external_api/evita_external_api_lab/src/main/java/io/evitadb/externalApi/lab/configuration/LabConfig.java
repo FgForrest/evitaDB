@@ -74,13 +74,13 @@ public class LabConfig extends AbstractApiConfiguration implements ApiWithSpecif
 	public LabConfig(
 		@Nullable @JsonProperty("enabled") Boolean enabled,
 		@Nonnull @JsonProperty("host") String host,
-		@Nullable @JsonProperty("exposedHost") String exposedHost,
+		@Nullable @JsonProperty("exposeOn") String exposeOn,
 		@Nullable @JsonProperty("tlsMode") String tlsMode,
 		@Nullable @JsonProperty("prefix") String prefix,
 		@Nullable @JsonProperty("allowedOrigins") String allowedOrigins,
 		@Nullable @JsonProperty("gui") GuiConfig gui
 	) {
-		super(enabled, host, exposedHost, tlsMode);
+		super(enabled, host, exposeOn, tlsMode);
 		this.prefix = ofNullable(prefix).orElse(BASE_LAB_PATH);
 		if (allowedOrigins == null) {
 			this.allowedOrigins = null;

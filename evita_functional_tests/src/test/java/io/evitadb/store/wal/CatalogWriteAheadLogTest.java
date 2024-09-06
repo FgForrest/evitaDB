@@ -82,14 +82,15 @@ class CatalogWriteAheadLogTest {
 	void setUp() {
 		// and then write to the WAL a few times
 		final ByteBuffer byteBuffer = ByteBuffer.allocate(200);
-		for (int txSize : txSizes) {
+		for (int i = 0; i < txSizes.length; i++) {
+			final int txSize = txSizes[i];
 			byteBuffer.clear();
-			for (int i = 0; i < txSize; i++) {
-				byteBuffer.put((byte) i);
+			for (int j = 0; j < txSize; j++) {
+				byteBuffer.put((byte) j);
 			}
 
 			final TransactionMutation writtenTransactionMutation = new TransactionMutation(
-				UUIDUtil.randomUUID(), 1L, 2, txSize, OffsetDateTime.MIN
+				UUIDUtil.randomUUID(), 1L + i, 2, txSize, OffsetDateTime.MIN
 			);
 
 			byteBuffer.flip();

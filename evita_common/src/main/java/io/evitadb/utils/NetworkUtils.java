@@ -27,8 +27,6 @@ import io.evitadb.exception.InvalidHostDefinitionException;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.ConnectionPool;
-import okhttp3.Headers;
-import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
@@ -51,6 +49,11 @@ import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * Utility class for network related operations.
@@ -101,7 +104,10 @@ public class NetworkUtils {
 	 * @param url URL to check
 	 * @return true if the URL is reachable and returns some content
 	 */
-	public static boolean isReachable(@Nonnull String url) {
+	public static boolean isReachable(
+		@Nonnull String url,
+		@Nullable Consumer<String> errorConsumer
+	) {
 		try {
 			try (
 				final Response response = getHttpClient().newCall(
@@ -111,9 +117,16 @@ public class NetworkUtils {
 						.build()
 				).execute()
 			) {
+				if (!response.isSuccessful()) {
+					ofNullable(errorConsumer)
+						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code() + " - " + response.message()));
+					return false;
+				}
 				return response.code() == 200;
 			}
 		} catch (IOException e) {
+			ofNullable(errorConsumer)
+				.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " - " + e.getMessage()));
 			return false;
 		}
 	}
@@ -121,7 +134,7 @@ public class NetworkUtils {
 	/**
 	 * Returns content of the URL if it is reachable and returns some content.
 	 *
-	 * @param url URL to check
+	 * @param url         URL to check
 	 * @param method      HTTP method to use
 	 * @param contentType content type to use
 	 * @param body        body to send
@@ -133,31 +146,43 @@ public class NetworkUtils {
 		@Nonnull String url,
 		@Nullable String method,
 		@Nonnull String contentType,
-		@Nullable String body
+		@Nullable String body,
+		@Nullable Consumer<String> errorConsumer
 	) {
 		try {
-			final RequestBody requestBody = Optional.ofNullable(body)
+			final RequestBody requestBody = ofNullable(body)
 				.map(theBody -> RequestBody.create(theBody, MediaType.parse(contentType)))
 				.orElse(null);
 			try (
 				final Response response = getHttpClient().newCall(
-					new Request(
-						HttpUrl.parse(url),
-						Headers.of("Content-Type", contentType),
-						method != null ? method : "GET",
-						requestBody
-					)
+					new Request.Builder()
+						.url(url)
+						.addHeader("Accept", contentType)
+						.addHeader("Content-Type", contentType)
+						.method(method != null ? method : "GET", requestBody)
+						.build()
 				).execute()
 			) {
-				return Optional.of(response.body().string());
+				if (!response.isSuccessful()) {
+					ofNullable(errorConsumer)
+						.ifPresent(it -> it.accept(
+							"Error fetching content from URL: " + url + " HTTP status " + response.code() + (response.message().isBlank() ? "" : " - " + response.message()) + (response.body().contentLength() > 0 ? ": " + readBodyString(response) : ""))
+						);
+					return empty();
+				} else {
+					return of(response.body().string());
+				}
 			}
 		} catch (IOException e) {
-			return Optional.empty();
+			ofNullable(errorConsumer)
+				.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " - " + e.getMessage()));
+			return empty();
 		}
 	}
 
 	/**
 	 * Returns the IP address of the given host.
+	 *
 	 * @param host host to get the IP address for
 	 * @return the IP address of the given host
 	 */
@@ -171,6 +196,20 @@ public class NetworkUtils {
 				"Invalid host definition `" + host + "` in evita server configuration!",
 				e
 			);
+		}
+	}
+
+	/**
+	 * Reads the body string from the given response.
+	 *
+	 * @param response the HTTP response, must not be null
+	 * @return the body of the response as a string, or an error message if an exception occurs, never null
+	 */
+	private static String readBodyString(@Nonnull Response response) {
+		try {
+			return response.body().string();
+		} catch (IOException e) {
+			return "Error reading response body: " + e.getMessage();
 		}
 	}
 

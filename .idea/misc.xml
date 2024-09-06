@@ -24,7 +24,6 @@
         <option value="$PROJECT_DIR$/workaround/roaringBitmap/pom.xml" />
       </set>
     </option>
-    <option name="workspaceImportForciblyTurnedOn" value="true" />
   </component>
   <component name="NullableNotNullManager">
     <option name="myDefaultNullable" value="javax.annotation.Nullable" />

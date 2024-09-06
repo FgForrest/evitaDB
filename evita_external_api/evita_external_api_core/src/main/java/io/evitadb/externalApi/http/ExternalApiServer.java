@@ -385,7 +385,7 @@ public class ExternalApiServer implements AutoCloseable {
 		ConsoleWriter.write(
 			StringUtils.rightPad("API `" + registeredApiProvider.getCode() + "` listening on ", " ", PADDING_START_UP)
 		);
-		final String[] baseUrls = configuration.getBaseUrls(apiOptions.exposedOn());
+		final String[] baseUrls = configuration.getBaseUrls();
 		for (int i = 0; i < baseUrls.length; i++) {
 			final String url = baseUrls[i];
 			if (i > 0) {
@@ -572,6 +572,14 @@ public class ExternalApiServer implements AutoCloseable {
 		PathHandlingService dynamicPathHandlingService = null;
 		MtlsConfiguration mtlsConfiguration = null;
 
+		// list of proxy provider configurations
+		final AbstractApiConfiguration[] proxyConfigs = registeredApiProviders.values()
+			.stream()
+			.filter(ProxyingEndpointProvider.class::isInstance)
+			.map(it -> apiOptions.endpoints().get(it.getCode()))
+			.filter(AbstractApiConfiguration::isEnabled)
+			.toArray(AbstractApiConfiguration[]::new);
+
 		// for each API provider do
 		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
 			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
@@ -618,18 +626,27 @@ public class ExternalApiServer implements AutoCloseable {
 								.map(it -> !it.isEmpty() && it.charAt(0) == '/' ? it.substring(1) : it)
 								.orElse("");
 
+						// decorate the service with security decorator
+						final HttpService service = httpServiceDefinition.service().decorate(
+							new HttpServiceSecurityDecorator(
+								ArrayUtils.mergeArrays(
+									new AbstractApiConfiguration[]{configuration},
+									proxyConfigs
+								)
+							)
+						);
 						if (httpServiceDefinition.pathHandlingMode() == PathHandlingMode.FIXED_PATH_HANDLING) {
 							// if the service knows by itself how to route requests (HttpServiceWithRoutes), collect it
 							// for later registration
 							fixedPathHandlingServices.add(
-								new FixedPathService(servicePath, httpServiceDefinition.service())
+								new FixedPathService(servicePath, service)
 							);
 						} else {
 							// else use path handling service to route requests to the service's own custom router
 							if (dynamicPathHandlingService == null) {
 								dynamicPathHandlingService = new PathHandlingService();
 							}
-							dynamicPathHandlingService.addPrefixPath(servicePath, httpServiceDefinition.service());
+							dynamicPathHandlingService.addPrefixPath(servicePath, service);
 						}
 					}
 				}

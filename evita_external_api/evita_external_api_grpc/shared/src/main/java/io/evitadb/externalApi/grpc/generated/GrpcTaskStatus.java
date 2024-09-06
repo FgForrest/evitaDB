@@ -45,6 +45,8 @@ private static final long serialVersionUID = 0L;
   private GrpcTaskStatus() {
     taskType_ = "";
     taskName_ = "";
+    simplifiedState_ = 0;
+    trait_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -67,6 +69,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -155,11 +158,17 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 64: {
+            int rawValue = input.readEnum();
+
+            simplifiedState_ = rawValue;
+            break;
+          }
+          case 72: {
 
             progress_ = input.readInt32();
             break;
           }
-          case 74: {
+          case 82: {
             com.google.protobuf.StringValue.Builder subBuilder = null;
             if (settings_ != null) {
               subBuilder = settings_.toBuilder();
@@ -172,9 +181,9 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
-          case 82: {
+          case 90: {
             com.google.protobuf.StringValue.Builder subBuilder = null;
-            if (resultCase_ == 10) {
+            if (resultCase_ == 11) {
               subBuilder = ((com.google.protobuf.StringValue) result_).toBuilder();
             }
             result_ =
@@ -183,12 +192,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((com.google.protobuf.StringValue) result_);
               result_ = subBuilder.buildPartial();
             }
-            resultCase_ = 10;
+            resultCase_ = 11;
             break;
           }
-          case 90: {
+          case 98: {
             io.evitadb.externalApi.grpc.generated.GrpcFile.Builder subBuilder = null;
-            if (resultCase_ == 11) {
+            if (resultCase_ == 12) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcFile) result_).toBuilder();
             }
             result_ =
@@ -197,10 +206,10 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcFile) result_);
               result_ = subBuilder.buildPartial();
             }
-            resultCase_ = 11;
+            resultCase_ = 12;
             break;
           }
-          case 98: {
+          case 106: {
             com.google.protobuf.StringValue.Builder subBuilder = null;
             if (exception_ != null) {
               subBuilder = exception_.toBuilder();
@@ -211,6 +220,29 @@ private static final long serialVersionUID = 0L;
               exception_ = subBuilder.buildPartial();
             }
 
+            break;
+          }
+          case 112: {
+            int rawValue = input.readEnum();
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              trait_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            trait_.add(rawValue);
+            break;
+          }
+          case 114: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+                trait_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000001;
+              }
+              trait_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
             break;
           }
           default: {
@@ -228,6 +260,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        trait_ = java.util.Collections.unmodifiableList(trait_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -250,8 +285,8 @@ private static final long serialVersionUID = 0L;
   public enum ResultCase
       implements com.google.protobuf.Internal.EnumLite,
           com.google.protobuf.AbstractMessage.InternalOneOfEnum {
-    TEXT(10),
-    FILE(11),
+    TEXT(11),
+    FILE(12),
     RESULT_NOT_SET(0);
     private final int value;
     private ResultCase(int value) {
@@ -269,8 +304,8 @@ private static final long serialVersionUID = 0L;
 
     public static ResultCase forNumber(int value) {
       switch (value) {
-        case 10: return TEXT;
-        case 11: return FILE;
+        case 11: return TEXT;
+        case 12: return FILE;
         case 0: return RESULT_NOT_SET;
         default: return null;
       }
@@ -291,6 +326,11 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Type of the task (shortName of the task)
+   * Available tasks:
+   * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+   * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+   * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+   * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
    * </pre>
    *
    * <code>string taskType = 1;</code>
@@ -302,7 +342,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       taskType_ = s;
@@ -312,6 +352,11 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Type of the task (shortName of the task)
+   * Available tasks:
+   * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+   * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+   * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+   * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
    * </pre>
    *
    * <code>string taskType = 1;</code>
@@ -322,7 +367,7 @@ private static final long serialVersionUID = 0L;
       getTaskTypeBytes() {
     java.lang.Object ref = taskType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       taskType_ = b;
@@ -348,7 +393,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       taskName_ = s;
@@ -368,7 +413,7 @@ private static final long serialVersionUID = 0L;
       getTaskNameBytes() {
     java.lang.Object ref = taskName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       taskName_ = b;
@@ -568,14 +613,41 @@ private static final long serialVersionUID = 0L;
     return getFinished();
   }
 
-  public static final int PROGRESS_FIELD_NUMBER = 8;
+  public static final int SIMPLIFIEDSTATE_FIELD_NUMBER = 8;
+  private int simplifiedState_;
+  /**
+   * <pre>
+   * Simplified state of the status
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
+   * @return The enum numeric value on the wire for simplifiedState.
+   */
+  @java.lang.Override public int getSimplifiedStateValue() {
+    return simplifiedState_;
+  }
+  /**
+   * <pre>
+   * Simplified state of the status
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
+   * @return The simplifiedState.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState getSimplifiedState() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState result = io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.valueOf(simplifiedState_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.UNRECOGNIZED : result;
+  }
+
+  public static final int PROGRESS_FIELD_NUMBER = 9;
   private int progress_;
   /**
    * <pre>
    * Progress of the task (0-100)
    * </pre>
    *
-   * <code>int32 progress = 8;</code>
+   * <code>int32 progress = 9;</code>
    * @return The progress.
    */
   @java.lang.Override
@@ -583,14 +655,14 @@ private static final long serialVersionUID = 0L;
     return progress_;
   }
 
-  public static final int SETTINGS_FIELD_NUMBER = 9;
+  public static final int SETTINGS_FIELD_NUMBER = 10;
   private com.google.protobuf.StringValue settings_;
   /**
    * <pre>
    * Configuration settings of the task
    * </pre>
    *
-   * <code>.google.protobuf.StringValue settings = 9;</code>
+   * <code>.google.protobuf.StringValue settings = 10;</code>
    * @return Whether the settings field is set.
    */
   @java.lang.Override
@@ -602,7 +674,7 @@ private static final long serialVersionUID = 0L;
    * Configuration settings of the task
    * </pre>
    *
-   * <code>.google.protobuf.StringValue settings = 9;</code>
+   * <code>.google.protobuf.StringValue settings = 10;</code>
    * @return The settings.
    */
   @java.lang.Override
@@ -614,80 +686,80 @@ private static final long serialVersionUID = 0L;
    * Configuration settings of the task
    * </pre>
    *
-   * <code>.google.protobuf.StringValue settings = 9;</code>
+   * <code>.google.protobuf.StringValue settings = 10;</code>
    */
   @java.lang.Override
   public com.google.protobuf.StringValueOrBuilder getSettingsOrBuilder() {
     return getSettings();
   }
 
-  public static final int TEXT_FIELD_NUMBER = 10;
+  public static final int TEXT_FIELD_NUMBER = 11;
   /**
    * <pre>
    * Textual result of the task
    * </pre>
    *
-   * <code>.google.protobuf.StringValue text = 10;</code>
+   * <code>.google.protobuf.StringValue text = 11;</code>
    * @return Whether the text field is set.
    */
   @java.lang.Override
   public boolean hasText() {
-    return resultCase_ == 10;
-  }
-  /**
-   * <pre>
-   * Textual result of the task
-   * </pre>
-   *
-   * <code>.google.protobuf.StringValue text = 10;</code>
-   * @return The text.
-   */
-  @java.lang.Override
-  public com.google.protobuf.StringValue getText() {
-    if (resultCase_ == 10) {
-       return (com.google.protobuf.StringValue) result_;
-    }
-    return com.google.protobuf.StringValue.getDefaultInstance();
-  }
-  /**
-   * <pre>
-   * Textual result of the task
-   * </pre>
-   *
-   * <code>.google.protobuf.StringValue text = 10;</code>
-   */
-  @java.lang.Override
-  public com.google.protobuf.StringValueOrBuilder getTextOrBuilder() {
-    if (resultCase_ == 10) {
-       return (com.google.protobuf.StringValue) result_;
-    }
-    return com.google.protobuf.StringValue.getDefaultInstance();
-  }
-
-  public static final int FILE_FIELD_NUMBER = 11;
-  /**
-   * <pre>
-   * File that was created by the task and is available for fetching
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
-   * @return Whether the file field is set.
-   */
-  @java.lang.Override
-  public boolean hasFile() {
     return resultCase_ == 11;
   }
   /**
    * <pre>
+   * Textual result of the task
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue text = 11;</code>
+   * @return The text.
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getText() {
+    if (resultCase_ == 11) {
+       return (com.google.protobuf.StringValue) result_;
+    }
+    return com.google.protobuf.StringValue.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Textual result of the task
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue text = 11;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getTextOrBuilder() {
+    if (resultCase_ == 11) {
+       return (com.google.protobuf.StringValue) result_;
+    }
+    return com.google.protobuf.StringValue.getDefaultInstance();
+  }
+
+  public static final int FILE_FIELD_NUMBER = 12;
+  /**
+   * <pre>
    * File that was created by the task and is available for fetching
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
+   * @return Whether the file field is set.
+   */
+  @java.lang.Override
+  public boolean hasFile() {
+    return resultCase_ == 12;
+  }
+  /**
+   * <pre>
+   * File that was created by the task and is available for fetching
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
    * @return The file.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFile getFile() {
-    if (resultCase_ == 11) {
+    if (resultCase_ == 12) {
        return (io.evitadb.externalApi.grpc.generated.GrpcFile) result_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance();
@@ -697,24 +769,24 @@ private static final long serialVersionUID = 0L;
    * File that was created by the task and is available for fetching
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder getFileOrBuilder() {
-    if (resultCase_ == 11) {
+    if (resultCase_ == 12) {
        return (io.evitadb.externalApi.grpc.generated.GrpcFile) result_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance();
   }
 
-  public static final int EXCEPTION_FIELD_NUMBER = 12;
+  public static final int EXCEPTION_FIELD_NUMBER = 13;
   private com.google.protobuf.StringValue exception_;
   /**
    * <pre>
    * Exception that occurred during the task execution
    * </pre>
    *
-   * <code>.google.protobuf.StringValue exception = 12;</code>
+   * <code>.google.protobuf.StringValue exception = 13;</code>
    * @return Whether the exception field is set.
    */
   @java.lang.Override
@@ -726,7 +798,7 @@ private static final long serialVersionUID = 0L;
    * Exception that occurred during the task execution
    * </pre>
    *
-   * <code>.google.protobuf.StringValue exception = 12;</code>
+   * <code>.google.protobuf.StringValue exception = 13;</code>
    * @return The exception.
    */
   @java.lang.Override
@@ -738,12 +810,90 @@ private static final long serialVersionUID = 0L;
    * Exception that occurred during the task execution
    * </pre>
    *
-   * <code>.google.protobuf.StringValue exception = 12;</code>
+   * <code>.google.protobuf.StringValue exception = 13;</code>
    */
   @java.lang.Override
   public com.google.protobuf.StringValueOrBuilder getExceptionOrBuilder() {
     return getException();
   }
+
+  public static final int TRAIT_FIELD_NUMBER = 14;
+  private java.util.List<java.lang.Integer> trait_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskTrait> trait_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskTrait>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcTaskTrait convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcTaskTrait result = io.evitadb.externalApi.grpc.generated.GrpcTaskTrait.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTaskTrait.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return A list containing the trait.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskTrait> getTraitList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskTrait>(trait_, trait_converter_);
+  }
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return The count of trait.
+   */
+  @java.lang.Override
+  public int getTraitCount() {
+    return trait_.size();
+  }
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @param index The index of the element to return.
+   * @return The trait at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcTaskTrait getTrait(int index) {
+    return trait_converter_.convert(trait_.get(index));
+  }
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return A list containing the enum numeric values on the wire for trait.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getTraitValueList() {
+    return trait_;
+  }
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of trait at the given index.
+   */
+  @java.lang.Override
+  public int getTraitValue(int index) {
+    return trait_.get(index);
+  }
+  private int traitMemoizedSerializedSize;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
@@ -759,6 +909,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(taskType_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, taskType_);
     }
@@ -780,20 +931,30 @@ private static final long serialVersionUID = 0L;
     if (finished_ != null) {
       output.writeMessage(7, getFinished());
     }
+    if (simplifiedState_ != io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_QUEUED.getNumber()) {
+      output.writeEnum(8, simplifiedState_);
+    }
     if (progress_ != 0) {
-      output.writeInt32(8, progress_);
+      output.writeInt32(9, progress_);
     }
     if (settings_ != null) {
-      output.writeMessage(9, getSettings());
-    }
-    if (resultCase_ == 10) {
-      output.writeMessage(10, (com.google.protobuf.StringValue) result_);
+      output.writeMessage(10, getSettings());
     }
     if (resultCase_ == 11) {
-      output.writeMessage(11, (io.evitadb.externalApi.grpc.generated.GrpcFile) result_);
+      output.writeMessage(11, (com.google.protobuf.StringValue) result_);
+    }
+    if (resultCase_ == 12) {
+      output.writeMessage(12, (io.evitadb.externalApi.grpc.generated.GrpcFile) result_);
     }
     if (exception_ != null) {
-      output.writeMessage(12, getException());
+      output.writeMessage(13, getException());
+    }
+    if (getTraitList().size() > 0) {
+      output.writeUInt32NoTag(114);
+      output.writeUInt32NoTag(traitMemoizedSerializedSize);
+    }
+    for (int i = 0; i < trait_.size(); i++) {
+      output.writeEnumNoTag(trait_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -830,25 +991,41 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(7, getFinished());
     }
+    if (simplifiedState_ != io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_QUEUED.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(8, simplifiedState_);
+    }
     if (progress_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(8, progress_);
+        .computeInt32Size(9, progress_);
     }
     if (settings_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(9, getSettings());
-    }
-    if (resultCase_ == 10) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(10, (com.google.protobuf.StringValue) result_);
+        .computeMessageSize(10, getSettings());
     }
     if (resultCase_ == 11) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(11, (io.evitadb.externalApi.grpc.generated.GrpcFile) result_);
+        .computeMessageSize(11, (com.google.protobuf.StringValue) result_);
+    }
+    if (resultCase_ == 12) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(12, (io.evitadb.externalApi.grpc.generated.GrpcFile) result_);
     }
     if (exception_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(12, getException());
+        .computeMessageSize(13, getException());
+    }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < trait_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(trait_.get(i));
+      }
+      size += dataSize;
+      if (!getTraitList().isEmpty()) {  size += 1;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }traitMemoizedSerializedSize = dataSize;
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -894,6 +1071,7 @@ private static final long serialVersionUID = 0L;
       if (!getFinished()
           .equals(other.getFinished())) return false;
     }
+    if (simplifiedState_ != other.simplifiedState_) return false;
     if (getProgress()
         != other.getProgress()) return false;
     if (hasSettings() != other.hasSettings()) return false;
@@ -906,13 +1084,14 @@ private static final long serialVersionUID = 0L;
       if (!getException()
           .equals(other.getException())) return false;
     }
+    if (!trait_.equals(other.trait_)) return false;
     if (!getResultCase().equals(other.getResultCase())) return false;
     switch (resultCase_) {
-      case 10:
+      case 11:
         if (!getText()
             .equals(other.getText())) return false;
         break;
-      case 11:
+      case 12:
         if (!getFile()
             .equals(other.getFile())) return false;
         break;
@@ -954,6 +1133,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + FINISHED_FIELD_NUMBER;
       hash = (53 * hash) + getFinished().hashCode();
     }
+    hash = (37 * hash) + SIMPLIFIEDSTATE_FIELD_NUMBER;
+    hash = (53 * hash) + simplifiedState_;
     hash = (37 * hash) + PROGRESS_FIELD_NUMBER;
     hash = (53 * hash) + getProgress();
     if (hasSettings()) {
@@ -964,12 +1145,16 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + EXCEPTION_FIELD_NUMBER;
       hash = (53 * hash) + getException().hashCode();
     }
+    if (getTraitCount() > 0) {
+      hash = (37 * hash) + TRAIT_FIELD_NUMBER;
+      hash = (53 * hash) + trait_.hashCode();
+    }
     switch (resultCase_) {
-      case 10:
+      case 11:
         hash = (37 * hash) + TEXT_FIELD_NUMBER;
         hash = (53 * hash) + getText().hashCode();
         break;
-      case 11:
+      case 12:
         hash = (37 * hash) + FILE_FIELD_NUMBER;
         hash = (53 * hash) + getFile().hashCode();
         break;
@@ -1147,6 +1332,8 @@ private static final long serialVersionUID = 0L;
         finished_ = null;
         finishedBuilder_ = null;
       }
+      simplifiedState_ = 0;
+
       progress_ = 0;
 
       if (settingsBuilder_ == null) {
@@ -1161,6 +1348,8 @@ private static final long serialVersionUID = 0L;
         exception_ = null;
         exceptionBuilder_ = null;
       }
+      trait_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
       resultCase_ = 0;
       result_ = null;
       return this;
@@ -1189,6 +1378,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcTaskStatus result = new io.evitadb.externalApi.grpc.generated.GrpcTaskStatus(this);
+      int from_bitField0_ = bitField0_;
       result.taskType_ = taskType_;
       result.taskName_ = taskName_;
       if (taskIdBuilder_ == null) {
@@ -1216,20 +1406,21 @@ private static final long serialVersionUID = 0L;
       } else {
         result.finished_ = finishedBuilder_.build();
       }
+      result.simplifiedState_ = simplifiedState_;
       result.progress_ = progress_;
       if (settingsBuilder_ == null) {
         result.settings_ = settings_;
       } else {
         result.settings_ = settingsBuilder_.build();
       }
-      if (resultCase_ == 10) {
+      if (resultCase_ == 11) {
         if (textBuilder_ == null) {
           result.result_ = result_;
         } else {
           result.result_ = textBuilder_.build();
         }
       }
-      if (resultCase_ == 11) {
+      if (resultCase_ == 12) {
         if (fileBuilder_ == null) {
           result.result_ = result_;
         } else {
@@ -1241,6 +1432,11 @@ private static final long serialVersionUID = 0L;
       } else {
         result.exception_ = exceptionBuilder_.build();
       }
+      if (((bitField0_ & 0x00000001) != 0)) {
+        trait_ = java.util.Collections.unmodifiableList(trait_);
+        bitField0_ = (bitField0_ & ~0x00000001);
+      }
+      result.trait_ = trait_;
       result.resultCase_ = resultCase_;
       onBuilt();
       return result;
@@ -1313,6 +1509,9 @@ private static final long serialVersionUID = 0L;
       if (other.hasFinished()) {
         mergeFinished(other.getFinished());
       }
+      if (other.simplifiedState_ != 0) {
+        setSimplifiedStateValue(other.getSimplifiedStateValue());
+      }
       if (other.getProgress() != 0) {
         setProgress(other.getProgress());
       }
@@ -1321,6 +1520,16 @@ private static final long serialVersionUID = 0L;
       }
       if (other.hasException()) {
         mergeException(other.getException());
+      }
+      if (!other.trait_.isEmpty()) {
+        if (trait_.isEmpty()) {
+          trait_ = other.trait_;
+          bitField0_ = (bitField0_ & ~0x00000001);
+        } else {
+          ensureTraitIsMutable();
+          trait_.addAll(other.trait_);
+        }
+        onChanged();
       }
       switch (other.getResultCase()) {
         case TEXT: {
@@ -1378,11 +1587,17 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private int bitField0_;
 
     private java.lang.Object taskType_ = "";
     /**
      * <pre>
      * Type of the task (shortName of the task)
+     * Available tasks:
+     * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+     * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+     * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+     * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
      * </pre>
      *
      * <code>string taskType = 1;</code>
@@ -1403,6 +1618,11 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Type of the task (shortName of the task)
+     * Available tasks:
+     * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+     * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+     * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+     * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
      * </pre>
      *
      * <code>string taskType = 1;</code>
@@ -1412,7 +1632,7 @@ private static final long serialVersionUID = 0L;
         getTaskTypeBytes() {
       java.lang.Object ref = taskType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         taskType_ = b;
@@ -1424,6 +1644,11 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Type of the task (shortName of the task)
+     * Available tasks:
+     * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+     * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+     * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+     * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
      * </pre>
      *
      * <code>string taskType = 1;</code>
@@ -1435,7 +1660,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       taskType_ = value;
       onChanged();
       return this;
@@ -1443,13 +1668,18 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Type of the task (shortName of the task)
+     * Available tasks:
+     * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+     * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+     * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+     * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
      * </pre>
      *
      * <code>string taskType = 1;</code>
      * @return This builder for chaining.
      */
     public Builder clearTaskType() {
-      
+
       taskType_ = getDefaultInstance().getTaskType();
       onChanged();
       return this;
@@ -1457,6 +1687,11 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Type of the task (shortName of the task)
+     * Available tasks:
+     * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+     * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+     * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+     * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
      * </pre>
      *
      * <code>string taskType = 1;</code>
@@ -1469,7 +1704,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       taskType_ = value;
       onChanged();
       return this;
@@ -1508,7 +1743,7 @@ private static final long serialVersionUID = 0L;
         getTaskNameBytes() {
       java.lang.Object ref = taskName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         taskName_ = b;
@@ -1531,7 +1766,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       taskName_ = value;
       onChanged();
       return this;
@@ -1545,7 +1780,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearTaskName() {
-      
+
       taskName_ = getDefaultInstance().getTaskName();
       onChanged();
       return this;
@@ -1565,7 +1800,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       taskName_ = value;
       onChanged();
       return this;
@@ -1686,7 +1921,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getTaskIdBuilder() {
-      
+
       onChanged();
       return getTaskIdFieldBuilder().getBuilder();
     }
@@ -1713,7 +1948,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
         getTaskIdFieldBuilder() {
       if (taskIdBuilder_ == null) {
         taskIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1841,7 +2076,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
      */
     public com.google.protobuf.StringValue.Builder getCatalogNameBuilder() {
-      
+
       onChanged();
       return getCatalogNameFieldBuilder().getBuilder();
     }
@@ -1868,7 +2103,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getCatalogNameFieldBuilder() {
       if (catalogNameBuilder_ == null) {
         catalogNameBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1996,7 +2231,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getIssuedBuilder() {
-      
+
       onChanged();
       return getIssuedFieldBuilder().getBuilder();
     }
@@ -2023,7 +2258,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getIssuedFieldBuilder() {
       if (issuedBuilder_ == null) {
         issuedBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2151,7 +2386,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getStartedBuilder() {
-      
+
       onChanged();
       return getStartedFieldBuilder().getBuilder();
     }
@@ -2178,7 +2413,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getStartedFieldBuilder() {
       if (startedBuilder_ == null) {
         startedBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2306,7 +2541,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getFinishedBuilder() {
-      
+
       onChanged();
       return getFinishedFieldBuilder().getBuilder();
     }
@@ -2333,7 +2568,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getFinishedFieldBuilder() {
       if (finishedBuilder_ == null) {
         finishedBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2346,13 +2581,87 @@ private static final long serialVersionUID = 0L;
       return finishedBuilder_;
     }
 
+    private int simplifiedState_ = 0;
+    /**
+     * <pre>
+     * Simplified state of the status
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
+     * @return The enum numeric value on the wire for simplifiedState.
+     */
+    @java.lang.Override public int getSimplifiedStateValue() {
+      return simplifiedState_;
+    }
+    /**
+     * <pre>
+     * Simplified state of the status
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
+     * @param value The enum numeric value on the wire for simplifiedState to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSimplifiedStateValue(int value) {
+
+      simplifiedState_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Simplified state of the status
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
+     * @return The simplifiedState.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState getSimplifiedState() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState result = io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.valueOf(simplifiedState_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * Simplified state of the status
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
+     * @param value The simplifiedState to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSimplifiedState(io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+
+      simplifiedState_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Simplified state of the status
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearSimplifiedState() {
+
+      simplifiedState_ = 0;
+      onChanged();
+      return this;
+    }
+
     private int progress_ ;
     /**
      * <pre>
      * Progress of the task (0-100)
      * </pre>
      *
-     * <code>int32 progress = 8;</code>
+     * <code>int32 progress = 9;</code>
      * @return The progress.
      */
     @java.lang.Override
@@ -2364,12 +2673,12 @@ private static final long serialVersionUID = 0L;
      * Progress of the task (0-100)
      * </pre>
      *
-     * <code>int32 progress = 8;</code>
+     * <code>int32 progress = 9;</code>
      * @param value The progress to set.
      * @return This builder for chaining.
      */
     public Builder setProgress(int value) {
-      
+
       progress_ = value;
       onChanged();
       return this;
@@ -2379,11 +2688,11 @@ private static final long serialVersionUID = 0L;
      * Progress of the task (0-100)
      * </pre>
      *
-     * <code>int32 progress = 8;</code>
+     * <code>int32 progress = 9;</code>
      * @return This builder for chaining.
      */
     public Builder clearProgress() {
-      
+
       progress_ = 0;
       onChanged();
       return this;
@@ -2397,7 +2706,7 @@ private static final long serialVersionUID = 0L;
      * Configuration settings of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue settings = 9;</code>
+     * <code>.google.protobuf.StringValue settings = 10;</code>
      * @return Whether the settings field is set.
      */
     public boolean hasSettings() {
@@ -2408,7 +2717,7 @@ private static final long serialVersionUID = 0L;
      * Configuration settings of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue settings = 9;</code>
+     * <code>.google.protobuf.StringValue settings = 10;</code>
      * @return The settings.
      */
     public com.google.protobuf.StringValue getSettings() {
@@ -2423,7 +2732,7 @@ private static final long serialVersionUID = 0L;
      * Configuration settings of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue settings = 9;</code>
+     * <code>.google.protobuf.StringValue settings = 10;</code>
      */
     public Builder setSettings(com.google.protobuf.StringValue value) {
       if (settingsBuilder_ == null) {
@@ -2443,7 +2752,7 @@ private static final long serialVersionUID = 0L;
      * Configuration settings of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue settings = 9;</code>
+     * <code>.google.protobuf.StringValue settings = 10;</code>
      */
     public Builder setSettings(
         com.google.protobuf.StringValue.Builder builderForValue) {
@@ -2461,7 +2770,7 @@ private static final long serialVersionUID = 0L;
      * Configuration settings of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue settings = 9;</code>
+     * <code>.google.protobuf.StringValue settings = 10;</code>
      */
     public Builder mergeSettings(com.google.protobuf.StringValue value) {
       if (settingsBuilder_ == null) {
@@ -2483,7 +2792,7 @@ private static final long serialVersionUID = 0L;
      * Configuration settings of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue settings = 9;</code>
+     * <code>.google.protobuf.StringValue settings = 10;</code>
      */
     public Builder clearSettings() {
       if (settingsBuilder_ == null) {
@@ -2501,10 +2810,10 @@ private static final long serialVersionUID = 0L;
      * Configuration settings of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue settings = 9;</code>
+     * <code>.google.protobuf.StringValue settings = 10;</code>
      */
     public com.google.protobuf.StringValue.Builder getSettingsBuilder() {
-      
+
       onChanged();
       return getSettingsFieldBuilder().getBuilder();
     }
@@ -2513,7 +2822,7 @@ private static final long serialVersionUID = 0L;
      * Configuration settings of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue settings = 9;</code>
+     * <code>.google.protobuf.StringValue settings = 10;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getSettingsOrBuilder() {
       if (settingsBuilder_ != null) {
@@ -2528,10 +2837,10 @@ private static final long serialVersionUID = 0L;
      * Configuration settings of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue settings = 9;</code>
+     * <code>.google.protobuf.StringValue settings = 10;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getSettingsFieldBuilder() {
       if (settingsBuilder_ == null) {
         settingsBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2551,30 +2860,30 @@ private static final long serialVersionUID = 0L;
      * Textual result of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue text = 10;</code>
+     * <code>.google.protobuf.StringValue text = 11;</code>
      * @return Whether the text field is set.
      */
     @java.lang.Override
     public boolean hasText() {
-      return resultCase_ == 10;
+      return resultCase_ == 11;
     }
     /**
      * <pre>
      * Textual result of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue text = 10;</code>
+     * <code>.google.protobuf.StringValue text = 11;</code>
      * @return The text.
      */
     @java.lang.Override
     public com.google.protobuf.StringValue getText() {
       if (textBuilder_ == null) {
-        if (resultCase_ == 10) {
+        if (resultCase_ == 11) {
           return (com.google.protobuf.StringValue) result_;
         }
         return com.google.protobuf.StringValue.getDefaultInstance();
       } else {
-        if (resultCase_ == 10) {
+        if (resultCase_ == 11) {
           return textBuilder_.getMessage();
         }
         return com.google.protobuf.StringValue.getDefaultInstance();
@@ -2585,7 +2894,7 @@ private static final long serialVersionUID = 0L;
      * Textual result of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue text = 10;</code>
+     * <code>.google.protobuf.StringValue text = 11;</code>
      */
     public Builder setText(com.google.protobuf.StringValue value) {
       if (textBuilder_ == null) {
@@ -2597,7 +2906,7 @@ private static final long serialVersionUID = 0L;
       } else {
         textBuilder_.setMessage(value);
       }
-      resultCase_ = 10;
+      resultCase_ = 11;
       return this;
     }
     /**
@@ -2605,7 +2914,7 @@ private static final long serialVersionUID = 0L;
      * Textual result of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue text = 10;</code>
+     * <code>.google.protobuf.StringValue text = 11;</code>
      */
     public Builder setText(
         com.google.protobuf.StringValue.Builder builderForValue) {
@@ -2615,7 +2924,7 @@ private static final long serialVersionUID = 0L;
       } else {
         textBuilder_.setMessage(builderForValue.build());
       }
-      resultCase_ = 10;
+      resultCase_ = 11;
       return this;
     }
     /**
@@ -2623,11 +2932,11 @@ private static final long serialVersionUID = 0L;
      * Textual result of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue text = 10;</code>
+     * <code>.google.protobuf.StringValue text = 11;</code>
      */
     public Builder mergeText(com.google.protobuf.StringValue value) {
       if (textBuilder_ == null) {
-        if (resultCase_ == 10 &&
+        if (resultCase_ == 11 &&
             result_ != com.google.protobuf.StringValue.getDefaultInstance()) {
           result_ = com.google.protobuf.StringValue.newBuilder((com.google.protobuf.StringValue) result_)
               .mergeFrom(value).buildPartial();
@@ -2636,12 +2945,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (resultCase_ == 10) {
+        if (resultCase_ == 11) {
           textBuilder_.mergeFrom(value);
         }
         textBuilder_.setMessage(value);
       }
-      resultCase_ = 10;
+      resultCase_ = 11;
       return this;
     }
     /**
@@ -2649,17 +2958,17 @@ private static final long serialVersionUID = 0L;
      * Textual result of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue text = 10;</code>
+     * <code>.google.protobuf.StringValue text = 11;</code>
      */
     public Builder clearText() {
       if (textBuilder_ == null) {
-        if (resultCase_ == 10) {
+        if (resultCase_ == 11) {
           resultCase_ = 0;
           result_ = null;
           onChanged();
         }
       } else {
-        if (resultCase_ == 10) {
+        if (resultCase_ == 11) {
           resultCase_ = 0;
           result_ = null;
         }
@@ -2672,7 +2981,7 @@ private static final long serialVersionUID = 0L;
      * Textual result of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue text = 10;</code>
+     * <code>.google.protobuf.StringValue text = 11;</code>
      */
     public com.google.protobuf.StringValue.Builder getTextBuilder() {
       return getTextFieldBuilder().getBuilder();
@@ -2682,14 +2991,14 @@ private static final long serialVersionUID = 0L;
      * Textual result of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue text = 10;</code>
+     * <code>.google.protobuf.StringValue text = 11;</code>
      */
     @java.lang.Override
     public com.google.protobuf.StringValueOrBuilder getTextOrBuilder() {
-      if ((resultCase_ == 10) && (textBuilder_ != null)) {
+      if ((resultCase_ == 11) && (textBuilder_ != null)) {
         return textBuilder_.getMessageOrBuilder();
       } else {
-        if (resultCase_ == 10) {
+        if (resultCase_ == 11) {
           return (com.google.protobuf.StringValue) result_;
         }
         return com.google.protobuf.StringValue.getDefaultInstance();
@@ -2700,13 +3009,13 @@ private static final long serialVersionUID = 0L;
      * Textual result of the task
      * </pre>
      *
-     * <code>.google.protobuf.StringValue text = 10;</code>
+     * <code>.google.protobuf.StringValue text = 11;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getTextFieldBuilder() {
       if (textBuilder_ == null) {
-        if (!(resultCase_ == 10)) {
+        if (!(resultCase_ == 11)) {
           result_ = com.google.protobuf.StringValue.getDefaultInstance();
         }
         textBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2716,7 +3025,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         result_ = null;
       }
-      resultCase_ = 10;
+      resultCase_ = 11;
       onChanged();;
       return textBuilder_;
     }
@@ -2728,30 +3037,30 @@ private static final long serialVersionUID = 0L;
      * File that was created by the task and is available for fetching
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
      * @return Whether the file field is set.
      */
     @java.lang.Override
     public boolean hasFile() {
-      return resultCase_ == 11;
+      return resultCase_ == 12;
     }
     /**
      * <pre>
      * File that was created by the task and is available for fetching
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
      * @return The file.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFile getFile() {
       if (fileBuilder_ == null) {
-        if (resultCase_ == 11) {
+        if (resultCase_ == 12) {
           return (io.evitadb.externalApi.grpc.generated.GrpcFile) result_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance();
       } else {
-        if (resultCase_ == 11) {
+        if (resultCase_ == 12) {
           return fileBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance();
@@ -2762,7 +3071,7 @@ private static final long serialVersionUID = 0L;
      * File that was created by the task and is available for fetching
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
      */
     public Builder setFile(io.evitadb.externalApi.grpc.generated.GrpcFile value) {
       if (fileBuilder_ == null) {
@@ -2774,7 +3083,7 @@ private static final long serialVersionUID = 0L;
       } else {
         fileBuilder_.setMessage(value);
       }
-      resultCase_ = 11;
+      resultCase_ = 12;
       return this;
     }
     /**
@@ -2782,7 +3091,7 @@ private static final long serialVersionUID = 0L;
      * File that was created by the task and is available for fetching
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
      */
     public Builder setFile(
         io.evitadb.externalApi.grpc.generated.GrpcFile.Builder builderForValue) {
@@ -2792,7 +3101,7 @@ private static final long serialVersionUID = 0L;
       } else {
         fileBuilder_.setMessage(builderForValue.build());
       }
-      resultCase_ = 11;
+      resultCase_ = 12;
       return this;
     }
     /**
@@ -2800,11 +3109,11 @@ private static final long serialVersionUID = 0L;
      * File that was created by the task and is available for fetching
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
      */
     public Builder mergeFile(io.evitadb.externalApi.grpc.generated.GrpcFile value) {
       if (fileBuilder_ == null) {
-        if (resultCase_ == 11 &&
+        if (resultCase_ == 12 &&
             result_ != io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance()) {
           result_ = io.evitadb.externalApi.grpc.generated.GrpcFile.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcFile) result_)
               .mergeFrom(value).buildPartial();
@@ -2813,12 +3122,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (resultCase_ == 11) {
+        if (resultCase_ == 12) {
           fileBuilder_.mergeFrom(value);
         }
         fileBuilder_.setMessage(value);
       }
-      resultCase_ = 11;
+      resultCase_ = 12;
       return this;
     }
     /**
@@ -2826,17 +3135,17 @@ private static final long serialVersionUID = 0L;
      * File that was created by the task and is available for fetching
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
      */
     public Builder clearFile() {
       if (fileBuilder_ == null) {
-        if (resultCase_ == 11) {
+        if (resultCase_ == 12) {
           resultCase_ = 0;
           result_ = null;
           onChanged();
         }
       } else {
-        if (resultCase_ == 11) {
+        if (resultCase_ == 12) {
           resultCase_ = 0;
           result_ = null;
         }
@@ -2849,7 +3158,7 @@ private static final long serialVersionUID = 0L;
      * File that was created by the task and is available for fetching
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFile.Builder getFileBuilder() {
       return getFileFieldBuilder().getBuilder();
@@ -2859,14 +3168,14 @@ private static final long serialVersionUID = 0L;
      * File that was created by the task and is available for fetching
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder getFileOrBuilder() {
-      if ((resultCase_ == 11) && (fileBuilder_ != null)) {
+      if ((resultCase_ == 12) && (fileBuilder_ != null)) {
         return fileBuilder_.getMessageOrBuilder();
       } else {
-        if (resultCase_ == 11) {
+        if (resultCase_ == 12) {
           return (io.evitadb.externalApi.grpc.generated.GrpcFile) result_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance();
@@ -2877,13 +3186,13 @@ private static final long serialVersionUID = 0L;
      * File that was created by the task and is available for fetching
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcFile, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder, io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcFile, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder, io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder>
         getFileFieldBuilder() {
       if (fileBuilder_ == null) {
-        if (!(resultCase_ == 11)) {
+        if (!(resultCase_ == 12)) {
           result_ = io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance();
         }
         fileBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2893,7 +3202,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         result_ = null;
       }
-      resultCase_ = 11;
+      resultCase_ = 12;
       onChanged();;
       return fileBuilder_;
     }
@@ -2906,7 +3215,7 @@ private static final long serialVersionUID = 0L;
      * Exception that occurred during the task execution
      * </pre>
      *
-     * <code>.google.protobuf.StringValue exception = 12;</code>
+     * <code>.google.protobuf.StringValue exception = 13;</code>
      * @return Whether the exception field is set.
      */
     public boolean hasException() {
@@ -2917,7 +3226,7 @@ private static final long serialVersionUID = 0L;
      * Exception that occurred during the task execution
      * </pre>
      *
-     * <code>.google.protobuf.StringValue exception = 12;</code>
+     * <code>.google.protobuf.StringValue exception = 13;</code>
      * @return The exception.
      */
     public com.google.protobuf.StringValue getException() {
@@ -2932,7 +3241,7 @@ private static final long serialVersionUID = 0L;
      * Exception that occurred during the task execution
      * </pre>
      *
-     * <code>.google.protobuf.StringValue exception = 12;</code>
+     * <code>.google.protobuf.StringValue exception = 13;</code>
      */
     public Builder setException(com.google.protobuf.StringValue value) {
       if (exceptionBuilder_ == null) {
@@ -2952,7 +3261,7 @@ private static final long serialVersionUID = 0L;
      * Exception that occurred during the task execution
      * </pre>
      *
-     * <code>.google.protobuf.StringValue exception = 12;</code>
+     * <code>.google.protobuf.StringValue exception = 13;</code>
      */
     public Builder setException(
         com.google.protobuf.StringValue.Builder builderForValue) {
@@ -2970,7 +3279,7 @@ private static final long serialVersionUID = 0L;
      * Exception that occurred during the task execution
      * </pre>
      *
-     * <code>.google.protobuf.StringValue exception = 12;</code>
+     * <code>.google.protobuf.StringValue exception = 13;</code>
      */
     public Builder mergeException(com.google.protobuf.StringValue value) {
       if (exceptionBuilder_ == null) {
@@ -2992,7 +3301,7 @@ private static final long serialVersionUID = 0L;
      * Exception that occurred during the task execution
      * </pre>
      *
-     * <code>.google.protobuf.StringValue exception = 12;</code>
+     * <code>.google.protobuf.StringValue exception = 13;</code>
      */
     public Builder clearException() {
       if (exceptionBuilder_ == null) {
@@ -3010,10 +3319,10 @@ private static final long serialVersionUID = 0L;
      * Exception that occurred during the task execution
      * </pre>
      *
-     * <code>.google.protobuf.StringValue exception = 12;</code>
+     * <code>.google.protobuf.StringValue exception = 13;</code>
      */
     public com.google.protobuf.StringValue.Builder getExceptionBuilder() {
-      
+
       onChanged();
       return getExceptionFieldBuilder().getBuilder();
     }
@@ -3022,7 +3331,7 @@ private static final long serialVersionUID = 0L;
      * Exception that occurred during the task execution
      * </pre>
      *
-     * <code>.google.protobuf.StringValue exception = 12;</code>
+     * <code>.google.protobuf.StringValue exception = 13;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getExceptionOrBuilder() {
       if (exceptionBuilder_ != null) {
@@ -3037,10 +3346,10 @@ private static final long serialVersionUID = 0L;
      * Exception that occurred during the task execution
      * </pre>
      *
-     * <code>.google.protobuf.StringValue exception = 12;</code>
+     * <code>.google.protobuf.StringValue exception = 13;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getExceptionFieldBuilder() {
       if (exceptionBuilder_ == null) {
         exceptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3051,6 +3360,194 @@ private static final long serialVersionUID = 0L;
         exception_ = null;
       }
       return exceptionBuilder_;
+    }
+
+    private java.util.List<java.lang.Integer> trait_ =
+      java.util.Collections.emptyList();
+    private void ensureTraitIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        trait_ = new java.util.ArrayList<java.lang.Integer>(trait_);
+        bitField0_ |= 0x00000001;
+      }
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @return A list containing the trait.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskTrait> getTraitList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskTrait>(trait_, trait_converter_);
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @return The count of trait.
+     */
+    public int getTraitCount() {
+      return trait_.size();
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param index The index of the element to return.
+     * @return The trait at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcTaskTrait getTrait(int index) {
+      return trait_converter_.convert(trait_.get(index));
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param index The index to set the value at.
+     * @param value The trait to set.
+     * @return This builder for chaining.
+     */
+    public Builder setTrait(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcTaskTrait value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureTraitIsMutable();
+      trait_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param value The trait to add.
+     * @return This builder for chaining.
+     */
+    public Builder addTrait(io.evitadb.externalApi.grpc.generated.GrpcTaskTrait value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureTraitIsMutable();
+      trait_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param values The trait to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllTrait(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskTrait> values) {
+      ensureTraitIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcTaskTrait value : values) {
+        trait_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearTrait() {
+      trait_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @return A list containing the enum numeric values on the wire for trait.
+     */
+    public java.util.List<java.lang.Integer>
+    getTraitValueList() {
+      return java.util.Collections.unmodifiableList(trait_);
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of trait at the given index.
+     */
+    public int getTraitValue(int index) {
+      return trait_.get(index);
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of trait at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setTraitValue(
+        int index, int value) {
+      ensureTraitIsMutable();
+      trait_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param value The enum numeric value on the wire for trait to add.
+     * @return This builder for chaining.
+     */
+    public Builder addTraitValue(int value) {
+      ensureTraitIsMutable();
+      trait_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * List of task traits
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+     * @param values The enum numeric values on the wire for trait to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllTraitValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureTraitIsMutable();
+      for (int value : values) {
+        trait_.add(value);
+      }
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

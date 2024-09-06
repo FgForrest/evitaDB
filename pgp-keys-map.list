@@ -66,10 +66,6 @@ com.fasterxml.*                 = 0x28118C070CB22A0175A2E8D43D12CA2AC19F3181, \
                                   0x6214760097DC5CFAD0175AC2C9FBAA83A8753994, \
                                   0x064F04959CD99ACCC4DFB54C9CD8549ACF9BD0CE
 
-org.jboss.*                     = noSig
-org.wildfly.*                   = noSig
-io.undertow.*                   = noSig
-
 com.github.javafaker            = 0x67FEE84A26D31DEE2DB2E2CDEA5E1E4C5F72DD79
 
 one.edee.oss                    = 0x9D1149B0C74E939DD766C7A93DE3CDCCF660797F
@@ -108,20 +104,20 @@ org.hamcrest                    = 0x4DB1A49729B053CAF015CEE9A6ADFC93EF34893E, \
 
 io.grpc.*                       = 0xB02335AA54CCF21E52BBF9ABD9C565AA72BA2FDD
 
-com.google.guava                = 0xBDB5FA4FE719D787FB3D3197F6D4A1D411E9D1AE, \
-                                  0x56ED3B4843DAACC79DE555557457CA33C3CE9E15
+com.google.guava                = 0x56ED3B4843DAACC79DE555557457CA33C3CE9E15, \
+                                  0xBDB5FA4FE719D787FB3D3197F6D4A1D411E9D1AE
 
 com.google.errorprone           = 0xEE0CA873074092F806F59B65D364ABAA39A47320
 
 com.google.code.gson            = 0xC7BE5BCC9FEC15518CFDA882B0F3710FA64900E7
 
-com.google.protobuf             = 0x2E5B73C6EFD2EB453104C2EAE6EC76B4C6D3AE8E
+com.google.protobuf             = 0x1A55F091AD28C07F831FA44D7905DE25C78AD456
 
 com.google.android              = 0x0F07D1201BDDAB67CFB84EB479752DB6C966F0B8
 
-org.codehaus.mojo               = 0xF254B35617DC255D9344BCFA873A8E86B4372146
+org.codehaus.mojo               = 0x84789D24DF77A32433CE1F079EB80E92EB2135B1
 
-com.google.j2objc               = 0xB801E2F8EF035068EC1139CC29579F18FA8FD93B
+com.google.j2objc               = 0xEB1B3DE71713C9EC2E87CC26EE92349AD86DE446
 
 com.google.api.grpc             = 0x47504B76CF89C15C0512D9AFE16AB52D79FD224F
 
@@ -129,7 +125,7 @@ org.checkerframework            = 0x19BEAB2D799C020F17C69126B16698A4ADF4D638
 
 io.perfmark                     = 0xC6F7D1C804C821F49AF3BFC13AD93C3C677A106E
 
-io.netty                        = 0x176E27B72061F21D6FE6286241CB03A1BB3BAD60, \
+io.netty                        = 0x7E22D50A7EBD9D2CD269B2D4056ACA74D46000BF, \
                                   0x0D35D3F60078655126908E8AF3D1600878E85A3D
 
 jakarta.xml.bind                = 0xDD46DEC275B1F230ACCE4EEB083891AD4774845A
@@ -148,6 +144,20 @@ org.apache.commons:commons-math3 = 0x41A1A08C62FCA78B79D3081164A16FAAEC16A4BE, \
                                   0x12D16069219C90212A974D119AE296FD02E9F65B
 
 net.sf.jopt-simple              = 0x517B94F8D0A46317A28D8AB30DA8A5EC02D11EAD
-org.bouncycastle.*              = 0x08F0AAB4D0C1A4BDDE340765B341DDB020FCB6AB
+org.bouncycastle.*              = 0x7B121B76A7ED6CE6E60AD51784E913A8E3A748C0
 com.thoughtworks.qdox           = 0xB02137D875D833D9B23392ECAE5A7FB608A0221C
 net.steppschuh.markdowngenerator = 0x8756C4F765C9AC3CB6B85D62379CE192D401AB61
+
+org.jetbrains:annotations       = 0x2E3A1AFFE42B5F53AF19F780BCF4173966770193
+org.jetbrains.kotlin            = 0x2FBA29D08D2E25EE84C132C30729A0AFF8999A87
+
+com.squareup.*                  = 0xDBD744ACE7ADE6AA50DD591F66B50994442D2D40
+
+com.linecorp.armeria            = 0xF585D6549A4A652862990C61E9C34E8CAF7DE6E9
+com.aayushatharva.brotli4j      = 0x5B51871EA3910573DCD83A1B0AF99366B4D6DE14
+org.curioswitch.curiostack:protobuf-jackson = 0xD3CF25A6C5F507818AD2F70B2429D6E810EE6180
+io.opentelemetry.*              = 0x3F05DDA9F317301E927136D417A27CE7A60FF5F0
+io.prometheus                   = 0x55C895C9A9A107F87E6E3BDC3C9B410084525C69
+io.micrometer                   = 0x48B086A7D843CFA258E83286928FBF39003C0425
+org.latencyutils                = 0x7A1D848E7C2AF85EEBA69C99E7BF252CF360097E
+org.hdrhistogram                = 0xE113159331A1F87BFC2A93D0960D2E8635A91268

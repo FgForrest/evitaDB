@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,13 +44,13 @@ public class SystemRestBuildingContext extends RestBuildingContext {
 	private static final String OPEN_API_TITLE = "Web services for managing evitaDB.";
 
 	public SystemRestBuildingContext(@Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull Evita evita) {
-		super(exposedOn, restConfig, evita);
+		super(restConfig, evita);
 	}
 
 	@Nonnull
 	@Override
 	protected List<Server> buildOpenApiServers() {
-		return Arrays.stream(restConfig.getBaseUrls(getExposedOn()))
+		return Arrays.stream(restConfig.getBaseUrls())
 			.map(baseUrl -> new Server()
 				.url(baseUrl + OpenApiSystemEndpoint.URL_PREFIX))
 			.toList();

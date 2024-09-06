@@ -30,6 +30,7 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 
@@ -112,10 +113,17 @@ public interface EvitaManagementContract {
 	 *
 	 * @param page     page number (1-based)
 	 * @param pageSize number of items per page
+	 * @param taskType allows limiting result statuses to those of a particular type
+	 * @param states allows limiting result statuses to those of a particular simplified state
+	 *
 	 * @return list of jobs
 	 */
 	@Nonnull
-	PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize);
+	PaginatedList<TaskStatus<?, ?>> listTaskStatuses(
+		int page, int pageSize,
+		@Nullable String taskType,
+		@Nonnull TaskSimplifiedState... states
+	);
 
 	/**
 	 * Returns job status for the specified jobId or empty if the job is not found.

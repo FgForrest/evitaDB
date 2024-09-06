@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.SchemaClassInvalidException;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.model.*;
 import io.evitadb.core.Evita;
@@ -53,6 +54,117 @@ import static org.junit.jupiter.api.Assertions.*;
 class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	public static final String DIR_CLASS_SCHEMA_ANALYZER_TEST = "classSchemaAnalyzerTest";
 	private Evita evita;
+
+	private static void assertAttribute(
+		@Nonnull AttributeSchemaProvider<?> attributeSchemaProvider,
+		@Nonnull String attributeName,
+		@Nullable String description,
+		@Nullable String deprecation,
+		@Nonnull Class<?> expectedType,
+		boolean global,
+		boolean globallyUnique,
+		boolean unique,
+		boolean filterable,
+		boolean sortable,
+		boolean localized,
+		boolean nullable,
+		boolean representative
+	) {
+		final AttributeSchemaContract attributeSchema = attributeSchemaProvider
+			.getAttribute(attributeName)
+			.orElseThrow();
+
+		if (description == null) {
+			assertNull(attributeSchema.getDescription());
+		} else {
+			assertEquals(description, attributeSchema.getDescription());
+		}
+		if (deprecation == null) {
+			assertNull(attributeSchema.getDeprecationNotice());
+		} else {
+			assertEquals(deprecation, attributeSchema.getDeprecationNotice());
+		}
+		assertEquals(expectedType, attributeSchema.getType());
+		if (global) {
+			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
+		}
+		if (globallyUnique) {
+			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
+			assertTrue(((GlobalAttributeSchema) attributeSchema).isUniqueGlobally());
+		}
+		assertEquals(unique, attributeSchema.isUnique(), "Attribute `" + attributeName + "` is expected to be " + (unique ? "" : "not") + " unique, but it " + (unique ? "is not" : "is") + ".");
+		assertEquals(filterable, attributeSchema.isFilterable(), "Attribute `" + attributeName + "` is expected to be " + (filterable ? "" : "not") + " filterable, but it " + (filterable ? "is not" : "is") + ".");
+		assertEquals(sortable, attributeSchema.isSortable(), "Attribute `" + attributeName + "` is expected to be " + (sortable ? "" : "not") + " sortable, but it " + (sortable ? "is not" : "is") + ".");
+		assertEquals(localized, attributeSchema.isLocalized(), "Attribute `" + attributeName + "` is expected to be " + (localized ? "" : "not") + "localized, but it " + (localized ? "is not" : "is") + ".");
+		assertEquals(nullable, attributeSchema.isNullable(), "Attribute `" + attributeName + "` is expected to be " + (nullable ? "" : "not") + " nullable, but it " + (nullable ? "is not" : "is") + ".");
+		if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+			assertEquals(
+				representative,
+				entityAttributeSchema.isRepresentative(),
+				"Attribute `" + attributeName + "` is expected to be " + (nullable ? "" : "not") + " representative, but it " + (nullable ? "is not" : "is") + "."
+			);
+		}
+	}
+
+	private static void assertAssociatedData(
+		@Nonnull EntitySchemaContract entitySchemaContract,
+		@Nonnull String associatedDataName,
+		@Nullable String description,
+		@Nullable String deprecation,
+		@Nonnull Class<ComplexDataObject> expectedType,
+		boolean localized,
+		boolean nullable
+	) {
+		final AssociatedDataSchemaContract associatedData = entitySchemaContract.getAssociatedData(associatedDataName)
+			.orElseThrow();
+
+		if (description == null) {
+			assertNull(associatedData.getDescription());
+		} else {
+			assertEquals(description, associatedData.getDescription());
+		}
+		if (deprecation == null) {
+			assertNull(associatedData.getDeprecationNotice());
+		} else {
+			assertEquals(deprecation, associatedData.getDeprecationNotice());
+		}
+		assertEquals(expectedType, associatedData.getType(), "Associated data `" + associatedDataName + "` is expected to be `" + expectedType + "`, but is `" + associatedData.getType() + "`.");
+		assertEquals(localized, associatedData.isLocalized(), "Associated data `" + associatedDataName + "` is expected to be " + (localized ? "" : "not") + "localized, but it " + (localized ? "is not" : "is") + ".");
+		assertEquals(nullable, associatedData.isNullable(), "Associated data `" + associatedDataName + "` is expected to be " + (nullable ? "" : "not") + " nullable, but it " + (nullable ? "is not" : "is") + ".");
+	}
+
+	private static void assertReference(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecation,
+		@Nonnull Cardinality cardinality,
+		boolean referencedEntityTypeManaged,
+		@Nonnull String entityType,
+		boolean referencedGroupTypeManaged,
+		@Nonnull String groupEntityType,
+		boolean faceted,
+		boolean indexed
+	) {
+		assertEquals(name, referenceSchema.getName());
+		if (description == null) {
+			assertNull(referenceSchema.getDescription());
+		} else {
+			assertEquals(description, referenceSchema.getDescription());
+		}
+		if (deprecation == null) {
+			assertNull(referenceSchema.getDeprecationNotice());
+		} else {
+			assertEquals(deprecation, referenceSchema.getDeprecationNotice());
+		}
+		assertEquals(cardinality, referenceSchema.getCardinality());
+		assertEquals(entityType, referenceSchema.getReferencedEntityType());
+		assertEquals(referencedEntityTypeManaged, referenceSchema.isReferencedEntityTypeManaged());
+		assertEquals(groupEntityType, referenceSchema.getReferencedGroupType());
+		assertEquals(referencedGroupTypeManaged, referenceSchema.isReferencedGroupTypeManaged());
+		assertEquals(faceted, referenceSchema.isFaceted(), "Attribute `" + name + "` is expected to be " + (faceted ? "" : "not") + " faceted, but it " + (faceted ? "is not" : "is") + ".");
+		assertEquals(indexed, referenceSchema.isIndexed(), "Attribute `" + name + "` is expected to be " + (indexed ? "" : "not") + " indexed, but it " + (indexed ? "is not" : "is") + ".");
+	}
 
 	@BeforeEach
 	void setUp() throws IOException {
@@ -101,7 +213,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					false, false, false, false, false, false, false, false
 				);
 				assertArrayEquals(
-					new Integer[] {1978,2005,2020},
+					new Integer[]{1978, 2005, 2020},
 					(Integer[]) entitySchema.getAttribute("years").orElseThrow().getDefaultValue()
 				);
 
@@ -189,7 +301,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					false, false, false, false, false, false, false, false
 				);
 				assertArrayEquals(
-					new Integer[] {1978,2005,2020},
+					new Integer[]{1978, 2005, 2020},
 					(Integer[]) entitySchema.getAttribute("years").orElseThrow().getDefaultValue()
 				);
 
@@ -469,7 +581,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					false, false, false, true, false, false, true, false
 				);
 				assertArrayEquals(
-					new Integer[] {1978,2005,2020},
+					new Integer[]{1978, 2005, 2020},
 					(Integer[]) entitySchema.getAttribute("customYears").orElseThrow().getDefaultValue()
 				);
 				assertAttribute(
@@ -693,9 +805,117 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			});
 	}
 
+	@DisplayName("Verify that external entities in methods are recognized and used in reflected references")
+	@Test
+	void shouldSetupNewSchemaByClassGettersWithReflectedReferences() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReflectedReferencedEntity.Brand.class);
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReflectedReferencedEntity.BrandGroup.class);
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReflectedReferencedEntity.class);
+
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("GetterBasedEntityWithReflectedReferencedEntity").orElseThrow();
+
+				assertNotNull(catalogSchema);
+				assertNotNull(entitySchema);
+
+				assertNull(entitySchema.getDescription());
+				assertNull(entitySchema.getDeprecationNotice());
+				assertTrue(entitySchema.isWithGeneratedPrimaryKey());
+				assertFalse(entitySchema.isWithHierarchy());
+				assertFalse(entitySchema.isWithPrice());
+				assertTrue(entitySchema.getCurrencies().isEmpty());
+				assertTrue(entitySchema.getLocales().isEmpty());
+				assertTrue(entitySchema.getAttributes().isEmpty());
+				assertTrue(entitySchema.getAssociatedData().isEmpty());
+
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+				assertNotNull(references);
+				assertEquals(1, references.size());
+
+				final ReferenceSchemaContract marketingBrand = references.get("marketingBrand");
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, marketingBrand);
+				final ReflectedReferenceSchemaContract reflectedReference = (ReflectedReferenceSchemaContract) marketingBrand;
+				assertNotNull(reflectedReference);
+				assertReflectedReference(
+					reflectedReference,
+					"marketingBrand",
+					null, null,
+					Cardinality.ZERO_OR_ONE,
+					"Brand",
+					true,
+					"BrandGroup",
+					false, true
+				);
+
+				assertEvolutionMode(entitySchema, EvolutionMode.values());
+				final Map<String, AttributeSchemaContract> attributes = reflectedReference.getAttributes();
+				assertEquals(2, attributes.size());
+
+				assertTrue(attributes.containsKey("brandNote"));
+				assertTrue(attributes.containsKey("order"));
+			});
+	}
+
 	@DisplayName("Verify that external entities in fields are recognized and used in references")
 	@Test
 	void shouldSetupNewSchemaByClassFieldsWithExternalReferences() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReflectedReferencedEntity.Brand.class);
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReflectedReferencedEntity.BrandGroup.class);
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReflectedReferencedEntity.class);
+
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("FieldBasedEntityWithReflectedReferencedEntity").orElseThrow();
+
+				assertNotNull(catalogSchema);
+				assertNotNull(entitySchema);
+
+				assertNull(entitySchema.getDescription());
+				assertNull(entitySchema.getDeprecationNotice());
+				assertTrue(entitySchema.isWithGeneratedPrimaryKey());
+				assertFalse(entitySchema.isWithHierarchy());
+				assertFalse(entitySchema.isWithPrice());
+				assertTrue(entitySchema.getCurrencies().isEmpty());
+				assertTrue(entitySchema.getLocales().isEmpty());
+				assertTrue(entitySchema.getAttributes().isEmpty());
+				assertTrue(entitySchema.getAssociatedData().isEmpty());
+
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+				assertNotNull(references);
+				assertEquals(1, references.size());
+
+				final ReferenceSchemaContract marketingBrand = references.get("marketingBrand");
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, marketingBrand);
+				final ReflectedReferenceSchemaContract reflectedReference = (ReflectedReferenceSchemaContract) marketingBrand;
+				assertNotNull(reflectedReference);
+				assertReflectedReference(
+					reflectedReference,
+					"marketingBrand",
+					null, null,
+					Cardinality.ZERO_OR_ONE,
+					"Brand",
+					true,
+					"BrandGroup",
+					false, true
+				);
+
+				assertEvolutionMode(entitySchema, EvolutionMode.values());
+				final Map<String, AttributeSchemaContract> attributes = reflectedReference.getAttributes();
+				assertEquals(2, attributes.size());
+
+				assertTrue(attributes.containsKey("brandNote"));
+				assertTrue(attributes.containsKey("order"));
+			});
+	}
+
+	@DisplayName("Verify that external entities in fields are recognized and used in reflected references")
+	@Test
+	void shouldSetupNewSchemaByClassFieldsWithReflectedReferences() {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -789,6 +1009,61 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			});
 	}
 
+	@DisplayName("Verify that external entities in record components are recognized and used in reflected references")
+	@Test
+	void shouldSetupNewSchemaByRecordComponentsWithReflectedReferences() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithReflectedReferencedEntity.Brand.class);
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithReflectedReferencedEntity.BrandGroup.class);
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithReflectedReferencedEntity.class);
+
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("RecordBasedEntityWithReflectedReferencedEntity").orElseThrow();
+
+				assertNotNull(catalogSchema);
+				assertNotNull(entitySchema);
+
+				assertNull(entitySchema.getDescription());
+				assertNull(entitySchema.getDeprecationNotice());
+				assertTrue(entitySchema.isWithGeneratedPrimaryKey());
+				assertFalse(entitySchema.isWithHierarchy());
+				assertFalse(entitySchema.isWithPrice());
+				assertTrue(entitySchema.getCurrencies().isEmpty());
+				assertTrue(entitySchema.getLocales().isEmpty());
+				assertTrue(entitySchema.getAttributes().isEmpty());
+				assertTrue(entitySchema.getAssociatedData().isEmpty());
+
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+				assertNotNull(references);
+				assertEquals(1, references.size());
+
+				final ReferenceSchemaContract marketingBrand = references.get("marketingBrand");
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, marketingBrand);
+				final ReflectedReferenceSchemaContract reflectedReference = (ReflectedReferenceSchemaContract) marketingBrand;
+				assertNotNull(reflectedReference);
+				assertReflectedReference(
+					reflectedReference,
+					"marketingBrand",
+					null, null,
+					Cardinality.ZERO_OR_ONE,
+					"Brand",
+					true,
+					"BrandGroup",
+					false, true
+				);
+
+				assertEvolutionMode(entitySchema, EvolutionMode.values());
+
+				final Map<String, AttributeSchemaContract> attributes = reflectedReference.getAttributes();
+				assertEquals(2, attributes.size());
+
+				assertTrue(attributes.containsKey("brandNote"));
+				assertTrue(attributes.containsKey("order"));
+			});
+	}
+
 	@Test
 	void shouldFailToSetupAttributeOnTwoPlaces() {
 		evita.updateCatalog(
@@ -847,91 +1122,20 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			});
 	}
 
-	private <T> void assertSetEquals(Set<T> actualValues, T... expectedValues) {
+	@SafeVarargs
+	private static <T> void assertSetEquals(Set<T> actualValues, T... expectedValues) {
 		assertEquals(expectedValues.length, actualValues.size());
 		for (T expectedValue : expectedValues) {
 			assertTrue(actualValues.contains(expectedValue), "Expected value not found: " + expectedValue);
 		}
 	}
 
-	private void assertAttribute(
-		@Nonnull AttributeSchemaProvider<?> attributeSchemaProvider,
-		@Nonnull String attributeName,
-		@Nullable String description,
-		@Nullable String deprecation,
-		@Nonnull Class<?> expectedType,
-		boolean global,
-		boolean globallyUnique,
-		boolean unique,
-		boolean filterable,
-		boolean sortable,
-		boolean localized,
-		boolean nullable,
-		boolean representative
-	) {
-		final AttributeSchemaContract attributeSchema = attributeSchemaProvider
-			.getAttribute(attributeName)
-			.orElseThrow();
-
-		if (description == null) {
-			assertNull(attributeSchema.getDescription());
-		} else {
-			assertEquals(description, attributeSchema.getDescription());
-		}
-		if (deprecation == null) {
-			assertNull(attributeSchema.getDeprecationNotice());
-		} else {
-			assertEquals(deprecation, attributeSchema.getDeprecationNotice());
-		}
-		assertEquals(expectedType, attributeSchema.getType());
-		if (global) {
-			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
-		}
-		if (globallyUnique) {
-			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
-			assertTrue(((GlobalAttributeSchema)attributeSchema).isUniqueGlobally());
-		}
-		assertEquals(unique, attributeSchema.isUnique(), "Attribute `" + attributeName + "` is expected to be " + (unique ? "" : "not") + " unique, but it " + (unique ? "is not" : "is") + ".");
-		assertEquals(filterable, attributeSchema.isFilterable(), "Attribute `" + attributeName + "` is expected to be " + (filterable ? "" : "not") + " filterable, but it " + (filterable ? "is not" : "is") + ".");
-		assertEquals(sortable, attributeSchema.isSortable(), "Attribute `" + attributeName + "` is expected to be " + (sortable ? "" : "not") + " sortable, but it " + (sortable ? "is not" : "is") + ".");
-		assertEquals(localized, attributeSchema.isLocalized(), "Attribute `" + attributeName + "` is expected to be " +  (localized ? "" : "not") +  "localized, but it " + (localized ? "is not" : "is") + ".");
-		assertEquals(nullable, attributeSchema.isNullable(), "Attribute `" + attributeName + "` is expected to be " + (nullable ? "" : "not") + " nullable, but it " + (nullable ? "is not" : "is") + ".");
-	}
-
-	private void assertAssociatedData(
-		@Nonnull EntitySchemaContract entitySchemaContract,
-		@Nonnull String associatedDataName,
-		@Nullable String description,
-		@Nullable String deprecation,
-		@Nonnull Class<ComplexDataObject> expectedType,
-		boolean localized,
-		boolean nullable
-	) {
-		final AssociatedDataSchemaContract associatedData = entitySchemaContract.getAssociatedData(associatedDataName)
-			.orElseThrow();
-
-		if (description == null) {
-			assertNull(associatedData.getDescription());
-		} else {
-			assertEquals(description, associatedData.getDescription());
-		}
-		if (deprecation == null) {
-			assertNull(associatedData.getDeprecationNotice());
-		} else {
-			assertEquals(deprecation, associatedData.getDeprecationNotice());
-		}
-		assertEquals(expectedType, associatedData.getType(), "Associated data `" + associatedDataName + "` is expected to be `" + expectedType + "`, but is `" + associatedData.getType() + "`.");
-		assertEquals(localized, associatedData.isLocalized(), "Associated data `" + associatedDataName + "` is expected to be " +  (localized ? "" : "not") +  "localized, but it " + (localized ? "is not" : "is") + ".");
-		assertEquals(nullable, associatedData.isNullable(), "Associated data `" + associatedDataName + "` is expected to be " + (nullable ? "" : "not") + " nullable, but it " + (nullable ? "is not" : "is") + ".");
-	}
-
-	private void assertReference(
-		@Nonnull ReferenceSchemaContract referenceSchema,
+	private static void assertReflectedReference(
+		@Nonnull ReflectedReferenceSchemaContract referenceSchema,
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecation,
 		@Nonnull Cardinality cardinality,
-		boolean referencedEntityTypeManaged,
 		@Nonnull String entityType,
 		boolean referencedGroupTypeManaged,
 		@Nonnull String groupEntityType,
@@ -951,14 +1155,13 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		}
 		assertEquals(cardinality, referenceSchema.getCardinality());
 		assertEquals(entityType, referenceSchema.getReferencedEntityType());
-		assertEquals(referencedEntityTypeManaged, referenceSchema.isReferencedEntityTypeManaged());
 		assertEquals(groupEntityType, referenceSchema.getReferencedGroupType());
 		assertEquals(referencedGroupTypeManaged, referenceSchema.isReferencedGroupTypeManaged());
-		assertEquals(faceted, referenceSchema.isFaceted(), "Attribute `" + name + "` is expected to be " +  (faceted ? "" : "not") + " faceted, but it " + (faceted ? "is not" : "is") + ".");
-		assertEquals(indexed, referenceSchema.isIndexed(), "Attribute `" + name + "` is expected to be " +  (indexed ? "" : "not") + " indexed, but it " + (indexed ? "is not" : "is") + ".");
+		assertEquals(faceted, referenceSchema.isFaceted(), "Attribute `" + name + "` is expected to be " + (faceted ? "" : "not") + " faceted, but it " + (faceted ? "is not" : "is") + ".");
+		assertEquals(indexed, referenceSchema.isIndexed(), "Attribute `" + name + "` is expected to be " + (indexed ? "" : "not") + " indexed, but it " + (indexed ? "is not" : "is") + ".");
 	}
 
-	private void assertEvolutionMode(
+	private static void assertEvolutionMode(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull EvolutionMode... expectedEvolutionModes
 	) {

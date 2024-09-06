@@ -33,6 +33,11 @@ public interface GrpcTaskStatusOrBuilder extends
   /**
    * <pre>
    * Type of the task (shortName of the task)
+   * Available tasks:
+   * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+   * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+   * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+   * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
    * </pre>
    *
    * <code>string taskType = 1;</code>
@@ -42,6 +47,11 @@ public interface GrpcTaskStatusOrBuilder extends
   /**
    * <pre>
    * Type of the task (shortName of the task)
+   * Available tasks:
+   * - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+   * - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+   * - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+   * - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
    * </pre>
    *
    * <code>string taskType = 1;</code>
@@ -207,10 +217,29 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
+   * Simplified state of the status
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
+   * @return The enum numeric value on the wire for simplifiedState.
+   */
+  int getSimplifiedStateValue();
+  /**
+   * <pre>
+   * Simplified state of the status
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
+   * @return The simplifiedState.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState getSimplifiedState();
+
+  /**
+   * <pre>
    * Progress of the task (0-100)
    * </pre>
    *
-   * <code>int32 progress = 8;</code>
+   * <code>int32 progress = 9;</code>
    * @return The progress.
    */
   int getProgress();
@@ -220,7 +249,7 @@ public interface GrpcTaskStatusOrBuilder extends
    * Configuration settings of the task
    * </pre>
    *
-   * <code>.google.protobuf.StringValue settings = 9;</code>
+   * <code>.google.protobuf.StringValue settings = 10;</code>
    * @return Whether the settings field is set.
    */
   boolean hasSettings();
@@ -229,7 +258,7 @@ public interface GrpcTaskStatusOrBuilder extends
    * Configuration settings of the task
    * </pre>
    *
-   * <code>.google.protobuf.StringValue settings = 9;</code>
+   * <code>.google.protobuf.StringValue settings = 10;</code>
    * @return The settings.
    */
   com.google.protobuf.StringValue getSettings();
@@ -238,7 +267,7 @@ public interface GrpcTaskStatusOrBuilder extends
    * Configuration settings of the task
    * </pre>
    *
-   * <code>.google.protobuf.StringValue settings = 9;</code>
+   * <code>.google.protobuf.StringValue settings = 10;</code>
    */
   com.google.protobuf.StringValueOrBuilder getSettingsOrBuilder();
 
@@ -247,7 +276,7 @@ public interface GrpcTaskStatusOrBuilder extends
    * Textual result of the task
    * </pre>
    *
-   * <code>.google.protobuf.StringValue text = 10;</code>
+   * <code>.google.protobuf.StringValue text = 11;</code>
    * @return Whether the text field is set.
    */
   boolean hasText();
@@ -256,7 +285,7 @@ public interface GrpcTaskStatusOrBuilder extends
    * Textual result of the task
    * </pre>
    *
-   * <code>.google.protobuf.StringValue text = 10;</code>
+   * <code>.google.protobuf.StringValue text = 11;</code>
    * @return The text.
    */
   com.google.protobuf.StringValue getText();
@@ -265,7 +294,7 @@ public interface GrpcTaskStatusOrBuilder extends
    * Textual result of the task
    * </pre>
    *
-   * <code>.google.protobuf.StringValue text = 10;</code>
+   * <code>.google.protobuf.StringValue text = 11;</code>
    */
   com.google.protobuf.StringValueOrBuilder getTextOrBuilder();
 
@@ -274,7 +303,7 @@ public interface GrpcTaskStatusOrBuilder extends
    * File that was created by the task and is available for fetching
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
    * @return Whether the file field is set.
    */
   boolean hasFile();
@@ -283,7 +312,7 @@ public interface GrpcTaskStatusOrBuilder extends
    * File that was created by the task and is available for fetching
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
    * @return The file.
    */
   io.evitadb.externalApi.grpc.generated.GrpcFile getFile();
@@ -292,7 +321,7 @@ public interface GrpcTaskStatusOrBuilder extends
    * File that was created by the task and is available for fetching
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder getFileOrBuilder();
 
@@ -301,7 +330,7 @@ public interface GrpcTaskStatusOrBuilder extends
    * Exception that occurred during the task execution
    * </pre>
    *
-   * <code>.google.protobuf.StringValue exception = 12;</code>
+   * <code>.google.protobuf.StringValue exception = 13;</code>
    * @return Whether the exception field is set.
    */
   boolean hasException();
@@ -310,7 +339,7 @@ public interface GrpcTaskStatusOrBuilder extends
    * Exception that occurred during the task execution
    * </pre>
    *
-   * <code>.google.protobuf.StringValue exception = 12;</code>
+   * <code>.google.protobuf.StringValue exception = 13;</code>
    * @return The exception.
    */
   com.google.protobuf.StringValue getException();
@@ -319,9 +348,58 @@ public interface GrpcTaskStatusOrBuilder extends
    * Exception that occurred during the task execution
    * </pre>
    *
-   * <code>.google.protobuf.StringValue exception = 12;</code>
+   * <code>.google.protobuf.StringValue exception = 13;</code>
    */
   com.google.protobuf.StringValueOrBuilder getExceptionOrBuilder();
+
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return A list containing the trait.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskTrait> getTraitList();
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return The count of trait.
+   */
+  int getTraitCount();
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @param index The index of the element to return.
+   * @return The trait at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcTaskTrait getTrait(int index);
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @return A list containing the enum numeric values on the wire for trait.
+   */
+  java.util.List<java.lang.Integer>
+  getTraitValueList();
+  /**
+   * <pre>
+   * List of task traits
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of trait at the given index.
+   */
+  int getTraitValue(int index);
 
   public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.ResultCase getResultCase();
 }

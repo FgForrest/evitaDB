@@ -64,4 +64,16 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
    * @return The faceted.
    */
   boolean getFaceted();
+
+  /**
+   * <pre>
+   * Set to true when the faceted property should be inherited from the original.
+   * This property makes sense only for inherited reference attributes on reflected reference. For all other cases it
+   * must be left as false. When set to TRUE the value of `faceted` field is ignored.
+   * </pre>
+   *
+   * <code>bool inherited = 3;</code>
+   * @return The inherited.
+   */
+  boolean getInherited();
 }

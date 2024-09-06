@@ -27,11 +27,12 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
@@ -60,9 +61,9 @@ import java.util.Optional;
 public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyReferenceDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -5779012919587623154L;
-	@Nonnull @Getter private final ReferenceSchemaMutation attributeSchemaMutation;
+	@Nonnull @Getter private final ReferenceAttributeSchemaMutation attributeSchemaMutation;
 
-	public ModifyReferenceAttributeSchemaMutation(@Nonnull String name, @Nonnull ReferenceSchemaMutation attributeSchemaMutation) {
+	public ModifyReferenceAttributeSchemaMutation(@Nonnull String name, @Nonnull ReferenceAttributeSchemaMutation attributeSchemaMutation) {
 		super(name);
 		Assert.isTrue(attributeSchemaMutation instanceof AttributeSchemaMutation, "The mutation must implement AttributeSchemaMutation interface!");
 		this.attributeSchemaMutation = attributeSchemaMutation;
@@ -90,7 +91,7 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 					} else if (result.origin() == combinableAttributeCombinationMutation) {
 						origin = theExistingMutation;
 					} else {
-						origin = new ModifyReferenceAttributeSchemaMutation(name, (ReferenceSchemaMutation) result.origin());
+						origin = new ModifyReferenceAttributeSchemaMutation(name, (ReferenceAttributeSchemaMutation) result.origin());
 					}
 					final LocalEntitySchemaMutation[] current;
 					if (ArrayUtils.isEmpty(result.current())) {
@@ -101,7 +102,7 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 								if (it == ((ModifyReferenceAttributeSchemaMutation) existingMutation).getAttributeSchemaMutation()) {
 									return existingMutation;
 								} else {
-									return new ModifyReferenceAttributeSchemaMutation(name, (ReferenceSchemaMutation) it);
+									return new ModifyReferenceAttributeSchemaMutation(name, (ReferenceAttributeSchemaMutation) it);
 								}
 							})
 							.toArray(LocalEntitySchemaMutation[]::new);
@@ -118,8 +119,12 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
-		return attributeSchemaMutation.mutate(entitySchema, referenceSchema);
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
+		return attributeSchemaMutation.mutate(
+			entitySchema, referenceSchema,
+			referenceSchema instanceof ReflectedReferenceSchemaContract rrsc && !rrsc.isReflectedReferenceAvailable() ?
+				ConsistencyChecks.SKIP : consistencyChecks
+		);
 	}
 
 	@Nullable

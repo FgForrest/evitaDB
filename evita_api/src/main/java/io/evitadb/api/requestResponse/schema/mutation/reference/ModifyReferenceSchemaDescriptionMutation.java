@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
@@ -81,25 +82,30 @@ public class ModifyReferenceSchemaDescriptionMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		return ReferenceSchema._internalBuild(
-			referenceSchema.getName(),
-			referenceSchema.getNameVariants(),
-			description,
-			referenceSchema.getDeprecationNotice(),
-			referenceSchema.getReferencedEntityType(),
-			referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-			referenceSchema.isReferencedEntityTypeManaged(),
-			referenceSchema.getCardinality(),
-			referenceSchema.getReferencedGroupType(),
-			referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-			referenceSchema.isReferencedGroupTypeManaged(),
-			referenceSchema.isIndexed(),
-			referenceSchema.isFaceted(),
-			referenceSchema.getAttributes(),
-			referenceSchema.getSortableAttributeCompounds()
-		);
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+			return reflectedReferenceSchema
+				.withDescription(this.description);
+		} else {
+			return ReferenceSchema._internalBuild(
+				referenceSchema.getName(),
+				referenceSchema.getNameVariants(),
+				this.description,
+				referenceSchema.getDeprecationNotice(),
+				referenceSchema.getReferencedEntityType(),
+				referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+				referenceSchema.isReferencedEntityTypeManaged(),
+				referenceSchema.getCardinality(),
+				referenceSchema.getReferencedGroupType(),
+				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+				referenceSchema.isReferencedGroupTypeManaged(),
+				referenceSchema.isIndexed(),
+				referenceSchema.isFaceted(),
+				referenceSchema.getAttributes(),
+				referenceSchema.getSortableAttributeCompounds()
+			);
+		}
 	}
 
 	@Nullable

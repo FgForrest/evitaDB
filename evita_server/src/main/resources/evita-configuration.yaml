@@ -50,7 +50,6 @@ cache:
   cacheSizeInBytes: ${cache.cacheSizeInBytes:null}
 
 api:
-  exposedOn: ${api.exposedOn:null}
   workerGroupThreads: ${api.workerGroupThreads:null}
   idleTimeoutInMillis: ${api.idleTimeoutInMillis:2K}
   requestTimeoutInMillis: ${api.requestTimeoutInMillis:2K}
@@ -64,49 +63,55 @@ api:
       certificate: ${api.certificate.custom.certificate:null}
       privateKey: ${api.certificate.custom.privateKey:null}
       privateKeyPassword: ${api.certificate.custom.privateKeyPassword:null}
+  endpointDefaults:
+    enabled: ${api.endpointDefaults.enabled:true}
+    host: ${api.endpointDefaults.host:":5555"}
+    exposeOn: ${api.endpointDefaults.exposeOn:"localhost"}
+    tlsMode: ${api.endpointDefaults.tlsMode:FORCE_TLS}
+    allowedOrigins: ${api.endpointDefaults.allowedOrigins:null}
   endpoints:
     system:
-      enabled: ${api.endpoints.system.enabled:true}
-      host: ${api.endpoints.system.host:":5555"}
-      exposedHost: ${api.endpoints.system.exposedHost:null}
+      enabled: ${api.endpoints.system.enabled:null}
+      host: ${api.endpoints.system.host:null}
+      exposeOn: ${api.endpoints.system.exposeOn:null}
       tlsMode: ${api.endpoints.system.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.system.allowedOrigins:null}
     graphQL:
-      enabled: ${api.endpoints.graphQL.enabled:true}
-      host: ${api.endpoints.graphQL.host:":5555"}
-      exposedHost: ${api.endpoints.graphQL.exposedHost:null}
-      tlsMode: ${api.endpoints.graphQL.tlsMode:FORCE_TLS}
+      enabled: ${api.endpoints.graphQL.enabled:null}
+      host: ${api.endpoints.graphQL.host:null}
+      exposeOn: ${api.endpoints.graphQL.exposeOn:null}
+      tlsMode: ${api.endpoints.graphQL.tlsMode:null}
       allowedOrigins: ${api.endpoints.graphQL.allowedOrigins:null}
       parallelize: ${api.endpoints.graphQL.parallelize:true}
     rest:
-      enabled: ${api.endpoints.rest.enabled:true}
-      host: ${api.endpoints.rest.host:":5555"}
-      exposedHost: ${api.endpoints.rest.exposedHost:null}
-      tlsMode: ${api.endpoints.rest.tlsMode:FORCE_TLS}
+      enabled: ${api.endpoints.rest.enabled:null}
+      host: ${api.endpoints.rest.host:null}
+      exposeOn: ${api.endpoints.rest.exposeOn:null}
+      tlsMode: ${api.endpoints.rest.tlsMode:null}
       allowedOrigins: ${api.endpoints.rest.allowedOrigins:null}
     gRPC:
       enabled: ${api.endpoints.gRPC.enabled:true}
-      host: ${api.endpoints.gRPC.host:":5555"}
-      exposedHost: ${api.endpoints.gRPC.exposedHost:null}
-      tlsMode: ${api.endpoints.gRPC.tlsMode:FORCE_TLS}
+      host: ${api.endpoints.gRPC.host:null}
+      exposeOn: ${api.endpoints.gRPC.exposeOn:null}
+      tlsMode: ${api.endpoints.gRPC.tlsMode:null}
       exposeDocsService: ${api.endpoints.gRPC.exposeDocsService:false}
       allowedOrigins: ${api.endpoints.gRPC.allowedOrigins:null}
       mTLS:
         enabled: ${api.endpoints.gRPC.mTLS.enabled:false}
         allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:[]}
     lab:
-      enabled: ${api.endpoints.lab.enabled:true}
-      host: ${api.endpoints.lab.host:":5555"}
-      tlsMode: ${api.endpoints.lab.tlsMode:FORCE_TLS}
+      enabled: ${api.endpoints.lab.enabled:null}
+      host: ${api.endpoints.lab.host:null}
+      exposeOn: ${api.endpoints.lab.exposeOn:null}
+      tlsMode: ${api.endpoints.lab.tlsMode:null}
       allowedOrigins: ${api.endpoints.lab.allowedOrigins:null}
       gui:
         enabled: ${api.endpoints.lab.gui.enabled:true}
         readOnly: ${api.endpoints.lab.gui.readOnly:false}
-        preconfiguredConnections: !include ${api.endpoints.lab.gui.preconfiguredConnections:null}
     observability:
-      enabled: ${api.endpoints.observability.enabled:true}
-      host: ${api.endpoints.observability.host:":5555"}
-      exposedHost: ${api.endpoints.observability.exposedHost:null}
+      enabled: ${api.endpoints.observability.enabled:null}
+      host: ${api.endpoints.observability.host:null}
+      exposeOn: ${api.endpoints.observability.exposeOn:null}
       tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
       allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
       tracing:

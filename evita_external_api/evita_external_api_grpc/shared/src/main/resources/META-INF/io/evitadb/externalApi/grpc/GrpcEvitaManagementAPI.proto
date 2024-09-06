@@ -74,6 +74,19 @@ message GrpcRestoreCatalogRequest {
 }
 
 // Request to restore a catalog.
+message GrpcRestoreCatalogUnaryRequest {
+  // Name of the catalog where the backup will be restored
+  // The name must not clash with any of existing catalogs
+  string catalogName = 1;
+  // Binary contents of the backup file.
+  bytes backupFile = 2;
+  // Identification of the task (for continuation purpose)
+  GrpcUuid fileId = 3;
+  // Total size of uploaded file in Bytes, when the size is reached, restore automatically starts
+  int64 totalSizeInBytes = 4;
+}
+
+// Request to restore a catalog.
 message GrpcRestoreCatalogFromServerFileRequest {
   // Name of the catalog where the backup will be restored
   // The name must not clash with any of existing catalogs
@@ -96,6 +109,12 @@ message GrpcTaskStatusesRequest {
   int32 pageNumber = 1;
   // Number of task statuses per page.
   int32 pageSize = 2;
+  // Optional taskType of the listed task, passing non-null value
+  // in this argument filters the returned status to only those that are related to the tasks of specified type
+  google.protobuf.StringValue taskType = 3;
+  // Optional set of simplified task states, passing list of enums in this argument
+  // filters the returned statuses to only those that match this simplified status
+  repeated GrpcTaskSimplifiedState simplifiedState = 4;
 }
 
 // Response to a task statuses request.
@@ -218,6 +237,8 @@ service EvitaManagementService {
   rpc GetCatalogStatistics(google.protobuf.Empty) returns (GrpcEvitaCatalogStatisticsResponse);
   // Procedure used to restore a catalog from backup.
   rpc RestoreCatalog(stream GrpcRestoreCatalogRequest) returns (GrpcRestoreCatalogResponse);
+  // Procedure used to restore a catalog from backup (unary version for gRPC/web).
+  rpc RestoreCatalogUnary(GrpcRestoreCatalogUnaryRequest) returns (GrpcRestoreCatalogResponse);
   // Procedure used to restore a catalog from backup.
   rpc RestoreCatalogFromServerFile(GrpcRestoreCatalogFromServerFileRequest) returns (GrpcRestoreCatalogResponse);
   // Procedure used to get listing of task statuses.

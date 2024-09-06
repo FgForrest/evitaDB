@@ -29,6 +29,7 @@ import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.lab.api.LabApiBuilder;
@@ -36,9 +37,8 @@ import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.externalApi.lab.gui.resolver.GuiHandler;
 import io.evitadb.externalApi.lab.io.LabExceptionHandler;
 import io.evitadb.externalApi.rest.api.Rest;
-import io.evitadb.externalApi.http.CorsEndpoint;
-import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.externalApi.utils.UriPath;
+import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -96,7 +96,7 @@ public class LabManager {
 	 * Builds REST API for evitaLab and registers it into router.
 	 */
 	private void registerLabApi() {
-		final LabApiBuilder labApiBuilder = new LabApiBuilder(apiOptions.exposedOn(), labConfig, evita);
+		final LabApiBuilder labApiBuilder = new LabApiBuilder(labConfig, evita);
 		final Rest builtLabApi = labApiBuilder.build();
 		builtLabApi.endpoints().forEach(this::registerLabApiEndpoint);
 	}
