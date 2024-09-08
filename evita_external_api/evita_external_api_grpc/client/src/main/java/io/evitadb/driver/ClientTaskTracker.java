@@ -215,7 +215,7 @@ public class ClientTaskTracker implements Closeable {
 	 */
 	private void purgeFinishedTasks() {
 		// go through the entire queue, but only once
-		final int bufferSize = 512;
+		final int bufferSize = Math.min(this.tasks.size(), 512);
 		final ArrayList<WeakReference<ClientTask<?, ?>>> buffer = new ArrayList<>(bufferSize);
 		final int queueSize = this.tasks.size();
 		for (int i = 0; i < queueSize; ) {

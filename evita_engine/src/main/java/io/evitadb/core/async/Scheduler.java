@@ -41,6 +41,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -53,6 +54,15 @@ import java.util.stream.Collectors;
 @Slf4j
 public class Scheduler implements ObservableExecutorService, ScheduledExecutorService {
 	private static final int FINISHED_TASKS_KEEP_INTERVAL_MILLIS = 120_000;
+	private static final int BUFFER_CAPACITY = 512;
+	/**
+	 * Buffer used for purging finished tasks.
+	 */
+	private final ArrayList<ServerTask<?, ?>> buffer = new ArrayList<>(BUFFER_CAPACITY);
+	/**
+	 * Lock synchronizing access to the buffer and purge operation.
+	 */
+	private final ReentrantLock bufferLock = new ReentrantLock();
 	/**
 	 * Java based scheduled executor service.
 	 */
@@ -416,45 +426,58 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * still waiting or running are added to the tail of the queue again.
 	 */
 	private long purgeFinishedTasks() {
-		// go through the entire queue, but only once
-		final int bufferSize = 512;
-		final ArrayList<ServerTask<?, ?>> buffer = new ArrayList<>(bufferSize);
-		final int queueSize = this.queue.size();
-		//noinspection rawtypes
-		final CompositeObjectArray<Task> finishedTaskInDefensePeriod = new CompositeObjectArray<>(Task.class);
-		final OffsetDateTime threshold = OffsetDateTime.now().minus(FINISHED_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
-		final int batches = queueSize / bufferSize + 1;
-		for (int i = 0; i < batches; i++) {
-			// effectively withdraw first block of tasks from the queue
-			this.queue.drainTo(buffer, bufferSize);
-			// now go through all of them
-			final Iterator<ServerTask<?, ?>> it = buffer.iterator();
-			while (it.hasNext()) {
-				final Task<?, ?> task = it.next();
-				final TaskStatus<?, ?> status = task.getStatus();
-				final TaskSimplifiedState taskState = status.simplifiedState();
-				if ((taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED)) {
-					// if task is finished, remove it from the queue
-					it.remove();
-					// if its defense period hasn't perished add it to list, that might end up in the queue again
-					if (status.finished().isAfter(threshold)) {
-						finishedTaskInDefensePeriod.add(task);
+		if (this.bufferLock.tryLock()) {
+			try {
+				// go through the entire queue, but only once
+				final int queueSize = this.queue.size();
+				//noinspection rawtypes
+				CompositeObjectArray<Task> finishedTaskInDefensePeriod = null;
+				final OffsetDateTime threshold = OffsetDateTime.now().minus(FINISHED_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
+				final int batches = queueSize / BUFFER_CAPACITY + 1;
+				for (int i = 0; i < batches; i++) {
+					// effectively withdraw first block of tasks from the queue
+					this.queue.drainTo(this.buffer, BUFFER_CAPACITY);
+					// now go through all of them
+					final Iterator<ServerTask<?, ?>> it = this.buffer.iterator();
+					while (it.hasNext()) {
+						final Task<?, ?> task = it.next();
+						final TaskStatus<?, ?> status = task.getStatus();
+						final TaskSimplifiedState taskState = status.simplifiedState();
+						if ((taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED)) {
+							// if task is finished, remove it from the queue
+							it.remove();
+							// if its defense period hasn't perished add it to list, that might end up in the queue again
+							if (status.finished().isAfter(threshold)) {
+								if (finishedTaskInDefensePeriod == null) {
+									finishedTaskInDefensePeriod = new CompositeObjectArray<>(Task.class);
+								}
+								finishedTaskInDefensePeriod.add(task);
+							}
+						}
+					}
+					// add the remaining tasks back to the queue in an effective way
+					this.queue.addAll(this.buffer);
+					// clear the buffer for the next iteration
+					this.buffer.clear();
+				}
+				// now add the tasks that are still in defense period back to the queue, but keep at least 1/3 of the queue empty
+				final int requiredEmptyBlock = queueSize / 3;
+				final int remainingCapacity = this.queue.remainingCapacity();
+				if (remainingCapacity > requiredEmptyBlock && finishedTaskInDefensePeriod != null) {
+					//noinspection rawtypes
+					final Iterator<Task> it = finishedTaskInDefensePeriod.iterator();
+					for (int i = remainingCapacity; i < queueSize - requiredEmptyBlock && it.hasNext(); i++) {
+						this.queue.add((ServerTask<?, ?>) it.next());
 					}
 				}
+			} finally {
+				this.bufferLock.unlock();
 			}
-			// add the remaining tasks back to the queue in an effective way
-			this.queue.addAll(buffer);
-			// clear the buffer for the next iteration
-			buffer.clear();
-		}
-		// now add the tasks that are still in defense period back to the queue, but keep at least 1/3 of the queue empty
-		final int requiredEmptyBlock = queueSize / 3;
-		final int remainingCapacity = this.queue.remainingCapacity();
-		if (remainingCapacity > requiredEmptyBlock) {
-			//noinspection rawtypes
-			final Iterator<Task> it = finishedTaskInDefensePeriod.iterator();
-			for (int i = remainingCapacity; i < queueSize - requiredEmptyBlock && it.hasNext(); i++) {
-				this.queue.add((ServerTask<?, ?>) it.next());
+		} else {
+			// someone else is currently purging the queue
+			// we need to wait until he's done and then the queue should have enough free room
+			while (this.bufferLock.isLocked()) {
+				Thread.onSpinWait();
 			}
 		}
 		// plan to next standard time
