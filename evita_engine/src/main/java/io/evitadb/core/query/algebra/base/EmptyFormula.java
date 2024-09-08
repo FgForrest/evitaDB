@@ -60,6 +60,11 @@ public class EmptyFormula extends AbstractFormula {
 		return 0;
 	}
 
+	@Override
+	public int getSize() {
+		return 0;
+	}
+
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {

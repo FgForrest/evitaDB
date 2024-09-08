@@ -234,7 +234,12 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).sum();
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+	}
+
+	@Override
+	public int getSize() {
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getSize).sum();
 	}
 
 	@Override

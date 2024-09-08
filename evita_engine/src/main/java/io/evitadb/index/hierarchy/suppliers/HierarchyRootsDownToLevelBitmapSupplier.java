@@ -43,10 +43,6 @@ import javax.annotation.Nonnull;
 public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBitmapSupplier {
 	private static final int CLASS_ID = 390851708;
 	/**
-	 * Contains memoized value of {@link #getHash()} method.
-	 */
-	private Long hash;
-	/**
 	 * Contains count of tree levels from the root should be returned (i.e. depth of the returned tree).
 	 */
 	private final int levels;
@@ -88,6 +84,11 @@ public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBi
 	public int getEstimatedCardinality() {
 		/* we don't use excluded node trees here, because it would trigger the formula computation */
 		return hierarchyIndex.getHierarchyNodeCountFromRootDownTo(levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+	}
+
+	@Override
+	public int getSize() {
+		return getEstimatedCardinality();
 	}
 
 	@Override

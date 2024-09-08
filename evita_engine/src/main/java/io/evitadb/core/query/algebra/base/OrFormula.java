@@ -162,6 +162,11 @@ public class OrFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
+	public int getSize() {
+		return getEstimatedCardinality();
+	}
+
+	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		if (bitmaps == null) {
 			return 0L;

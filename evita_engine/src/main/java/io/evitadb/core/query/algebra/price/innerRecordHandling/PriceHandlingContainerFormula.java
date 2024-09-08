@@ -33,6 +33,7 @@ import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 /**
  * Simple delegating formula that doesn't compute anything (computational logic is delegated to {@link #getDelegate()}
@@ -81,7 +82,12 @@ public class PriceHandlingContainerFormula extends AbstractFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		return getDelegate().getEstimatedCardinality();
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+	}
+
+	@Override
+	public int getSize() {
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getSize).sum();
 	}
 
 	@Nonnull

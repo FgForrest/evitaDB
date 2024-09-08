@@ -43,4 +43,10 @@ public interface BitmapSupplier extends TransactionalDataRelatedStructure, Suppl
 	 */
 	int getEstimatedCardinality();
 
+	/**
+	 * Returns the count of all the records that needs to be touched by this constraint in order to {@link #get()}
+	 * the result.
+	 */
+	int getSize();
+
 }

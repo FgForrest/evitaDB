@@ -76,7 +76,12 @@ public class CombinedFacetFormula extends AbstractFormula implements NonCacheabl
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).sum();
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+	}
+
+	@Override
+	public int getSize() {
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getSize).sum();
 	}
 
 	@Nonnull
@@ -85,7 +90,7 @@ public class CombinedFacetFormula extends AbstractFormula implements NonCacheabl
 		return new BaseBitmap(
 			RoaringBitmap.or(
 				Arrays.stream(getInnerFormulas())
-					.map(formula -> formula.compute())
+					.map(Formula::compute)
 					.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 					.toArray(RoaringBitmap[]::new)
 			)

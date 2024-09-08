@@ -68,6 +68,11 @@ public class ConstantFormula extends AbstractFormula {
 	}
 
 	@Override
+	public int getSize() {
+		return getEstimatedCardinality();
+	}
+
+	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		if (delegate instanceof TransactionalLayerProducer) {
 			return ((TransactionalLayerProducer<?, ?>) delegate).getId();

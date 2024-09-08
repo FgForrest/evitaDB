@@ -109,6 +109,11 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	}
 
 	@Override
+	public int getSize() {
+		return innerFormulas[0].getSize();
+	}
+
+	@Override
 	public String toString() {
 		return "ATTRIBUTE FILTER `" + attributeKey + "`";
 	}

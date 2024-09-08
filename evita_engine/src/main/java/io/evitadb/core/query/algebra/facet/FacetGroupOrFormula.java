@@ -168,6 +168,11 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 	}
 
 	@Override
+	public int getSize() {
+		return getEstimatedCardinality();
+	}
+
+	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			Stream.of(

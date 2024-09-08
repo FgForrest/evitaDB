@@ -193,6 +193,11 @@ public class JoinFormula extends AbstractFormula {
 	}
 
 	@Override
+	public int getSize() {
+		return getEstimatedCardinality();
+	}
+
+	@Override
 	public long getOperationCost() {
 		return 2560;
 	}

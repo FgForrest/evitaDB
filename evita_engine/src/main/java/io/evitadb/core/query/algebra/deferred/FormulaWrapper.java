@@ -61,6 +61,11 @@ public class FormulaWrapper implements BitmapSupplier {
 	}
 
 	@Override
+	public int getSize() {
+		return this.formula.getSize();
+	}
+
+	@Override
 	public long getHash() {
 		return this.formula.getHash();
 	}

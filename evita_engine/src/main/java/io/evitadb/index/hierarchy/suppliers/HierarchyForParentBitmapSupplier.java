@@ -86,6 +86,11 @@ public class HierarchyForParentBitmapSupplier extends AbstractHierarchyBitmapSup
 	}
 
 	@Override
+	public int getSize() {
+		return getEstimatedCardinality();
+	}
+
+	@Override
 	public String toString() {
 		return "HIERARCHY FOR PARENT: " + parentNode + " " + excludedNodeTrees;
 	}

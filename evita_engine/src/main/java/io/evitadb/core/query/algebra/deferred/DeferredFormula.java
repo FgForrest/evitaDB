@@ -91,6 +91,11 @@ public class DeferredFormula extends AbstractFormula {
 		return retrieveLambda.getEstimatedCardinality();
 	}
 
+	@Override
+	public int getSize() {
+		return retrieveLambda.getSize();
+	}
+
 	@Nonnull
 	@Override
 	public long[] gatherBitmapIdsInternal() {

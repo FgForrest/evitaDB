@@ -136,6 +136,12 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	}
 
 	@Override
+	public int getSize() {
+		return Optional.ofNullable(prefetchEstimatedCardinality)
+			.orElseGet(() -> getDelegate().getSize());
+	}
+
+	@Override
 	public long getEstimatedCost() {
 		return Optional.ofNullable(prefetchEstimatedCost)
 			.orElseGet(() -> getDelegate().getEstimatedCost());

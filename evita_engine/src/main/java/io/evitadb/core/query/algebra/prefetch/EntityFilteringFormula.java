@@ -112,9 +112,12 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 
 	@Override
 	public int getEstimatedCardinality() {
-		// we can't know upfront - but this formula is used for scenarios where the entities are prefetched
-		// so the cost is not relevant
-		return Integer.MAX_VALUE;
+		return 0;
+	}
+
+	@Override
+	public int getSize() {
+		return 0;
 	}
 
 	@Override

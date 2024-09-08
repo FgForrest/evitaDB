@@ -36,6 +36,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.function.Consumer;
 
 /**
@@ -116,7 +117,12 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 
 	@Override
 	public int getEstimatedCardinality() {
-		return getDelegate().getEstimatedCardinality();
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+	}
+
+	@Override
+	public int getSize() {
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getSize).sum();
 	}
 
 	@Override

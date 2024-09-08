@@ -117,9 +117,18 @@ public class AndFormula extends AbstractCacheableFormula {
 	@Override
 	public int getEstimatedCardinality() {
 		if (bitmaps == null) {
-			return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).min().orElse(0);
+			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
 		} else {
 			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).min().orElse(0);
+		}
+	}
+
+	@Override
+	public int getSize() {
+		if (bitmaps == null) {
+			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+		} else {
+			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).sum();
 		}
 	}
 

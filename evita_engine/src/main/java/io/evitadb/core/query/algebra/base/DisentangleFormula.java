@@ -153,6 +153,11 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	}
 
 	@Override
+	public int getSize() {
+		return mainBitmap == null ? innerFormulas[0].getSize() : mainBitmap.size();
+	}
+
+	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			Stream.of(mainBitmap, controlBitmap)

@@ -70,6 +70,11 @@ public class SkipFormula extends AbstractFormula {
 	}
 
 	@Override
+	public int getSize() {
+		return 0;
+	}
+
+	@Override
 	public String toString() {
 		return "SKIP";
 	}

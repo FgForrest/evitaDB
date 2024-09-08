@@ -35,6 +35,7 @@ import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 /**
  * This {@link Formula} wraps {@link #getDelegate()} formula that works with entity prices from certain
@@ -101,7 +102,12 @@ public class PriceIdContainerFormula extends AbstractFormula implements PriceInd
 
 	@Override
 	public int getEstimatedCardinality() {
-		return getDelegate().getEstimatedCardinality();
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+	}
+
+	@Override
+	public int getSize() {
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getSize).sum();
 	}
 
 	@Override

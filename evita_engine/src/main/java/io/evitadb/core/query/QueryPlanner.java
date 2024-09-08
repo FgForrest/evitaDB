@@ -585,6 +585,11 @@ public class QueryPlanner {
 		}
 
 		@Override
+		public int getSize() {
+			return 0;
+		}
+
+		@Override
 		public long getOperationCost() {
 			return 0L;
 		}

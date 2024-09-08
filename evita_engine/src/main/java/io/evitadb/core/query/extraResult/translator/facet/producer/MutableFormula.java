@@ -162,6 +162,11 @@ class MutableFormula implements Formula {
 	}
 
 	@Override
+	public int getSize() {
+		return getInnerFormula().getSize();
+	}
+
+	@Override
 	public int hashCode() {
 		return getInnerFormula().hashCode();
 	}

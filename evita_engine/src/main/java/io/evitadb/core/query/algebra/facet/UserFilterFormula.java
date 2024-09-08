@@ -117,6 +117,11 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 	}
 
 	@Override
+	public int getSize() {
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+	}
+
+	@Override
 	public String toString() {
 		return "USER FILTER";
 	}

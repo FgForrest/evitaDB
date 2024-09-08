@@ -35,6 +35,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 
 /**
  * PlainPriceTerminationFormula is a simplified variant of {@link PlainPriceTerminationFormulaWithPriceFilter} for cases
@@ -111,7 +112,12 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 
 	@Override
 	public int getEstimatedCardinality() {
-		return getDelegate().getEstimatedCardinality();
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+	}
+
+	@Override
+	public int getSize() {
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getSize).sum();
 	}
 
 	@Override

@@ -78,6 +78,12 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	int getEstimatedCardinality();
 
 	/**
+	 * Returns the count of all the records that needs to be touched by this constraint in order to {@link #compute()}
+	 * the result.
+	 */
+	int getSize();
+
+	/**
 	 * Clears the memoized results and hashes of the formula.
 	 */
 	void clearMemory();

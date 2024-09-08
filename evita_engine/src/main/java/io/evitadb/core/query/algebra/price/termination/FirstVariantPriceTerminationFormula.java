@@ -372,6 +372,11 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	}
 
 	@Override
+	public int getSize() {
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getSize).sum();
+	}
+
+	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			new long[]{

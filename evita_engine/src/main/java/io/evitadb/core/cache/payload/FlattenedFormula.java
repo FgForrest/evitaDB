@@ -108,6 +108,11 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 	}
 
 	@Override
+	public int getSize() {
+		return memoizedResult.size();
+	}
+
+	@Override
 	public long getCostToPerformanceRatio() {
 		return Integer.MAX_VALUE;
 	}

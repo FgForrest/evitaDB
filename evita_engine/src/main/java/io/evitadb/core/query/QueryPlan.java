@@ -274,7 +274,7 @@ public class QueryPlan {
 						}
 						it.finish(
 							this.prefetched,
-							this.filter.getEstimatedCardinality(),
+							this.filter.getSize(),
 							this.primaryKeys == null ? 0 : this.primaryKeys.length,
 							this.totalRecordCount,
 							ioFetchCount,

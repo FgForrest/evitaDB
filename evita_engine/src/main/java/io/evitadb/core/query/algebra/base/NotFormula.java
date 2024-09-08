@@ -99,6 +99,15 @@ public class NotFormula extends AbstractCacheableFormula {
 	}
 
 	@Override
+	public int getSize() {
+		if (supersetBitmap != null && subtractedBitmap != null) {
+			return supersetBitmap.size() + subtractedBitmap.size();
+		} else {
+			return innerFormulas[1].getSize();
+		}
+	}
+
+	@Override
 	public long getOperationCost() {
 		return 9;
 	}

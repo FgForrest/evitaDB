@@ -163,6 +163,12 @@ public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapS
 	}
 
 	@Override
+	public int getSize() {
+		Assert.isPremiseValid(this.estimatedCardinality != null, "The HistogramBitmapSupplier hasn't been initialized!");
+		return this.estimatedCardinality;
+	}
+
+	@Override
 	public Bitmap get() {
 		if (this.memoizedResult == null) {
 			final CompositeIntArray result = new CompositeIntArray();

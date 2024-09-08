@@ -84,6 +84,11 @@ public class MultipleEntityFormula extends AbstractFormula {
 	}
 
 	@Override
+	public int getSize() {
+		return getEstimatedCardinality();
+	}
+
+	@Override
 	public long getOperationCost() {
 		return 0;
 	}

@@ -158,6 +158,15 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	}
 
 	@Override
+	public int getSize() {
+		if (bitmaps == null) {
+			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
+		} else {
+			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).sum();
+		}
+	}
+
+	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			Stream.of(

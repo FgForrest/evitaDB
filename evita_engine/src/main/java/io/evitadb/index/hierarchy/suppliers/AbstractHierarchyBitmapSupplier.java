@@ -64,7 +64,7 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	/**
 	 * Set of {@link TransactionalLayerProducer#getId()} that are involved in data computation.
 	 */
-	private long[] transactionalIds;
+	private final long[] transactionalIds;
 	/**
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */

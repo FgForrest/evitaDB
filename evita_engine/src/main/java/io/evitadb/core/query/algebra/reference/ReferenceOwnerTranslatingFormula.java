@@ -37,6 +37,7 @@ import net.openhft.hashing.LongHashFunction;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.function.IntFunction;
 
@@ -140,6 +141,11 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula {
 	@Override
 	public int getEstimatedCardinality() {
 		return worstCardinality;
+	}
+
+	@Override
+	public int getSize() {
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getSize).sum();
 	}
 
 	@Override
