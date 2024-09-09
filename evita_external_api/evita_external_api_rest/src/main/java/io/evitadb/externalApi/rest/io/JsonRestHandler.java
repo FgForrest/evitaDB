@@ -67,7 +67,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 				try {
 					return restHandlingContext.getObjectMapper().readValue(content, dataClass);
 				} catch (JsonProcessingException e) {
-					throw new RestInternalError("Could not parse request body: ", e);
+					throw new RestInvalidArgumentException("Invalid request body: " + e.getLocation().toString(), e);
 				}
 			});
 	}
