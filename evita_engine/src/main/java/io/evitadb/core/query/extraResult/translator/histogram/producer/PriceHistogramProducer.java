@@ -107,6 +107,7 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 			filteredRecordsFound.get() ? formulaWithFilteredOutResults : null,
 			filteredPriceRecordAccessors, priceRecordsLookupResult
 		);
+		computer.initialize(context);
 		final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();
 		if (optimalHistogram == CacheableHistogramContract.EMPTY) {
 			return null;

@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.price.priceIndex;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
@@ -69,9 +70,9 @@ public class PriceIdContainerFormula extends AbstractFormula implements PriceInd
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
 		return new ResolvedFilteredPriceRecords(
-			priceIndex.getPriceRecords(compute()),
+			this.priceIndex.getPriceRecords(compute()),
 			SortingForm.NOT_SORTED
 		);
 	}

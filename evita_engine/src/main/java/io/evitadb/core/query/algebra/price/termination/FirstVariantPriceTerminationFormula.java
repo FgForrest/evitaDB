@@ -74,7 +74,7 @@ import java.util.function.Consumer;
  * It may also filter out entity ids which don't pass {@link #pricePredicate} predicate test.
  *
  * This formula consumes and produces {@link Formula} of {@link PriceRecord#entityPrimaryKey() entity ids}. It uses
- * information from underlying formulas that implement {@link FilteredPriceRecordAccessor#getFilteredPriceRecords()}
+ * information from underlying formulas that implement {@link FilteredPriceRecordAccessor#getFilteredPriceRecords(QueryExecutionContext)}
  * to access the lowest price of each entity/inner record id combination for filtering purposes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -222,14 +222,17 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.notNull(filteredPriceRecords, "Call #compute() method first!");
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
+		if (filteredPriceRecords == null) {
+			// init the records first
+			compute();
+		}
 		return filteredPriceRecords;
 	}
 
 	@Override
 	public String toString() {
-		return pricePredicate.toString();
+		return this.pricePredicate.toString();
 	}
 
 	@Override
@@ -242,13 +245,13 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 				.sorted()
 				.toArray(),
 			compute(),
-			getFilteredPriceRecords(),
+			getFilteredPriceRecords(this.executionContext),
 			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
 			getPriceEvaluationContext(),
-			pricePredicate.getQueryPriceMode(),
-			pricePredicate.getFrom(),
-			pricePredicate.getTo(),
-			pricePredicate.getIndexedPricePlaces()
+			this.pricePredicate.getQueryPriceMode(),
+			this.pricePredicate.getFrom(),
+			this.pricePredicate.getTo(),
+			this.pricePredicate.getIndexedPricePlaces()
 		);
 	}
 
@@ -277,7 +280,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 			// collect price iterators ordered by price list importance
 			final PriceRecordLookup[] priceRecordIterators = filteredPriceRecordAccessors
 				.stream()
-				.map(FilteredPriceRecordAccessor::getFilteredPriceRecords)
+				.map(it -> it.getFilteredPriceRecords(this.executionContext))
 				.map(FilteredPriceRecords::getPriceRecordsLookup)
 				.toArray(PriceRecordLookup[]::new);
 			// create array for the lowest prices by entity

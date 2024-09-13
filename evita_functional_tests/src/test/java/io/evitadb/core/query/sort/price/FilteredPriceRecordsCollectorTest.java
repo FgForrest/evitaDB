@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort.price;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
@@ -122,13 +123,17 @@ class FilteredPriceRecordsCollectorTest {
 		private final PriceRecord[] addedRecords;
 
 		public MockedPriceRecordsCollector(@Nonnull PriceRecord[] originalRecords, @Nonnull PriceRecord[] addedRecords) {
-			super(new FilteredPriceRecordsLookupResult(originalRecords), Collections.emptyList());
+			super(new FilteredPriceRecordsLookupResult(originalRecords), Collections.emptyList(), null);
 			this.addedRecords = addedRecords;
 		}
 
 		@Nonnull
 		@Override
-		protected FilteredPriceRecordsLookupResult computeResult(@Nonnull RoaringBitmap filteredResults, @Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors) {
+		protected FilteredPriceRecordsLookupResult computeResult(
+			@Nonnull RoaringBitmap filteredResults,
+			@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
+			@Nonnull QueryExecutionContext context
+		) {
 			return new FilteredPriceRecordsLookupResult(addedRecords);
 		}
 
