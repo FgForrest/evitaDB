@@ -219,18 +219,20 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
 		// if the entities were prefetched we passed the "is it worthwhile" check
-		return Optional.ofNullable(executionContext.getPrefetchedEntities())
+		return Optional.ofNullable(this.executionContext.getPrefetchedEntities())
 			// ask the alternative solution for filtered price records
-			.map(it ->
-				alternative instanceof FilteredPriceRecordAccessor ?
-					((FilteredPriceRecordAccessor) alternative).getFilteredPriceRecords() :
-					new ResolvedFilteredPriceRecords()
+			.map(it -> {
+					if (this.alternative instanceof FilteredPriceRecordAccessor fpra) {
+						return fpra.getFilteredPriceRecords(context);
+					} else {
+						return new ResolvedFilteredPriceRecords();
+					}
+				}
 			)
 			// otherwise collect the filtered records from the delegate
-			.orElseGet(() -> FilteredPriceRecords.createFromFormulas(this, this.compute()));
+			.orElseGet(() -> FilteredPriceRecords.createFromFormulas(this, this.compute(), this.executionContext));
 	}
 
 	@Override
