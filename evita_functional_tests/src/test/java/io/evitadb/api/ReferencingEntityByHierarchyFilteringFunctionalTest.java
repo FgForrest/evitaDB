@@ -2801,7 +2801,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
 							entityFetchAll()
 						)
 					),

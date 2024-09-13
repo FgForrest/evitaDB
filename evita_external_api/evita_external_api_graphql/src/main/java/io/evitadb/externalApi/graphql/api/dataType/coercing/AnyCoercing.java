@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
@@ -88,6 +89,7 @@ public class AnyCoercing extends ObjectCoercing {
 		SERIALIZATION_COERCING_MAPPINGS.put(Currency.class, GraphQLScalars.CURRENCY_COERCING);
 		SERIALIZATION_COERCING_MAPPINGS.put(UUID.class, GraphQLScalars.UUID_COERCING);
 		SERIALIZATION_COERCING_MAPPINGS.put(Predecessor.class, GraphQLScalars.PREDECESSOR_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(ReferencedEntityPredecessor.class, GraphQLScalars.REFERENCED_ENTITY_PREDECESSOR_COERCING);
 	}
 
 	@Override

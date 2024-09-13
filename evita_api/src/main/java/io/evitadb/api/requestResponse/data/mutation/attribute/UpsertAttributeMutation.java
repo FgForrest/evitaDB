@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -48,16 +49,28 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 
 	public UpsertAttributeMutation(@Nonnull AttributeKey attributeKey, @Nonnull Serializable value) {
 		super(attributeKey);
+		Assert.notNull(value,
+			"Value for attribute `" + attributeKey + "` must not be null. " +
+				"Use `removeAttribute` mutation if you want to remove existing attribute."
+		);
 		this.value = value;
 	}
 
 	public UpsertAttributeMutation(@Nonnull String attributeName, @Nonnull Serializable value) {
 		super(new AttributeKey(attributeName));
+		Assert.notNull(value,
+			"Value for attribute `" + attributeName + "` must not be null. " +
+				"Use `removeAttribute` mutation if you want to remove existing attribute."
+		);
 		this.value = value;
 	}
 
 	public UpsertAttributeMutation(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Serializable value) {
 		super(new AttributeKey(attributeName, locale));
+		Assert.notNull(value,
+			"Value for attribute `" + attributeName + "` must not be null. " +
+				"Use `removeAttribute` mutation if you want to remove existing attribute."
+		);
 		this.value = value;
 	}
 

@@ -200,7 +200,7 @@ public class ObjectJsonSerializer {
 	}
 
 	private int serialize(@Nonnull Predecessor predecessor) {
-		return predecessor.predecessorId();
+		return predecessor.predecessorPk();
 	}
 
 	private JsonNode serialize(@Nonnull PriceContract price) {

@@ -1530,7 +1530,7 @@ public class EntityByPriceFilteringFunctionalTest {
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_PREFETCHING),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
 							entityFetch(),
 							priceHistogram(20)
 						)

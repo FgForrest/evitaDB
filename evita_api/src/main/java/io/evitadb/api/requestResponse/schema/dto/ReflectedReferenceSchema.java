@@ -34,10 +34,13 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
@@ -317,6 +320,42 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			.collect(Collectors.toMap(Entry::getKey, Entry::getValue));
 	}
 
+	/**
+	 * This method processes the given map of attribute schema contracts and returns
+	 * a new map where the types of necessary attributes are inverted based on specific conditions.
+	 *
+	 * @param inputSchemas A map containing attribute schema contracts identified by a string key.
+	 * @return A map with the types of the necessary attributes inverted, or the original map if no inversion is needed.
+	 */
+	@Nonnull
+	private static Map<String, AttributeSchemaContract> invertNecessaryAttributeTypes(
+		@Nonnull Map<String, AttributeSchemaContract> inputSchemas
+	) {
+		// we optimize for a scenario where no attribute schema needs inverted type
+		Map<String, AttributeSchemaContract> invertedTypes = null;
+		for (Entry<String, AttributeSchemaContract> entry : inputSchemas.entrySet()) {
+			if (Predecessor.class.equals(entry.getValue().getPlainType()) ||
+				ReferencedEntityPredecessor.class.equals(entry.getValue().getPlainType())) {
+				invertedTypes = invertedTypes == null ? CollectionUtils.createHashMap(inputSchemas.size()) : invertedTypes;
+				invertedTypes.put(
+					entry.getKey(),
+					((AttributeSchema) entry.getValue()).withInvertedType()
+				);
+			}
+		}
+		if (invertedTypes != null) {
+			// and we pay for it by second iteration
+			for (Entry<String, AttributeSchemaContract> entry : inputSchemas.entrySet()) {
+				if (!invertedTypes.containsKey(entry.getKey())) {
+					invertedTypes.put(entry.getKey(), entry.getValue());
+				}
+			}
+			return invertedTypes;
+		} else {
+			return inputSchemas;
+		}
+	}
+
 	public ReflectedReferenceSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
@@ -344,10 +383,22 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			reflectedReference != null && reflectedReference.isReferencedGroupTypeManaged(),
 			true,
 			faceted == null ? reflectedReference != null && reflectedReference.isFaceted() : faceted,
-			reflectedReference != null ?
-				union(attributes, reflectedReference.getAttributes(), attributesInheritanceBehavior, attributeInheritanceFilter) : attributes,
-			reflectedReference != null ?
-				union(sortableAttributeCompounds, reflectedReference.getSortableAttributeCompounds(), attributesInheritanceBehavior, attributeInheritanceFilter) : sortableAttributeCompounds
+			reflectedReference == null ?
+				attributes :
+				union(
+					attributes,
+					invertNecessaryAttributeTypes(reflectedReference.getAttributes()),
+					attributesInheritanceBehavior,
+					attributeInheritanceFilter
+				),
+			reflectedReference == null ?
+				sortableAttributeCompounds :
+				union(
+					sortableAttributeCompounds,
+					reflectedReference.getSortableAttributeCompounds(),
+					attributesInheritanceBehavior,
+					attributeInheritanceFilter
+				)
 		);
 		Assert.isTrue(
 			reflectedReference == null || reflectedReference.getName().equals(reflectedReferenceName),
@@ -494,6 +545,11 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	@Override
 	public String[] getAttributeInheritanceFilter() {
 		return this.attributeInheritanceFilter;
+	}
+
+	@Override
+	public boolean isReflectedReferenceAvailable() {
+		return this.reflectedReference != null;
 	}
 
 	@Nullable
@@ -659,10 +715,16 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			);
 		}
 
-		referenceErrors = Stream.concat(
-			referenceErrors,
-			validateAttributes(this.getAttributes())
-		);
+		if (
+			this.isReflectedReferenceAvailable() ||
+				this.attributesInheritanceBehavior == AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED &&
+					ArrayUtils.isEmpty(this.attributeInheritanceFilter)
+		) {
+			referenceErrors = Stream.concat(
+				referenceErrors,
+				validateAttributes(this.getAttributes())
+			);
+		}
 
 		final List<String> errors = referenceErrors.map(it -> "\t" + it).toList();
 		if (!errors.isEmpty()) {
@@ -1114,7 +1176,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				// filter them out to leave attributes added on the reflected reference only
 				union(
 					newlyDeclaredAttributes,
-					this.reflectedReference.getAttributes(),
+					invertNecessaryAttributeTypes(this.reflectedReference.getAttributes()),
 					this.attributesInheritanceBehavior,
 					this.attributeInheritanceFilter
 				),
@@ -1222,7 +1284,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				union(
 					super.getAttributes(),
-					originalReference.getAttributes(),
+					invertNecessaryAttributeTypes(originalReference.getAttributes()),
 					this.attributesInheritanceBehavior,
 					this.attributeInheritanceFilter
 				) :
@@ -1230,7 +1292,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				// filter them out to leave attributes added on the reflected reference only
 				union(
 					this.getDeclaredAttributes(),
-					originalReference.getAttributes(),
+					invertNecessaryAttributeTypes(originalReference.getAttributes()),
 					this.attributesInheritanceBehavior,
 					this.attributeInheritanceFilter
 				),
@@ -1258,11 +1320,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.attributeInheritanceFilter,
 			originalReference
 		);
-	}
-
-	@Override
-	public boolean isReflectedReferenceAvailable() {
-		return this.reflectedReference != null;
 	}
 
 	/**

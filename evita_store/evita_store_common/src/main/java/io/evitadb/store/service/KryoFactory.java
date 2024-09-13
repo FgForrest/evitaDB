@@ -39,15 +39,7 @@ import com.esotericsoftware.kryo.serializers.TimeSerializers.LocalDateTimeSerial
 import com.esotericsoftware.kryo.serializers.TimeSerializers.LocalTimeSerializer;
 import com.esotericsoftware.kryo.serializers.TimeSerializers.OffsetDateTimeSerializer;
 import com.esotericsoftware.kryo.util.DefaultClassResolver;
-import io.evitadb.dataType.BigDecimalNumberRange;
-import io.evitadb.dataType.ByteNumberRange;
-import io.evitadb.dataType.ComplexDataObject;
-import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.dataType.IntegerNumberRange;
-import io.evitadb.dataType.LongNumberRange;
-import io.evitadb.dataType.Predecessor;
-import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.*;
 import io.evitadb.dataType.data.DataItemArray;
 import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.data.DataItemValue;
@@ -201,6 +193,7 @@ public class KryoFactory {
 		kryoInstance.register(Collections.emptySet().getClass(), new CollectionsEmptySetSerializer(), index++);
 		kryoInstance.register(Collections.unmodifiableSet(Collections.EMPTY_SET).getClass(), new SetSerializer<>(count -> Collections.unmodifiableSet(new HashSet<>((int) Math.ceil(count / .75f), .75f))), index++);
 		kryoInstance.register(Instant.class, new InstantSerializer(), index++);
+		kryoInstance.register(ReferencedEntityPredecessor.class, new ReferencedEntityPredecessorSerializer(), index++);
 		Assert.isPremiseValid(index < 200, "Index count overflow.");
 		return kryoInstance;
 	}

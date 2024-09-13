@@ -53,7 +53,7 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	private SortedRecordsProvider[] resolvedSortedRecordsProviders;
 	private CompositeObjectArray<EntityContract> nonSortedEntities;
 	private int estimatedCount = 100;
-	private IntIntMap cache;
+	private IntIntMap[] cache;
 
 	@Nonnull
 	@Override
@@ -73,15 +73,19 @@ public class PredecessorAttributeComparator implements EntityComparator {
 		boolean o2Found = false;
 		int result = 0;
 		// scan all providers
-		for (SortedRecordsProvider sortedRecordsProvider : sortedRecordsProviders) {
-			if (cache == null) {
+		if (cache == null) {
+			cache = new IntIntMap[sortedRecordsProviders.length];
+		}
+		for (int i = 0; i < sortedRecordsProviders.length; i++) {
+			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
+			if (cache[i] == null) {
 				// let's create the cache with estimated size multiply 5 expected steps for binary search
-				cache = new IntIntHashMap(estimatedCount * 5);
+				cache[i] = new IntIntHashMap(estimatedCount * 5);
 			}
 			// and try to find primary keys of both entities in each provider
 			final Bitmap allRecords = sortedRecordsProvider.getAllRecords();
-			final int o1Index = o1Found ? -1 : computeIfAbsent(cache, o1.getPrimaryKey(), allRecords::indexOf);
-			final int o2Index = o2Found ? -1 : computeIfAbsent(cache, o2.getPrimaryKey(), allRecords::indexOf);
+			final int o1Index = o1Found ? -1 : computeIfAbsent(cache[i], o1.getPrimaryKey(), allRecords::indexOf);
+			final int o2Index = o2Found ? -1 : computeIfAbsent(cache[i], o2.getPrimaryKey(), allRecords::indexOf);
 			// if both entities are found in the same provider, compare their positions
 			if (o1Index >= 0 && o2Index >= 0) {
 				result = Integer.compare(

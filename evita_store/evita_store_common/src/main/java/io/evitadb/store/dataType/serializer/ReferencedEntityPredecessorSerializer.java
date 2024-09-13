@@ -28,20 +28,20 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.ImmutableSerializer;
-import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 
 /**
- * This {@link Serializer} implementation reads/writes Predecessor type.
+ * This {@link Serializer} implementation reads/writes ReferencedEntityPredecessor type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class PredecessorSerializer extends ImmutableSerializer<Predecessor> {
+public class ReferencedEntityPredecessorSerializer extends ImmutableSerializer<ReferencedEntityPredecessor> {
 	{
 		setAcceptsNull(true);
 	}
 
 	@Override
-	public void write (Kryo kryo, Output output, Predecessor object) {
+	public void write (Kryo kryo, Output output, ReferencedEntityPredecessor object) {
 		if (object == null) {
 			output.writeBoolean(false);
 		} else {
@@ -51,9 +51,9 @@ public class PredecessorSerializer extends ImmutableSerializer<Predecessor> {
 	}
 
 	@Override
-	public Predecessor read (Kryo kryo, Input input, Class<? extends Predecessor> type) {
+	public ReferencedEntityPredecessor read (Kryo kryo, Input input, Class<? extends ReferencedEntityPredecessor> type) {
 		if (input.readBoolean()) {
-			return new Predecessor(input.readInt());
+			return new ReferencedEntityPredecessor(input.readInt());
 		} else {
 			return null;
 		}

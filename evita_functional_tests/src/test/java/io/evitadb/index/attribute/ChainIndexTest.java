@@ -364,7 +364,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 								if (predecessor != originalPredecessor) {
 									// change order
 									codeBuffer.append("index.upsertPredecessor(")
-										.append("new Predecessor(").append(predecessor.predecessorId()).append("), ")
+										.append("new Predecessor(").append(predecessor.predecessorPk()).append("), ")
 										.append(pk).append(");\n");
 									original.upsertPredecessor(predecessor, pk);
 								}
@@ -492,7 +492,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 
 								// change order
 								codeBuffer.append("index.upsertPredecessor(")
-									.append("new Predecessor(").append(predecessor.predecessorId()).append("), ")
+									.append("new Predecessor(").append(predecessor.predecessorPk()).append("), ")
 									.append(randomPk).append(");\n");
 								original.upsertPredecessor(predecessor, randomPk);
 
@@ -554,7 +554,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 
 						// change order
 						codeBuffer.append("index.upsertPredecessor(")
-							.append("new Predecessor(").append(predecessor.predecessorId()).append("), ")
+							.append("new Predecessor(").append(predecessor.predecessorPk()).append("), ")
 							.append(pk).append(");\n");
 						original.upsertPredecessor(predecessor, pk);
 					}

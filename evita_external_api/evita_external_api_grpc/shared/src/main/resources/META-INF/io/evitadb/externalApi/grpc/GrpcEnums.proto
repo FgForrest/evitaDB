@@ -291,6 +291,8 @@ enum GrpcEvitaDataType {
   UUID = 20;
   // Represents Predecessor data type.
   PREDECESSOR = 21;
+  // Represents ReferencedEntityPredecessor data type.
+  REFERENCED_ENTITY_PREDECESSOR = 22;
 
   // Represents string array data type.
   STRING_ARRAY = 50;

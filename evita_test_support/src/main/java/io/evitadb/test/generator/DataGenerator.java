@@ -401,6 +401,7 @@ public class DataGenerator {
 		@Nonnull Map<Object, Integer> uniqueSequencer,
 		@Nonnull Map<String, Map<Integer, Integer>> parameterGroupIndex,
 		@Nonnull SortableAttributesChecker sortableAttributesHolder,
+		@Nonnull Map<EntityAttribute, Function<Faker, Object>> valueGenerators,
 		@Nonnull Function<Locale, Faker> localeFaker,
 		@Nonnull Faker genericFaker,
 		@Nonnull EntityBuilder detachedBuilder,
@@ -437,6 +438,8 @@ public class DataGenerator {
 				initialCount = genericFaker.random().nextInt(16);
 			} else if (Entities.PRICE_LIST.equals(referencedType)) {
 				initialCount = genericFaker.random().nextInt(10);
+			} else if (Entities.PRODUCT.equals(referencedType)) {
+				initialCount = genericFaker.random().nextInt(30);
 			} else {
 				initialCount = 1;
 			}
@@ -482,7 +485,7 @@ public class DataGenerator {
 									uniqueSequencer,
 									sortableAttributesHolder,
 									attributePredicate,
-									localeFaker, Collections.emptyMap(), genericFaker, thatIs, usedLocales, allLocales
+									localeFaker, valueGenerators, genericFaker, thatIs, usedLocales, allLocales
 								)
 							);
 						}
@@ -919,7 +922,7 @@ public class DataGenerator {
 			generateRandomAssociatedData(schema, genericFaker, detachedBuilder, usedLocales, allLocales);
 
 			generateRandomPrices(schema, uniqueSequencer, genericFaker, allCurrencies, allPriceLists, detachedBuilder, priceInnerRecordHandlingGenerator);
-			generateRandomReferences(schema, referencedEntityResolver, globalUniqueSequencer, uniqueSequencer, parameterIndex, sortableAttributesHolder, localizedFakerFetcher, genericFaker, detachedBuilder, usedLocales, allLocales);
+			generateRandomReferences(schema, referencedEntityResolver, globalUniqueSequencer, uniqueSequencer, parameterIndex, sortableAttributesHolder, valueGenerators, localizedFakerFetcher, genericFaker, detachedBuilder, usedLocales, allLocales);
 
 			return detachedBuilder;
 		});
@@ -1521,7 +1524,7 @@ public class DataGenerator {
 			}
 			generateRandomReferences(
 				schema, referencedEntityResolver, globalUniqueSequencer, uniqueSequencer, parameterIndex, sortableAttributesHolder,
-				localizedFakerFetcher, genericFaker, detachedBuilder, usedLocales, allLocales
+				valueGenerators, localizedFakerFetcher, genericFaker, detachedBuilder, usedLocales, allLocales
 			);
 
 			return detachedBuilder;
