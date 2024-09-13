@@ -143,12 +143,12 @@ public class FilteredPricesSorter implements Sorter {
 		final Bitmap computeResult = input.compute();
 		final RoaringBitmap computeResultBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(computeResult);
 		// collect price records from the filtering formulas
-		priceRecordsLookupResult = new FilteredPriceRecordsCollector(
-			computeResultBitmap, filteredPriceRecordAccessors
+		this.priceRecordsLookupResult = new FilteredPriceRecordsCollector(
+			computeResultBitmap, this.filteredPriceRecordAccessors, queryContext
 		).getResult();
 
 		// now sort filtered prices by passed comparator
-		final PriceRecordContract[] translatedResult = priceRecordsLookupResult.getPriceRecords();
+		final PriceRecordContract[] translatedResult = this.priceRecordsLookupResult.getPriceRecords();
 		Arrays.sort(translatedResult, getPriceRecordComparator());
 
 		// slice the output and cut appropriate page from it
@@ -159,7 +159,7 @@ public class FilteredPricesSorter implements Sorter {
 		}
 
 		// if the output is not complete, and we have not found entity PKs
-		final int[] notFoundEntities = priceRecordsLookupResult.getNotFoundEntities();
+		final int[] notFoundEntities = this.priceRecordsLookupResult.getNotFoundEntities();
 		if (translatedResult.length < endIndex && (notFoundEntities != null && notFoundEntities.length > 0)) {
 			// pass them to another sorter
 			final int recomputedStartIndex = Math.max(0, startIndex - written);

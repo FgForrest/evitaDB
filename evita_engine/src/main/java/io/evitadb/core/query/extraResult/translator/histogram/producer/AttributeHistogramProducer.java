@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
@@ -77,10 +76,6 @@ import static java.util.Optional.ofNullable;
  */
 public class AttributeHistogramProducer implements ExtraResultProducer {
 	/**
-	 * Type of the queried entity - {@link EntitySchema#getName()}.
-	 */
-	private final String entityType;
-	/**
 	 * Bucket count contains desired count of histogram columns=buckets. Output histogram bucket count must never exceed
 	 * this value, but might be optimized to lower count when there are big gaps between columns.
 	 */
@@ -101,12 +96,10 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	private final Map<String, AttributeHistogramRequest> histogramRequests;
 
 	public AttributeHistogramProducer(
-		@Nonnull String entityType,
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
 		@Nonnull Formula filterFormula
 	) {
-		this.entityType = entityType;
 		this.bucketCount = bucketCount;
 		this.behavior = behavior;
 		this.filterFormula = filterFormula;

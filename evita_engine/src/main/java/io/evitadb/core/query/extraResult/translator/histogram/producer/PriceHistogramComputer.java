@@ -361,12 +361,14 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 			// create price records collector reusing existing data or computing them from scratch
 			final FilteredPriceRecordsCollector priceRecordsCollector = this.priceRecordsLookupResult == null ?
 				new FilteredPriceRecordsCollector(
-					RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute()),
-					filteredPriceRecordAccessors
+					RoaringBitmapBackedBitmap.getRoaringBitmap(this.filteringFormula.compute()),
+					this.filteredPriceRecordAccessors,
+					this.context
 				) :
 				new FilteredPriceRecordsCollector(
 					this.priceRecordsLookupResult,
-					filteredPriceRecordAccessors
+					this.filteredPriceRecordAccessors,
+					this.context
 				);
 
 			// collect all price records that match filtering formula computation (ignoring price between query)

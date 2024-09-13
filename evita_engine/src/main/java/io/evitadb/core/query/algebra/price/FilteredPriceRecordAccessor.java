@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.price;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
@@ -46,6 +47,6 @@ public interface FilteredPriceRecordAccessor {
 	 * additional logic that needs to work with the prices (mainly sorting) could perform quickly.
 	 */
 	@Nonnull
-	FilteredPriceRecords getFilteredPriceRecords();
+	FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context);
 
 }

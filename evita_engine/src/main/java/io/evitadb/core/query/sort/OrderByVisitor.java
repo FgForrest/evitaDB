@@ -271,6 +271,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	/**
 	 * Returns index which is best suited for supplying {@link SortIndex}.
 	 */
+	@Nonnull
 	public EntityIndex[] getIndexesForSort() {
 		final ProcessingScope theScope = this.scope.peek();
 		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
