@@ -23,7 +23,6 @@
 
 package io.evitadb.core;
 
-import com.esotericsoftware.kryo.util.IntMap;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EntityCollectionContract;
@@ -34,7 +33,6 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
-import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.query.Query;
@@ -49,15 +47,11 @@ import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
-import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutations;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
-import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
-import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -279,76 +273,6 @@ public final class EntityCollection implements
 				"Unsupported entity type `" + entity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
 				"Unsupported entity type!"
 			);
-		}
-	}
-
-	/**
-	 * Method processes all local mutations of passed `entityMutation` using passed `changeCollector`
-	 * and `entityIndexUpdater`.
-	 */
-	private static void processMutations(
-		@Nonnull Catalog catalog,
-		@Nonnull List<? extends LocalMutation<?, ?>> localMutations,
-		@Nonnull EnumSet<ImplicitMutationBehavior> generateImplicitMutations,
-		boolean checkConsistency,
-		@Nonnull LocalMutationExecutor... mutationApplicators
-	) {
-		try {
-
-			for (LocalMutation<?, ?> localMutation : localMutations) {
-				for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
-					mutationApplicator.applyMutation(localMutation);
-				}
-			}
-
-			for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
-				if (mutationApplicator instanceof ConsistencyCheckingLocalMutationExecutor lmewim) {
-					if (!generateImplicitMutations.isEmpty()) {
-						final ImplicitMutations implicitMutations = lmewim.popImplicitMutations(
-							localMutations, generateImplicitMutations
-						);
-						// immediately apply all local mutations
-						for (LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
-							for (LocalMutationExecutor applicator : mutationApplicators) {
-								applicator.applyMutation(localMutation);
-							}
-						}
-						// and for each external mutation - call external collection to apply it
-						for (EntityMutation entityMutation : implicitMutations.externalMutations()) {
-							/* TODO JNO - rollbackable apply mutation, with implicit flag to avoid this section!!! */
-							catalog.applyMutation(entityMutation);
-						}
-					}
-					if (checkConsistency) {
-						lmewim.verifyConsistency();
-					}
-				}
-			}
-
-		} catch (RuntimeException ex) {
-			// rollback all changes in memory if anything failed
-			// the exception might be caught by a caller and he could continue with the transaction ... in this case
-			// we need to clean partially applied changes in his isolated indexes so that he doesn't see them
-			// each operation must behave atomically - either all local mutations are applied or none of them - it's
-			// something like a transaction within a transaction
-			for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
-				try {
-					mutationApplicator.rollback();
-				} catch (RuntimeException rollbackEx) {
-					ex.addSuppressed(rollbackEx);
-				}
-			}
-			throw ex;
-		}
-
-		// we do not address the situation where only one applicator fails on commit and the others succeed
-		// this is unlikely situation and should cause entire transaction to be rolled back
-		try {
-			for (LocalMutationExecutor mutationApplicator : mutationApplicators) {
-				mutationApplicator.commit();
-			}
-		} catch (RuntimeException ex) {
-			throw new TransactionException("Failed to commit local mutations!", ex);
 		}
 	}
 
@@ -616,36 +540,38 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		final int primaryKey = upsertEntityInternal(entityMutation);
+		upsertEntityInternal(entityMutation, false);
 		return new EntityReference(
 			entityMutation.getEntityType(),
-			primaryKey
+			entityMutation.getEntityPrimaryKey()
 		);
 	}
 
 	@Override
 	@Nonnull
 	public SealedEntity upsertAndFetchEntity(@Nonnull EntityMutation entityMutation, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final int primaryKey = upsertEntityInternal(entityMutation);
-		final EntityWithFetchCount internalEntity = getEntityById(primaryKey, evitaRequest);
-		Assert.isPremiseValid(internalEntity != null, "Entity that has been just upserted is unexpectedly not found!");
+		final ServerEntityDecorator internalEntity =
+			wrapToDecorator(
+				evitaRequest,
+				/* TODO - TADY ZAJISTIT POTŘEBNÉ DONAČTENÍ OBSAHU */
+				upsertEntityInternal(entityMutation, true),
+				false
+			);
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 		return applyReferenceFetcher(
-			wrapToDecorator(evitaRequest, internalEntity, false),
+			internalEntity,
 			referenceFetcher
 		);
 	}
 
 	@Override
 	public boolean deleteEntity(int primaryKey) {
-		// fetch the entire entity from the data store
-		final EntityWithFetchCount entityToRemove = getFullEntityById(primaryKey);
-		if (entityToRemove == null) {
+		if (this.getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
+			deleteEntityInternal(primaryKey);
+			return true;
+		} else {
 			return false;
 		}
-
-		internalDeleteEntity(entityToRemove.entity());
-		return true;
 	}
 
 	@Override
@@ -653,21 +579,19 @@ public final class EntityCollection implements
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
-		// fetch entire entity from the data store
-		final EntityWithFetchCount entityToRemove = getFullEntityById(primaryKeys[0]);
-		if (entityToRemove == null) {
+		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
 			return empty();
+		} else {
+			final EntityWithFetchCount removedEntity = deleteEntityInternal(primaryKeys[0]);
+			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+			//noinspection unchecked
+			return of(
+				(T) applyReferenceFetcher(
+					wrapToDecorator(evitaRequest, removedEntity, false),
+					referenceFetcher
+				)
+			);
 		}
-
-		internalDeleteEntity(entityToRemove.entity());
-		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-		//noinspection unchecked
-		return of(
-			(T) applyReferenceFetcher(
-				wrapToDecorator(evitaRequest, entityToRemove, false),
-				referenceFetcher
-			)
-		);
 	}
 
 	@Override
@@ -695,30 +619,21 @@ public final class EntityCollection implements
 			final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 			Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 			final int[] entityHierarchy = globalIndex.listHierarchyNodesFromParentIncludingItself(primaryKeys[0]).getArray();
-			final List<EntityWithFetchCount> entitiesToRemove = Arrays.stream(entityHierarchy)
-				.mapToObj(this::getFullEntityById)
-				.filter(Objects::nonNull)
-				.toList();
-			final IntMap<EntityWithFetchCount> entitiesToRemoveMap = new IntMap<>(entitiesToRemove.size());
-			for (EntityWithFetchCount entityWithFetchCount : entitiesToRemove) {
-				entitiesToRemoveMap.put(entityWithFetchCount.entity().getPrimaryKey(), entityWithFetchCount);
+
+			ServerEntityDecorator removedRoot = null;
+			for (int entityToRemove : entityHierarchy) {
+				final EntityWithFetchCount removedEntity = deleteEntityInternal(entityToRemove);
+				removedRoot = removedRoot == null ? wrapToDecorator(evitaRequest, removedEntity, false) : removedRoot;
 			}
 
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-			final List<Entity> removedEntities = referenceFetcher.initReferenceIndex(
-				entitiesToRemove.stream().map(EntityWithFetchCount::entity).toList(),
-				this
-			);
-			for (EntityWithFetchCount entityToRemove : entitiesToRemove) {
-				internalDeleteEntity(entityToRemove.entity());
-			}
+
 			//noinspection unchecked
 			return new DeletedHierarchy<>(
-				removedEntities.size(),
-				removedEntities.stream()
-					.findFirst()
+				entityHierarchy.length,
+				ofNullable(removedRoot)
 					.map(it -> (T) applyReferenceFetcherInternal(
-							wrapToDecorator(evitaRequest, entitiesToRemoveMap.get(it.getPrimaryKey()), false),
+							referenceFetcher.initReferenceIndex(it, this),
 							referenceFetcher
 						)
 					)
@@ -759,30 +674,22 @@ public final class EntityCollection implements
 			queryPlan::getSpanAttributes
 		);
 
-		final List<EntityWithFetchCount> entitiesToRemove = result.getRecordData()
+		final int[] entitiesToRemove = result.getRecordData()
 			.stream()
-			.map(it -> getFullEntityById(getPrimaryKey(it)))
-			.filter(Objects::nonNull)
-			.toList();
-		final IntMap<EntityWithFetchCount> entitiesToRemoveMap = new IntMap<>(entitiesToRemove.size());
-		for (EntityWithFetchCount entityWithFetchCount : entitiesToRemove) {
-			entitiesToRemoveMap.put(entityWithFetchCount.entity().getPrimaryKey(), entityWithFetchCount);
+			.mapToInt(EntityCollection::getPrimaryKey)
+			.toArray();
+
+		final List<ServerEntityDecorator> removedEntities = new ArrayList<>(entitiesToRemove.length);
+		for (int entityToRemove : entitiesToRemove) {
+			removedEntities.add(
+				wrapToDecorator(evitaRequest, deleteEntityInternal(entityToRemove), false)
+			);
 		}
 
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-		final List<Entity> removedEntities = referenceFetcher.initReferenceIndex(
-			entitiesToRemove.stream().map(EntityWithFetchCount::entity).toList(),
-			this
-		);
-		for (EntityWithFetchCount entityToRemove : entitiesToRemove) {
-			internalDeleteEntity(entityToRemove.entity());
-		}
-
-		return removedEntities.stream()
-			.map(it -> applyReferenceFetcherInternal(
-				wrapToDecorator(evitaRequest, entitiesToRemoveMap.get(it.getPrimaryKey()), false),
-				referenceFetcher
-			))
+		return referenceFetcher.initReferenceIndex(removedEntities, this)
+			.stream()
+			.map(it -> applyReferenceFetcherInternal(it, referenceFetcher))
 			.toArray(SealedEntity[]::new);
 
 	}
@@ -806,22 +713,24 @@ public final class EntityCollection implements
 	@Override
 	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
 		if (entityMutation instanceof EntityUpsertMutation upsertMutation) {
-			upsertEntityInternal(upsertMutation);
+			upsertEntityInternal(upsertMutation, false);
 		} else if (entityMutation instanceof ServerEntityRemoveMutation removeMutation) {
 			applyMutations(
 				entityMutation,
-				Objects.requireNonNull(getFullEntityById(removeMutation.getEntityPrimaryKey()).entity()),
 				removeMutation.shouldApplyUndoOnError(),
 				removeMutation.shouldVerifyConsistency(),
-				removeMutation.getImplicitMutationsBehavior()
+				false,
+				removeMutation.getImplicitMutationsBehavior(),
+				new LocalMutationExecutorCollector(this.catalog)
 			);
-		} else if (entityMutation instanceof EntityRemoveMutation removeMutation) {
+		} else if (entityMutation instanceof EntityRemoveMutation) {
 			applyMutations(
 				entityMutation,
-				Objects.requireNonNull(getFullEntityById(removeMutation.getEntityPrimaryKey()).entity()),
 				true,
 				true,
-				EnumSet.noneOf(ImplicitMutationBehavior.class)
+				false,
+				EnumSet.noneOf(ImplicitMutationBehavior.class),
+				new LocalMutationExecutorCollector(this.catalog)
 			);
 		} else {
 			throw new InvalidMutationException(
@@ -877,11 +786,40 @@ public final class EntityCollection implements
 		return getSchema();
 	}
 
+	@Override
+	public long getVersion() {
+		return this.persistenceService.getEntityCollectionHeader().version();
+	}
+
+	@Nonnull
+	@Override
+	public EntityCollectionStatistics getStatistics() {
+		return new EntityCollectionStatistics(
+			getEntityType(),
+			size(),
+			this.indexes.size(),
+			this.persistenceService.getSizeOnDiskInBytes()
+		);
+	}
+
+	@Override
+	public void terminate() {
+		Assert.isTrue(
+			this.terminated.compareAndSet(false, true),
+			"Collection was already terminated!"
+		);
+		Assert.isPremiseValid(
+			!Transaction.isTransactionAvailable(),
+			"Entity collection cannot be terminated within transaction!"
+		);
+		this.persistenceService.close();
+	}
+
 	/**
 	 * Notifies that other entity type in catalog has been renamed. When any of reference in this schema refers to
 	 * the renamed entity schema, it needs to be automatically altered to refer to the new name.
 	 *
-	 * @param oldName the old name of the entity type
+	 * @param oldName       the old name of the entity type
 	 * @param newCollection the instance of the updated (renamed) collection
 	 * @return {@code true} if the schema was updated, {@code false} otherwise
 	 */
@@ -961,136 +899,6 @@ public final class EntityCollection implements
 				)
 			);
 		}
-	}
-
-	/**
-	 * Refreshes the given schemas based on the references provided.
-	 *
-	 * @param originalSchema the original schema to be refreshed
-	 * @param updatedSchema the updated schema containing new references
-	 * @param updatedReferenceSchemas the set of updated reference schemas
-	 * @return the updated entity schema
-	 * @throws GenericEvitaInternalError if a reference is expected to exist but is not found
-	 */
-	@Nonnull
-	private EntitySchema refreshReflectedSchemas(
-		@Nonnull EntitySchema originalSchema,
-		@Nonnull EntitySchema updatedSchema,
-		@Nonnull Set<String> updatedReferenceSchemas
-	) {
-		for (String referenceName : updatedReferenceSchemas) {
-			final Optional<ReferenceSchemaContract> updatedReference = updatedSchema.getReference(referenceName);
-			final Optional<ReferenceSchemaContract> referenceInStakeRef = updatedReference
-				.or(() -> originalSchema.getReference(referenceName));
-			if (referenceInStakeRef.isEmpty()) {
-				// the schema was not present before - we may skip it
-				continue;
-			}
-			final ReferenceSchemaContract referenceInStake = referenceInStakeRef.get();
-			if (referenceInStake instanceof ReflectedReferenceSchema reflectedReferenceSchema && updatedReference.isPresent()) {
-				final Optional<EntitySchemaContract> referencedEntitySchema = reflectedReferenceSchema.getReferencedEntityType().equals(updatedSchema.getName()) ?
-					of(updatedSchema) :
-					this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType()).map(EntityCollectionContract::getSchema);
-				final ReferenceSchemaContract originalReference = referencedEntitySchema
-					.flatMap(it -> it.getReference(reflectedReferenceSchema.getReflectedReferenceName()))
-					.orElse(null);
-				if (originalReference != null) {
-					updatedSchema = updatedSchema.withReplacedReferenceSchema(
-						reflectedReferenceSchema.withReferencedSchema(originalReference)
-					);
-				}
-			} else if (referenceInStake.isReferencedEntityTypeManaged()) {
-				// notify the target entity schema about the reference change in our schema
-				EntitySchema finalUpdatedSchema = updatedSchema;
-				this.catalog.getCollectionForEntity(referenceInStake.getReferencedEntityType())
-					.ifPresent(it -> ((EntityCollection)it).notifyAboutExternalReferenceUpdate(finalUpdatedSchema, updatedReference.orElse(null)));
-			}
-		}
-		return updatedSchema;
-	}
-
-	/**
-	 * Notifies about an external reference update. Method will iterate over reference schemas and finds all
-	 * {@link ReflectedReferenceSchemaContract} that relate to the updated reference schema and replaces them with
-	 * updated instance pointing to the current version of the original reference schema it reflects.
-	 *
-	 * If any of such reference is found entire entity schema is updated.
-	 *
-	 * @param updatedReferenceEntitySchema the updated reference entity schema, must not be null
-	 * @param updatedReferenceSchema the updated reference schema, must not be null
-	 */
-	private void notifyAboutExternalReferenceUpdate(
-		@Nonnull EntitySchema updatedReferenceEntitySchema,
-		@Nonnull ReferenceSchemaContract updatedReferenceSchema
-	) {
-		final EntitySchema originalSchema = getInternalSchema();
-		final List<ReflectedReferenceSchema> updatedReferenceSchemas = new LinkedList<>();
-		for (ReferenceSchemaContract referenceSchema : originalSchema.getReferences().values()) {
-			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
-				reflectedReferenceSchema.getReferencedEntityType().equals(updatedReferenceEntitySchema.getName()) &&
-				reflectedReferenceSchema.getReflectedReferenceName().equals(updatedReferenceSchema.getName())
-			) {
-				updatedReferenceSchemas.add(
-					reflectedReferenceSchema.withReferencedSchema(updatedReferenceSchema)
-				);
-			}
-		}
-		if (!updatedReferenceSchemas.isEmpty()) {
-			exchangeSchema(
-				originalSchema,
-				originalSchema.withReplacedReferenceSchema(
-					updatedReferenceSchemas.toArray(new ReflectedReferenceSchema[0])
-				)
-			);
-		}
-	}
-
-	/**
-	 * Exchanges the schema from the original to the updated schema.
-	 *
-	 * @param originalSchema the original schema to be exchanged
-	 * @param updatedSchema the updated schema to replace the original
-	 */
-	private void exchangeSchema(@Nonnull EntitySchema originalSchema, @Nonnull EntitySchema updatedSchema) {
-		final EntitySchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
-			this.schema.get(),
-			new EntitySchemaDecorator(() -> this.catalog.getSchema(), updatedSchema)
-		);
-		final EntitySchemaContract finalUpdatedSchema = updatedSchema;
-		Assert.isTrue(
-			originalSchemaBeforeExchange.version() == originalSchema.version(),
-			() -> new ConcurrentSchemaUpdateException(originalSchema, finalUpdatedSchema)
-		);
-		this.catalog.entitySchemaUpdated(updatedSchema);
-	}
-
-	@Override
-	public long getVersion() {
-		return this.persistenceService.getEntityCollectionHeader().version();
-	}
-
-	@Nonnull
-	@Override
-	public EntityCollectionStatistics getStatistics() {
-		return new EntityCollectionStatistics(
-			getEntityType(),
-			size(),
-			this.indexes.size(),
-			this.persistenceService.getSizeOnDiskInBytes()
-		);
-	}
-
-	@Override
-	public void terminate() {
-		Assert.isTrue(
-			this.terminated.compareAndSet(false, true),
-			"Collection was already terminated!"
-		);
-		Assert.isPremiseValid(
-			!Transaction.isTransactionAvailable(),
-			"Entity collection cannot be terminated within transaction!"
-		);
-		this.persistenceService.close();
 	}
 
 	@Nonnull
@@ -1388,10 +1196,6 @@ public final class EntityCollection implements
 		);
 	}
 
-	/*
-		TransactionalLayerProducer implementation
-	 */
-
 	@Override
 	public DataStoreChanges createLayer() {
 		return new DataStoreChanges(
@@ -1477,6 +1281,10 @@ public final class EntityCollection implements
 		return entityCollection;
 	}
 
+	/*
+		TransactionalLayerProducer implementation
+	 */
+
 	@Override
 	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
 		this.catalog = catalog;
@@ -1549,6 +1357,122 @@ public final class EntityCollection implements
 			.orElseGet(this::getEntityCollectionHeader);
 	}
 
+	/**
+	 * Deletes passed entity both from indexes and the storage.
+	 */
+	@Nonnull
+	private EntityWithFetchCount deleteEntityInternal(int primaryKey) {
+		return applyMutations(
+			new EntityRemoveMutation(getEntityType(), primaryKey),
+			true,
+			true,
+			true,
+			EnumSet.allOf(ImplicitMutationBehavior.class),
+			new LocalMutationExecutorCollector(this.catalog)
+		);
+	}
+
+	/**
+	 * Refreshes the given schemas based on the references provided.
+	 *
+	 * @param originalSchema          the original schema to be refreshed
+	 * @param updatedSchema           the updated schema containing new references
+	 * @param updatedReferenceSchemas the set of updated reference schemas
+	 * @return the updated entity schema
+	 * @throws GenericEvitaInternalError if a reference is expected to exist but is not found
+	 */
+	@Nonnull
+	private EntitySchema refreshReflectedSchemas(
+		@Nonnull EntitySchema originalSchema,
+		@Nonnull EntitySchema updatedSchema,
+		@Nonnull Set<String> updatedReferenceSchemas
+	) {
+		for (String referenceName : updatedReferenceSchemas) {
+			final Optional<ReferenceSchemaContract> updatedReference = updatedSchema.getReference(referenceName);
+			final Optional<ReferenceSchemaContract> referenceInStakeRef = updatedReference
+				.or(() -> originalSchema.getReference(referenceName));
+			if (referenceInStakeRef.isEmpty()) {
+				// the schema was not present before - we may skip it
+				continue;
+			}
+			final ReferenceSchemaContract referenceInStake = referenceInStakeRef.get();
+			if (referenceInStake instanceof ReflectedReferenceSchema reflectedReferenceSchema && updatedReference.isPresent()) {
+				final Optional<EntitySchemaContract> referencedEntitySchema = reflectedReferenceSchema.getReferencedEntityType().equals(updatedSchema.getName()) ?
+					of(updatedSchema) :
+					this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType()).map(EntityCollectionContract::getSchema);
+				final ReferenceSchemaContract originalReference = referencedEntitySchema
+					.flatMap(it -> it.getReference(reflectedReferenceSchema.getReflectedReferenceName()))
+					.orElse(null);
+				if (originalReference != null) {
+					updatedSchema = updatedSchema.withReplacedReferenceSchema(
+						reflectedReferenceSchema.withReferencedSchema(originalReference)
+					);
+				}
+			} else if (referenceInStake.isReferencedEntityTypeManaged()) {
+				// notify the target entity schema about the reference change in our schema
+				EntitySchema finalUpdatedSchema = updatedSchema;
+				this.catalog.getCollectionForEntity(referenceInStake.getReferencedEntityType())
+					.ifPresent(it -> ((EntityCollection) it).notifyAboutExternalReferenceUpdate(finalUpdatedSchema, updatedReference.orElse(null)));
+			}
+		}
+		return updatedSchema;
+	}
+
+	/**
+	 * Notifies about an external reference update. Method will iterate over reference schemas and finds all
+	 * {@link ReflectedReferenceSchemaContract} that relate to the updated reference schema and replaces them with
+	 * updated instance pointing to the current version of the original reference schema it reflects.
+	 *
+	 * If any of such reference is found entire entity schema is updated.
+	 *
+	 * @param updatedReferenceEntitySchema the updated reference entity schema, must not be null
+	 * @param updatedReferenceSchema       the updated reference schema, must not be null
+	 */
+	private void notifyAboutExternalReferenceUpdate(
+		@Nonnull EntitySchema updatedReferenceEntitySchema,
+		@Nonnull ReferenceSchemaContract updatedReferenceSchema
+	) {
+		final EntitySchema originalSchema = getInternalSchema();
+		final List<ReflectedReferenceSchema> updatedReferenceSchemas = new LinkedList<>();
+		for (ReferenceSchemaContract referenceSchema : originalSchema.getReferences().values()) {
+			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema &&
+				reflectedReferenceSchema.getReferencedEntityType().equals(updatedReferenceEntitySchema.getName()) &&
+				reflectedReferenceSchema.getReflectedReferenceName().equals(updatedReferenceSchema.getName())
+			) {
+				updatedReferenceSchemas.add(
+					reflectedReferenceSchema.withReferencedSchema(updatedReferenceSchema)
+				);
+			}
+		}
+		if (!updatedReferenceSchemas.isEmpty()) {
+			exchangeSchema(
+				originalSchema,
+				originalSchema.withReplacedReferenceSchema(
+					updatedReferenceSchemas.toArray(new ReflectedReferenceSchema[0])
+				)
+			);
+		}
+	}
+
+	/**
+	 * Exchanges the schema from the original to the updated schema.
+	 *
+	 * @param originalSchema the original schema to be exchanged
+	 * @param updatedSchema  the updated schema to replace the original
+	 */
+	private void exchangeSchema(@Nonnull EntitySchema originalSchema, @Nonnull EntitySchema updatedSchema) {
+		final EntitySchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
+			this.schema.get(),
+			new EntitySchemaDecorator(() -> this.catalog.getSchema(), updatedSchema)
+		);
+		final EntitySchemaContract finalUpdatedSchema = updatedSchema;
+		Assert.isTrue(
+			originalSchemaBeforeExchange.version() == originalSchema.version(),
+			() -> new ConcurrentSchemaUpdateException(originalSchema, finalUpdatedSchema)
+		);
+		this.catalog.entitySchemaUpdated(updatedSchema);
+	}
+
 	/*
 		PRIVATE METHODS
 	 */
@@ -1596,25 +1520,6 @@ public final class EntityCollection implements
 				),
 			it -> (EntityIndex) it
 		);
-	}
-
-	/**
-	 * Method fetches the full contents of the entity by its primary key from the I/O storage (taking advantage of
-	 * modified parts in the {@link TransactionalDataStoreMemoryBuffer}.
-	 */
-	@Nullable
-	private EntityWithFetchCount getFullEntityById(int primaryKey) {
-		final EvitaRequest evitaRequest = new EvitaRequest(
-			Query.query(
-				collection(getSchema().getName()),
-				require(entityFetchAll())
-			),
-			OffsetDateTime.now(),
-			Entity.class,
-			null,
-			EvitaRequest.CONVERSION_NOT_SUPPORTED
-		);
-		return getEntityById(primaryKey, evitaRequest);
 	}
 
 	/**
@@ -1715,7 +1620,8 @@ public final class EntityCollection implements
 	/**
 	 * Creates or updates entity and returns its primary key.
 	 */
-	private int upsertEntityInternal(@Nonnull EntityMutation entityMutation) {
+	@Nullable
+	private EntityWithFetchCount upsertEntityInternal(@Nonnull EntityMutation entityMutation, boolean returnUpdatedEntity) {
 		// verify mutation against schema
 		// it was already executed when mutation was created, but there are two reasons to do it again
 		// - we don't trust clients - in future it may be some external JS application
@@ -1737,23 +1643,25 @@ public final class EntityCollection implements
 		final EntityMutation entityMutationToUpsert;
 		if (entityMutation instanceof ServerEntityUpsertMutation veum) {
 			entityMutationToUpsert = entityMutation;
-			applyMutations(
-				entityMutationToUpsert, null,
+			return applyMutations(
+				entityMutationToUpsert,
 				veum.shouldApplyUndoOnError(),
 				veum.shouldVerifyConsistency(),
-				veum.getImplicitMutationsBehavior()
+				returnUpdatedEntity,
+				veum.getImplicitMutationsBehavior(),
+				new LocalMutationExecutorCollector(this.catalog)
 			);
 		} else {
 			entityMutationToUpsert = verifyPrimaryKeyAssignment(entityMutation, currentSchema);
-			applyMutations(
-				entityMutationToUpsert, null,
+			return applyMutations(
+				entityMutationToUpsert,
 				true,
 				true,
-				EnumSet.allOf(ImplicitMutationBehavior.class)
+				returnUpdatedEntity,
+				EnumSet.allOf(ImplicitMutationBehavior.class),
+				new LocalMutationExecutorCollector(this.catalog)
 			);
 		}
-
-		return entityMutationToUpsert.getEntityPrimaryKey();
 	}
 
 	/**
@@ -1803,37 +1711,27 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Deletes passed entity both from indexes and the storage.
-	 */
-	private void internalDeleteEntity(@Nonnull Entity entityToRemove) {
-		// construct set of removal mutations
-		final int entityToRemovePrimaryKey = Objects.requireNonNull(entityToRemove.getPrimaryKey());
-		final EntityRemoveMutation entityMutation = new EntityRemoveMutation(getEntityType(), entityToRemovePrimaryKey);
-
-		applyMutations(
-			entityMutation, entityToRemove,
-			true,
-			true,
-			EnumSet.allOf(ImplicitMutationBehavior.class)
-		);
-	}
-
-	/**
 	 * Method applies all `localMutations` on entity with passed `entityPrimaryKey`.
 	 *
-	 * @param entityMutation entity mutation to apply
-	 * @param entity         the entity to apply mutation on (needed only for entity removal)
+	 * @param entityMutation            entity mutation to apply
+	 * @param undoOnError               whether to undo the changes on error
+	 *                                  (if set to false, the changes will be left in the storage)
+	 * @param checkConsistency          whether to check the consistency of the entity after the mutation
+	 *                                  (if set to false, the consistency will not be checked)
+	 * @param generateImplicitMutations set of implicit mutations to generate
+	 *                                  (if set to empty set, no implicit mutations will be generated)
+	 * @return entity with fetch count
 	 */
-	private void applyMutations(
+	@Nullable
+	EntityWithFetchCount applyMutations(
 		@Nonnull EntityMutation entityMutation,
-		@Nullable Entity entity,
 		boolean undoOnError,
 		boolean checkConsistency,
-		@Nonnull EnumSet<ImplicitMutationBehavior> generateImplicitMutations
+		boolean returnUpdatedEntity,
+		@Nonnull EnumSet<ImplicitMutationBehavior> generateImplicitMutations,
+		@Nonnull LocalMutationExecutorCollector localMutationExecutorCollector
 	) {
 		// prepare collectors
-		final EntityRemoveMutation entityRemoveMutation = entityMutation instanceof EntityRemoveMutation erm ? erm : null;
-
 		final ContainerizedLocalMutationExecutor changeCollector = new ContainerizedLocalMutationExecutor(
 			this.dataStoreBuffer,
 			this.catalog.getVersion(),
@@ -1842,9 +1740,8 @@ public final class EntityCollection implements
 			this.catalog::getInternalSchema,
 			this::getInternalSchema,
 			entityType -> this.catalog.getCollectionForEntityInternal(entityType).orElse(null),
-			entityRemoveMutation != null
+			entityMutation instanceof EntityRemoveMutation
 		);
-
 		final EntityIndexLocalMutationExecutor entityIndexUpdater = new EntityIndexLocalMutationExecutor(
 			changeCollector,
 			entityMutation.getEntityPrimaryKey(),
@@ -1855,22 +1752,17 @@ public final class EntityCollection implements
 			undoOnError
 		);
 
-		final List<? extends LocalMutation<?, ?>> localMutations = entityRemoveMutation != null ?
-			entityRemoveMutation.computeLocalMutationsForEntityRemoval(entity) : entityMutation.getLocalMutations();
-
-		// apply mutations leading to clearing storage containers
-		EntitySchemaContext.executeWithSchemaContext(
+		return localMutationExecutorCollector.execute(
 			getInternalSchema(),
-			() -> processMutations(this.catalog, localMutations, generateImplicitMutations, checkConsistency, entityIndexUpdater, changeCollector)
+			entityMutation,
+			checkConsistency,
+			generateImplicitMutations,
+			this::getEntityById,
+			changeCollector,
+			entityIndexUpdater,
+			returnUpdatedEntity
 		);
 
-		if (entityRemoveMutation != null) {
-			// remove the entity itself from the indexes
-			entityIndexUpdater.removeEntity(entityMutation.getEntityPrimaryKey());
-		}
-
-		// register the mutation to the write ahead log
-		Transaction.getTransaction().ifPresent(it -> it.registerMutation(entityMutation));
 	}
 
 	/**
@@ -1926,6 +1818,65 @@ public final class EntityCollection implements
 					);
 				}
 			}
+		}
+	}
+
+	/**
+	 * A bridge implementation of the DataStoreReader interface that delegates its operations to another DataStoreReader
+	 * while providing additional context by setting the schema through the EntitySchemaContext.
+	 */
+	@RequiredArgsConstructor
+	private static class DataStoreReaderBridge implements DataStoreReader {
+		private final DataStoreReader dataStoreReader;
+		private final Supplier<EntitySchema> schemaSupplier;
+
+		@Override
+		public int countStorageParts(long catalogVersion, @Nonnull Class<? extends StoragePart> containerType) {
+			return dataStoreReader.countStorageParts(catalogVersion, containerType);
+		}
+
+		@Nullable
+		@Override
+		public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
+			return EntitySchemaContext.executeWithSchemaContext(
+				schemaSupplier.get(),
+				() -> dataStoreReader.fetch(catalogVersion, primaryKey, containerType)
+			);
+		}
+
+		@Nullable
+		@Override
+		public <T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
+			return EntitySchemaContext.executeWithSchemaContext(
+				schemaSupplier.get(),
+				() -> dataStoreReader.fetchBinary(catalogVersion, primaryKey, containerType)
+			);
+		}
+
+		@Nullable
+		@Override
+		public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
+			return EntitySchemaContext.executeWithSchemaContext(
+				schemaSupplier.get(),
+				() -> dataStoreReader.fetch(catalogVersion, originalKey, containerType, compressedKeyComputer)
+			);
+		}
+
+		@Nullable
+		@Override
+		public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
+			return EntitySchemaContext.executeWithSchemaContext(
+				schemaSupplier.get(),
+				() -> dataStoreReader.fetchBinary(catalogVersion, originalKey, containerType, compressedKeyComputer)
+			);
+		}
+
+		@Override
+		public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
+			return EntitySchemaContext.executeWithSchemaContext(
+				schemaSupplier.get(),
+				() -> dataStoreReader.getIndexIfExists(entityIndexKey, accessorWhenMissing)
+			);
 		}
 	}
 
@@ -2040,65 +1991,6 @@ public final class EntityCollection implements
 				.filter(it -> it.getIndexKey().getType() != EntityIndexType.GLOBAL)
 				.map(EntityIndex::getPrimaryKey)
 				.collect(Collectors.toList());
-		}
-	}
-
-	/**
-	 * A bridge implementation of the DataStoreReader interface that delegates its operations to another DataStoreReader
-	 * while providing additional context by setting the schema through the EntitySchemaContext.
-	 */
-	@RequiredArgsConstructor
-	private static class DataStoreReaderBridge implements DataStoreReader {
-		private final DataStoreReader dataStoreReader;
-		private final Supplier<EntitySchema> schemaSupplier;
-
-		@Override
-		public int countStorageParts(long catalogVersion, @Nonnull Class<? extends StoragePart> containerType) {
-			return dataStoreReader.countStorageParts(catalogVersion, containerType);
-		}
-
-		@Nullable
-		@Override
-		public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-			return EntitySchemaContext.executeWithSchemaContext(
-				schemaSupplier.get(),
-				() -> dataStoreReader.fetch(catalogVersion, primaryKey, containerType)
-			);
-		}
-
-		@Nullable
-		@Override
-		public <T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-			return EntitySchemaContext.executeWithSchemaContext(
-				schemaSupplier.get(),
-				() -> dataStoreReader.fetchBinary(catalogVersion, primaryKey, containerType)
-			);
-		}
-
-		@Nullable
-		@Override
-		public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
-			return EntitySchemaContext.executeWithSchemaContext(
-				schemaSupplier.get(),
-				() -> dataStoreReader.fetch(catalogVersion, originalKey, containerType, compressedKeyComputer)
-			);
-		}
-
-		@Nullable
-		@Override
-		public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
-			return EntitySchemaContext.executeWithSchemaContext(
-				schemaSupplier.get(),
-				() -> dataStoreReader.fetchBinary(catalogVersion, originalKey, containerType, compressedKeyComputer)
-			);
-		}
-
-		@Override
-		public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-			return EntitySchemaContext.executeWithSchemaContext(
-				schemaSupplier.get(),
-				() -> dataStoreReader.getIndexIfExists(entityIndexKey, accessorWhenMissing)
-			);
 		}
 	}
 }
