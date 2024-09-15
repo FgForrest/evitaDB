@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -118,6 +118,16 @@ public class ClassifierUtils {
 	}
 
 	/**
+	 * Retrieves a map containing the normalized reserved keywords for each classifier type.
+	 *
+	 * @return a map where the key is a ClassifierType and the value is a set of normalized keywords associated with that classifier type.
+	 */
+	@Nonnull
+	public static Map<ClassifierType, Set<Keyword>> getNormalizedReservedKeywords() {
+		return NORMALIZED_RESERVED_KEYWORDS;
+	}
+
+	/**
 	 * Validates format of passed classifier. Classifier is considered valid if is not empty, doesn't have leading or
 	 * trailing whitespace and has valid case (valid cases are base case, camelCase, PascalCase, snake_case,
 	 * UPPER_SNAKE_CASE and kebab-case).
@@ -177,14 +187,15 @@ public class ClassifierUtils {
 				.mapToLong(xx3::hashChars)
 				.toArray()
 		);
-		return new Keyword(hash, words);
+		return new Keyword(hash, classifier, words);
 	}
 
 	/**
 	 * The keyword represents an internal keyword split by camel-case containing the has for quick comparison.
 	 */
-	private record Keyword(
+	public record Keyword(
 		long hash,
+		@Nonnull String classifier,
 		@Nonnull String[] words
 	) {
 
