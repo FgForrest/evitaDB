@@ -24,6 +24,7 @@
 package io.evitadb.driver;
 
 import com.github.javafaker.Faker;
+import com.google.protobuf.Empty;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -67,6 +68,8 @@ import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaManagementServiceFutureStub;
+import io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
@@ -93,6 +96,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1644,4 +1648,15 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldListReservedKeywords(EvitaClient evitaClient) throws NoSuchFieldException, IllegalAccessException, ExecutionException, InterruptedException {
+		final EvitaManagementContract management = evitaClient.management();
+		final Field evitaManagementServiceStub = management.getClass().getDeclaredField("evitaManagementServiceFutureStub");
+		evitaManagementServiceStub.setAccessible(true);
+		final EvitaManagementServiceFutureStub managementStub = (EvitaManagementServiceFutureStub) evitaManagementServiceStub.get(management);
+		final GrpcReservedKeywordsResponse keywords = managementStub.listReservedKeywords(Empty.newBuilder().build()).get();
+		assertNotNull(keywords);
+		assertTrue(keywords.getKeywordsCount() > 20);
+	}
 }
