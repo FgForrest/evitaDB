@@ -262,10 +262,10 @@ structure details required for the schema definition:
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReferenceRef.java</SourceClass></dt>
     <dd>
-        Annotation can be placed on methods that should return entity [reference](#reference) to another entity.
-        It can point to another model class (interface/class/record) that contains properties for `@ReferencedEntity`
-        and `@ReferencedEntityGroup` annotations and relation attributes or directly to different entity read contract
-        annotated with `@Entity` or `@EntityRef` annotation.
+        Annotation can be placed on methods that should return entity [reference or reflected reference](#reference) 
+        to another entity. It can point to another model class (interface/class/record) that contains properties for 
+        `@ReferencedEntity` and `@ReferencedEntityGroup` annotations and relation attributes or directly to different 
+        entity read contract annotated with `@Entity` or `@EntityRef` annotation.
     </dd>
 </dl>
 
