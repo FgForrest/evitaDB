@@ -18,5 +18,6 @@ module evita.query {
 	requires org.antlr.antlr4.runtime;
 
 	requires evita.common;
+	requires jdk.jfr;
 
 }

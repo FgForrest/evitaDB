@@ -340,6 +340,10 @@ has a unique <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java
 expect that evitaDB will only partially manage data and that it will coexist with other systems in a runtime - such as
 content management systems, warehouse systems, ERPs and so on.
 
+References are unidirectional in nature, which means that if the reference points from entity A to entity B, it does
+not mean that entity B automatically references entity A. It is possible to set up a bi-directional reference by creating
+a so-called "reflected reference" on the other entity type and identifying the original reference that should be reflected.
+
 The references may carry additional key-value data related to this entity relationship (e.g. number of items present on
 the relationship to a stock). The data on references is subject to the same rules as
 [entity attributes](#attributes-unique-filterable-sortable-localized).
@@ -355,6 +359,10 @@ Reference is represented by the interface:
 Reference schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LS>.
+
+Reflected reference is represented by the interface:
+<LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReflectedReferenceContract.java</SourceClass></LS>
+<LS to="c">(not yet supported in C# driver - see [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</LS>.
 
 </Note>
 

@@ -483,6 +483,9 @@ public final class Evita implements EvitaContract {
 				}
 			});
 			return result;
+		} catch (RuntimeException ex) {
+			createdSession.closeFuture().completeExceptionally(ex);
+			throw ex;
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
 		}

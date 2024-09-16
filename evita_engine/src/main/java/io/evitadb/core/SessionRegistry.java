@@ -57,10 +57,13 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.Proxy;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -124,16 +127,22 @@ final class SessionRegistry {
 	 * All changes are rolled back.
 	 */
 	public void closeAllActiveSessions() {
+		final List<CompletableFuture<Long>> futures = new LinkedList<>();
 		for (EvitaSessionTuple sessionTuple : activeSessions.values()) {
 			final EvitaSession activeSession = sessionTuple.plainSession();
 			if (activeSession.isActive()) {
 				if (activeSession.isTransactionOpen()) {
 					activeSession.setRollbackOnly();
 				}
-				activeSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE);
+				futures.add(activeSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE));
 				log.info("There is still active session {} - terminating.", activeSession.getId());
 			}
 		}
+		// wait for all futures to complete
+		CompletableFuture
+			.allOf(futures.toArray(new CompletableFuture[0]))
+			.join();
+		// check that all sessions were closed
 		Assert.isPremiseValid(
 			activeSessionsCounter.get() == 0,
 			"Some of the sessions didn't decrement the session counter!"

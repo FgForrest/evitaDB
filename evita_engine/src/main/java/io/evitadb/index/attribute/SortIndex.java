@@ -170,7 +170,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 */
 	@SuppressWarnings("rawtypes")
 	@Nonnull
-	private static Comparator<?> createCombinedComparatorFor(@Nonnull Locale locale, @Nonnull ComparatorSource[] comparatorBase) {
+	public static Comparator createCombinedComparatorFor(@Nullable Locale locale, @Nonnull ComparatorSource[] comparatorBase) {
 		final Comparator[] result = new Comparator[comparatorBase.length];
 		for (int i = 0; i < comparatorBase.length; i++) {
 			final ComparatorSource comparatorSource = comparatorBase[i];
@@ -188,7 +188,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 */
 	@SuppressWarnings("rawtypes")
 	@Nonnull
-	private static Comparator createComparatorFor(@Nullable Locale locale, @Nonnull ComparatorSource comparatorSource) {
+	public static Comparator createComparatorFor(@Nullable Locale locale, @Nonnull ComparatorSource comparatorSource) {
 		final Comparator nextComparator = String.class.isAssignableFrom(comparatorSource.type()) ?
 			ofNullable(locale)
 				.map(it -> (Comparator) new LocalizedStringComparator(it))
@@ -218,7 +218,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * @see #normalizer
 	 */
 	@Nonnull
-	private static <T> UnaryOperator<T> createNormalizerFor(@Nonnull ComparatorSource[] comparatorBase) {
+	public static <T> UnaryOperator<T> createNormalizerFor(@Nonnull ComparatorSource[] comparatorBase) {
 		@SuppressWarnings("unchecked")
 		final UnaryOperator<T>[] normalizers = new UnaryOperator[comparatorBase.length];
 		boolean atLeastOneNormalizerFound = false;
@@ -238,7 +238,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 */
 	@SuppressWarnings("unchecked")
 	@Nonnull
-	private static <T> Optional<UnaryOperator<T>> createNormalizerFor(@Nonnull ComparatorSource comparatorBase) {
+	public static <T> Optional<UnaryOperator<T>> createNormalizerFor(@Nonnull ComparatorSource comparatorBase) {
 		if (String.class.isAssignableFrom(comparatorBase.type())) {
 			return Optional.of(text -> text == null ? null : (T) Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD));
 		} else if (BigDecimal.class.isAssignableFrom(comparatorBase.type())) {

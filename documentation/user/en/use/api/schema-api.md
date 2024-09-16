@@ -90,6 +90,15 @@ The model is expected to be annotated with following annotations:
         that contains properties for `@ReferencedEntity` and `@ReferencedEntityGroup` annotations and relation
         attributes.
     </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReflectedReference.java</SourceClass></dt>
+    <dd>
+        <p>Annotation can be placed on field / getter method / record component and marks an entity as a 
+        [reflected reference](#reference) to another entity. It can point to another model class (interface/class/record)
+        that contains properties for `@ReferencedEntity` and `@ReferencedEntityGroup` annotations and relation
+        attributes.</p>
+        <p>Original reference may not yet exists in the schema, but it must be defined before the transaction is committed
+        or session is closed (in warm-up phase).</p>
+    </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReferencedEntity.java</SourceClass></dt>
     <dd>
         Annotation can be placed on field / getter method / record component and marks a reference to another entity

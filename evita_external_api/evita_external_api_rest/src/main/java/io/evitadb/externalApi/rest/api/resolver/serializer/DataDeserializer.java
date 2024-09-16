@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiConstants;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
@@ -166,6 +167,8 @@ public class DataDeserializer {
 			return EvitaDataTypes.toTargetType(value.asText(), targetClass);
 		} else if (Predecessor.class.isAssignableFrom(targetClass)) {
 			return (T) new Predecessor(value.intValue());
+		} else if (ReferencedEntityPredecessor.class.isAssignableFrom(targetClass)) {
+			return (T) new ReferencedEntityPredecessor(value.intValue());
 		} else if (targetClass.isEnum()) {
 			return deserializeEnum(targetClass, value);
 		}

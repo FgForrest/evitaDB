@@ -197,7 +197,7 @@ public class AbstractHundredProductsFunctionalTest {
 									Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE,
 									whichIs -> whichIs.indexed().faceted()
 										.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
-										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.filterable())
+										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().filterable())
 								)
 								.withReferenceToEntity(Entities.PRICE_LIST, Entities.PRICE_LIST, Cardinality.ZERO_OR_MORE)
 								.withReferenceToEntity(

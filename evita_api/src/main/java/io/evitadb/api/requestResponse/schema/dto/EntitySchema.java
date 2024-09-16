@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -48,6 +49,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.*;
 import java.util.Map.Entry;
@@ -55,6 +57,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -261,6 +264,27 @@ public final class EntitySchema implements EntitySchemaContract {
 			references,
 			evolutionMode,
 			sortableAttributeCompounds
+		);
+	}
+
+	/**
+	 * Ensures that the specified attribute is not of type {@link ReferencedEntityPredecessor}. This type is allowed
+	 * only on references.
+	 *
+	 * @param attributeName The name of the attribute being checked.
+	 * @param theType       The type of the attribute being checked.
+	 */
+	public static void assertNotReferencedEntityPredecessor(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> theType
+	) {
+		final Class<?> plainType = theType.isArray() ?
+			theType.getComponentType() : theType;
+		isTrue(
+			!ReferencedEntityPredecessor.class.equals(plainType),
+			() -> new InvalidSchemaMutationException(
+				"Attribute " + attributeName + " cannot be of type " + theType + "!"
+			)
 		);
 	}
 
@@ -668,6 +692,9 @@ public final class EntitySchema implements EntitySchemaContract {
 
 	@Override
 	public void validate(@Nonnull CatalogSchemaContract catalogSchema) throws SchemaAlteringException {
+		for (EntityAttributeSchemaContract attribute : attributes.values()) {
+			assertNotReferencedEntityPredecessor(attribute.getName(), attribute.getType());
+		}
 		final List<String> errors = getReferences()
 			.values()
 			.stream()
@@ -740,9 +767,9 @@ public final class EntitySchema implements EntitySchemaContract {
 		final Stream<ReferenceSchemaContract> newSchemaStream;
 		if (referenceSchema.length == 1) {
 			newSchemaStream = Stream.concat(
-					this.references.values().stream().filter(it -> !it.getName().equals(referenceSchema[0].getName())),
-					Stream.of(referenceSchema)
-				);
+				this.references.values().stream().filter(it -> !it.getName().equals(referenceSchema[0].getName())),
+				Stream.of(referenceSchema)
+			);
 		} else if (referenceSchema.length == 0) {
 			return this;
 		} else {
@@ -791,7 +818,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	 * @param referenceName The name of the reference for which to retrieve the reflected reference schema.
 	 *                      Must not be null.
 	 * @return The optional reflected reference schema for the given reference name. If the reference name is not found,
-	 *         an empty optional is returned.
+	 * an empty optional is returned.
 	 */
 	@Nonnull
 	public Optional<ReflectedReferenceSchema> getReflectedReferenceFor(@Nonnull String referenceName) {

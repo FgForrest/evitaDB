@@ -137,6 +137,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(EvitaParameterResolver.class)
 class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	public static final String ATTRIBUTE_ORDER = "order";
+	public static final String ATTRIBUTE_CATEGORY_ORDER = "orderInCategory";
 	public static final String ATTRIBUTE_UUID = "uuid";
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "EvitaReadWriteClientDataSet";
@@ -210,6 +211,12 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 							DATA_GENERATOR.getSampleCategorySchema(
 								session,
 								builder -> {
+									builder.withReflectedReferenceToEntity(
+										"productsInCategory", Entities.PRODUCT, Entities.CATEGORY,
+										whichIs -> whichIs
+											.withAttributesInherited()
+											.withCardinality(Cardinality.ZERO_OR_MORE)
+									);
 									session.updateEntitySchema(builder);
 									return builder.toInstance();
 								}
@@ -224,12 +231,17 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 						Entities.PRICE_LIST, ATTRIBUTE_ORDER,
 						faker -> Predecessor.HEAD
 					);
+					DATA_GENERATOR.registerValueGenerator(
+						Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER,
+						faker -> Predecessor.HEAD
+					);
 
 					DATA_GENERATOR.generateEntities(
 							DATA_GENERATOR.getSamplePriceListSchema(
 								session,
 								builder -> {
-									builder.withAttribute(
+									builder
+										.withAttribute(
 										ATTRIBUTE_ORDER, Predecessor.class, AttributeSchemaEditor::sortable
 									);
 									session.updateEntitySchema(builder);
@@ -295,6 +307,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 										Entities.PARAMETER,
 										Cardinality.ZERO_OR_MORE,
 										thatIs -> thatIs.faceted().withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
+									)
+									.withReferenceToEntity(
+										Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+										whichIs -> whichIs.indexed()
+											.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class)
 									);
 								session.updateEntitySchema(builder);
 								return builder.toInstance();

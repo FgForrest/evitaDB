@@ -1029,7 +1029,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 
 						final Optional<OrderingDescriptor> orderingDescriptor = ofNullable(requirements.orderBy())
-							.map(ob -> ReferenceOrderByVisitor.getComparator(executionContext.getQueryContext(), ob));
+							.map(ob -> ReferenceOrderByVisitor.getComparator(executionContext.getQueryContext(), ob, entitySchema, referenceSchema));
 
 						final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(entityPrimaryKey.length);
 

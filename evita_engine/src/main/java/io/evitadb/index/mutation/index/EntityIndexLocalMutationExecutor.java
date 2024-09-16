@@ -274,12 +274,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	public void commit() {
 		final Set<Locale> addedLocales = this.containerAccessor.getAddedLocales();
 		final Set<Locale> removedLocales = this.containerAccessor.getRemovedLocales();
+
+		final int primaryKeyToIndex = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
+		final EntityBodyStoragePart entityStoragePart = this.containerAccessor.getEntityStoragePart(
+			this.entityType,
+			primaryKeyToIndex,
+			EntityExistence.MUST_EXIST
+		);
+
 		if (!(addedLocales.isEmpty() && removedLocales.isEmpty())) {
-			final EntityBodyStoragePart entityStoragePart = this.containerAccessor.getEntityStoragePart(
-				this.entityType,
-				getPrimaryKeyToIndex(IndexType.ENTITY_INDEX),
-				EntityExistence.MUST_EXIST
-			);
 			final EntitySchema entitySchema = getEntitySchema();
 			for (Locale locale : addedLocales) {
 				upsertEntityLanguage(entityStoragePart, locale, entitySchema);
@@ -287,6 +290,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			for (Locale locale : removedLocales) {
 				removeEntityLanguage(entityStoragePart, locale, entitySchema);
 			}
+		}
+
+		if (entityStoragePart.isMarkedForRemoval()) {
+			// remove the entity itself from the indexes
+			removeEntity(primaryKeyToIndex);
 		}
 	}
 

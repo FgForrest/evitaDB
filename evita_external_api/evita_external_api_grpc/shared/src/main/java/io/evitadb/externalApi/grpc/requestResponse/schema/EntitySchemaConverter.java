@@ -24,15 +24,7 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
 import com.google.protobuf.StringValue;
-import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
@@ -416,7 +408,9 @@ public class EntitySchemaConverter {
 	private static Map<String, GrpcReferenceSchema> toGrpcReferenceSchemas(@Nonnull Map<String, ReferenceSchemaContract> originalReferenceSchemas, boolean includeNameVariants) {
 		final Map<String, GrpcReferenceSchema> referenceSchemas = CollectionUtils.createHashMap(originalReferenceSchemas.size());
 		for (Map.Entry<String, ReferenceSchemaContract> entry : originalReferenceSchemas.entrySet()) {
-			referenceSchemas.put(entry.getKey(), toGrpcReferenceSchema(entry.getValue(), includeNameVariants));
+			if (!(entry.getValue() instanceof ReflectedReferenceSchemaContract rrsc) || rrsc.isReflectedReferenceAvailable()) {
+				referenceSchemas.put(entry.getKey(), toGrpcReferenceSchema(entry.getValue(), includeNameVariants));
+			}
 		}
 		return referenceSchemas;
 	}

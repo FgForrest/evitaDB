@@ -23,17 +23,24 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
+import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
+import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -50,14 +57,21 @@ public class AttributeComparator implements EntityComparator {
 
 	public AttributeComparator(
 		@Nonnull String attributeName,
+		@Nonnull Class<?> type,
 		@Nullable Locale locale,
 		@Nonnull AttributeExtractor attributeExtractor,
-		@Nonnull Comparator<Comparable<?>> comparator
-	) {
-		this.comparator = comparator;
+		@Nonnull OrderDirection orderDirection
+		) {
+		final ComparatorSource comparatorSource = new ComparatorSource(
+			type, orderDirection, OrderBehaviour.NULLS_LAST
+		);
+		final Optional<UnaryOperator<Comparable<?>>> normalizerFor = createNormalizerFor(comparatorSource);
+		final UnaryOperator<Comparable<?>> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		//noinspection unchecked
+		this.comparator = createComparatorFor(locale, comparatorSource);
 		this.attributeValueFetcher = locale == null ?
-			entityContract -> attributeExtractor.extract(entityContract, attributeName) :
-			entityContract -> attributeExtractor.extract(entityContract, attributeName, locale);
+			entityContract -> normalizer.apply(attributeExtractor.extract(entityContract, attributeName)) :
+			entityContract -> normalizer.apply(attributeExtractor.extract(entityContract, attributeName, locale));
 	}
 
 	@Nonnull

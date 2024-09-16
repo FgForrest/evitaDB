@@ -54,6 +54,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -1776,6 +1777,47 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldFailToSetUpReferencedEntityPredecessorAsDirectAttribute() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withEntitySchema(
+							"whatever",
+							whichIs -> whichIs.withAttribute("whatever", ReferencedEntityPredecessor.class)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToMarkReferencedEntityPredecessorAsFilterable() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withEntitySchema(
+							"whatever",
+							thatIs -> thatIs.withReferenceToEntity(
+								"whatever", "whatever", Cardinality.ZERO_OR_MORE,
+								whichIs -> whichIs.withAttribute("whatever", ReferencedEntityPredecessor.class, AttributeSchemaEditor::filterable)
+							)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
 	void shouldFailToSetUpPredecessorAsAssociatedData() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -1787,6 +1829,25 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.withEntitySchema(
 							"whatever",
 							whichIs -> whichIs.withAssociatedData("whatever", Predecessor.class)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToSetUpReferencedEntityPredecessorAsAssociatedData() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withEntitySchema(
+							"whatever",
+							whichIs -> whichIs.withAssociatedData("whatever", ReferencedEntityPredecessor.class)
 						)
 						.updateVia(session);
 				}

@@ -28,33 +28,33 @@ import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
-import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 
 import javax.annotation.Nonnull;
 
 /**
- * {@link Coercing} for converting between Java's side {@link Predecessor} and client integer.
+ * {@link Coercing} for converting between Java's side {@link ReferencedEntityPredecessor} and client integer.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class PredecessorCoercing implements Coercing<Predecessor, Integer> {
+public class ReferencedEntityPredecessorCoercing implements Coercing<ReferencedEntityPredecessor, Integer> {
 
     @Override
     public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Predecessor)) {
-            throw new CoercingSerializeException("Predecessor data fetcher result is not a Predecessor.");
+        if (!(dataFetcherResult instanceof ReferencedEntityPredecessor)) {
+            throw new CoercingSerializeException("ReferencedEntityPredecessor data fetcher result is not a ReferencedEntityPredecessor.");
         }
-        return ((Predecessor)dataFetcherResult).predecessorPk();
+        return ((ReferencedEntityPredecessor)dataFetcherResult).predecessorPk();
     }
 
     @Nonnull
     @Override
-    public Predecessor parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public ReferencedEntityPredecessor parseValue(@Nonnull Object input) throws CoercingParseValueException {
         if (!(input instanceof Integer)) {
             throw new CoercingParseValueException("Predecessor input value is not an integer.");
         }
         try {
-            return new Predecessor((Integer) input);
+            return new ReferencedEntityPredecessor((Integer) input);
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -62,12 +62,12 @@ public class PredecessorCoercing implements Coercing<Predecessor, Integer> {
 
     @Nonnull
     @Override
-    public Predecessor parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public ReferencedEntityPredecessor parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
         if (!(input instanceof IntValue)) {
-            throw new CoercingParseValueException("Predecessor input value is not an integer.");
+            throw new CoercingParseValueException("ReferencedEntityPredecessor input value is not an integer.");
         }
         try {
-            return new Predecessor(((IntValue) input).getValue().intValueExact());
+            return new ReferencedEntityPredecessor(((IntValue) input).getValue().intValueExact());
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

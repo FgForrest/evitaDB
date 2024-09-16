@@ -538,6 +538,33 @@ References can have zero or more attributes that apply only to a particular "lin
 [Global attribute](#global-attribute-schema) cannot be used as a reference attribute. Otherwise, the same rules apply
 for reference attributes as for regular entity attributes.
 
+References are unidirectional in nature, which means that if the reference points from entity A to entity B, it does
+not mean that entity B automatically references entity A. It is possible to set up a bi-directional reference by creating
+a so-called "reflected reference" on the other entity type and identifying the original reference that should be reflected.
+The reflected reference may or may not inherit attributes from the original reference, and it may also define its own
+separate attributes. This can be described by the following ERD diagram:
+
+```mermaid
+erDiagram
+    A ||--o{ A_to_B : references
+    B ||--o{ A_to_B : references
+    A_to_B {
+        string A1
+        string A2
+    }
+    B ||--o{ B_to_A : references
+    A ||--o{ B_to_A : references
+    B_to_A {
+        string A1
+        string B2
+    }
+```
+
+Reflected references are automatically created, updated, and removed when the original reference is manipulated. It also 
+works the other way around - when the reflected reference is manipulated, the original reference is updated. If
+the reference contains an attribute that is not defined on the other side, and the reference is created - the missing 
+attribute on the other side is created with its default value (if no such default value is defined, an exception is thrown).
+
 When another entity references an entity and the reference is marked as *indexed*, the special
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> is created for each referenced entity. This index will
 hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of
@@ -567,6 +594,7 @@ conforms to the creator's mental model.
 Within `ModifyEntitySchemaMutation` you can use mutation:
 
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/CreateReferenceSchemaMutation.cs</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReflectedReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>(not yet supported in C# driver - see [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/RemoveReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/RemoveReferenceSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceSchemaNameMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceSchemaNameMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceSchemaDescriptionMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceSchemaDescriptionMutation.cs</SourceClass></LS>**
@@ -577,6 +605,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaIndexedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaIndexedMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaFacetedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaFacetedMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceAttributeSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceAttributeSchemaMutation.cs</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>(not yet supported in C# driver - see [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</SourceClass></LS>**
 
 The `ModifyReferenceAttributeSchemaMutation` expect nested [attribute mutation](#attributes).
 

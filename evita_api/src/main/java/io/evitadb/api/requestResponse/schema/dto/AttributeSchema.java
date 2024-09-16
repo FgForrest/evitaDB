@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,10 @@ package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -214,6 +217,51 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	@Override
 	public boolean isUniqueWithinLocale() {
 		return uniquenessType == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
+	}
+
+	/**
+	 * Inverts the type of the attribute schema between Predecessor and ReferencedEntityPredecessor.
+	 * Throws GenericEvitaInternalError if the type cannot be inverted.
+	 *
+	 * @return A new instance of AttributeSchemaContract with the inverted type.
+	 */
+	@Nonnull
+	public AttributeSchemaContract withInvertedType() {
+		if (Predecessor.class.equals(this.plainType)) {
+			return AttributeSchema._internalBuild(
+				this.name,
+				this.nameVariants,
+				this.description,
+				this.deprecationNotice,
+				this.uniquenessType,
+				this.filterable,
+				this.sortable,
+				this.localized,
+				this.nullable,
+				ReferencedEntityPredecessor.class,
+				null,
+				this.indexedDecimalPlaces
+			);
+		} else if (ReferencedEntityPredecessor.class.equals(this.plainType)) {
+			return AttributeSchema._internalBuild(
+				this.name,
+				this.nameVariants,
+				this.description,
+				this.deprecationNotice,
+				this.uniquenessType,
+				this.filterable,
+				this.sortable,
+				this.localized,
+				this.nullable,
+				Predecessor.class,
+				null,
+				this.indexedDecimalPlaces
+			);
+		} else {
+			throw new GenericEvitaInternalError(
+				"Type `" + this.type + "` cannot be inverted!"
+			);
+		}
 	}
 
 	@Override

@@ -388,6 +388,7 @@ public class EvitaDataTypesConverter {
 			case CURRENCY -> Currency.class;
 			case UUID -> UUID.class;
 			case PREDECESSOR -> Predecessor.class;
+			case REFERENCED_ENTITY_PREDECESSOR -> ReferencedEntityPredecessor.class;
 			case STRING_ARRAY -> String[].class;
 			case BYTE_ARRAY -> Byte[].class;
 			case SHORT_ARRAY -> Short[].class;
@@ -491,6 +492,8 @@ public class EvitaDataTypesConverter {
 			return GrpcEvitaDataType.UUID;
 		} else if (dataType.equals(Predecessor.class)) {
 			return GrpcEvitaDataType.PREDECESSOR;
+		} else if (dataType.equals(ReferencedEntityPredecessor.class)) {
+			return GrpcEvitaDataType.REFERENCED_ENTITY_PREDECESSOR;
 		} else if (dataType.equals(String[].class)) {
 			return GrpcEvitaDataType.STRING_ARRAY;
 		} else if (dataType.equals(Character[].class)) {
@@ -1378,7 +1381,7 @@ public class EvitaDataTypesConverter {
 				.build();
 		} else {
 			return GrpcPredecessor.newBuilder()
-				.setPredecessorId(Int32Value.of(predecessor.predecessorId()))
+				.setPredecessorId(Int32Value.of(predecessor.predecessorPk()))
 				.build();
 		}
 	}

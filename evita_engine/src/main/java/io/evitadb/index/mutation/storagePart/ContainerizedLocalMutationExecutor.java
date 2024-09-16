@@ -67,6 +67,8 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriConsumer;
@@ -125,7 +127,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-public final class ContainerizedLocalMutationExecutor extends AbstractEntityStorageContainerAccessor<DataStoreMemoryBuffer>
+public final class ContainerizedLocalMutationExecutor extends AbstractEntityStorageContainerAccessor
 	implements ConsistencyCheckingLocalMutationExecutor, WritableEntityStorageContainerAccessor {
 	public static final String ERROR_SAME_KEY_EXPECTED = "Expected same primary key here!";
 	private static final AttributeValue[] EMPTY_ATTRIBUTES = new AttributeValue[0];
@@ -138,6 +140,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Nonnull private final Supplier<EntitySchema> schemaAccessor;
 	@Nonnull private final Function<String, DataStoreReader> dataStoreReaderAccessor;
 	private final boolean removeOnly;
+	private final DataStoreMemoryBuffer dataStoreUpdater;
 	private EntityBodyStoragePart entityContainer;
 	private PricesStoragePart pricesContainer;
 	private ReferencesStoragePart referencesStorageContainer;
@@ -208,8 +211,32 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			});
 	}
 
+	/**
+	 * Converts the given {@link AttributeMutation} to its inverted type if applicable.
+	 *
+	 * @param attributeMutation the attribute mutation to be inverted, should not be null
+	 * @return a new {@link AttributeMutation} with inverted type if applicable, otherwise returns the original mutation,
+	 * never null
+	 */
+	@Nonnull
+	private static AttributeMutation toInvertedTypeAttributeMutation(@Nonnull AttributeMutation attributeMutation) {
+		if (attributeMutation instanceof UpsertAttributeMutation upsertAttributeMutation) {
+			final Serializable attributeValue = upsertAttributeMutation.getAttributeValue();
+			if (attributeValue instanceof Predecessor predecessor) {
+				return new UpsertAttributeMutation(upsertAttributeMutation.getAttributeKey(), new ReferencedEntityPredecessor(predecessor.predecessorPk()));
+			} else if (attributeValue instanceof ReferencedEntityPredecessor predecessor) {
+				return new UpsertAttributeMutation(upsertAttributeMutation.getAttributeKey(), new Predecessor(predecessor.predecessorPk()));
+			} else {
+				return attributeMutation;
+			}
+		} else {
+			return attributeMutation;
+		}
+	}
+
 	public ContainerizedLocalMutationExecutor(
-		@Nonnull DataStoreMemoryBuffer storageContainerBuffer,
+		@Nonnull DataStoreMemoryBuffer dataStoreUpdater,
+		@Nonnull DataStoreReader dataStoreReader,
 		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EntityExistence requiresExisting,
@@ -218,7 +245,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull Function<String, DataStoreReader> dataStoreReaderAccessor,
 		boolean removeOnly
 	) {
-		super(catalogVersion, storageContainerBuffer, schemaAccessor);
+		super(catalogVersion, dataStoreReader);
+		this.dataStoreUpdater = dataStoreUpdater;
 		this.catalogSchemaAccessor = catalogSchemaAccessor;
 		this.schemaAccessor = schemaAccessor;
 		this.dataStoreReaderAccessor = dataStoreReaderAccessor;
@@ -259,7 +287,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		getChangedEntityStorageParts()
 			.forEach(part -> {
 				if (part.isEmpty()) {
-					this.dataStoreReader.removeByPrimaryKey(
+					this.dataStoreUpdater.removeByPrimaryKey(
 						catalogVersion,
 						part.getStoragePartPK(),
 						part.getClass()
@@ -269,7 +297,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						!removeOnly,
 						"Only removal operations are expected to happen!"
 					);
-					this.dataStoreReader.update(catalogVersion, part);
+					this.dataStoreUpdater.update(catalogVersion, part);
 				}
 			});
 	}
@@ -294,6 +322,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			}
 		}
 	}
+
+	/*
+		PROTECTED METHODS
+	 */
 
 	@Nonnull
 	@Override
@@ -356,13 +388,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		return mutationCollector.toImplicitMutations();
 	}
 
-	/*
-		PROTECTED METHODS
-	 */
-
 	@Override
 	public void registerAssignedPriceId(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey, @Nullable Integer innerRecordId, @Nonnull PriceInternalIdContainer priceId) {
-		assertEntityTypeMatches(entityType);
 		Assert.isPremiseValid(entityPrimaryKey == this.entityPrimaryKey, ERROR_SAME_KEY_EXPECTED);
 		if (assignedInternalPriceIdIndex == null) {
 			assignedInternalPriceIdIndex = new HashMap<>();
@@ -383,7 +410,6 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Nonnull
 	@Override
 	public PriceInternalIdContainer findExistingInternalIds(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey, @Nullable Integer innerRecordId) {
-		assertEntityTypeMatches(entityType);
 		Assert.isPremiseValid(entityPrimaryKey == this.entityPrimaryKey, ERROR_SAME_KEY_EXPECTED);
 		Integer internalPriceId = assignedInternalPriceIdIndex == null ? null : assignedInternalPriceIdIndex.get(priceKey);
 		if (internalPriceId == null) {
@@ -404,6 +430,41 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Override
 	public Set<Locale> getRemovedLocales() {
 		return removedLocales == null ? Collections.emptySet() : removedLocales;
+	}
+
+	/**
+	 * Retrieves all entity storage parts from various containers and assemblages them into an array.
+	 * Method is used when the caller needs to return updated entity as its result. In such situation, we collect all
+	 * already fetched / updated parts and enrich them with the missing ones and reconstructs the body of the updated
+	 * entity.
+	 *
+	 * @return an array of {@link EntityStoragePart} consisting of the entity container,
+	 *         global attributes storage container, language-specific attributes container,
+	 *         prices container, references storage container, and associated data containers.
+	 */
+	@Nonnull
+	public EntityStoragePart[] getEntityStorageParts() {
+		return Stream.of(
+				Stream.of(this.entityContainer),
+				Stream.of(this.globalAttributesStorageContainer),
+				this.languageSpecificAttributesContainer == null ?
+					Stream.<AttributesStoragePart>empty() : this.languageSpecificAttributesContainer.values().stream(),
+				Stream.of(this.pricesContainer),
+				Stream.of(this.referencesStorageContainer),
+				this.associatedDataContainers == null ?
+					Stream.<AssociatedDataStoragePart>empty() : this.associatedDataContainers.values().stream()
+			)
+			.flatMap(Function.identity())
+			.filter(Objects::nonNull)
+			.toArray(EntityStoragePart[]::new);
+	}
+
+	/**
+	 * Returns entity primary key of the updated container.
+	 * @return entity primary key
+	 */
+	public int getEntityPrimaryKey() {
+		return this.entityPrimaryKey;
 	}
 
 	@Nullable
@@ -448,6 +509,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			});
 	}
 
+	/*
+		PRIVATE METHODS
+	 */
+
 	@Nonnull
 	@Override
 	protected Map<AssociatedDataKey, AssociatedDataStoragePart> getOrCreateCachedAssociatedDataStorageContainer(int entityPrimaryKey, @Nonnull AssociatedDataKey key) {
@@ -459,10 +524,6 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				return this.associatedDataContainers;
 			});
 	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	@Nullable
 	@Override
@@ -1008,9 +1069,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * Method generates mutations that replay attribute mutations in reflected references or in reference attributes in
 	 * the target entity collection, so that consistency is maintained.
 	 *
-	 * @param catalogSchema The schema of the catalog, containing metadata about the entire data catalog.
-	 * @param entitySchema The schema of the entity, containing metadata about the specific entity type.
-	 * @param inputMutations The list of local mutations to be processed, potentially containing reference attribute mutations.
+	 * @param catalogSchema     The schema of the catalog, containing metadata about the entire data catalog.
+	 * @param entitySchema      The schema of the entity, containing metadata about the specific entity type.
+	 * @param inputMutations    The list of local mutations to be processed, potentially containing reference attribute mutations.
 	 * @param mutationCollector The collector used to gather and store mutations that need to be externally applied.
 	 */
 	private void propagateOrphanedReferenceAttributeMutations(
@@ -1073,7 +1134,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 										entityMutationFactory.apply(
 											new ReferenceAttributeMutation(
 												new ReferenceKey(rrsc.getReflectedReferenceName(), this.entityPrimaryKey),
-												ram.getAttributeMutation()
+												toInvertedTypeAttributeMutation(ram.getAttributeMutation())
 											)
 										)
 									);
@@ -1090,7 +1151,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 												entityMutationFactory.apply(
 													new ReferenceAttributeMutation(
 														new ReferenceKey(rrsc.getName(), this.entityPrimaryKey),
-														ram.getAttributeMutation()
+														toInvertedTypeAttributeMutation(ram.getAttributeMutation())
 													)
 												)
 											)
@@ -1190,15 +1251,19 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				final int referenceCount = ofNullable(referencesStorageContainer)
 					.map(ref -> ref.getReferencedIds(it.getName()).length)
 					.orElse(0);
-				return switch (it.getCardinality()) {
-					case ZERO_OR_MORE -> Stream.empty();
-					case ZERO_OR_ONE ->
-						referenceCount <= 1 ? Stream.empty() : Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
-					case ONE_OR_MORE ->
-						referenceCount >= 1 ? Stream.empty() : Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
-					case EXACTLY_ONE ->
-						referenceCount == 1 ? Stream.empty() : Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
-				};
+				if (!(it instanceof ReflectedReferenceSchemaContract rrsc) || rrsc.isReflectedReferenceAvailable()) {
+					return switch (it.getCardinality()) {
+						case ZERO_OR_MORE -> Stream.empty();
+						case ZERO_OR_ONE ->
+							referenceCount <= 1 ? Stream.empty() : Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
+						case ONE_OR_MORE ->
+							referenceCount >= 1 ? Stream.empty() : Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
+						case EXACTLY_ONE ->
+							referenceCount == 1 ? Stream.empty() : Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
+					};
+				} else {
+					return Stream.empty();
+				}
 			})
 			.toList();
 		if (!violations.isEmpty()) {

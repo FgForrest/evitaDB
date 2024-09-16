@@ -72,31 +72,6 @@ public class EntitySchemaContext {
 	}
 
 	/**
-	 * This method allows to set context-sensitive entity schema to the deserialization process. This is necessary
-	 * to correctly and consistently schema during deserialization.
-	 */
-	public static void executeWithSchemaContext(@Nonnull EntitySchema entitySchema, @Nonnull Runnable lambda) {
-		final boolean entitySchemaMissing = ENTITY_SCHEMA_SUPPLIER.get() == null;
-		final Deque<EntitySchema> existingSchemaSet;
-		if (entitySchemaMissing) {
-			existingSchemaSet = new LinkedList<>();
-			ENTITY_SCHEMA_SUPPLIER.set(existingSchemaSet);
-		} else {
-			existingSchemaSet = ENTITY_SCHEMA_SUPPLIER.get();
-		}
-
-		try {
-			existingSchemaSet.push(entitySchema);
-			lambda.run();
-		} finally {
-			existingSchemaSet.pop();
-			if (entitySchemaMissing) {
-				ENTITY_SCHEMA_SUPPLIER.remove();
-			}
-		}
-	}
-
-	/**
 	 * Returns currently initialized {@link EntitySchema} for this entity. When the method is called outside
 	 * {@link #executeWithSchemaContext(EntitySchema, Supplier)} context it throws exception.
 	 */

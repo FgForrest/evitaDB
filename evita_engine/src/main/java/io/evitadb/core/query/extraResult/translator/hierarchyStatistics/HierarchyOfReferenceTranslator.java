@@ -52,8 +52,6 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Optional;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyOfSelf} to
  * {@link HierarchyStatisticsProducer}. The producer instance has all pointer necessary to compute result.
@@ -120,7 +118,7 @@ public class HierarchyOfReferenceTranslator
 					// we need to access EntityIndexType.REFERENCED_HIERARCHY_NODE of the queried type to access
 					// entity primary keys that are referencing the hierarchy entity
 					(nodeId, statisticsBase) ->
-						ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId), ReducedEntityIndex.class))
+						extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId), ReducedEntityIndex.class)
 							.map(hierarchyIndex -> {
 								final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
 									extraResultPlanner.getFilterByWithoutHierarchyFilter(referenceSchema) :
