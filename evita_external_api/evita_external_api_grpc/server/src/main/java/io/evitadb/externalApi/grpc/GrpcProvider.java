@@ -25,7 +25,6 @@ package io.evitadb.externalApi.grpc;
 
 import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
-import com.linecorp.armeria.client.ClientFactoryBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.docs.DocService;
@@ -67,11 +66,16 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	/**
 	 * Builder for gRPC client factory.
 	 */
-	private final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
+	private final ClientFactory clientFactory = ClientFactory.builder()
 		.useHttp1Pipelining(true)
 		.idleTimeoutMillis(100)
-		.tlsNoVerify();
+		.tlsNoVerify()
+		.build();
 
+	@Override
+	public void beforeStop() {
+		this.clientFactory.close();
+	}
 
 	@Nonnull
 	@Override
@@ -125,7 +129,7 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	public boolean checkReachable(@Nonnull String uri) {
 		try {
 			final EvitaServiceBlockingStub evitaService = GrpcClients.builder(uri)
-				.factory(clientFactoryBuilder.build())
+				.factory(clientFactory)
 				.responseTimeoutMillis(100)
 				.build(EvitaServiceBlockingStub.class);
 			if (evitaService.isReady(Empty.newBuilder().build()).getReady()) {
@@ -135,9 +139,11 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 				log.error("gRPC API is not ready at: {}", uri);
 				return false;
 			}
+
 		} catch (Exception e) {
 			log.error("Error while checking readiness of gRPC API: {}", e.getMessage());
 			return false;
 		}
 	}
+
 }
