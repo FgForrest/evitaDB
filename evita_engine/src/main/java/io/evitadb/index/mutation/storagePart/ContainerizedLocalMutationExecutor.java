@@ -127,7 +127,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-public final class ContainerizedLocalMutationExecutor extends AbstractEntityStorageContainerAccessor<DataStoreMemoryBuffer>
+public final class ContainerizedLocalMutationExecutor extends AbstractEntityStorageContainerAccessor
 	implements ConsistencyCheckingLocalMutationExecutor, WritableEntityStorageContainerAccessor {
 	public static final String ERROR_SAME_KEY_EXPECTED = "Expected same primary key here!";
 	private static final AttributeValue[] EMPTY_ATTRIBUTES = new AttributeValue[0];
@@ -140,6 +140,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Nonnull private final Supplier<EntitySchema> schemaAccessor;
 	@Nonnull private final Function<String, DataStoreReader> dataStoreReaderAccessor;
 	private final boolean removeOnly;
+	private final DataStoreMemoryBuffer dataStoreUpdater;
 	private EntityBodyStoragePart entityContainer;
 	private PricesStoragePart pricesContainer;
 	private ReferencesStoragePart referencesStorageContainer;
@@ -234,7 +235,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	}
 
 	public ContainerizedLocalMutationExecutor(
-		@Nonnull DataStoreMemoryBuffer storageContainerBuffer,
+		@Nonnull DataStoreMemoryBuffer dataStoreUpdater,
+		@Nonnull DataStoreReader dataStoreReader,
 		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EntityExistence requiresExisting,
@@ -243,7 +245,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull Function<String, DataStoreReader> dataStoreReaderAccessor,
 		boolean removeOnly
 	) {
-		super(catalogVersion, storageContainerBuffer, schemaAccessor);
+		super(catalogVersion, dataStoreReader);
+		this.dataStoreUpdater = dataStoreUpdater;
 		this.catalogSchemaAccessor = catalogSchemaAccessor;
 		this.schemaAccessor = schemaAccessor;
 		this.dataStoreReaderAccessor = dataStoreReaderAccessor;
@@ -284,7 +287,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		getChangedEntityStorageParts()
 			.forEach(part -> {
 				if (part.isEmpty()) {
-					this.dataStoreReader.removeByPrimaryKey(
+					this.dataStoreUpdater.removeByPrimaryKey(
 						catalogVersion,
 						part.getStoragePartPK(),
 						part.getClass()
@@ -294,7 +297,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						!removeOnly,
 						"Only removal operations are expected to happen!"
 					);
-					this.dataStoreReader.update(catalogVersion, part);
+					this.dataStoreUpdater.update(catalogVersion, part);
 				}
 			});
 	}
@@ -387,7 +390,6 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 	@Override
 	public void registerAssignedPriceId(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey, @Nullable Integer innerRecordId, @Nonnull PriceInternalIdContainer priceId) {
-		assertEntityTypeMatches(entityType);
 		Assert.isPremiseValid(entityPrimaryKey == this.entityPrimaryKey, ERROR_SAME_KEY_EXPECTED);
 		if (assignedInternalPriceIdIndex == null) {
 			assignedInternalPriceIdIndex = new HashMap<>();
@@ -408,7 +410,6 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Nonnull
 	@Override
 	public PriceInternalIdContainer findExistingInternalIds(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey, @Nullable Integer innerRecordId) {
-		assertEntityTypeMatches(entityType);
 		Assert.isPremiseValid(entityPrimaryKey == this.entityPrimaryKey, ERROR_SAME_KEY_EXPECTED);
 		Integer internalPriceId = assignedInternalPriceIdIndex == null ? null : assignedInternalPriceIdIndex.get(priceKey);
 		if (internalPriceId == null) {
@@ -429,6 +430,41 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Override
 	public Set<Locale> getRemovedLocales() {
 		return removedLocales == null ? Collections.emptySet() : removedLocales;
+	}
+
+	/**
+	 * Retrieves all entity storage parts from various containers and assemblages them into an array.
+	 * Method is used when the caller needs to return updated entity as its result. In such situation, we collect all
+	 * already fetched / updated parts and enrich them with the missing ones and reconstructs the body of the updated
+	 * entity.
+	 *
+	 * @return an array of {@link EntityStoragePart} consisting of the entity container,
+	 *         global attributes storage container, language-specific attributes container,
+	 *         prices container, references storage container, and associated data containers.
+	 */
+	@Nonnull
+	public EntityStoragePart[] getEntityStorageParts() {
+		return Stream.of(
+				Stream.of(this.entityContainer),
+				Stream.of(this.globalAttributesStorageContainer),
+				this.languageSpecificAttributesContainer == null ?
+					Stream.<AttributesStoragePart>empty() : this.languageSpecificAttributesContainer.values().stream(),
+				Stream.of(this.pricesContainer),
+				Stream.of(this.referencesStorageContainer),
+				this.associatedDataContainers == null ?
+					Stream.<AssociatedDataStoragePart>empty() : this.associatedDataContainers.values().stream()
+			)
+			.flatMap(Function.identity())
+			.filter(Objects::nonNull)
+			.toArray(EntityStoragePart[]::new);
+	}
+
+	/**
+	 * Returns entity primary key of the updated container.
+	 * @return entity primary key
+	 */
+	public int getEntityPrimaryKey() {
+		return this.entityPrimaryKey;
 	}
 
 	@Nullable

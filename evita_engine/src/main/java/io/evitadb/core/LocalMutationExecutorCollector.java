@@ -35,12 +35,13 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
-import io.evitadb.store.entity.serializer.EntitySchemaContext;
+import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.EntityCollectionPersistenceService.EntityWithFetchCount;
 import lombok.RequiredArgsConstructor;
 
@@ -72,6 +73,14 @@ class LocalMutationExecutorCollector {
 	 * The catalog instance used to fetch collections for entities.
 	 */
 	private final Catalog catalog;
+	/**
+	 * The persistence service used to fetch full entities by their primary key.
+	 */
+	private final EntityCollectionPersistenceService persistenceService;
+	/**
+	 * The data store reader used to fetch entity data from the I/O storage.
+	 */
+	private final DataStoreReader dataStoreReader;
 	/**
 	 * The list of all involved local mutation executors.
 	 */
@@ -116,17 +125,16 @@ class LocalMutationExecutorCollector {
 	 * Executes a given entity mutation within the context of the specified entity schema,
 	 * optionally checking consistency and generating implicit mutations.
 	 *
-	 * @param entitySchema The schema of the entity to which the mutation applies.
-	 * @param entityMutation The mutation to be applied to the entity.
-	 * @param checkConsistency Indicates whether consistency checks should be performed.
+	 * @param entitySchema              The schema of the entity to which the mutation applies.
+	 * @param entityMutation            The mutation to be applied to the entity.
+	 * @param checkConsistency          Indicates whether consistency checks should be performed.
 	 * @param generateImplicitMutations Flags indicating which implicit mutations should be generated.
-	 * @param entityFetcher Function used to fetch the full entity by its primary key.
-	 * @param changeCollector Executor to collect and apply local mutations.
-	 * @param entityIndexUpdater Executor to update the entity index with the mutations.
-	 * @param returnUpdatedEntity Indicates whether to return the updated entity after mutation.
-	 *
+	 * @param entityFetcher             Function used to fetch the full entity by its primary key.
+	 * @param changeCollector           Executor to collect and apply local mutations.
+	 * @param entityIndexUpdater        Executor to update the entity index with the mutations.
+	 * @param requestUpdatedEntity      Indicates whether to return the updated entity after mutation.
 	 * @return The updated entity with fetch count if {@code returnUpdatedEntity} is true and
-	 *         the entity was updated, otherwise null.
+	 * the entity was updated, otherwise null.
 	 */
 	@Nullable
 	public EntityWithFetchCount execute(
@@ -137,88 +145,92 @@ class LocalMutationExecutorCollector {
 		@Nonnull IntBiFunction<EvitaRequest, EntityWithFetchCount> entityFetcher,
 		@Nonnull ContainerizedLocalMutationExecutor changeCollector,
 		@Nonnull EntityIndexLocalMutationExecutor entityIndexUpdater,
-		boolean returnUpdatedEntity
+		@Nullable EvitaRequest requestUpdatedEntity
 	) {
 		// first register all mutation applicators and mutations to the internal state
-		this.executors.add(changeCollector);
 		this.executors.add(entityIndexUpdater);
+		this.executors.add(changeCollector);
 		this.entityMutations.add(entityMutation);
 
 		// apply mutations using applicators
-		return EntitySchemaContext.executeWithSchemaContext(
-			entitySchema,
-			() -> {
-				EntityWithFetchCount result = null;
-				try {
-					this.level++;
+		EntityWithFetchCount result = null;
+		try {
+			this.level++;
 
-					final List<? extends LocalMutation<?, ?>> localMutations;
-					if (entityMutation instanceof EntityRemoveMutation erm) {
-						result = getFullEntityById(entityMutation.getEntityPrimaryKey(), entitySchema, entityFetcher);
-						localMutations = erm.computeLocalMutationsForEntityRemoval(
-							Objects.requireNonNull(result.entity())
-						);
-					} else {
-						localMutations = entityMutation.getLocalMutations();
-					}
+			final List<? extends LocalMutation<?, ?>> localMutations;
+			if (entityMutation instanceof EntityRemoveMutation erm) {
+				result = getFullEntityById(entityMutation.getEntityPrimaryKey(), entitySchema, entityFetcher);
+				localMutations = erm.computeLocalMutationsForEntityRemoval(
+					Objects.requireNonNull(result.entity())
+				);
+			} else {
+				localMutations = entityMutation.getLocalMutations();
+			}
 
-					for (LocalMutation<?, ?> localMutation : localMutations) {
-						changeCollector.applyMutation(localMutation);
-						entityIndexUpdater.applyMutation(localMutation);
-					}
+			for (LocalMutation<?, ?> localMutation : localMutations) {
+				entityIndexUpdater.applyMutation(localMutation);
+				changeCollector.applyMutation(localMutation);
+			}
 
-					if (!generateImplicitMutations.isEmpty()) {
-						final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(
-							localMutations, generateImplicitMutations
-						);
-						// immediately apply all local mutations
-						for (LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
-							changeCollector.applyMutation(localMutation);
-							entityIndexUpdater.applyMutation(localMutation);
-						}
-						// and for each external mutation - call external collection to apply it
-						for (EntityMutation externaEntityMutations : implicitMutations.externalMutations()) {
-							final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externaEntityMutations;
-							catalog.getCollectionForEntityOrThrowException(externaEntityMutations.getEntityType())
-								.applyMutations(
-									externaEntityMutations,
-									serverEntityMutation.shouldApplyUndoOnError(),
-									serverEntityMutation.shouldVerifyConsistency(),
-									false,
-									serverEntityMutation.getImplicitMutationsBehavior(),
-									this
-								);
-						}
-					}
-					if (checkConsistency) {
-						changeCollector.verifyConsistency();
-					}
-
-				} catch (RuntimeException ex) {
-					// we need to catch all exceptions and store them in the exception field
-					if (exception == null) {
-						exception = ex;
-					} else {
-						exception.addSuppressed(ex);
-					}
-				} finally {
-					// we finalize this collector only on zero level
-					if (--this.level == 0) {
-						finish();
-					}
+			if (!generateImplicitMutations.isEmpty()) {
+				final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(
+					localMutations, generateImplicitMutations
+				);
+				// immediately apply all local mutations
+				for (LocalMutation<?, ?> localMutation : implicitMutations.localMutations()) {
+					entityIndexUpdater.applyMutation(localMutation);
+					changeCollector.applyMutation(localMutation);
 				}
-
-				if (this.exception != null) {
-					throw this.exception;
-				}
-
-				if (returnUpdatedEntity) {
-					return result == null ? changeCollector.getEntityWithFetchCount() : result;
-				} else {
-					return null;
+				// and for each external mutation - call external collection to apply it
+				for (EntityMutation externaEntityMutations : implicitMutations.externalMutations()) {
+					final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externaEntityMutations;
+					catalog.getCollectionForEntityOrThrowException(externaEntityMutations.getEntityType())
+						.applyMutations(
+							externaEntityMutations,
+							serverEntityMutation.shouldApplyUndoOnError(),
+							serverEntityMutation.shouldVerifyConsistency(),
+							null,
+							serverEntityMutation.getImplicitMutationsBehavior(),
+							this
+						);
 				}
 			}
-		);
+			if (checkConsistency) {
+				changeCollector.verifyConsistency();
+			}
+
+		} catch (RuntimeException ex) {
+			// we need to catch all exceptions and store them in the exception field
+			if (exception == null) {
+				exception = ex;
+			} else {
+				exception.addSuppressed(ex);
+			}
+		} finally {
+			// we finalize this collector only on zero level
+			if (--this.level == 0) {
+				finish();
+			}
+		}
+
+		if (this.exception != null) {
+			throw this.exception;
+		}
+
+		if (requestUpdatedEntity != null) {
+			return result == null ?
+				this.persistenceService.toEntity(
+					this.catalog.getVersion(),
+					changeCollector.getEntityPrimaryKey(),
+					requestUpdatedEntity,
+					entitySchema,
+					this.dataStoreReader,
+					changeCollector.getEntityStorageParts()
+				) :
+				result;
+		} else {
+			return null;
+		}
 	}
 
 	/**

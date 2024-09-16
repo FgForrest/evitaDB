@@ -244,6 +244,11 @@ public final class EntityCollection implements
 	 */
 	private final EntityCollectionPersistenceService persistenceService;
 	/**
+	 * Contains the default minimal query used when we need to fetch only the assigned primary key when
+	 * entity is being inserted into database.
+	 */
+	private final EvitaRequest defaultMinimalQuery;
+	/**
 	 * This field contains reference to the CURRENT {@link Catalog} instance allowing to access {@link EntityCollection}
 	 * for any of entity types that are known to the catalog this collection is part of. Reference to other collections
 	 * is used to access their schema or their indexes from this collection.
@@ -342,7 +347,14 @@ public final class EntityCollection implements
 			entityHeader.entityType().equals(this.initialSchema.getName()),
 			() -> "Deserialized schema name differs from expected entity type - expected " + entityHeader.entityType() + " got " + this.initialSchema.getName()
 		);
-		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, dataStoreBuffer);
+		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
+		this.defaultMinimalQuery = new EvitaRequest(
+			Query.query(collection(entityType)),
+			OffsetDateTime.MIN, // we don't care about the time
+			EntityReference.class,
+			null,
+			EvitaRequest.CONVERSION_NOT_SUPPORTED
+		);
 	}
 
 	private EntityCollection(
@@ -372,7 +384,14 @@ public final class EntityCollection implements
 		this.dataStoreReader = new DataStoreReaderBridge(this.dataStoreBuffer, this::getInternalSchema);
 		this.indexes = new TransactionalMap<>(indexes, it -> (EntityIndex) it);
 		this.cacheSupervisor = cacheSupervisor;
-		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, dataStoreBuffer);
+		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
+		this.defaultMinimalQuery = new EvitaRequest(
+			Query.query(collection(this.entityType)),
+			OffsetDateTime.MIN, // we don't care about the time
+			EntityReference.class,
+			null,
+			EvitaRequest.CONVERSION_NOT_SUPPORTED
+		);
 	}
 
 	@Delegate(types = DataStoreReader.class)
@@ -407,10 +426,11 @@ public final class EntityCollection implements
 						catalogVersion,
 						primaryKey,
 						evitaRequest,
+						getInternalSchema(),
 						session,
 						entityType -> entityType.equals(getEntityType()) ?
 							this : catalog.getCollectionForEntityOrThrowException(entityType),
-						dataStoreBuffer
+						this.dataStoreReader
 					);
 					return binaryEntityWithFetchCount == null ?
 						null :
@@ -426,7 +446,7 @@ public final class EntityCollection implements
 						getInternalSchema(),
 						binaryEntity,
 						evitaRequest,
-						dataStoreBuffer
+						this.dataStoreReader
 					);
 					return new ServerBinaryEntityDecorator(
 						binaryEntityWithFetchCount.entity(),
@@ -540,11 +560,21 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		upsertEntityInternal(entityMutation, false);
-		return new EntityReference(
-			entityMutation.getEntityType(),
-			entityMutation.getEntityPrimaryKey()
-		);
+		if (entityMutation.getEntityPrimaryKey() == null) {
+			final EntityWithFetchCount entityWithFetchCount = upsertEntityInternal(
+				entityMutation, this.defaultMinimalQuery
+			);
+			return new EntityReference(
+				entityMutation.getEntityType(),
+				entityWithFetchCount.entity().getPrimaryKey()
+			);
+		} else {
+			upsertEntityInternal(entityMutation, null);
+			return new EntityReference(
+				entityMutation.getEntityType(),
+				entityMutation.getEntityPrimaryKey()
+			);
+		}
 	}
 
 	@Override
@@ -553,8 +583,7 @@ public final class EntityCollection implements
 		final ServerEntityDecorator internalEntity =
 			wrapToDecorator(
 				evitaRequest,
-				/* TODO - TADY ZAJISTIT POTŘEBNÉ DONAČTENÍ OBSAHU */
-				upsertEntityInternal(entityMutation, true),
+				upsertEntityInternal(entityMutation, evitaRequest),
 				false
 			);
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
@@ -567,7 +596,7 @@ public final class EntityCollection implements
 	@Override
 	public boolean deleteEntity(int primaryKey) {
 		if (this.getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
-			deleteEntityInternal(primaryKey);
+			deleteEntityInternal(primaryKey, null);
 			return true;
 		} else {
 			return false;
@@ -580,9 +609,7 @@ public final class EntityCollection implements
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
-			return empty();
-		} else {
-			final EntityWithFetchCount removedEntity = deleteEntityInternal(primaryKeys[0]);
+			final EntityWithFetchCount removedEntity = deleteEntityInternal(primaryKeys[0], evitaRequest);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
 			return of(
@@ -591,6 +618,8 @@ public final class EntityCollection implements
 					referenceFetcher
 				)
 			);
+		} else {
+			return empty();
 		}
 	}
 
@@ -619,26 +648,29 @@ public final class EntityCollection implements
 			final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 			Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 			final int[] entityHierarchy = globalIndex.listHierarchyNodesFromParentIncludingItself(primaryKeys[0]).getArray();
+			if (entityHierarchy.length == 0) {
+				return new DeletedHierarchy<>(0, null);
+			} else {
+				ServerEntityDecorator removedRoot = null;
+				for (int entityToRemove : entityHierarchy) {
+					final EntityWithFetchCount removedEntity = deleteEntityInternal(entityToRemove, evitaRequest);
+					removedRoot = removedRoot == null ? wrapToDecorator(evitaRequest, removedEntity, false) : removedRoot;
+				}
 
-			ServerEntityDecorator removedRoot = null;
-			for (int entityToRemove : entityHierarchy) {
-				final EntityWithFetchCount removedEntity = deleteEntityInternal(entityToRemove);
-				removedRoot = removedRoot == null ? wrapToDecorator(evitaRequest, removedEntity, false) : removedRoot;
-			}
+				final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 
-			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-
-			//noinspection unchecked
-			return new DeletedHierarchy<>(
-				entityHierarchy.length,
-				ofNullable(removedRoot)
-					.map(it -> (T) applyReferenceFetcherInternal(
-							referenceFetcher.initReferenceIndex(it, this),
-							referenceFetcher
+				//noinspection unchecked
+				return new DeletedHierarchy<>(
+					entityHierarchy.length,
+					ofNullable(removedRoot)
+						.map(it -> (T) applyReferenceFetcherInternal(
+								referenceFetcher.initReferenceIndex(it, this),
+								referenceFetcher
+							)
 						)
-					)
-					.orElse(null)
-			);
+						.orElse(null)
+				);
+			}
 		}
 		return new DeletedHierarchy<>(0, null);
 	}
@@ -682,7 +714,7 @@ public final class EntityCollection implements
 		final List<ServerEntityDecorator> removedEntities = new ArrayList<>(entitiesToRemove.length);
 		for (int entityToRemove : entitiesToRemove) {
 			removedEntities.add(
-				wrapToDecorator(evitaRequest, deleteEntityInternal(entityToRemove), false)
+				wrapToDecorator(evitaRequest, deleteEntityInternal(entityToRemove, evitaRequest), false)
 			);
 		}
 
@@ -696,12 +728,12 @@ public final class EntityCollection implements
 
 	@Override
 	public boolean isEmpty() {
-		return this.persistenceService.isEmpty(catalog.getVersion(), dataStoreBuffer);
+		return this.persistenceService.isEmpty(catalog.getVersion(), this.dataStoreReader);
 	}
 
 	@Override
 	public int size() {
-		return this.persistenceService.countEntities(catalog.getVersion(), dataStoreBuffer);
+		return this.persistenceService.countEntities(catalog.getVersion(), this.dataStoreReader);
 	}
 
 	@Override
@@ -713,24 +745,24 @@ public final class EntityCollection implements
 	@Override
 	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
 		if (entityMutation instanceof EntityUpsertMutation upsertMutation) {
-			upsertEntityInternal(upsertMutation, false);
+			upsertEntityInternal(upsertMutation, null);
 		} else if (entityMutation instanceof ServerEntityRemoveMutation removeMutation) {
 			applyMutations(
 				entityMutation,
 				removeMutation.shouldApplyUndoOnError(),
 				removeMutation.shouldVerifyConsistency(),
-				false,
+				null,
 				removeMutation.getImplicitMutationsBehavior(),
-				new LocalMutationExecutorCollector(this.catalog)
+				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
 			);
 		} else if (entityMutation instanceof EntityRemoveMutation) {
 			applyMutations(
 				entityMutation,
 				true,
 				true,
-				false,
+				null,
 				EnumSet.noneOf(ImplicitMutationBehavior.class),
-				new LocalMutationExecutorCollector(this.catalog)
+				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
 			);
 		} else {
 			throw new InvalidMutationException(
@@ -966,7 +998,6 @@ public final class EntityCollection implements
 
 		final EntityWithFetchCount entityWithFetchCount = this.persistenceService.enrichEntity(
 			this.catalog.getVersion(),
-			internalSchema,
 			// use all data from existing entity
 			partiallyLoadedEntity,
 			newHierarchyPredicate,
@@ -974,7 +1005,7 @@ public final class EntityCollection implements
 			newAssociatedDataPredicate,
 			newReferenceContractPredicate,
 			newPriceContractPredicate,
-			dataStoreBuffer
+			this.dataStoreReader
 		);
 		return ServerEntityDecorator.decorate(
 			// load all missing data according to current evita request
@@ -1057,7 +1088,6 @@ public final class EntityCollection implements
 				// no predicates are changed in the output decorator, only inner entity is more rich
 				final EntityWithFetchCount entityWithFetchCount = this.persistenceService.enrichEntity(
 					this.catalog.getVersion(),
-					getInternalSchema(),
 					// use all data from existing entity
 					partiallyLoadedEntity,
 					partiallyLoadedEntity.getHierarchyPredicate(),
@@ -1065,7 +1095,7 @@ public final class EntityCollection implements
 					partiallyLoadedEntity.getAssociatedDataPredicate(),
 					new ReferenceContractSerializablePredicate(true),
 					partiallyLoadedEntity.getPricePredicate(),
-					this.dataStoreBuffer
+					this.dataStoreReader
 				);
 				//noinspection unchecked
 				return (T) ServerEntityDecorator.decorate(
@@ -1336,6 +1366,7 @@ public final class EntityCollection implements
 	 *
 	 * @return the entity collection header
 	 */
+	@Nonnull
 	EntityCollectionHeader getEntityCollectionHeader() {
 		return this.persistenceService.getEntityCollectionHeader();
 	}
@@ -1360,15 +1391,18 @@ public final class EntityCollection implements
 	/**
 	 * Deletes passed entity both from indexes and the storage.
 	 */
-	@Nonnull
-	private EntityWithFetchCount deleteEntityInternal(int primaryKey) {
+	@Nullable
+	private EntityWithFetchCount deleteEntityInternal(
+		int primaryKey,
+		@Nullable EvitaRequest returnDeletedEntity
+	) {
 		return applyMutations(
 			new EntityRemoveMutation(getEntityType(), primaryKey),
 			true,
 			true,
-			true,
+			returnDeletedEntity,
 			EnumSet.allOf(ImplicitMutationBehavior.class),
-			new LocalMutationExecutorCollector(this.catalog)
+			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
 		);
 	}
 
@@ -1533,7 +1567,7 @@ public final class EntityCollection implements
 			primaryKey,
 			evitaRequest,
 			getInternalSchema(),
-			dataStoreBuffer
+			this.dataStoreReader
 		);
 	}
 
@@ -1621,7 +1655,10 @@ public final class EntityCollection implements
 	 * Creates or updates entity and returns its primary key.
 	 */
 	@Nullable
-	private EntityWithFetchCount upsertEntityInternal(@Nonnull EntityMutation entityMutation, boolean returnUpdatedEntity) {
+	private EntityWithFetchCount upsertEntityInternal(
+		@Nonnull EntityMutation entityMutation,
+		@Nullable EvitaRequest returnUpdatedEntity
+	) {
 		// verify mutation against schema
 		// it was already executed when mutation was created, but there are two reasons to do it again
 		// - we don't trust clients - in future it may be some external JS application
@@ -1649,7 +1686,7 @@ public final class EntityCollection implements
 				veum.shouldVerifyConsistency(),
 				returnUpdatedEntity,
 				veum.getImplicitMutationsBehavior(),
-				new LocalMutationExecutorCollector(this.catalog)
+				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
 			);
 		} else {
 			entityMutationToUpsert = verifyPrimaryKeyAssignment(entityMutation, currentSchema);
@@ -1659,7 +1696,7 @@ public final class EntityCollection implements
 				true,
 				returnUpdatedEntity,
 				EnumSet.allOf(ImplicitMutationBehavior.class),
-				new LocalMutationExecutorCollector(this.catalog)
+				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
 			);
 		}
 	}
@@ -1727,13 +1764,14 @@ public final class EntityCollection implements
 		@Nonnull EntityMutation entityMutation,
 		boolean undoOnError,
 		boolean checkConsistency,
-		boolean returnUpdatedEntity,
+		@Nullable EvitaRequest returnUpdatedEntity,
 		@Nonnull EnumSet<ImplicitMutationBehavior> generateImplicitMutations,
 		@Nonnull LocalMutationExecutorCollector localMutationExecutorCollector
 	) {
 		// prepare collectors
 		final ContainerizedLocalMutationExecutor changeCollector = new ContainerizedLocalMutationExecutor(
 			this.dataStoreBuffer,
+			this.dataStoreReader,
 			this.catalog.getVersion(),
 			entityMutation.getEntityPrimaryKey(),
 			entityMutation.expects(),
@@ -1823,7 +1861,8 @@ public final class EntityCollection implements
 
 	/**
 	 * A bridge implementation of the DataStoreReader interface that delegates its operations to another DataStoreReader
-	 * while providing additional context by setting the schema through the EntitySchemaContext.
+	 * while providing additional context by setting the schema through the EntitySchemaContext. This instance should
+	 * be used primarily for fetching data from the underlying storage.
 	 */
 	@RequiredArgsConstructor
 	private static class DataStoreReaderBridge implements DataStoreReader {
@@ -1832,15 +1871,15 @@ public final class EntityCollection implements
 
 		@Override
 		public int countStorageParts(long catalogVersion, @Nonnull Class<? extends StoragePart> containerType) {
-			return dataStoreReader.countStorageParts(catalogVersion, containerType);
+			return this.dataStoreReader.countStorageParts(catalogVersion, containerType);
 		}
 
 		@Nullable
 		@Override
 		public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
 			return EntitySchemaContext.executeWithSchemaContext(
-				schemaSupplier.get(),
-				() -> dataStoreReader.fetch(catalogVersion, primaryKey, containerType)
+				this.schemaSupplier.get(),
+				() -> this.dataStoreReader.fetch(catalogVersion, primaryKey, containerType)
 			);
 		}
 
@@ -1848,8 +1887,8 @@ public final class EntityCollection implements
 		@Override
 		public <T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
 			return EntitySchemaContext.executeWithSchemaContext(
-				schemaSupplier.get(),
-				() -> dataStoreReader.fetchBinary(catalogVersion, primaryKey, containerType)
+				this.schemaSupplier.get(),
+				() -> this.dataStoreReader.fetchBinary(catalogVersion, primaryKey, containerType)
 			);
 		}
 
@@ -1857,8 +1896,8 @@ public final class EntityCollection implements
 		@Override
 		public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
 			return EntitySchemaContext.executeWithSchemaContext(
-				schemaSupplier.get(),
-				() -> dataStoreReader.fetch(catalogVersion, originalKey, containerType, compressedKeyComputer)
+				this.schemaSupplier.get(),
+				() -> this.dataStoreReader.fetch(catalogVersion, originalKey, containerType, compressedKeyComputer)
 			);
 		}
 
@@ -1866,18 +1905,16 @@ public final class EntityCollection implements
 		@Override
 		public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
 			return EntitySchemaContext.executeWithSchemaContext(
-				schemaSupplier.get(),
-				() -> dataStoreReader.fetchBinary(catalogVersion, originalKey, containerType, compressedKeyComputer)
+				this.schemaSupplier.get(),
+				() -> this.dataStoreReader.fetchBinary(catalogVersion, originalKey, containerType, compressedKeyComputer)
 			);
 		}
 
 		@Override
 		public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-			return EntitySchemaContext.executeWithSchemaContext(
-				schemaSupplier.get(),
-				() -> dataStoreReader.getIndexIfExists(entityIndexKey, accessorWhenMissing)
-			);
+			return this.dataStoreReader.getIndexIfExists(entityIndexKey, accessorWhenMissing);
 		}
+
 	}
 
 	/**

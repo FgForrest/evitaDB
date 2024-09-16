@@ -26,7 +26,6 @@ package io.evitadb.store.spi.model.storageParts.accessor;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
@@ -40,7 +39,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static java.util.Optional.ofNullable;
 
@@ -53,7 +51,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @NotThreadSafe
-public final class ReadOnlyEntityStorageContainerAccessor extends AbstractEntityStorageContainerAccessor<DataStoreReader> {
+public final class ReadOnlyEntityStorageContainerAccessor extends AbstractEntityStorageContainerAccessor {
 	/**
 	 * Cache for the {@link EntityBodyStoragePart} by the entity primary key.
 	 */
@@ -81,10 +79,9 @@ public final class ReadOnlyEntityStorageContainerAccessor extends AbstractEntity
 
 	public ReadOnlyEntityStorageContainerAccessor(
 		long catalogVersion,
-		@Nonnull DataStoreReader dataStoreReader,
-		@Nonnull Supplier<EntitySchema> schemaAccessor
+		@Nonnull DataStoreReader dataStoreReader
 	) {
-		super(catalogVersion, dataStoreReader, schemaAccessor);
+		super(catalogVersion, dataStoreReader);
 	}
 
 	@Nullable

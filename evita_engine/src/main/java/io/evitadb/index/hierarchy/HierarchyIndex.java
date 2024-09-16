@@ -42,13 +42,10 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.suppliers.HierarchyByParentBitmapSupplier;
-import io.evitadb.index.hierarchy.suppliers.HierarchyByParentDownToLevelBitmapSupplier;
-import io.evitadb.index.hierarchy.suppliers.HierarchyByParentDownToLevelIncludingSelfBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyByParentIncludingSelfBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyForParentBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyRootsBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyRootsDownBitmapSupplier;
-import io.evitadb.index.hierarchy.suppliers.HierarchyRootsDownToLevelBitmapSupplier;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.HierarchyIndexStoragePart;
@@ -255,17 +252,6 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	@Nonnull
-	public Formula getListHierarchyNodesFromRootDownToFormula(int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		return new DeferredFormula(
-			new HierarchyRootsDownToLevelBitmapSupplier(
-				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
-				levels, excludedNodeTrees
-			)
-		);
-	}
-
-	@Override
-	@Nonnull
 	public Bitmap listHierarchyNodesFromRootDownTo(int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final CompositeIntArray result = new CompositeIntArray();
 		for (Integer nodeId : this.roots.getArray()) {
@@ -296,24 +282,17 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	public Bitmap listHierarchyNodesFromParentIncludingItself(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final CompositeIntArray result = new CompositeIntArray();
 		if (hierarchyFilteringPredicate.test(parentNode)) {
-			result.add(parentNode);
+			if (this.itemIndex.containsKey(parentNode)) {
+				result.add(parentNode);
+			} else {
+				return EmptyBitmap.INSTANCE;
+			}
 			final TransactionalIntArray children = this.levelIndex.get(parentNode);
 			if (children != null) {
 				addRecursively(hierarchyFilteringPredicate, result, children, Integer.MAX_VALUE);
 			}
 		}
 		return new BaseBitmap(result.toArray());
-	}
-
-	@Override
-	@Nonnull
-	public Formula getListHierarchyNodesFromParentIncludingItselfDownToFormula(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		return new DeferredFormula(
-			new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(
-				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
-				parentNode, levels, excludedNodeTrees
-			)
-		);
 	}
 
 	@Override
@@ -356,17 +335,6 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	@Nonnull
-	public Formula getListHierarchyNodesFromParentDownToFormula(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		return new DeferredFormula(
-			new HierarchyByParentDownToLevelBitmapSupplier(
-				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
-				parentNode, levels, excludedNodeTrees
-			)
-		);
-	}
-
-	@Override
-	@Nonnull
 	public Bitmap listHierarchyNodesFromParentDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		assertNodeInIndex(parentNode);
 		final CompositeIntArray result = new CompositeIntArray();
@@ -385,26 +353,6 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	public Integer[] listHierarchyNodesFromRootToTheNode(int theNode) {
 		HierarchyNode hierarchyNode = getHierarchyNodeOrThrowException(theNode);
 		final CompositeObjectArray<Integer> result = new CompositeObjectArray<>(Integer.class);
-		while (hierarchyNode.parentEntityPrimaryKey() != null) {
-			result.add(hierarchyNode.parentEntityPrimaryKey());
-			final Optional<HierarchyNode> parentNode = getParentNodeOrThrowException(hierarchyNode);
-			if (parentNode.isPresent()) {
-				hierarchyNode = parentNode.get();
-			} else {
-				return new Integer[0];
-			}
-		}
-		final Integer[] theResult = result.toArray();
-		ArrayUtils.reverse(theResult);
-		return theResult;
-	}
-
-	@Nonnull
-	@Override
-	public Integer[] listHierarchyNodesFromRootToTheNodeIncludingSelf(int theNode) {
-		HierarchyNode hierarchyNode = getHierarchyNodeOrThrowException(theNode);
-		final CompositeObjectArray<Integer> result = new CompositeObjectArray<>(Integer.class);
-		result.add(theNode);
 		while (hierarchyNode.parentEntityPrimaryKey() != null) {
 			result.add(hierarchyNode.parentEntityPrimaryKey());
 			final Optional<HierarchyNode> parentNode = getParentNodeOrThrowException(hierarchyNode);

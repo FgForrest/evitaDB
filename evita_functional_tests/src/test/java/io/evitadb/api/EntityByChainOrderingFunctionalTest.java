@@ -57,6 +57,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -168,7 +169,104 @@ public class EntityByChainOrderingFunctionalTest {
 		}
 	}
 
-	/* TODO REFACTOR SHARED METHODS */
+	/**
+	 * Sorts the products in a category based on the category order attribute.
+	 *
+	 * @param productsInCategory a map where the key is the category ID (non-null) and the value is a list of sealed entities (nullable).
+	 */
+	private static void sortProductsInCategory(@Nonnull Map<Integer, List<SealedEntity>> productsInCategory) {
+		productsInCategory.forEach((key, value) -> {
+			if (value != null) {
+				// we rely on ChainIndex correctness - it's tested elsewhere
+				final ChainIndex chainIndex = new ChainIndex(new AttributeKey(ATTRIBUTE_CATEGORY_ORDER));
+				for (SealedEntity entity : value) {
+					final ReferenceContract reference = entity.getReference(Entities.CATEGORY, key).orElseThrow();
+					chainIndex.upsertPredecessor(reference.getAttribute(ATTRIBUTE_CATEGORY_ORDER), entity.getPrimaryKey());
+				}
+				// this is not much effective, but enough for a test
+				final int[] sortedRecordIds = chainIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+				value.sort(
+					(a, b) -> {
+						final int aPos = ArrayUtils.indexOf(a.getPrimaryKey(), sortedRecordIds);
+						final int bPos = ArrayUtils.indexOf(b.getPrimaryKey(), sortedRecordIds);
+						return Integer.compare(aPos, bPos);
+					}
+				);
+			}
+		});
+	}
+
+	/**
+	 * Updates the order of the products within a category in the Evita session.
+	 *
+	 * @param session            the session to execute the update operations
+	 * @param predecessorCreator a function that creates a predecessor for the specified reference
+	 */
+	private static void updateCategoryOrderOfTheProducts(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull BiFunction<ReferenceContract, int[], Serializable> predecessorCreator
+	) {
+		final Random rnd = new Random(SEED);
+		session.queryList(
+				query(
+					collection(Entities.CATEGORY),
+					require(
+						page(1, 100),
+						entityFetch(
+							referenceContent(REFERENCE_CATEGORY_PRODUCTS)
+						)
+					)
+				),
+				SealedEntity.class
+			)
+			.forEach(category -> {
+				final int[] referencedProducts = category.getReferences(REFERENCE_CATEGORY_PRODUCTS)
+					.stream()
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+				ArrayUtils.shuffleArray(rnd, referencedProducts, referencedProducts.length);
+				final EntityBuilder categoryBuilder = category.openForWrite();
+				category
+					.getReferences(REFERENCE_CATEGORY_PRODUCTS)
+					.forEach(
+						reference -> {
+							categoryBuilder.setReference(
+								REFERENCE_CATEGORY_PRODUCTS,
+								reference.getReferencedPrimaryKey(),
+								whichIs -> whichIs.setAttribute(
+									ATTRIBUTE_CATEGORY_ORDER,
+									predecessorCreator.apply(reference, referencedProducts)
+								)
+							);
+						}
+					);
+				session.upsertEntity(categoryBuilder);
+			});
+	}
+
+	/**
+	 * Collects a map of product indexes from stored products using the provided session.
+	 *
+	 * @param session        the session to use for retrieving entities, must not be null
+	 * @param storedProducts the list of stored products, must not be null
+	 * @return a map of primary keys to sealed entities, never null
+	 * @throws NoSuchElementException if any entity is not found
+	 */
+	@Nonnull
+	private static Map<Integer, SealedEntity> collectProductIndex(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull List<EntityReference> storedProducts
+	) {
+		return storedProducts.stream()
+			.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+			.collect(
+				Collectors.toMap(
+					SealedEntity::getPrimaryKey,
+					Function.identity()
+				)
+			);
+	}
+
 	@Nullable
 	@DataSet(value = CHAINED_ELEMENTS, readOnly = false, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
@@ -271,53 +369,16 @@ public class EntityByChainOrderingFunctionalTest {
 				.toList();
 
 			// second pass - update the category order of the products
-			final Random rnd = new Random(SEED);
-			session.queryList(
-					query(
-						collection(Entities.CATEGORY),
-						require(
-							page(1, 100),
-							entityFetch(
-								referenceContent(REFERENCE_CATEGORY_PRODUCTS)
-							)
-						)
-					),
-					SealedEntity.class
-				)
-				.forEach(category -> {
-					final int[] referencedProducts = category.getReferences(REFERENCE_CATEGORY_PRODUCTS)
-						.stream()
-						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-						.toArray();
-					ArrayUtils.shuffleArray(rnd, referencedProducts, referencedProducts.length);
-					final EntityBuilder categoryBuilder = category.openForWrite();
-					category
-						.getReferences(REFERENCE_CATEGORY_PRODUCTS)
-						.forEach(
-							reference -> {
-								categoryBuilder.setReference(
-									REFERENCE_CATEGORY_PRODUCTS,
-									reference.getReferencedPrimaryKey(),
-									whichIs -> {
-										final int theIndex = ArrayUtils.indexOf(reference.getReferencedPrimaryKey(), referencedProducts);
-										final ReferencedEntityPredecessor predecessor = theIndex == 0 ?
-											ReferencedEntityPredecessor.HEAD : new ReferencedEntityPredecessor(referencedProducts[theIndex - 1]);
-										whichIs.setAttribute(ATTRIBUTE_CATEGORY_ORDER, predecessor);
-									}
-								);
-							}
-						);
-					session.upsertEntity(categoryBuilder);
-				});
+			updateCategoryOrderOfTheProducts(
+				session,
+				(reference, referencedProducts) -> {
+					final int theIndex = ArrayUtils.indexOf(reference.getReferencedPrimaryKey(), referencedProducts);
+					return theIndex == 0 ?
+						ReferencedEntityPredecessor.HEAD : new ReferencedEntityPredecessor(referencedProducts[theIndex - 1]);
+				}
+			);
 
-			final Map<Integer, SealedEntity> products = storedProducts.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
-				.collect(
-					Collectors.toMap(
-						SealedEntity::getPrimaryKey,
-						Function.identity()
-					)
-				);
+			final Map<Integer, SealedEntity> products = collectProductIndex(session, storedProducts);
 
 			final Map<Integer, List<SealedEntity>> productsInCategory = products
 				.values()
@@ -334,24 +395,7 @@ public class EntityByChainOrderingFunctionalTest {
 				);
 
 			// now we need to sort the products in the category
-			productsInCategory.forEach((key, value) -> {
-				// we rely on ChainIndex correctness - it's tested elsewhere
-				final ChainIndex chainIndex = new ChainIndex(new AttributeKey(ATTRIBUTE_CATEGORY_ORDER));
-				for (SealedEntity entity : value) {
-					final ReferenceContract reference = entity.getReference(Entities.CATEGORY, key).orElseThrow();
-					chainIndex.upsertPredecessor(reference.getAttribute(ATTRIBUTE_CATEGORY_ORDER), entity.getPrimaryKey());
-				}
-				// this is not much effective, but enough for a test
-				final int[] sortedRecordIds = chainIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
-				value.sort(
-					(a, b) -> {
-						final int aPos = ArrayUtils.indexOf(a.getPrimaryKey(), sortedRecordIds);
-						final int bPos = ArrayUtils.indexOf(b.getPrimaryKey(), sortedRecordIds);
-						return Integer.compare(aPos, bPos);
-					}
-				);
-			});
-
+			sortProductsInCategory(productsInCategory);
 			return new DataCarrier(
 				REFERENCE_CATEGORY_PRODUCTS, products,
 				"productsInCategory", productsInCategory
@@ -432,53 +476,16 @@ public class EntityByChainOrderingFunctionalTest {
 				.forEach(session::upsertEntity);
 
 			// second pass - update the category order of the products
-			final Random rnd = new Random(SEED);
-			session.queryList(
-					query(
-						collection(Entities.CATEGORY),
-						require(
-							page(1, 100),
-							entityFetch(
-								referenceContent(REFERENCE_CATEGORY_PRODUCTS)
-							)
-						)
-					),
-					SealedEntity.class
-				)
-				.forEach(category -> {
-					final int[] referencedProducts = category.getReferences(REFERENCE_CATEGORY_PRODUCTS)
-						.stream()
-						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-						.toArray();
-					ArrayUtils.shuffleArray(rnd, referencedProducts, referencedProducts.length);
-					final EntityBuilder categoryBuilder = category.openForWrite();
-					category
-						.getReferences(REFERENCE_CATEGORY_PRODUCTS)
-						.forEach(
-							reference -> {
-								categoryBuilder.setReference(
-									REFERENCE_CATEGORY_PRODUCTS,
-									reference.getReferencedPrimaryKey(),
-									whichIs -> {
-										final int theIndex = ArrayUtils.indexOf(reference.getReferencedPrimaryKey(), referencedProducts);
-										final Predecessor predecessor = theIndex == 0 ?
-											Predecessor.HEAD : new Predecessor(referencedProducts[theIndex - 1]);
-										whichIs.setAttribute(ATTRIBUTE_CATEGORY_ORDER, predecessor);
-									}
-								);
-							}
-						);
-					session.upsertEntity(categoryBuilder);
-				});
+			updateCategoryOrderOfTheProducts(
+				session,
+				(reference, referencedProducts) -> {
+					final int theIndex = ArrayUtils.indexOf(reference.getReferencedPrimaryKey(), referencedProducts);
+					return theIndex == 0 ?
+						Predecessor.HEAD : new Predecessor(referencedProducts[theIndex - 1]);
+				}
+			);
 
-			final Map<Integer, SealedEntity> products = storedProducts.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
-				.collect(
-					Collectors.toMap(
-						SealedEntity::getPrimaryKey,
-						Function.identity()
-					)
-				);
+			final Map<Integer, SealedEntity> products = collectProductIndex(session, storedProducts);
 
 			final Map<Integer, List<SealedEntity>> productsInCategory = products
 				.values()
@@ -492,23 +499,7 @@ public class EntityByChainOrderingFunctionalTest {
 				);
 
 			// now we need to sort the products in the category
-			productsInCategory.forEach((key, value) -> {
-				// we rely on ChainIndex correctness - it's tested elsewhere
-				final ChainIndex chainIndex = new ChainIndex(new AttributeKey(ATTRIBUTE_CATEGORY_ORDER));
-				for (SealedEntity entity : value) {
-					final ReferenceContract reference = entity.getReference(Entities.CATEGORY, key).orElseThrow();
-					chainIndex.upsertPredecessor(reference.getAttribute(ATTRIBUTE_CATEGORY_ORDER), entity.getPrimaryKey());
-				}
-				// this is not much effective, but enough for a test
-				final int[] sortedRecordIds = chainIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
-				value.sort(
-					(a, b) -> {
-						final int aPos = ArrayUtils.indexOf(a.getPrimaryKey(), sortedRecordIds);
-						final int bPos = ArrayUtils.indexOf(b.getPrimaryKey(), sortedRecordIds);
-						return Integer.compare(aPos, bPos);
-					}
-				);
-			});
+			sortProductsInCategory(productsInCategory);
 
 			return new DataCarrier(
 				REFERENCE_CATEGORY_PRODUCTS, products,

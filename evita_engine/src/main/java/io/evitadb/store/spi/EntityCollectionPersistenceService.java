@@ -38,8 +38,9 @@ import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContract
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
-import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 
@@ -85,7 +86,29 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
+	);
+
+	/**
+	 * Uses already created / fetched storage parts to construct an entity object that would comply with passed requirements
+	 * in `evitaRequest`. If any of storage parts is missing, it's fetched from the underlying data store.
+	 *
+	 * @param catalogVersion the version of the catalog
+	 * @param entityPrimaryKey the primary key of the entity
+	 * @param evitaRequest the request containing requirements for the entity
+	 * @param entitySchema the schema of the entity
+	 * @param dataStoreReader the data store reader for accessing storage parts
+	 * @param storageParts the parts of the entity storage
+	 * @return an object containing the entity and the fetch count
+	 */
+	@Nonnull
+	EntityWithFetchCount toEntity(
+		long catalogVersion,
+		int entityPrimaryKey,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull DataStoreReader dataStoreReader,
+		@Nonnull EntityStoragePart... storageParts
 	);
 
 	/**
@@ -98,9 +121,10 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EntitySchema entitySchema,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	);
 
 	/**
@@ -114,14 +138,13 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	@Nonnull
 	EntityWithFetchCount enrichEntity(
 		long catalogVersion,
-		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityDecorator entityDecorator,
 		@Nonnull HierarchySerializablePredicate newHierarchyPredicate,
 		@Nonnull AttributeValueSerializablePredicate newAttributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	) throws EntityAlreadyRemovedException;
 
 	/**
@@ -132,7 +155,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	int countEntities(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	);
 
 	/**
@@ -140,7 +163,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	boolean isEmpty(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	);
 
 	/**
@@ -157,7 +180,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull BinaryEntity entity,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull DataStoreMemoryBuffer storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	) throws EntityAlreadyRemovedException;
 
 	/**

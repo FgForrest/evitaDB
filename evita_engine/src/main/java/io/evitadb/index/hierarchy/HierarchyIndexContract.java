@@ -103,30 +103,6 @@ public interface HierarchyIndexContract {
 	Bitmap listHierarchyNodesFromRoot(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
-	 * Method returns result of {@link #listHierarchyNodesFromRootDownTo(int, HierarchyFilteringPredicate)} wrapped as lazy lambda
-	 * in {@link DeferredFormula}.
-	 */
-	@Nonnull
-	default Formula getListHierarchyNodesFromRootDownToFormula(int levels) {
-		return getListHierarchyNodesFromRootDownToFormula(levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
-	}
-
-	/**
-	 * Method returns result of {@link #listHierarchyNodesFromRootDownTo(int, HierarchyFilteringPredicate)} wrapped as lazy lambda
-	 * in {@link DeferredFormula}.
-	 */
-	@Nonnull
-	Formula getListHierarchyNodesFromRootDownToFormula(int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
-
-	/**
-	 * Method returns nodes that are reachable from all root nodes down to specified number of `levels`.
-	 */
-	@Nonnull
-	default Bitmap listHierarchyNodesFromRootDownTo(int levels) {
-		return listHierarchyNodesFromRootDownTo(levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
-	}
-
-	/**
 	 * Method returns nodes that are reachable from all root nodes down to specified number of `levels` that satisfy
 	 * the predicate.
 	 */
@@ -163,31 +139,6 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	Bitmap listHierarchyNodesFromParentIncludingItself(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
-
-	/**
-	 * Method returns result of {@link #listHierarchyNodesFromParentIncludingItselfDownTo(int, int, HierarchyFilteringPredicate)}
-	 * wrapped as lazy lambda in {@link DeferredFormula}.
-	 */
-	@Nonnull
-	default Formula getListHierarchyNodesFromParentIncludingItselfDownToFormula(int parentNode, int levels) {
-		return getListHierarchyNodesFromParentIncludingItselfDownToFormula(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
-	}
-
-	/**
-	 * Method returns result of {@link #listHierarchyNodesFromParentIncludingItselfDownTo(int, int, HierarchyFilteringPredicate)}
-	 * wrapped as lazy lambda in {@link DeferredFormula}.
-	 */
-	@Nonnull
-	Formula getListHierarchyNodesFromParentIncludingItselfDownToFormula(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
-
-	/**
-	 * Method returns all nodes that are reachable from the specified `parentNode` (including the parent node itself)
-	 * down to specified number of `levels`.
-	 */
-	@Nonnull
-	default Bitmap listHierarchyNodesFromParentIncludingItselfDownTo(int parentNode, int levels) {
-		return listHierarchyNodesFromParentIncludingItselfDownTo(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
-	}
 
 	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (including the parent node itself)
@@ -228,22 +179,6 @@ public interface HierarchyIndexContract {
 	Bitmap listHierarchyNodesFromParent(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
-	 * Method returns result of {@link #listHierarchyNodesFromParentDownTo(int, int, HierarchyFilteringPredicate)} wrapped as lazy lambda
-	 * in {@link DeferredFormula}.
-	 */
-	@Nonnull
-	default Formula getListHierarchyNodesFromParentDownToFormula(int parentNode, int levels) {
-		return getListHierarchyNodesFromParentDownToFormula(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
-	}
-
-	/**
-	 * Method returns result of {@link #listHierarchyNodesFromParentDownTo(int, int, HierarchyFilteringPredicate)} wrapped as lazy lambda
-	 * in {@link DeferredFormula}.
-	 */
-	@Nonnull
-	Formula getListHierarchyNodesFromParentDownToFormula(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
-
-	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (excluding the parent node itself)
 	 * down to specified number of `levels`.
 	 */
@@ -264,13 +199,6 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	Integer[] listHierarchyNodesFromRootToTheNode(int theNode);
-
-	/**
-	 * Method returns primary keys of all nodes from root node to `theNode` traversing entire hierarchy. The result
-	 * also contains `theNode` as the last element of the array.
-	 */
-	@Nonnull
-	Integer[] listHierarchyNodesFromRootToTheNodeIncludingSelf(int theNode);
 
 	/**
 	 * Method returns result of {@link #getRootHierarchyNodes(HierarchyFilteringPredicate)} wrapped as lazy lambda in {@link DeferredFormula}.
