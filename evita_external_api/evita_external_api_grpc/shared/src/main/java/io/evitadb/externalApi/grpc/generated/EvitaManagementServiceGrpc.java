@@ -474,6 +474,37 @@ public final class EvitaManagementServiceGrpc {
     return getDeleteFileMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> getListReservedKeywordsMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "ListReservedKeywords",
+      requestType = com.google.protobuf.Empty.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> getListReservedKeywordsMethod() {
+    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> getListReservedKeywordsMethod;
+    if ((getListReservedKeywordsMethod = EvitaManagementServiceGrpc.getListReservedKeywordsMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getListReservedKeywordsMethod = EvitaManagementServiceGrpc.getListReservedKeywordsMethod) == null) {
+          EvitaManagementServiceGrpc.getListReservedKeywordsMethod = getListReservedKeywordsMethod =
+              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ListReservedKeywords"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  com.google.protobuf.Empty.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("ListReservedKeywords"))
+              .build();
+        }
+      }
+    }
+    return getListReservedKeywordsMethod;
+  }
+
   /**
    * Creates a new async stub that supports all call types for the service
    */
@@ -666,6 +697,16 @@ public final class EvitaManagementServiceGrpc {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getDeleteFileMethod(), responseObserver);
     }
 
+    /**
+     * <pre>
+     * List reserved keywords
+     * </pre>
+     */
+    public void listReservedKeywords(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getListReservedKeywordsMethod(), responseObserver);
+    }
+
     @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
       return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())
           .addMethod(
@@ -766,6 +807,13 @@ public final class EvitaManagementServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest,
                 io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse>(
                   this, METHODID_DELETE_FILE)))
+          .addMethod(
+            getListReservedKeywordsMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                com.google.protobuf.Empty,
+                io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse>(
+                  this, METHODID_LIST_RESERVED_KEYWORDS)))
           .build();
     }
   }
@@ -941,6 +989,17 @@ public final class EvitaManagementServiceGrpc {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getDeleteFileMethod(), getCallOptions()), request, responseObserver);
     }
+
+    /**
+     * <pre>
+     * List reserved keywords
+     * </pre>
+     */
+    public void listReservedKeywords(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getListReservedKeywordsMethod(), getCallOptions()), request, responseObserver);
+    }
   }
 
   /**
@@ -1090,6 +1149,16 @@ public final class EvitaManagementServiceGrpc {
     public io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse deleteFile(io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getDeleteFileMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * List reserved keywords
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse listReservedKeywords(com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getListReservedKeywordsMethod(), getCallOptions(), request);
     }
   }
 
@@ -1242,6 +1311,17 @@ public final class EvitaManagementServiceGrpc {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getDeleteFileMethod(), getCallOptions()), request);
     }
+
+    /**
+     * <pre>
+     * List reserved keywords
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> listReservedKeywords(
+        com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getListReservedKeywordsMethod(), getCallOptions()), request);
+    }
   }
 
   private static final int METHODID_SERVER_STATUS = 0;
@@ -1257,7 +1337,8 @@ public final class EvitaManagementServiceGrpc {
   private static final int METHODID_GET_FILE_TO_FETCH = 10;
   private static final int METHODID_FETCH_FILE = 11;
   private static final int METHODID_DELETE_FILE = 12;
-  private static final int METHODID_RESTORE_CATALOG = 13;
+  private static final int METHODID_LIST_RESERVED_KEYWORDS = 13;
+  private static final int METHODID_RESTORE_CATALOG = 14;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1327,6 +1408,10 @@ public final class EvitaManagementServiceGrpc {
         case METHODID_DELETE_FILE:
           serviceImpl.deleteFile((io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse>) responseObserver);
+          break;
+        case METHODID_LIST_RESERVED_KEYWORDS:
+          serviceImpl.listReservedKeywords((com.google.protobuf.Empty) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse>) responseObserver);
           break;
         default:
           throw new AssertionError();
@@ -1406,6 +1491,7 @@ public final class EvitaManagementServiceGrpc {
               .addMethod(getGetFileToFetchMethod())
               .addMethod(getFetchFileMethod())
               .addMethod(getDeleteFileMethod())
+              .addMethod(getListReservedKeywordsMethod())
               .build();
         }
       }

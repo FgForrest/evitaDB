@@ -37,6 +37,7 @@ import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaManagement;
 import io.evitadb.core.file.ExportFileService;
+import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.api.system.ProbesProvider;
@@ -54,6 +55,8 @@ import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassifierUtils;
+import io.evitadb.utils.ClassifierUtils.Keyword;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Metadata;
 import io.grpc.stub.StreamObserver;
@@ -69,6 +72,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
@@ -430,7 +434,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 								.build()
 						);
 						responseObserver.onCompleted();
-					} if (actualSize > totalSizeInBytes) {
+					}
+					if (actualSize > totalSizeInBytes) {
 						deleteFileIfExists(backupFilePath, "restore");
 						throw new UnexpectedIOException(
 							"Backup file size exceeds the expected size.",
@@ -687,7 +692,41 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				responseObserver.onCompleted();
 			},
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
+	}
+
+	/**
+	 * Returns list of reserved keywords from {@link io.evitadb.utils.ClassifierUtils}.
+	 *
+	 * @param request          the request for reserved keywords
+	 * @param responseObserver the observer for receiving the reserved keywords response
+	 */
+	@Override
+	public void listReservedKeywords(Empty request, StreamObserver<GrpcReservedKeywordsResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				final GrpcReservedKeywordsResponse.Builder responseBuilder = GrpcReservedKeywordsResponse.newBuilder();
+				for (Entry<ClassifierType, Set<Keyword>> entry : ClassifierUtils.getNormalizedReservedKeywords().entrySet()) {
+					final GrpcClassifierType grpcClassifierType = EvitaEnumConverter.toGrpcClassifierType(entry.getKey());
+					for (Keyword keyword : entry.getValue()) {
+						responseBuilder.addKeywords(
+							GrpcReservedKeyword.newBuilder()
+								.setClassifierType(grpcClassifierType)
+								.setClassifier(keyword.classifier())
+								.addAllWords(Arrays.asList(keyword.words()))
+								.build()
+						);
+					}
+				}
+				responseObserver.onNext(
+					responseBuilder.build()
+				);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor(),
+			responseObserver
+		);
 	}
 
 	/**

@@ -24,6 +24,8 @@
 package io.evitadb.driver;
 
 import com.github.javafaker.Faker;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.Empty;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -67,6 +69,14 @@ import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
+import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaManagementServiceFutureStub;
+import io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse;
+import io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse;
+import io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest;
+import io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest.Builder;
+import io.evitadb.externalApi.grpc.generated.GrpcTaskStatus;
+import io.evitadb.externalApi.grpc.generated.GrpcUuid;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
@@ -93,6 +103,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1018,6 +1029,77 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldBackupAndRestoreCatalogViaDownloadingAndUploadingFileContentsUnary(EvitaClient evitaClient) throws ExecutionException, InterruptedException, TimeoutException {
+		final Set<String> catalogNames = evitaClient.getCatalogNames();
+		assertEquals(1, catalogNames.size());
+		assertTrue(catalogNames.contains(TEST_CATALOG));
+
+		final EvitaManagementContract management = evitaClient.management();
+		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, true);
+		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
+
+		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
+
+		final String restoredCatalogName = TEST_CATALOG + "_restored";
+
+		final EvitaManagementServiceFutureStub internalStub = getManagementStubInternal(evitaClient);
+
+		GrpcUuid fileId = null;
+		GrpcTaskStatus restoreTask = null;
+		try (final InputStream inputStream = management.fetchFile(fileForFetch.fileId())) {
+			// read input stream contents by 65k and upload it to the server
+			final byte[] buffer = new byte[65 * 1024];
+			do {
+				final int read = inputStream.read(buffer);
+				if (read == -1) {
+					break;
+				}
+
+				// wait to restoration to be finished
+				final Builder builder = GrpcRestoreCatalogUnaryRequest.newBuilder()
+					.setCatalogName(restoredCatalogName)
+					.setTotalSizeInBytes(fileForFetch.totalSizeInBytes())
+					.setBackupFile(
+						ByteString.copyFrom(buffer, 0, read)
+					);
+				if (fileId != null) {
+					builder.setFileId(fileId);
+				}
+				final GrpcRestoreCatalogResponse response = internalStub.restoreCatalogUnary(
+					builder.build()
+				).get();
+
+				restoreTask = response.getTask();
+				fileId = fileId == null ? restoreTask.getFile().getFileId() : fileId;
+			} while (true);
+
+			Optional<TaskStatus<?, ?>> status = management.getTaskStatus(EvitaDataTypesConverter.toUuid(restoreTask.getTaskId()));
+			while (status.map(it -> it.finished() == null).orElse(false)) {
+				Thread.sleep(500);
+				status = management.getTaskStatus(EvitaDataTypesConverter.toUuid(restoreTask.getTaskId()));
+			}
+
+		} catch (IOException e) {
+			fail("Failed to restore catalog!", e);
+		}
+
+		log.info("Catalog restored from file: {}", fileForFetch.fileId());
+
+		final Set<String> catalogNamesAgain = evitaClient.getCatalogNames();
+		assertEquals(2, catalogNamesAgain.size());
+		assertTrue(catalogNamesAgain.contains(TEST_CATALOG));
+		assertTrue(catalogNamesAgain.contains(restoredCatalogName));
+
+		assertEquals(
+			Integer.valueOf(PRODUCT_COUNT),
+			evitaClient.queryCatalog(restoredCatalogName, session -> {
+				return session.getEntityCollectionSize(Entities.PRODUCT);
+			})
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	void shouldBackupAndRestoreCatalogViaFileOnTheServerSide(EvitaClient evitaClient) throws ExecutionException, InterruptedException, TimeoutException {
 		final Set<String> catalogNames = evitaClient.getCatalogNames();
 		assertEquals(1, catalogNames.size());
@@ -1661,4 +1743,26 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldListReservedKeywords(EvitaClient evitaClient) throws ExecutionException, InterruptedException {
+		final EvitaManagementServiceFutureStub managementStub = getManagementStubInternal(evitaClient);
+		final GrpcReservedKeywordsResponse keywords = managementStub.listReservedKeywords(Empty.newBuilder().build()).get();
+		assertNotNull(keywords);
+		assertTrue(keywords.getKeywordsCount() > 20);
+	}
+
+	@Nonnull
+	private static EvitaManagementServiceFutureStub getManagementStubInternal(
+		@Nonnull EvitaClient evitaClient
+	) {
+		try {
+			final EvitaManagementContract management = evitaClient.management();
+			final Field evitaManagementServiceStub = management.getClass().getDeclaredField("evitaManagementServiceFutureStub");
+			evitaManagementServiceStub.setAccessible(true);
+			return (EvitaManagementServiceFutureStub) evitaManagementServiceStub.get(management);
+		} catch (Exception ex) {
+			throw new RuntimeException(ex);
+		}
+	}
 }

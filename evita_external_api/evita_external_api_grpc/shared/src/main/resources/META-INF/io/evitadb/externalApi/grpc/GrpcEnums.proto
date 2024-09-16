@@ -639,3 +639,37 @@ enum GrpcTaskTrait {
   TASK_NEEDS_TO_BE_STOPPED = 2;
 
 }
+
+// Enum describes possible classifier types used in reserved keywords listing
+enum GrpcClassifierType {
+
+  /**
+	 * Identification of the server instance.
+	 */
+  CLASSIFIER_TYPE_SERVER_NAME = 0;
+  /**
+   * Identification of the catalog.
+   */
+  CLASSIFIER_TYPE_CATALOG = 1;
+  /**
+   * Identification of the entity type.
+   */
+  CLASSIFIER_TYPE_ENTITY = 2;
+  /**
+   * Identification of the attribute.
+   */
+  CLASSIFIER_TYPE_ATTRIBUTE = 3;
+  /**
+   * Identification of the associated data (rich content).
+   */
+  CLASSIFIER_TYPE_ASSOCIATED_DATA = 4;
+  /**
+   * Identification of the reference.
+   */
+  CLASSIFIER_TYPE_REFERENCE = 5;
+  /**
+   * Identification of the reference attribute.
+   */
+  CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE = 6;
+
+}

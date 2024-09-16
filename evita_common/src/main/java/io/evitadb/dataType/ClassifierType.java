@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,12 +31,33 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum ClassifierType {
 
+	/**
+	 * Identification of the server instance.
+	 */
 	SERVER_NAME("Server name"),
+	/**
+	 * Identification of the catalog (database) instance.
+	 */
 	CATALOG("Catalog"),
+	/**
+	 * Identification of the entity type (collection) instance.
+	 */
 	ENTITY("Entity"),
+	/**
+	 * Identification of the attribute type (field) instance.
+	 */
 	ATTRIBUTE("Attribute"),
+	/**
+	 * Identification of the association data (rich content) instance.
+	 */
 	ASSOCIATED_DATA("Associated data"),
+	/**
+	 * Identification of the reference data (foreign key) instance.
+	 */
 	REFERENCE("Reference"),
+	/**
+	 * Identification of the reference attribute data (foreign key) instance.
+	 */
 	REFERENCE_ATTRIBUTE("Reference attribute");
 
 	private final String humanReadableName;

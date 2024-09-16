@@ -22,6 +22,12 @@
 #   limitations under the License.
 #
 
+## JMX REMOTE
+#-Dcom.sun.management.jmxremote \
+#-Dcom.sun.management.jmxremote.port=7091 \
+#-Dcom.sun.management.jmxremote.authenticate=false \
+#-Dcom.sun.management.jmxremote.ssl=false \
+
 java \
         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8005 \
         -javaagent:target/evita-server.jar \
