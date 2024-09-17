@@ -31,6 +31,8 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
@@ -65,12 +67,14 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -236,6 +240,26 @@ public class EntityByPriceFilteringFunctionalTest {
 	}
 
 	/**
+	 * Calculates the discount by comparing the selling price and the reference discounted price.
+	 *
+	 * @param completePrice        the complete price information including both selling and reference prices
+	 * @param resultPriceExtractor a function that extracts the price from the PriceContract
+	 * @return the discount amount as a BigDecimal, or BigDecimal.ZERO if the discounted price is greater than the selling price
+	 */
+	@Nonnull
+	private static BigDecimal toDiscount(
+		@Nonnull PriceForSaleWithAccompanyingPrices completePrice,
+		@Nonnull Function<PriceContract, BigDecimal> resultPriceExtractor
+	) {
+		final BigDecimal sellingPrice = resultPriceExtractor.apply(completePrice.priceForSale());
+		final BigDecimal discountedPrice = completePrice.accompanyingPrices().get("reference")
+			.map(resultPriceExtractor)
+			.orElse(sellingPrice);
+		return discountedPrice.compareTo(sellingPrice) > 0 ?
+			BigDecimal.ZERO : sellingPrice.subtract(discountedPrice);
+	}
+
+	/**
 	 * Verifies that result contains only prices in specified price lists.
 	 */
 	protected void assertResultContainOnlyPricesFrom(@Nonnull List<SealedEntity> recordData, @Nonnull Currency currency, @Nonnull String... priceLists) {
@@ -267,7 +291,17 @@ public class EntityByPriceFilteringFunctionalTest {
 	/**
 	 * Verifies that `originalEntities` filtered by `predicate` match exactly contents of the `resultToVerify`.
 	 */
-	protected void assertSortedResultIs(@Nonnull List<SealedEntity> originalEntities, @Nonnull Predicate<SealedEntity> predicate, @Nonnull List<SealedEntity> resultToVerify, @Nonnull Comparator<PriceContract> priceComparator, @Nonnull Page page, @Nonnull PriceContentMode priceContentMode, @Nonnull Currency currency, @Nullable OffsetDateTime validIn, @Nonnull String... priceLists) {
+	protected void assertSortedResultIs(
+		@Nonnull List<SealedEntity> originalEntities,
+		@Nonnull Predicate<SealedEntity> predicate,
+		@Nonnull List<SealedEntity> resultToVerify,
+		@Nonnull Comparator<PriceContract> priceComparator,
+		@Nonnull Page page,
+		@Nonnull PriceContentMode priceContentMode,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime validIn,
+		@Nonnull String... priceLists
+	) {
 		final String[] priceListClassifiers = Arrays.stream(priceLists).toArray(String[]::new);
 		@SuppressWarnings("ConstantConditions") final int[] expectedResult = originalEntities
 			.stream()
@@ -280,6 +314,46 @@ public class EntityByPriceFilteringFunctionalTest {
 					o2.getPriceForSale(currency, validIn, priceListClassifiers).orElseThrow()
 				)
 			)
+			.mapToInt(EntityContract::getPrimaryKey)
+			.skip(PaginatedList.getFirstItemNumberForPage(page.getPageNumber(), page.getPageSize()))
+			.limit(page.getPageSize())
+			.toArray();
+
+		assertFalse(ArrayUtils.isEmpty(expectedResult), "Expected result should never be empty - this would cause false positive tests!");
+		final List<Integer> recordsCopy = resultToVerify
+			.stream()
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toList());
+
+		assertSortedResultEquals(
+			recordsCopy,
+			expectedResult
+		);
+
+		assertPricesForSaleAreAsExpected(resultToVerify, priceContentMode, currency, validIn, priceLists);
+	}
+
+	/**
+	 * Verifies that `originalEntities` filtered by `predicate` match exactly contents of the `resultToVerify`.
+	 */
+	protected void assertSortedResultByEntityIs(
+		@Nonnull List<SealedEntity> originalEntities,
+		@Nonnull Predicate<SealedEntity> predicate,
+		@Nonnull List<SealedEntity> resultToVerify,
+		@Nonnull Comparator<SealedEntity> entityComparator,
+		@Nonnull Page page,
+		@Nonnull PriceContentMode priceContentMode,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime validIn,
+		@Nonnull String... priceLists
+	) {
+		final String[] priceListClassifiers = Arrays.stream(priceLists).toArray(String[]::new);
+		@SuppressWarnings("ConstantConditions") final int[] expectedResult = originalEntities
+			.stream()
+			.filter(predicate)
+			// consider only entities that has valid selling price
+			.filter(it -> it.getPriceForSale(currency, validIn, priceListClassifiers).isPresent())
+			.sorted(entityComparator)
 			.mapToInt(EntityContract::getPrimaryKey)
 			.skip(PaginatedList.getFirstItemNumberForPage(page.getPageNumber(), page.getPageSize()))
 			.limit(page.getPageSize())
@@ -749,6 +823,114 @@ public class EntityByPriceFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by price asc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByPriceAscending(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Set<Integer> productsWithSellingPrice = originalProductEntities
+			.stream()
+			.filter(sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+				hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
+			.map(SealedEntity::getPrimaryKey)
+			.limit(10)
+			.collect(Collectors.toSet());
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productsWithSellingPrice.stream().mapToInt(Integer::intValue).toArray()),
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, 10),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceNatural()
+						)
+					),
+					SealedEntity.class
+				);
+				assertSortedResultIs(
+					originalProductEntities,
+					sealedEntity -> productsWithSellingPrice.contains(sealedEntity.getPrimaryKey()),
+					result.getRecordData(),
+					Comparator.comparing(PriceContract::priceWithTax),
+					page(1, 10),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by price desc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByPriceDescending(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Set<Integer> productsWithSellingPrice = originalProductEntities
+			.stream()
+			.filter(sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+				hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
+			.map(SealedEntity::getPrimaryKey)
+			.limit(10)
+			.collect(Collectors.toSet());
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productsWithSellingPrice.stream().mapToInt(Integer::intValue).toArray()),
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, 10),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceNatural(DESC)
+						)
+					),
+					SealedEntity.class
+				);
+				assertSortedResultIs(
+					originalProductEntities,
+					sealedEntity -> productsWithSellingPrice.contains(sealedEntity.getPrimaryKey()),
+					result.getRecordData(),
+					Comparator.comparing(PriceContract::priceWithTax).reversed(),
+					page(1, 10),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products with price in price list and currency within interval (with tax) ordered by price asc")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
@@ -902,10 +1084,6 @@ public class EntityByPriceFilteringFunctionalTest {
 			}
 		);
 	}
-
-	/*
-		ASSERTIONS
-	 */
 
 	@DisplayName("Should return products with price in price list and currency within interval (without tax) ordered by price desc")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
@@ -1652,6 +1830,284 @@ public class EntityByPriceFilteringFunctionalTest {
 						PRICE_LIST_BASIC
 					);
 				} while (++currentPage <= lastPage);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products with price in price list and certain currency ordered by biggest discount asc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnProductsHavingPriceInCurrencyAndPriceListOrderByDiscountAscending(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, 20),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceDiscount(ASC, PRICE_LIST_REFERENCE, PRICE_LIST_BASIC)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final AccompanyingPrice[] accompanyingPrices = {
+					new AccompanyingPrice("reference", PRICE_LIST_REFERENCE, PRICE_LIST_BASIC),
+				};
+				assertSortedResultByEntityIs(
+					originalProductEntities,
+					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC),
+					result.getRecordData(),
+					(o1, o2) -> {
+						final BigDecimal price1 = o1.getPriceForSaleWithAccompanyingPrices(
+								CURRENCY_EUR, null, new String[]{PRICE_LIST_VIP, PRICE_LIST_BASIC},
+								accompanyingPrices
+							)
+							.map(it -> toDiscount(it, PriceContract::priceWithTax))
+							.orElse(BigDecimal.ZERO);
+						final BigDecimal price2 = o2.getPriceForSaleWithAccompanyingPrices(
+								CURRENCY_EUR, null, new String[]{PRICE_LIST_VIP, PRICE_LIST_BASIC},
+								accompanyingPrices
+							)
+							.map(it -> toDiscount(it, PriceContract::priceWithTax))
+							.orElse(BigDecimal.ZERO);
+
+						return price1.compareTo(price2);
+					},
+					page(1, 20),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products with price in price list and certain currency ordered by discount desc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnProductsHavingPriceInCurrencyAndPriceListOrderByDiscountDescending(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, 20),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceDiscount(PRICE_LIST_REFERENCE, PRICE_LIST_BASIC)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final AccompanyingPrice[] accompanyingPrices = {
+					new AccompanyingPrice("reference", PRICE_LIST_REFERENCE, PRICE_LIST_BASIC),
+				};
+				assertSortedResultByEntityIs(
+					originalProductEntities,
+					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC),
+					result.getRecordData(),
+					(o1, o2) -> {
+						final BigDecimal price1 = o1.getPriceForSaleWithAccompanyingPrices(
+								CURRENCY_EUR, null, new String[]{PRICE_LIST_VIP, PRICE_LIST_BASIC},
+								accompanyingPrices
+							)
+							.map(it -> toDiscount(it, PriceContract::priceWithTax))
+							.orElse(BigDecimal.ZERO);
+						final BigDecimal price2 = o2.getPriceForSaleWithAccompanyingPrices(
+								CURRENCY_EUR, null, new String[]{PRICE_LIST_VIP, PRICE_LIST_BASIC},
+								accompanyingPrices
+							)
+							.map(it -> toDiscount(it, PriceContract::priceWithTax))
+							.orElse(BigDecimal.ZERO);
+
+						return price2.compareTo(price1);
+					},
+					page(1, 20),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by biggest discount asc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByDiscountAscending(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Set<Integer> productsWithSellingPrice = originalProductEntities
+			.stream()
+			.filter(sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+				hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
+			.map(SealedEntity::getPrimaryKey)
+			.limit(10)
+			.collect(Collectors.toSet());
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productsWithSellingPrice.stream().mapToInt(Integer::intValue).toArray()),
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, 20),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceDiscount(ASC, PRICE_LIST_REFERENCE, PRICE_LIST_BASIC)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final AccompanyingPrice[] accompanyingPrices = {
+					new AccompanyingPrice("reference", PRICE_LIST_REFERENCE, PRICE_LIST_BASIC),
+				};
+				assertSortedResultByEntityIs(
+					originalProductEntities,
+					sealedEntity -> productsWithSellingPrice.contains(sealedEntity.getPrimaryKey()),
+					result.getRecordData(),
+					(o1, o2) -> {
+						final BigDecimal price1 = o1.getPriceForSaleWithAccompanyingPrices(
+								CURRENCY_EUR, null, new String[]{PRICE_LIST_REFERENCE, PRICE_LIST_BASIC},
+								accompanyingPrices
+							)
+							.map(it -> toDiscount(it, PriceContract::priceWithTax))
+							.orElse(BigDecimal.ZERO);
+						final BigDecimal price2 = o2.getPriceForSaleWithAccompanyingPrices(
+								CURRENCY_EUR, null, new String[]{PRICE_LIST_REFERENCE, PRICE_LIST_BASIC},
+								accompanyingPrices
+							)
+							.map(it -> toDiscount(it, PriceContract::priceWithTax))
+							.orElse(BigDecimal.ZERO);
+
+						return price1.compareTo(price2);
+					},
+					page(1, 20),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by discount desc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByDiscountDescending(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Set<Integer> productsWithSellingPrice = originalProductEntities
+			.stream()
+			.filter(sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+				hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
+			.map(SealedEntity::getPrimaryKey)
+			.limit(10)
+			.collect(Collectors.toSet());
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productsWithSellingPrice.stream().mapToInt(Integer::intValue).toArray()),
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, 20),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceDiscount(PRICE_LIST_REFERENCE, PRICE_LIST_BASIC)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final AccompanyingPrice[] accompanyingPrices = {
+					new AccompanyingPrice("reference", PRICE_LIST_REFERENCE, PRICE_LIST_BASIC),
+				};
+				assertSortedResultByEntityIs(
+					originalProductEntities,
+					sealedEntity -> productsWithSellingPrice.contains(sealedEntity.getPrimaryKey()),
+					result.getRecordData(),
+					(o1, o2) -> {
+						final BigDecimal price1 = o1.getPriceForSaleWithAccompanyingPrices(
+								CURRENCY_EUR, null, new String[]{PRICE_LIST_REFERENCE, PRICE_LIST_BASIC},
+								accompanyingPrices
+							)
+							.map(it -> toDiscount(it, PriceContract::priceWithTax))
+							.orElse(BigDecimal.ZERO);
+						final BigDecimal price2 = o2.getPriceForSaleWithAccompanyingPrices(
+								CURRENCY_EUR, null, new String[]{PRICE_LIST_REFERENCE, PRICE_LIST_BASIC},
+								accompanyingPrices
+							)
+							.map(it -> toDiscount(it, PriceContract::priceWithTax))
+							.orElse(BigDecimal.ZERO);
+
+						return price2.compareTo(price1);
+					},
+					page(1, 20),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
 
 				return null;
 			}

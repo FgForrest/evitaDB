@@ -506,6 +506,30 @@ public interface PricesContract extends Versioned, Serializable {
 	}
 
 	/**
+	 * Returns a price for which the entity should be sold. This method can be used only in context of a {@link Query}
+	 * with price related constraints so that `currency` and `priceList` priority can be extracted from the query.
+	 * The moment is either extracted from the query as well (if present) or current date and time is used.
+	 *
+	 * This method allows to calculate also additional accompanying prices that relate to the selected price for sale
+	 * and adhere to particular price inner record handling logic.
+	 *
+	 * @param accompanyingPricesRequest - array of requirements for calculation of accompanying prices
+	 * @throws ContextMissingException when entity is not related to any {@link Query} or the query
+	 *                                 lacks price related constraints
+	 */
+	@Nonnull
+	default Optional<PriceForSaleWithAccompanyingPrices> getPriceForSaleWithAccompanyingPrices(
+		@Nonnull AccompanyingPrice[] accompanyingPricesRequest
+	) throws ContextMissingException {
+		final PriceForSaleContext context = getPriceForSaleContext().orElseThrow(ContextMissingException::new);
+		return computePriceForSale(
+			getPrices(), getPriceInnerRecordHandling(),
+			context.currency(), context.atTheMoment(), context.priceListPriority(), Objects::nonNull,
+			accompanyingPricesRequest
+		);
+	}
+
+	/**
 	 * Returns true if the entity has context available so that calling {@link #getPriceForSale()} is possible without
 	 * throwing an exception. The exception {@link ContextMissingException} might be still thrown from other methods
 	 * when the input arguments refer to the data that might exist but were not fetched along with the entity.
