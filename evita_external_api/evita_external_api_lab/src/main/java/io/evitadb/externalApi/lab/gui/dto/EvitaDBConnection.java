@@ -46,5 +46,6 @@ public record EvitaDBConnection(@Nullable String id,
                                 @Nonnull String systemUrl,
 								@Nonnull String grpcUrl,
 								@Nullable String gqlUrl,
-								@Nullable String restUrl) {
+								@Nullable String restUrl,
+                                @Nonnull String observabilityUrl) {
 }
