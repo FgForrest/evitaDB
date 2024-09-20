@@ -95,6 +95,48 @@ of price list names that define the rules for calculating the alternative price 
 (default is `DESC`). The price variant (with or without tax) is determined by the [`priceType`](../requirements/price.md#price-type) 
 requirement of the query (price with tax is used by default).
 
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How the discount is calculated?
+
+</NoteTitle>
+
+The discount is calculated from the difference between the price for sale and the reference price determined by the prices
+set on the entity in the order of the price lists specified in the constraint. The calculation is algorithm is the same
+as for the [selling price](/documentation/user/en/deep-dive/price-for-sale-calculation.md) computation - it finds the first
+available price in the order of the price lists and uses it as the reference price.
+
+If the reference price is not found, the entity / product is considered not sortable by this constraint and will be 
+sorted by the next sort constraint in the query (or by its primary key in ascending order at the end of the list).
+
+However, there are special adjustments for the discount calculation. If the product has a `LOWEST_PRICE` or `SUM` price
+inner record handling strategy, the reference price follows the records of the inner records used to select the price 
+for sale.
+
+###### Lowest price strategy
+
+The lowest price strategy is typically used for virtual products that represent multiple similar products. In the end, 
+only one of the products is selected for sale. When we query products by currency, set of price lists, validity timestamp, 
+the virtual product with LOWEST_PRICE strategy manifests itself with sub-product (variant) with the lowest price.
+When we calculate the discount, we need to use the price from different price lists, but only the price that refers to 
+the same product variant as the price for sale.
+
+Moreover, if we further narrow the query with the [price between constraint](../filtering/price#price-between), 
+the representative variant will be the one with the lowest price in the selected price range. In this case, 
+the reference price must also be calculated from the different sets of price lists for the same product variant.
+
+###### Sum price strategy
+
+The sum-price strategy is typically used for products that consist of several sub-products (parts). Its sales price is 
+calculated as the sum of the prices of the sub-products. If a certain subproduct doesn't have a price in the selected 
+price lists, it is excluded from the sum. When we calculate the reference price for this product, we must also omit 
+the prices of these sub-products, even if the reference price would be available for them. Otherwise, the calculated 
+sum wouldn't be consistent with the sales price.
+
+</Note>
+
 <Note type="warning">
 
 <NoteTitle toggles="true">
