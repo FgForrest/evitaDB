@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -435,7 +435,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				);
 			}
 			if (!recognizedParameterLocations.contains(8)) {
-				// by default prices are sellable
+				// by default prices are indexed
 				recognizedParameters.add(
 					new RecognizedParameter(8, args -> true)
 				);

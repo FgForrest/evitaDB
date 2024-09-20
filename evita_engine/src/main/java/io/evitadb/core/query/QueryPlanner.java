@@ -266,7 +266,7 @@ public class QueryPlanner {
 					adeptFormula = queryContext.analyse(filterByVisitor.getFormula());
 
 					final QueryPlanBuilder queryPlanBuilder = new QueryPlanBuilder(
-						queryContext, adeptFormula, filterByVisitor.getSuperSetFormula(), targetIndex, prefetchFormulaVisitor
+						queryContext, adeptFormula, filterByVisitor, targetIndex, prefetchFormulaVisitor
 					);
 					if (result.isEmpty() || adeptFormula.getEstimatedCost() < result.get(0).getEstimatedCost()) {
 						result.addFirst(queryPlanBuilder);
@@ -317,7 +317,7 @@ public class QueryPlanner {
 					// create and add copy for the formula with cached variant result
 					it -> {
 						final QueryPlanBuilder alternativeBuilder = new QueryPlanBuilder(
-							queryContext, it, sourcePlan.getSuperSetFormula(),
+							queryContext, it, sourcePlan.getFilterByVisitor(),
 							sourcePlan.getTargetIndexes(),
 							sourcePlan.getPrefetchFormulaVisitor()
 						);
@@ -352,7 +352,9 @@ public class QueryPlanner {
 				}
 				try {
 					final OrderByVisitor orderByVisitor = new OrderByVisitor(
-						queryContext, targetIndexes, builder, builder.getFilterFormula()
+						queryContext, targetIndexes, builder,
+						builder.getFilterByVisitor(),
+						builder.getFilterFormula()
 					);
 					ofNullable(queryContext.getOrderBy()).ifPresent(orderByVisitor::visit);
 					final Sorter sorter = orderByVisitor.getSorter();
@@ -412,7 +414,7 @@ public class QueryPlanner {
 							builder.getTargetIndexes(),
 							builder,
 							builder.getFilterFormula(),
-							builder.getSuperSetFormula(),
+							builder.getFilterByVisitor(),
 							builder.getSorter()
 						);
 						extraResultPlanner.visit(queryContext.getRequire());

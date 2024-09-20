@@ -164,14 +164,14 @@ public class FormulaCostMeasurement {
 			priceDataSet.getPriceIdsFormula()
 		);
 		blackhole.consume(testedFormula.compute());
-		blackhole.consume(testedFormula.getFilteredPriceRecords(null));
+		blackhole.consume(testedFormula.getFilteredPriceRecords(priceDataSet.getQueryExecutionContext()));
 	}
 
 	@Benchmark
 	public void priceIdToEntityIdTranslate(PriceIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final PriceIdToEntityIdTranslateFormula testedFormula = new PriceIdToEntityIdTranslateFormula(priceDataSet.getPriceIdsFormula());
 		blackhole.consume(testedFormula.compute());
-		blackhole.consume(testedFormula.getFilteredPriceRecords(null));
+		blackhole.consume(testedFormula.getFilteredPriceRecords(priceDataSet.getQueryExecutionContext()));
 	}
 
 	@Benchmark
@@ -182,7 +182,7 @@ public class FormulaCostMeasurement {
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
-				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
+				null, new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			)
 		);
 		blackhole.consume(testedFormula.compute());
@@ -196,7 +196,7 @@ public class FormulaCostMeasurement {
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
-				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
+				null, new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			PricePredicate.ALL_RECORD_FILTER
 		);
@@ -211,7 +211,7 @@ public class FormulaCostMeasurement {
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
-				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
+				null, new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			QueryPriceMode.WITH_TAX,
 			PricePredicate.ALL_RECORD_FILTER
@@ -227,7 +227,7 @@ public class FormulaCostMeasurement {
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
-				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
+				null, new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			QueryPriceMode.WITH_TAX,
 			PricePredicate.ALL_RECORD_FILTER

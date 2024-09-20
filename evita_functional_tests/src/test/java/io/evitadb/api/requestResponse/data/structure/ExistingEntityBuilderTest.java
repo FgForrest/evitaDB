@@ -71,7 +71,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(priceWithoutTax, price.priceWithoutTax());
 		assertEquals(taxRate, price.taxRate());
 		assertEquals(priceWithTax, price.priceWithTax());
-		assertEquals(indexed, price.sellable());
+		assertEquals(indexed, price.indexed());
 	}
 
 	@BeforeEach

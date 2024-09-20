@@ -278,28 +278,28 @@ public class EntityByChainOrderingFunctionalTest {
 					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally().nullable())
 			);
 
-			final DataGenerator dataGenerator = new DataGenerator();
+			final AtomicInteger index = new AtomicInteger();
+			final DataGenerator dataGenerator = new DataGenerator.Builder()
+				.registerValueGenerator(
+					Entities.PRODUCT, ATTRIBUTE_ORDER,
+					faker -> {
+						final int ix = index.incrementAndGet();
+						final int position = ArrayUtils.indexOf(ix, PRODUCT_ORDER);
+						return position == 0 ? Predecessor.HEAD : new Predecessor(PRODUCT_ORDER[position - 1]);
+					}
+				)
+				// we need to update the order in second pass
+				.registerValueGenerator(
+					Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER,
+					faker -> Predecessor.HEAD
+				)
+				.build();
 
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
 				final int entityCount = session.getEntityCollectionSize(entityType);
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 				return primaryKey == 0 ? null : primaryKey;
 			};
-
-			final AtomicInteger index = new AtomicInteger();
-			dataGenerator.registerValueGenerator(
-				Entities.PRODUCT, ATTRIBUTE_ORDER,
-				faker -> {
-					final int ix = index.incrementAndGet();
-					final int position = ArrayUtils.indexOf(ix, PRODUCT_ORDER);
-					return position == 0 ? Predecessor.HEAD : new Predecessor(PRODUCT_ORDER[position - 1]);
-				}
-			);
-			// we need to update the order in second pass
-			dataGenerator.registerValueGenerator(
-				Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER,
-				faker -> Predecessor.HEAD
-			);
 
 			// we need to create category schema first
 			final SealedEntitySchema categorySchema = dataGenerator.getSampleCategorySchema(
@@ -407,19 +407,19 @@ public class EntityByChainOrderingFunctionalTest {
 	@DataSet(value = CHAINED_ELEMENTS_MINIMAL, readOnly = false, destroyAfterClass = true)
 	DataCarrier setUpMinimal(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
-			final DataGenerator dataGenerator = new DataGenerator();
+			final DataGenerator dataGenerator = new DataGenerator.Builder()
+				// we need to update the order in second pass
+				.registerValueGenerator(
+					Entities.CATEGORY, ATTRIBUTE_CATEGORY_ORDER,
+					faker -> Predecessor.HEAD
+				)
+				.build();
 
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
 				final int entityCount = session.getEntityCollectionSize(entityType);
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 				return primaryKey == 0 ? null : primaryKey;
 			};
-
-			// we need to update the order in second pass
-			dataGenerator.registerValueGenerator(
-				Entities.CATEGORY, ATTRIBUTE_CATEGORY_ORDER,
-				faker -> Predecessor.HEAD
-			);
 
 			// we need to create category schema first
 			final SealedEntitySchema categorySchema = dataGenerator.getSampleCategorySchema(

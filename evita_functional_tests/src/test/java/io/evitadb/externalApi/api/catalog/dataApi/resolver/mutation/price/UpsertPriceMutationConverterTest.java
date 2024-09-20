@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ class UpsertPriceMutationConverterTest {
 				.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 				.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
 				.e(UpsertPriceMutationDescriptor.VALIDITY.name(), List.of("2022-10-04T15:00:00Z", "2022-10-08T15:00:00Z"))
-				.e(UpsertPriceMutationDescriptor.SELLABLE.name(), true)
+				.e(UpsertPriceMutationDescriptor.INDEXED.name(), true)
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
@@ -101,7 +101,7 @@ class UpsertPriceMutationConverterTest {
 				.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")
 				.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), "11")
 				.e(UpsertPriceMutationDescriptor.VALIDITY.name(), List.of("2022-10-04T15:00:00Z", "2022-10-08T15:00:00Z"))
-				.e(UpsertPriceMutationDescriptor.SELLABLE.name(), true)
+				.e(UpsertPriceMutationDescriptor.INDEXED.name(), true)
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation2);
@@ -129,7 +129,7 @@ class UpsertPriceMutationConverterTest {
 				.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 				.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 				.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
-				.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false)
+				.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
@@ -159,7 +159,7 @@ class UpsertPriceMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false)
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
 					.build()
 			)
 		);
@@ -172,7 +172,7 @@ class UpsertPriceMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false)
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
 					.build()
 			)
 		);
@@ -185,7 +185,7 @@ class UpsertPriceMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false)
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
 					.build()
 			)
 		);
@@ -198,7 +198,7 @@ class UpsertPriceMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false)
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
 					.build()
 			)
 		);
@@ -211,7 +211,7 @@ class UpsertPriceMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false)
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
 					.build()
 			)
 		);
@@ -224,7 +224,7 @@ class UpsertPriceMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false)
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
 					.build()
 			)
 		);

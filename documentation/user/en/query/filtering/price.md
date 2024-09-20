@@ -84,7 +84,7 @@ breakdown of the procedure.
 
 The price for sale selection depends on <LS to="e,j,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceInnerRecordHandling.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Data/PriceInnerRecordHandling.cs</SourceClass></LS>
 mode the [entity has set](../../use/data-model.md#entity), but for all of the modes there is a common denominator -
-the price for sale is selected from [prices](../../use/data-model.md#prices) marked as `sellable` that conform to
+the price for sale is selected from [prices](../../use/data-model.md#prices) marked as `indexed` that conform to
 the selected [currency](#price-in-currency) and [price lists](#price-in-price-lists) and are valid at the specified
 [time](#price-valid-in). The first price that matches all of these criteria in the order of the price lists in the
 [price list constraint argument](#price-in-price-lists) is selected as the price for sale.
@@ -92,7 +92,7 @@ the selected [currency](#price-in-currency) and [price lists](#price-in-price-li
 For non-default price inner record handling modes, the price is calculated this way:
 
 <dl>
-   <dt>FIRST_OCCURRENCE</dt>
+   <dt>LOWEST_PRICE</dt>
    <dd>
       The sales price is selected as the lowest sales price calculated separately for blocks of prices with the same
       inner record id. If the [price between](#price-between) constraint is specified, the price is the lowest selling

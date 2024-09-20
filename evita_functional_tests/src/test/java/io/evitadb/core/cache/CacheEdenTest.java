@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.cache;
 
+import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
@@ -203,10 +204,15 @@ class CacheEdenTest {
 				);
 			} else {
 				final boolean withTax = random.nextBoolean();
+				final IntHashSet innerRecordIds = new IntHashSet();
+				for (int j = 0; j < 1 + random.nextInt(10); j++) {
+					innerRecordIds.add(random.nextInt());
+				}
 				result[i] = new CumulatedVirtualPriceRecord(
 					entityPrimaryKey,
 					price,
-					withTax ? QueryPriceMode.WITH_TAX : QueryPriceMode.WITHOUT_TAX
+					withTax ? QueryPriceMode.WITH_TAX : QueryPriceMode.WITHOUT_TAX,
+					innerRecordIds
 				);
 			}
 		}

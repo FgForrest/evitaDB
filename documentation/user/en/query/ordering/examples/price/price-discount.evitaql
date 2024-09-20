@@ -1,0 +1,15 @@
+query(
+    collection("Product"),
+    filterBy(
+        priceInPriceLists("b2b-basic-price"),
+        priceInCurrency("EUR")
+    ),
+    orderBy(
+        priceDiscount("basic")
+    ),
+    require(
+        entityFetch(
+            priceContentRespectingFilter("basic")
+        )
+    )
+)

@@ -152,7 +152,15 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
-		DATA_GENERATOR = new DataGenerator();
+		DATA_GENERATOR = new DataGenerator.Builder()
+		.registerValueGenerator(
+			Entities.PRICE_LIST, ATTRIBUTE_ORDER,
+			faker -> Predecessor.HEAD
+		).registerValueGenerator(
+			Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER,
+			faker -> Predecessor.HEAD
+		).build();
+
 		GENERATED_ENTITIES.clear();
 
 		final ApiOptions apiOptions = evitaServer.getExternalApiServer()
@@ -226,15 +234,6 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 						)
 						.limit(10)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
-
-					DATA_GENERATOR.registerValueGenerator(
-						Entities.PRICE_LIST, ATTRIBUTE_ORDER,
-						faker -> Predecessor.HEAD
-					);
-					DATA_GENERATOR.registerValueGenerator(
-						Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER,
-						faker -> Predecessor.HEAD
-					);
 
 					DATA_GENERATOR.generateEntities(
 							DATA_GENERATOR.getSamplePriceListSchema(

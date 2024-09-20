@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Finds all entity prices (even not sellable).
+ * Finds all entity prices (even not indexed).
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */

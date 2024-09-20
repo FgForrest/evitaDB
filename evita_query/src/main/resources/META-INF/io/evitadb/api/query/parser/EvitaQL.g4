@@ -90,6 +90,7 @@ orderConstraint
     | 'attributeSetExact'                   args = attributeSetExactArgs                                    # attributeSetExactConstraint
     | 'attributeSetInFilter'                args = classifierArgs                                           # attributeSetInFilterConstraint
     | 'priceNatural'                        (emptyArgs | args = valueArgs)                                  # priceNaturalConstraint
+    | 'priceDiscount'                       args = valueListArgs                                            # priceDiscountConstraint
     | 'random'                              emptyArgs                                                       # randomConstraint
     | 'referenceProperty'                   args = classifierWithOrderConstraintListArgs                    # referencePropertyConstraint
     | 'entityPrimaryKeyNatural'             (emptyArgs | args = valueArgs)                                  # entityPrimaryKeyExactNatural

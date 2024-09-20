@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute;
+package io.evitadb.core.query.sort.generic;
 
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -39,7 +39,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-abstract class AbstractRecordsSorter implements Sorter {
+public abstract class AbstractRecordsSorter implements Sorter {
 
 	/**
 	 * Completes the result by cutting the result smaller than requested count but appending all not found record ids

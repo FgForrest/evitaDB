@@ -24,8 +24,6 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
-import io.evitadb.api.query.require.PriceContentMode;
-import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -40,13 +38,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.time.OffsetDateTime;
-import java.util.Arrays;
-import java.util.Currency;
 import java.util.List;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -54,6 +46,7 @@ import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.priceContentRespectingFilter;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_REFERENCE;
 
 /**
  * This test verifies whether entities can be filtered by prices.
@@ -70,7 +63,10 @@ public class SumPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceF
 	private static final String HUNDRED_PRODUCTS_WITH_SUM_PRICES = "HundredProductsWithSumPrices";
 
 	private static final int SEED = 40;
-	private final DataGenerator dataGenerator = new DataGenerator(faker -> PriceInnerRecordHandling.SUM);
+	private final DataGenerator dataGenerator = new DataGenerator.Builder()
+		.withPriceInnerRecordHandlingGenerator(faker -> PriceInnerRecordHandling.SUM)
+		.withPriceIndexingDecider((priceList, faker) -> !PRICE_LIST_REFERENCE.equals(priceList))
+		.build();
 
 	@DataSet(value = HUNDRED_PRODUCTS_WITH_SUM_PRICES, destroyAfterClass = true)
 	List<SealedEntity> setUp(Evita evita) {
@@ -104,12 +100,12 @@ public class SumPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceF
 		super.shouldReturnProductsHavingPriceInCurrencyAndPriceList(evita, originalProductEntities);
 	}
 
-	@DisplayName("Should return products with prices including non sellable ones")
+	@DisplayName("Should return products with prices including non-indexed ones")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
 	@Test
 	@Override
-	void shouldReturnProductsIncludingNonSellablePrice(Evita evita, List<SealedEntity> originalProductEntities) {
-		super.shouldReturnProductsIncludingNonSellablePrice(evita, originalProductEntities);
+	void shouldReturnProductsIncludingNonIndexedPrice(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnProductsIncludingNonIndexedPrice(evita, originalProductEntities);
 	}
 
 	@DisplayName("Should return products with price in price list and certain currency and returning all prices")
@@ -310,12 +306,52 @@ public class SumPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceF
 		super.shouldReturnCorrectlyTraverseThroughAllPagesOfResults(evita, originalProductEntities);
 	}
 
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by price asc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
+	@Test
 	@Override
-	protected void assertPricesForSaleAreAsExpected(@Nonnull List<SealedEntity> resultToVerify, @Nonnull PriceContentMode priceContentMode, @Nonnull Currency currency, @Nullable OffsetDateTime validIn, @Nonnull String[] priceLists) {
-		final Set<String> priceListsSet = Arrays.stream(priceLists).collect(Collectors.toSet());
-		for (SealedEntity sealedEntity : resultToVerify) {
-			final PriceContract priceForSale = sealedEntity.getPriceForSale().orElseThrow();
-			checkReturnedPrices(priceContentMode, currency, validIn, priceListsSet, sealedEntity);
-		}
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByPriceAscending(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByPriceAscending(evita, originalProductEntities);
 	}
+
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by price desc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
+	@Test
+	@Override
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByPriceDescending(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByPriceDescending(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should return products with price in price list and certain currency ordered by biggest discount asc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
+	@Test
+	@Override
+	void shouldReturnProductsHavingPriceInCurrencyAndPriceListOrderByDiscountAscending(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnProductsHavingPriceInCurrencyAndPriceListOrderByDiscountAscending(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should return products with price in price list and certain currency ordered by discount desc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
+	@Test
+	@Override
+	void shouldReturnProductsHavingPriceInCurrencyAndPriceListOrderByDiscountDescending(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnProductsHavingPriceInCurrencyAndPriceListOrderByDiscountDescending(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by biggest discount asc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
+	@Test
+	@Override
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByDiscountAscending(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByDiscountAscending(evita, originalProductEntities);
+	}
+
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by discount desc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_SUM_PRICES)
+	@Test
+	@Override
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByDiscountDescending(Evita evita, List<SealedEntity> originalProductEntities) {
+		super.shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByDiscountDescending(evita, originalProductEntities);
+	}
+
 }

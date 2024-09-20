@@ -75,36 +75,36 @@ public class InitialPricesBuilder implements PricesBuilder {
 	@Getter private PriceInnerRecordHandling priceInnerRecordHandling = PriceInnerRecordHandling.NONE;
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean sellable) {
+	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
-		final Price thePrice = new Price(priceKey, null, priceWithoutTax, taxRate, priceWithTax, null, sellable);
+		final Price thePrice = new Price(priceKey, null, priceWithoutTax, taxRate, priceWithTax, null, indexed);
 		assertPriceNotAmbiguousBeforeAdding(thePrice);
 		this.prices.put(priceKey, thePrice);
 		return this;
 	}
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean sellable) {
+	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
-		final Price thePrice = new Price(priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, null, sellable);
+		final Price thePrice = new Price(priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, null, indexed);
 		assertPriceNotAmbiguousBeforeAdding(thePrice);
 		this.prices.put(priceKey, thePrice);
 		return this;
 	}
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, DateTimeRange validity, boolean sellable) {
+	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, DateTimeRange validity, boolean indexed) {
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
-		final Price thePrice = new Price(priceKey, null, priceWithoutTax, taxRate, priceWithTax, validity, sellable);
+		final Price thePrice = new Price(priceKey, null, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
 		assertPriceNotAmbiguousBeforeAdding(thePrice);
 		this.prices.put(priceKey, thePrice);
 		return this;
 	}
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean sellable) {
+	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean indexed) {
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
-		final Price thePrice = new Price(priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, sellable);
+		final Price thePrice = new Price(priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
 		assertPriceNotAmbiguousBeforeAdding(thePrice);
 		this.prices.put(priceKey, thePrice);
 		return this;

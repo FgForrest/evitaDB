@@ -483,7 +483,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					.e(PriceDescriptor.PRICE_LIST.name(), "other")
 					.e(PriceDescriptor.CURRENCY.name(), "CZK")
 					.e(PriceDescriptor.INNER_RECORD_ID.name(), null)
-					.e(PriceDescriptor.SELLABLE.name(), true)
+					.e(PriceDescriptor.INDEXED.name(), true)
 					.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), "1.0")
 					.e(PriceDescriptor.PRICE_WITH_TAX.name(), "1.21")
 					.e(PriceDescriptor.TAX_RATE.name(), "21")
@@ -507,7 +507,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 						        "priceWithoutTax": "1.0",
 						        "taxRate": "21",
 						        "priceWithTax": "1.21",
-						        "sellable": true
+						        "indexed": true
                             }
                         }
                     ],

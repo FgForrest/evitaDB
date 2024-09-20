@@ -89,6 +89,7 @@ public class FilteredPriceRecordsCollector {
 	 * computed for entity primary keys passed in the `filteredResults` parameter. Duplicated {@link PriceRecord} are
 	 * collapsed and only distinct {@link PriceRecord} are returned to the output of this method.
 	 */
+	@Nonnull
 	public PriceRecordContract[] combineResultWithAndReturnPriceRecords(@Nonnull RoaringBitmap filteredResults) {
 		// compute new lookup result for passed entity primary keys
 		final FilteredPriceRecordsLookupResult subResult = computeResult(filteredResults, this.filteredPriceRecordAccessors, this.context);

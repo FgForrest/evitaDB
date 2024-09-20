@@ -68,10 +68,11 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * FirstVariantPriceTerminationFormula picks lowest filtered price for each entity id as a representative price for it.
- * It may also filter out entity ids which don't pass {@link #pricePredicate} predicate test.
+ * It may also filter out entity ids which don't pass {@link #sellingPricePredicate} predicate test.
  *
  * This formula consumes and produces {@link Formula} of {@link PriceRecord#entityPrimaryKey() entity ids}. It uses
  * information from underlying formulas that implement {@link FilteredPriceRecordAccessor#getFilteredPriceRecords(QueryExecutionContext)}
@@ -81,6 +82,7 @@ import java.util.function.Consumer;
  */
 public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
 	private static final long CLASS_ID = -4905806490462655316L;
+	private static final Predicate<PriceRecordContract> ALL_MATCHING_PREDICATE = priceContract -> true;
 
 	/**
 	 * Price evaluation context allows optimizing formula tree in the such way, that terminating formula with same
@@ -92,9 +94,13 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	 */
 	@Getter private final QueryPriceMode queryPriceMode;
 	/**
-	 * Price filter is used to filter out entities which price doesn't match the predicate.
+	 * Price filter is used to filter out entities which final selling price doesn't match the predicate.
 	 */
-	@Getter private final PriceRecordPredicate pricePredicate;
+	@Getter private final PriceRecordPredicate sellingPricePredicate;
+	/**
+	 * Predicate that filters out individual prices from being calculated in selling price.
+	 */
+	private final Predicate<PriceRecordContract> individualPricePredicate;
 	/**
 	 * Comparator used for selecting the lowest price for each entity id among all prices for different inner record ids.
 	 */
@@ -106,7 +112,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	private FilteredPriceRecords filteredPriceRecords;
 	/**
 	 * Bitmap is initialized (non-null) after {@link Formula#compute()} method is called and contains set of entity primary
-	 * keys that were excluded due to {@link #pricePredicate} query. This information is reused in
+	 * keys that were excluded due to {@link #sellingPricePredicate} query. This information is reused in
 	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
 	 * into an account.
 	 */
@@ -116,10 +122,11 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
-		@Nonnull PriceRecordPredicate pricePredicate
+		@Nonnull PriceRecordPredicate sellingPricePredicate
 	) {
 		super(null);
-		this.pricePredicate = pricePredicate;
+		this.sellingPricePredicate = sellingPricePredicate;
+		this.individualPricePredicate = ALL_MATCHING_PREDICATE;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
 		this.priceRecordComparator = queryPriceMode == QueryPriceMode.WITH_TAX ?
@@ -133,10 +140,12 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
-		@Nonnull PriceRecordPredicate pricePredicate
+		@Nonnull PriceRecordPredicate sellingPricePredicate,
+		@Nonnull Predicate<PriceRecordContract> individualPricePredicate
 	) {
 		super(computationCallback);
-		this.pricePredicate = pricePredicate;
+		this.sellingPricePredicate = sellingPricePredicate;
+		this.individualPricePredicate = individualPricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
 		this.priceRecordComparator = queryPriceMode == QueryPriceMode.WITH_TAX ?
@@ -150,11 +159,13 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
-		@Nonnull PriceRecordPredicate pricePredicate,
+		@Nonnull PriceRecordPredicate sellingPricePredicate,
+		@Nonnull Predicate<PriceRecordContract> individualPricePredicate,
 		@Nullable Bitmap recordsFilteredOutByPredicate
 	) {
 		super(recordsFilteredOutByPredicate, computationCallback);
-		this.pricePredicate = pricePredicate;
+		this.sellingPricePredicate = sellingPricePredicate;
+		this.individualPricePredicate = individualPricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
 		this.priceRecordComparator = queryPriceMode == QueryPriceMode.WITH_TAX ?
@@ -162,6 +173,28 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 			Comparator.comparingInt(PriceRecordContract::priceWithoutTax);
 		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
 		this.initFields(containerFormula);
+	}
+
+	/**
+	 * Creates a new instance of FirstVariantPriceTerminationFormula with the specified individual price predicate and
+	 * retains the existing computation callback, delegate formula, price evaluation context, query price mode,
+	 * and selling price predicate.
+	 *
+	 * @param individualPricePredicate the predicate to filter individual price records; must not be null
+	 * @return a new instance of FirstVariantPriceTerminationFormula with the specified individual price predicate
+	 */
+	@Nonnull
+	public FirstVariantPriceTerminationFormula withIndividualPricePredicate(
+		@Nonnull Predicate<PriceRecordContract> individualPricePredicate
+	) {
+		return new FirstVariantPriceTerminationFormula(
+			computationCallback,
+			getDelegate(),
+			priceEvaluationContext,
+			queryPriceMode,
+			sellingPricePredicate,
+			individualPricePredicate
+		);
 	}
 
 	@Override
@@ -173,7 +206,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	@Nullable
 	@Override
 	public PriceAmountPredicate getRequestedPredicate() {
-		return pricePredicate.getRequestedPredicate();
+		return sellingPricePredicate.getRequestedPredicate();
 	}
 
 	/**
@@ -190,7 +223,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		return new FirstVariantPriceTerminationFormula(
 			computationCallback,
 			innerFormulas[0],
-			priceEvaluationContext, queryPriceMode, pricePredicate
+			priceEvaluationContext, queryPriceMode, sellingPricePredicate, individualPricePredicate
 		);
 	}
 
@@ -204,7 +237,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		return new FirstVariantPriceTerminationFormula(
 			computationCallback, innerFormulas[0],
-			priceEvaluationContext, queryPriceMode, PricePredicate.ALL_RECORD_FILTER,
+			priceEvaluationContext, queryPriceMode, PricePredicate.ALL_RECORD_FILTER, individualPricePredicate,
 			recordsFilteredOutByPredicate
 		);
 	}
@@ -216,7 +249,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		return new FirstVariantPriceTerminationFormula(
 			selfOperator,
 			innerFormulas[0],
-			priceEvaluationContext, queryPriceMode, pricePredicate
+			priceEvaluationContext, queryPriceMode, sellingPricePredicate, individualPricePredicate
 		);
 	}
 
@@ -232,7 +265,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 
 	@Override
 	public String toString() {
-		return this.pricePredicate.toString();
+		return this.sellingPricePredicate.toString();
 	}
 
 	@Override
@@ -248,10 +281,10 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 			getFilteredPriceRecords(this.executionContext),
 			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
 			getPriceEvaluationContext(),
-			this.pricePredicate.getQueryPriceMode(),
-			this.pricePredicate.getFrom(),
-			this.pricePredicate.getTo(),
-			this.pricePredicate.getIndexedPricePlaces()
+			this.sellingPricePredicate.getQueryPriceMode(),
+			this.sellingPricePredicate.getFrom(),
+			this.sellingPricePredicate.getTo(),
+			this.sellingPricePredicate.getIndexedPricePlaces()
 		);
 	}
 
@@ -315,7 +348,10 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 									// if it's present it means the price was already found in more prioritized price list
 									final int innerRecordId = foundPrice.innerRecordId();
 									final PriceRecordContract innerRecordPrice = entityInnerRecordPrice.get(innerRecordId);
-									if (innerRecordPrice == null) {
+									// we need to filter the price using individual price predicate
+									// this handles the situation when we want to consider only prices that relate
+									// for previously selected selling price (e.g. when we calculate the discount)
+									if (innerRecordPrice == null && individualPricePredicate.test(foundPrice)) {
 										entityInnerRecordPrice.put(innerRecordId, foundPrice);
 									}
 								}
@@ -323,7 +359,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 						}
 
 						Assert.isPremiseValid(
-							!entityInnerRecordPrice.isEmpty(),
+							this.individualPricePredicate != ALL_MATCHING_PREDICATE || !entityInnerRecordPrice.isEmpty(),
 							"Price for entity with PK " + entityId + " unexpectedly not found!"
 						);
 
@@ -334,7 +370,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 						for (ObjectCursor<PriceRecordContract> value : values) {
 							final PriceRecordContract innerRecordPrice = value.value;
 							// test whether inner entity price matches the filter
-							anyPriceMatchesTheFilter |= pricePredicate.test(innerRecordPrice);
+							anyPriceMatchesTheFilter |= sellingPricePredicate.test(innerRecordPrice);
 							if (lowestPrice == null || priceRecordComparator.compare(innerRecordPrice, lowestPrice) < 0) {
 								lowestPrice = innerRecordPrice;
 							}
@@ -379,7 +415,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		return hashFunction.hashLongs(
 			new long[]{
 				priceEvaluationContext.computeHash(hashFunction),
-				pricePredicate.computeHash(hashFunction)
+				sellingPricePredicate.computeHash(hashFunction)
 			}
 		);
 	}

@@ -97,6 +97,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
@@ -127,11 +128,15 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		return primaryKey == 0 ? null : primaryKey;
 	};
 	private static final int PRODUCT_COUNT = 10;
-	private static DataGenerator DATA_GENERATOR;
 
 	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, destroyAfterClass = true)
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
-		DATA_GENERATOR = new DataGenerator();
+		final DataGenerator dataGenerator = new DataGenerator.Builder()
+			.registerValueGenerator(
+				Entities.PRICE_LIST, ATTRIBUTE_ORDER,
+				faker -> Predecessor.HEAD
+			)
+			.build();
 		GENERATED_ENTITIES.clear();
 
 		final ApiOptions apiOptions = evitaServer.getExternalApiServer()
@@ -170,8 +175,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally())
 						.updateVia(session);
 
-					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSampleBrandSchema(
+					dataGenerator.generateEntities(
+							dataGenerator.getSampleBrandSchema(
 								session,
 								builder -> {
 									builder.withAttribute(ATTRIBUTE_UUID, UUID.class);
@@ -185,8 +190,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.limit(5)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
-					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSampleCategorySchema(
+					dataGenerator.generateEntities(
+							dataGenerator.getSampleCategorySchema(
 								session,
 								builder -> {
 									session.updateEntitySchema(builder);
@@ -199,13 +204,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.limit(10)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
-					DATA_GENERATOR.registerValueGenerator(
-						Entities.PRICE_LIST, ATTRIBUTE_ORDER,
-						faker -> Predecessor.HEAD
-					);
-
-					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSamplePriceListSchema(
+					dataGenerator.generateEntities(
+							dataGenerator.getSamplePriceListSchema(
 								session,
 								builder -> {
 									builder.withAttribute(
@@ -221,8 +221,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.limit(4)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
-					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSampleStoreSchema(
+					dataGenerator.generateEntities(
+							dataGenerator.getSampleStoreSchema(
 								session,
 								builder -> {
 									session.updateEntitySchema(builder);
@@ -235,8 +235,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.limit(12)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
-					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSampleParameterGroupSchema(
+					dataGenerator.generateEntities(
+							dataGenerator.getSampleParameterGroupSchema(
 								session,
 								builder -> {
 									session.updateEntitySchema(builder);
@@ -249,8 +249,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.limit(20)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
-					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSampleParameterSchema(
+					dataGenerator.generateEntities(
+							dataGenerator.getSampleParameterSchema(
 								session,
 								builder -> {
 									session.updateEntitySchema(builder);
@@ -264,7 +264,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
 					productSchema.set(
-						DATA_GENERATOR.getSampleProductSchema(
+						dataGenerator.getSampleProductSchema(
 							session,
 							builder -> {
 								builder
@@ -282,7 +282,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 					);
 
 					final Map<Integer, SealedEntity> theProducts = CollectionUtils.createHashMap(10);
-					DATA_GENERATOR.generateEntities(
+					dataGenerator.generateEntities(
 							productSchema.get(),
 							RANDOM_ENTITY_PICKER,
 							SEED
@@ -484,7 +484,20 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			}
 		}
 
-		final PriceContract[] expectedAllPrices = originalProduct.getPrices().toArray(PriceContract[]::new);
+		Predicate<PriceContract> predicate = null;
+		if (currency != null) {
+			predicate = it -> currency.equals(it.currency());
+		}
+		if (priceLists != null && priceLists.length > 0) {
+			final String[] finalPriceLists = priceLists;
+			predicate = predicate == null ?
+				it -> Arrays.stream(finalPriceLists).anyMatch(priceList -> priceList.equals(it.priceList())) :
+				predicate.and(it -> Arrays.stream(finalPriceLists).anyMatch(priceList -> priceList.equals(it.priceList())));
+		}
+
+		final PriceContract[] expectedAllPrices = predicate == null ?
+			originalProduct.getPrices().toArray(PriceContract[]::new) :
+			originalProduct.getPrices().stream().filter(predicate).toArray(PriceContract[]::new);
 		final PriceContract[] allPrices = Arrays.stream(product.getAllPricesAsArray())
 			.toArray(PriceContract[]::new);
 
@@ -495,14 +508,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertArrayEquals(expectedAllPrices, product.getAllPricesAsSet().toArray(PriceContract[]::new));
 		assertArrayEquals(expectedAllPrices, product.getAllPrices().toArray(PriceContract[]::new));
 
-		final Optional<PriceContract> first = Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.priceList())).findFirst();
-		if (first.isEmpty()) {
-			assertNull(product.getBasicPrice());
-		} else {
-			assertEquals(
-				first.get(),
-				product.getBasicPrice()
-			);
+		if (currency != null) {
+			final Optional<PriceContract> first = Arrays.stream(expectedAllPrices)
+				.filter(it -> "basic".equals(it.priceList()) && currency.equals(it.currency()))
+				.findFirst();
+			if (first.isEmpty()) {
+				assertNull(product.getBasicPrice());
+			} else {
+				assertEquals(
+					first.get(),
+					product.getBasicPrice()
+				);
+			}
 		}
 	}
 
@@ -827,7 +844,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			.stream()
 			.filter(it -> !it.getReferences(Entities.CATEGORY).isEmpty())
 			.filter(it -> it.getAttributeValue(ATTRIBUTE_QUANTITY).isPresent())
-			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::indexed))
 			.findFirst()
 			.orElseThrow();
 
@@ -838,8 +855,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							priceInPriceLists(someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::priceList).toArray(String[]::new)),
-							priceInCurrency(someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::currency).findFirst().orElseThrow()),
+							priceInPriceLists(someProductWithCategory.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::priceList).toArray(String[]::new)),
+							priceInCurrency(someProductWithCategory.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::currency).findFirst().orElseThrow()),
 							entityLocaleEquals(someProductWithCategory.getAllLocales().stream().findFirst().orElseThrow())
 						),
 						require(
@@ -895,12 +912,12 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			.stream()
 			.filter(it -> !it.getReferences(Entities.CATEGORY).isEmpty())
 			.filter(it -> it.getAttributeValue(ATTRIBUTE_QUANTITY).isPresent())
-			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::indexed))
 			.findFirst()
 			.orElseThrow();
 
-		final String[] priceLists = someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::priceList).toArray(String[]::new);
-		final Currency currency = someProductWithCategory.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::currency).findFirst().orElseThrow();
+		final String[] priceLists = someProductWithCategory.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::priceList).distinct().toArray(String[]::new);
+		final Currency currency = someProductWithCategory.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::currency).findFirst().orElseThrow();
 		final Locale locale = someProductWithCategory.getAllLocales().stream().findFirst().orElseThrow();
 
 		final EvitaResponse<ProductInterface> result = evitaClient.queryCatalog(
@@ -916,8 +933,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						),
 						require(
 							entityFetch(
-								attributeContentAll(), hierarchyContent(),
-								associatedDataContentAll(), priceContentAll(),
+								attributeContentAll(),
+								hierarchyContent(),
+								associatedDataContentAll(),
+								priceContentRespectingFilter(),
 								referenceContentAllWithAttributes()
 							),
 							queryTelemetry(),
