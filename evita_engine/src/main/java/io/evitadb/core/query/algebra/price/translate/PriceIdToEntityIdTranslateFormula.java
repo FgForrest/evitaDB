@@ -141,6 +141,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 		);
 
 		return new PriceEvaluationContext(
+			null,
 			priceIdFormulas.stream()
 				.map(it -> it.getPriceIndex().getPriceIndexKey())
 				.toArray(PriceIndexKey[]::new)

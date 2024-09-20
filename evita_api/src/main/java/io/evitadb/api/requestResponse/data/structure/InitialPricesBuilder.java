@@ -102,9 +102,9 @@ public class InitialPricesBuilder implements PricesBuilder {
 	}
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean sellable) {
+	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean indexed) {
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
-		final Price thePrice = new Price(priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, sellable);
+		final Price thePrice = new Price(priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
 		assertPriceNotAmbiguousBeforeAdding(thePrice);
 		this.prices.put(priceKey, thePrice);
 		return this;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -138,7 +138,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @param taxRate         - tax rate percentage (i.e. for 19% it'll be 19.00)
 	 * @param priceWithTax    - price with tax
 	 * @param validity        - date and time interval for which the price is valid (inclusive)
-	 * @param sellable        - controls whether price is subject to filtering / sorting logic ({@see Price#sellable})
+	 * @param indexed         - controls whether price is subject to filtering / sorting logic ({@see Price#indexed})
 	 * @return builder instance to allow command chaining
 	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
@@ -151,7 +151,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 		@Nonnull BigDecimal taxRate,
 		@Nonnull BigDecimal priceWithTax,
 		@Nullable DateTimeRange validity,
-		boolean sellable
+		boolean indexed
 	) throws AmbiguousPriceException;
 
 	/**
@@ -168,7 +168,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	) throws AmbiguousPriceException {
 		return setPrice(
 			price.priceId(), price.priceList(), price.currency(), price.innerRecordId(),
-			price.priceWithoutTax(), price.taxRate(), price.priceWithTax(), price.validity(), price.sellable()
+			price.priceWithoutTax(), price.taxRate(), price.priceWithTax(), price.validity(), price.indexed()
 		);
 	}
 

@@ -40,6 +40,7 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.price.alternative.SellingPriceAvailableBitmapFilter;
+import io.evitadb.core.query.sort.price.translator.PriceDiscountTranslator;
 import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 
@@ -88,10 +89,9 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 				.orElse(null);
 
 			if (filterByVisitor.isEntityTypeKnown()) {
-				final List<Formula> priceListFormula = createFormula(filterByVisitor, theMoment, priceLists, currency);
 				final Formula filteringFormula = PriceListCompositionTerminationVisitor.translate(
-					priceListFormula,
-					filterByVisitor.getQueryPriceMode(), null
+					createFormula(filterByVisitor, theMoment, priceLists, currency),
+					priceLists, currency, theMoment, filterByVisitor.getQueryPriceMode(), null
 				);
 				if (filterByVisitor.isPrefetchPossible()) {
 					return new SelectionFormula(
@@ -116,10 +116,16 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 
 	/**
 	 * Method creates formula for {@link PriceValidIn} filtering query.
-	 * Method is reused from {@link PriceBetweenTranslator} that builds upon this translator.
+	 * Method is reused from {@link PriceBetweenTranslator} that builds upon this translator and {@link PriceDiscountTranslator}
+	 * that uses it to search for alternative price that makes up the discount.
 	 */
 	@Nonnull
-	List<Formula> createFormula(@Nonnull FilterByVisitor filterByVisitor, @Nonnull OffsetDateTime theMoment, @Nullable String[] priceLists, @Nullable Currency currency) {
+	public static List<Formula> createFormula(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nullable OffsetDateTime theMoment,
+		@Nullable String[] priceLists,
+		@Nullable Currency currency
+	) {
 		final TriFunction<String, Currency, PriceInnerRecordHandling, Formula> priceListFormulaComputer;
 		if (currency == null && priceLists == null) {
 			// we don't have currency nor price lists - we need to join all records a single OR query
@@ -162,7 +168,7 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 			);
 		}
 
-		return createPriceListFormula(priceLists, currency, priceListFormulaComputer);
+		return createPriceListFormula(priceLists, currency, theMoment, priceListFormulaComputer);
 	}
 
 }

@@ -41,9 +41,15 @@ message GrpcPrice {
   // entity but won't be considered when evaluating search. These prices may be
   // used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
   // as "usual price") but are not considered as the "selling" price.
-  bool sellable = 9;
+  // RENAMED TO "indexed"
+  bool sellable = 9 [deprecated = true];
   // Contains version of this price and gets increased with any entity type update. Allows to execute
   // optimistic locking i.e. avoiding parallel modifications.
   int32 version = 10;
+  // Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+  // entity but won't be considered when evaluating search. These prices may be
+  // used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+  // as "usual price") but are not considered as the "selling" price.
+  bool indexed = 11;
 }
 

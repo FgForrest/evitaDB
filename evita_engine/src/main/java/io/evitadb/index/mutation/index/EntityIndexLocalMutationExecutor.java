@@ -217,7 +217,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final Consumer<EntityIndex> priceUpdateApplicator = theIndex -> updatePriceIndex(priceMutation, theIndex);
 			if (priceMutation instanceof RemovePriceMutation ||
 				// when new upserted price is not sellable, it is removed from indexes, so we need to behave like removal
-				(priceMutation instanceof UpsertPriceMutation upsertPriceMutation && !upsertPriceMutation.isSellable())) {
+				(priceMutation instanceof UpsertPriceMutation upsertPriceMutation && !upsertPriceMutation.isIndexed())) {
 				// removal must first occur on the reduced indexes, because they consult the super index
 				ReferenceIndexMutator.executeWithReferenceIndexes(entityType, this, priceUpdateApplicator);
 				priceUpdateApplicator.accept(globalIndex);
@@ -754,7 +754,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						price.validity(),
 						price.priceWithoutTax(),
 						price.priceWithTax(),
-						price.sellable(),
+						price.indexed(),
 						null,
 						newPriceInnerRecordHandling,
 						PriceIndexMutator.createPriceProvider(price),
@@ -791,7 +791,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				upsertPriceMutation.getValidity(),
 				upsertPriceMutation.getPriceWithoutTax(),
 				upsertPriceMutation.getPriceWithTax(),
-				upsertPriceMutation.isSellable(),
+				upsertPriceMutation.isIndexed(),
 				(thePriceKey, theInnerRecordId) -> containerAccessor.findExistingInternalIds(
 					entityType, theEntityPrimaryKey, thePriceKey, theInnerRecordId
 				),

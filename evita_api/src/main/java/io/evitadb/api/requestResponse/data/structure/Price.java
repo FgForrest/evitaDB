@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.Currency;
+import java.util.Objects;
 
 import static java.util.Optional.ofNullable;
 
@@ -62,7 +63,7 @@ import static java.util.Optional.ofNullable;
  * @param priceWithTax    Price without tax.
  * @param taxRate         Tax rate percentage (i.e. for 19% it'll be 19.00)
  * @param validity        Date and time interval for which the price is valid (inclusive).
- * @param sellable        Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+ * @param indexed        Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
  *                        entity but won't be considered when evaluating search {@link io.evitadb.api.query.Query}. These prices may be
  *                        used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
  *                        as "usual price") but are not considered as the "selling" price.
@@ -80,7 +81,7 @@ public record Price(
 	@Nonnull BigDecimal taxRate,
 	@Nonnull BigDecimal priceWithTax,
 	@Nullable DateTimeRange validity,
-	boolean sellable,
+	boolean indexed,
 	boolean dropped
 ) implements PriceContract {
 	@Serial private static final long serialVersionUID = -7355665177038792532L;
@@ -168,6 +169,11 @@ public record Price(
 	}
 
 	@Override
+	public boolean relatesTo(@Nonnull PriceContract anotherPrice) {
+		return Objects.equals(this.innerRecordId, anotherPrice.innerRecordId());
+	}
+
+	@Override
 	public int estimateSize() {
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 			// version
@@ -213,7 +219,7 @@ public record Price(
 	@Override
 	public String toString() {
 		return (dropped ? "❌ " : "") +
-			"\uD83D\uDCB0 " + (sellable ? "\uD83D\uDCB5 " : "") + priceWithTax + " " + priceKey.currency() + " (" + taxRate + "%)" +
+			"\uD83D\uDCB0 " + (indexed ? "\uD83D\uDCB5 " : "") + priceWithTax + " " + priceKey.currency() + " (" + taxRate + "%)" +
 			", price list " + priceKey.priceList() +
 			(validity == null ? "" : ", valid in " + validity) +
 			", external id " + priceKey.priceId() +

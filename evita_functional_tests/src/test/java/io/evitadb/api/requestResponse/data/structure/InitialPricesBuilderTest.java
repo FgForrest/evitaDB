@@ -154,9 +154,9 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 		final PriceContract priceContract = allPricesForSale.get(0);
 
 		assertEquals(
-			new Price(
-				new PriceKey(2, "vip", CZK), null,
-				new BigDecimal("21"), new BigDecimal("21"), BigDecimal.ZERO, null, true
+			new CumulatedPrice(
+				1, new PriceKey(2, "vip", CZK), Set.of(3),
+				new BigDecimal("21"), BigDecimal.ZERO, new BigDecimal("21")
 			),
 			priceContract
 		);
@@ -173,6 +173,6 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 		assertEquals(priceWithoutTax, price.priceWithoutTax());
 		assertEquals(taxRate, price.taxRate());
 		assertEquals(priceWithTax, price.priceWithTax());
-		assertEquals(indexed, price.sellable());
+		assertEquals(indexed, price.indexed());
 	}
 }

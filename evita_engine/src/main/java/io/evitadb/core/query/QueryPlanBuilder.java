@@ -30,6 +30,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFactory;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
@@ -61,9 +62,9 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	@Nonnull
 	@Getter private final Formula filterFormula;
 	/**
-	 * Superset of all possible results without any filtering.
+	 * Reference to {@link FilterByVisitor} used for creating filterFormula.
 	 */
-	@Getter private final Formula superSetFormula;
+	@Getter private final FilterByVisitor filterByVisitor;
 	/**
 	 * Indexes that were used for creating {@link #filterFormula}.
 	 */
@@ -96,40 +97,6 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 			"None", EmptyFormula.INSTANCE, PrefetchFactory.NO_OP,
 			NoSorter.INSTANCE, Collections.emptyList()
 		);
-	}
-
-	public QueryPlanBuilder(
-		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull Formula filterFormula,
-		@Nonnull Formula superSetFormula,
-		@Nonnull TargetIndexes<?> targetIndexes,
-		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
-		@Nonnull Sorter replacedSorter
-	) {
-		this.queryContext = queryContext;
-		this.filterFormula = filterFormula;
-		this.superSetFormula = superSetFormula;
-		this.targetIndexes = targetIndexes;
-		this.prefetchFormulaVisitor = prefetchFormulaVisitor;
-		this.sorter = replacedSorter;
-	}
-
-	public QueryPlanBuilder(
-		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull Formula filterFormula,
-		@Nonnull Formula superSetFormula,
-		@Nonnull TargetIndexes<?> targetIndexes,
-		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
-		@Nonnull Sorter replacedSorter,
-		@Nonnull Collection<ExtraResultProducer> extraResultProducers
-	) {
-		this.queryContext = queryContext;
-		this.filterFormula = filterFormula;
-		this.superSetFormula = superSetFormula;
-		this.targetIndexes = targetIndexes;
-		this.prefetchFormulaVisitor = prefetchFormulaVisitor;
-		this.sorter = replacedSorter;
-		this.extraResultProducers = extraResultProducers;
 	}
 
 	@Override

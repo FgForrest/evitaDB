@@ -289,7 +289,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 			.e(PriceDescriptor.PRICE_LIST.name(), price.priceList())
 			.e(PriceDescriptor.CURRENCY.name(), price.currencyCode())
 			.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
-			.e(PriceDescriptor.SELLABLE.name(), price.sellable())
+			.e(PriceDescriptor.INDEXED.name(), price.indexed())
 			.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.priceWithoutTax().toString())
 			.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
 			.e(PriceDescriptor.TAX_RATE.name(), price.taxRate().toString())

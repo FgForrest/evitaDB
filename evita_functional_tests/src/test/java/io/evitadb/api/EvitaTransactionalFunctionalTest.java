@@ -122,6 +122,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -131,6 +132,8 @@ import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
+import static io.evitadb.test.generator.DataGenerator.CURRENCY_CZK;
+import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -159,7 +162,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	private static final Pattern DATE_TIME_PATTERN_1 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{2}:\\d{2}");
 	private static final Pattern DATE_TIME_PATTERN_2 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z");
 	private static final Pattern LAG_PATTERN = Pattern.compile("lag \\d*m?s");
-	private final DataGenerator dataGenerator = new DataGenerator();
+	private static final Supplier<DataGenerator> GENERATOR_FACTORY = () -> new DataGenerator.Builder()
+		.withCurrencies(CURRENCY_CZK)
+		.withPriceLists(PRICE_LIST_BASIC)
+		.build();
+	private final DataGenerator dataGenerator = GENERATOR_FACTORY.get();
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
 		protected Kryo create() {
@@ -268,7 +275,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		final long initialStart = System.currentTimeMillis();
 		final AtomicReference<Exception> thrownException = new AtomicReference<>();
-		final DataGenerator dataGenerator = new DataGenerator();
+		final DataGenerator dataGenerator = GENERATOR_FACTORY.get();
 		for (int i = 0; i < numberOfThreads; i++) {
 			final int threadSeed = SEED + i;
 			service.execute(() -> {
@@ -329,16 +336,20 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 								}
 							);
 						});
+					log.info("Thread {} finished.", Thread.currentThread().getName());
 				} catch (Exception ex) {
 					thrownException.set(ex);
+					log.error("Thread {} failed.", Thread.currentThread().getName(), ex);
 				} finally {
 					latch.countDown();
+					log.info("{} threads remaining ...", latch.getCount());
 				}
 			});
 		}
 
+		log.info("Waiting for the entities to be inserted...");
 		if (applyOnceWhileWaiting != null) {
-			// wait until at least half of the data has been insterted
+			// wait until at least half of the data has been inserted
 			long waitingStart = System.currentTimeMillis();
 			while (
 				primaryKeysWithTxIds.size() < (numberOfThreads * iterations + 1) / 2 &&
@@ -361,13 +372,22 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		// wait until Evita reaches the last version of the catalog
 		long waitingStart = System.currentTimeMillis();
+		int cnt = 0;
 		while (
 			// cap to one minute
 			System.currentTimeMillis() - waitingStart < 120_000 &&
 				// and finish when the last transaction is visible
 				evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion) < numberOfThreads * iterations + 1
 		) {
+			cnt++;
 			Thread.onSpinWait();
+			if (cnt % 1_000_000 == 0) {
+				log.info(
+					"Waiting for records to become present ({} of {})",
+					evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion),
+					numberOfThreads * iterations + 1
+				);
+			}
 		}
 
 		assertEquals(primaryKeysWithTxIds.size(), numberOfThreads * iterations);
@@ -622,15 +642,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		assertEquals(
 			replaceTimeStamps(
 				"""
-					Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 8 KB):
+					Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
 						 - changes in `PRODUCT`: 15 upserted entities
-					Catalog version: 54, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (14 mutations, 8 KB):
+					Catalog version: 54, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (14 mutations, 7 KB):
 						 - changes in `PRODUCT`: 14 upserted entities
-					Catalog version: 50, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 8 KB):
+					Catalog version: 50, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
 						 - changes in `PRODUCT`: 15 upserted entities
 					Catalog version: 45, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (13 mutations, 7 KB):
 						 - changes in `PRODUCT`: 13 upserted entities
-					Catalog version: 41, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 9 KB):
+					Catalog version: 41, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 8 KB):
 						 - changes in `PRODUCT`: 15 upserted entities"""
 			),
 			replaceTimeStamps(

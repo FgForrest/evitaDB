@@ -139,8 +139,6 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		ArrayUtils.shuffleArray(new Random(SEED), STORE_ORDER, STORE_COUNT);
 	}
 
-	private final DataGenerator dataGenerator = new DataGenerator();
-
 	/**
 	 * Computes facet summary by streamed fashion.
 	 */
@@ -518,14 +516,15 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			};
 
 			final AtomicInteger index = new AtomicInteger();
-			dataGenerator.registerValueGenerator(
-				Entities.STORE, ATTRIBUTE_ORDER,
-				faker -> {
-					final int ix = index.incrementAndGet();
-					final int position = ArrayUtils.indexOf(ix, STORE_ORDER);
-					return position == 0 ? Predecessor.HEAD : new Predecessor(STORE_ORDER[position - 1]);
-				}
-			);
+			final DataGenerator dataGenerator = new DataGenerator.Builder()
+				.registerValueGenerator(
+					Entities.STORE, ATTRIBUTE_ORDER,
+					faker -> {
+						final int ix = index.incrementAndGet();
+						final int position = ArrayUtils.indexOf(ix, STORE_ORDER);
+						return position == 0 ? Predecessor.HEAD : new Predecessor(STORE_ORDER[position - 1]);
+					}
+				).build();
 
 			dataGenerator.generateEntities(
 					dataGenerator.getSampleBrandSchema(session),

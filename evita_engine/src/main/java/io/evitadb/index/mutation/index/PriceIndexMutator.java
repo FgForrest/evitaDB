@@ -104,7 +104,7 @@ public interface PriceIndexMutator {
 		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
 		final int indexedPricePlaces = executor.getEntitySchema().getIndexedPricePlaces();
 		// remove former price first
-		if (formerPrice != null && formerPrice.exists() && formerPrice.sellable()) {
+		if (formerPrice != null && formerPrice.exists() && formerPrice.indexed()) {
 			final Integer formerInternalPriceId = Objects.requireNonNull(formerPrice.getInternalPriceId());
 			final Integer formerInnerRecordId = formerPrice.innerRecordId();
 			final DateTimeRange formerValidity = formerPrice.validity();
@@ -194,7 +194,7 @@ public interface PriceIndexMutator {
 		final int indexedPricePlaces = executor.getEntitySchema().getIndexedPricePlaces();
 
 		if (formerPrice != null) {
-			if (formerPrice.exists() && formerPrice.sellable()) {
+			if (formerPrice.exists() && formerPrice.indexed()) {
 				final int internalPriceId = formerPrice.getInternalPriceId();
 				final Integer innerRecordId = formerPrice.innerRecordId();
 				final DateTimeRange validity = formerPrice.validity();

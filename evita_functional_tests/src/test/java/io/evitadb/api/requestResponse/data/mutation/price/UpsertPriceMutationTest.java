@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 		assertEquals(BigDecimal.ZERO, createdPrice.taxRate());
 		assertEquals(BigDecimal.TEN, createdPrice.priceWithTax());
 		assertEquals(DateTimeRange.since(theDay), createdPrice.validity());
-		assertTrue(createdPrice.sellable());
+		assertTrue(createdPrice.indexed());
 		assertFalse(createdPrice.dropped());
 	}
 
@@ -93,7 +93,7 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 		assertEquals(BigDecimal.ZERO, createdPrice.taxRate());
 		assertEquals(BigDecimal.TEN, createdPrice.priceWithTax());
 		assertEquals(DateTimeRange.since(theDay), createdPrice.validity());
-		assertTrue(createdPrice.sellable());
+		assertTrue(createdPrice.indexed());
 		assertFalse(createdPrice.dropped());
 	}
 
@@ -127,7 +127,7 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 		assertEquals(BigDecimal.ONE, updatedPrice.taxRate());
 		assertEquals(new BigDecimal("100.00"), updatedPrice.priceWithTax());
 		assertEquals(DateTimeRange.since(theAnotherDay), updatedPrice.validity());
-		assertFalse(updatedPrice.sellable());
+		assertFalse(updatedPrice.indexed());
 		assertFalse(updatedPrice.dropped());
 	}
 

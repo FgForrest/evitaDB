@@ -183,7 +183,7 @@ public class PricesStoragePart implements EntityStoragePart {
 			if (this.prices[position].differsFrom(updatedPriceContract)) {
 				this.prices[position] = new PriceWithInternalIds(
 					updatedPriceContract,
-					updatedPriceContract.sellable() ?
+					updatedPriceContract.indexed() ?
 						requireNonNull(
 							ofNullable(existingContract.getInternalPriceId())
 								.orElseGet(() -> internalPriceIdResolver.apply(priceKey))
@@ -194,7 +194,7 @@ public class PricesStoragePart implements EntityStoragePart {
 		} else {
 			final PriceContract newPrice = mutator.apply(null);
 			final Integer internalPriceId;
-			if (newPrice.sellable()) {
+			if (newPrice.indexed()) {
 				internalPriceId = internalPriceIdResolver.apply(priceKey);
 			} else {
 				internalPriceId = null;

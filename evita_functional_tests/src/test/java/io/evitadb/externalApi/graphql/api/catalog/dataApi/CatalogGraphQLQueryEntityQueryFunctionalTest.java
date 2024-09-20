@@ -1143,7 +1143,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
 				it.getPrices(CURRENCY_CZK)
 					.stream()
-					.filter(PriceContract::sellable)
+					.filter(PriceContract::indexed)
 					.map(PriceContract::innerRecordId)
 					.distinct()
 					.count() > 1,
@@ -1240,7 +1240,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
 				it.getPrices(CURRENCY_CZK)
 					.stream()
-					.filter(PriceContract::sellable)
+					.filter(PriceContract::indexed)
 					.map(PriceContract::innerRecordId)
 					.distinct()
 					.count() > 1,
@@ -1367,9 +1367,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1 &&
-				it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).stream().allMatch(PriceContract::sellable) &&
+				it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).stream().allMatch(PriceContract::indexed) &&
 				!it.getPrices(CURRENCY_EUR).isEmpty() &&
-				it.getPrices(CURRENCY_EUR).stream().allMatch(PriceContract::sellable),
+				it.getPrices(CURRENCY_EUR).stream().allMatch(PriceContract::indexed),
 			2
 		);
 

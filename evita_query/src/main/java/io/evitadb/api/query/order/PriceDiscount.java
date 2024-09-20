@@ -83,10 +83,10 @@ public class PriceDiscount extends AbstractOrderConstraintLeaf implements PriceC
 	}
 
 	@Creator
-	public PriceDiscount(@Nonnull OrderDirection orderDirection, @Nonnull String... inPriceLists) {
+	public PriceDiscount(@Nonnull OrderDirection order, @Nonnull String... inPriceLists) {
 		super(
 			ArrayUtils.mergeArrays(
-				new Serializable[] { orderDirection },
+				new Serializable[] { order },
 				inPriceLists
 			)
 		);
