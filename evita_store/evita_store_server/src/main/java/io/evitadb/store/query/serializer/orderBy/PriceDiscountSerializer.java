@@ -41,8 +41,8 @@ public class PriceDiscountSerializer extends Serializer<PriceDiscount> {
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceDiscount object) {
-		kryo.writeObject(output, object.getOrderDirection());
-		final String[] priceLists = object.getPriceLists();
+		kryo.writeObject(output, object.getOrder());
+		final String[] priceLists = object.getInPriceLists();
 		output.writeVarInt(priceLists.length, true);
 		for (String priceList : priceLists) {
 			output.writeString(priceList);

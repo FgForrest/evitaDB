@@ -153,7 +153,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			);
 		}
 
-		final String[] priceLists = priceDiscount.getPriceLists();
+		final String[] priceLists = priceDiscount.getInPriceLists();
 		final QueryPriceMode queryPriceMode = orderByVisitor.getQueryPriceMode();
 
 		// if prefetch happens we need to prefetch prices so that the attribute comparator can work
@@ -174,7 +174,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			thisSorter = new FilteredPricesSorter(
 				// with specific kind of comparator
 				createPriceComparator(
-					priceDiscount.getOrderDirection(),
+					priceDiscount.getOrder(),
 					queryPriceMode,
 					sellingPriceFilteringEnvelopeContainers.stream()
 						.map(it -> createReferencePriceFormula(orderByVisitor, it, priceLists, queryPriceMode))
@@ -191,7 +191,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		final EntityComparator entityComparator;
 		final Function<PriceContract, BigDecimal> priceExtractor = queryPriceMode == QueryPriceMode.WITH_TAX ?
 			PriceContract::priceWithTax : PriceContract::priceWithoutTax;
-		if (priceDiscount.getOrderDirection() == OrderDirection.ASC) {
+		if (priceDiscount.getOrder() == OrderDirection.ASC) {
 			entityComparator = new EntityPriceDiscountEntityComparator(priceExtractor, Comparator.naturalOrder(), priceLists);
 		} else {
 			entityComparator = new EntityPriceDiscountEntityComparator(priceExtractor, Comparator.reverseOrder(), priceLists);

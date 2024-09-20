@@ -1,0 +1,31 @@
+{
+  queryProduct(
+    filterBy: {
+      priceInPriceLists: [
+        "b2b-basic-price"
+      ],
+      priceInCurrency: EUR
+    },
+    orderBy: [
+      {
+        priceDiscount: {
+          order: DESC,
+          inPriceLists: [
+            "basic"
+          ]
+        }
+      }
+    ]
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        priceForSale {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
+      }
+    }
+  }
+}

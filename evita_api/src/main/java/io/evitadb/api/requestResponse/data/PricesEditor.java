@@ -57,7 +57,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @param priceWithoutTax - price without tax
 	 * @param taxRate         - tax percentage (i.e. for 19% it'll be 19.00)
 	 * @param priceWithTax    - price with tax
-	 * @param sellable        - controls whether price is subject to filtering / sorting logic ({@see Price#sellable})
+	 * @param indexed        - controls whether price is subject to filtering / sorting logic ({@see Price#sellable})
 	 * @return builder instance to allow command chaining
 	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
@@ -68,7 +68,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 		@Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal taxRate,
 		@Nonnull BigDecimal priceWithTax,
-		boolean sellable
+		boolean indexed
 	) throws AmbiguousPriceException;
 
 	/**
@@ -83,7 +83,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @param priceWithoutTax - price without tax
 	 * @param taxRate         - tax rate percentage (i.e. for 19% it'll be 19.00)
 	 * @param priceWithTax    - price with tax
-	 * @param sellable        - controls whether price is subject to filtering / sorting logic ({@see Price#sellable})
+	 * @param indexed        - controls whether price is subject to filtering / sorting logic ({@see Price#sellable})
 	 * @return builder instance to allow command chaining
 	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
@@ -95,7 +95,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 		@Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal taxRate,
 		@Nonnull BigDecimal priceWithTax,
-		boolean sellable
+		boolean indexed
 	) throws AmbiguousPriceException;
 
 	/**
@@ -110,7 +110,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @param taxRate         - tax rate percentage (i.e. for 19% it'll be 19.00)
 	 * @param priceWithTax    - price with tax
 	 * @param validity        - date and time interval for which the price is valid (inclusive)
-	 * @param sellable        - controls whether price is subject to filtering / sorting logic ({@see Price#sellable})
+	 * @param indexed        - controls whether price is subject to filtering / sorting logic ({@see Price#sellable})
 	 * @return builder instance to allow command chaining
 	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
@@ -122,7 +122,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 		@Nonnull BigDecimal taxRate,
 		@Nonnull BigDecimal priceWithTax,
 		@Nullable DateTimeRange validity,
-		boolean sellable
+		boolean indexed
 	) throws AmbiguousPriceException;
 
 	/**

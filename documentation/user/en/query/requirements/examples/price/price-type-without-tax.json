@@ -47,7 +47,7 @@
         "allLocales": [
           "en"
         ],
-        "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+        "priceInnerRecordHandling": "LOWEST_PRICE",
         "attributes": {
           "global": {
             "code": "nokia-g10"
@@ -172,7 +172,7 @@
         "allLocales": [
           "en"
         ],
-        "priceInnerRecordHandling": "FIRST_OCCURRENCE",
+        "priceInnerRecordHandling": "LOWEST_PRICE",
         "attributes": {
           "global": {
             "code": "oppo-a53"

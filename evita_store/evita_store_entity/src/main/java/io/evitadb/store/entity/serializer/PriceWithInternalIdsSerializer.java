@@ -72,8 +72,8 @@ public class PriceWithInternalIdsSerializer extends Serializer<PriceWithInternal
 	@Override
 	public PriceWithInternalIds read(Kryo kryo, Input input, Class<? extends PriceWithInternalIds> type) {
 		final int version = input.readVarInt(true);
-		final boolean sellable = input.readBoolean();
-		final Integer internalPriceId = sellable ? input.readInt() : null;
+		final boolean indexed = input.readBoolean();
+		final Integer internalPriceId = indexed ? input.readInt() : null;
 		final int priceId = input.readInt();
 		final CompressiblePriceKey priceKey = keyCompressor.getKeyForId(input.readVarInt(true));
 		final boolean innerIdExists = input.readBoolean();
@@ -95,7 +95,7 @@ public class PriceWithInternalIdsSerializer extends Serializer<PriceWithInternal
 				new PriceKey(priceId, priceKey.getPriceList(), priceKey.getCurrency()),
 				innerRecordId,
 				priceWithoutTax, taxRate, priceWithTax,
-				validity, sellable, dropped
+				validity, indexed, dropped
 			),
 			internalPriceId
 		);

@@ -141,18 +141,18 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	}
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean sellable) {
-		return setPrice(priceId, priceList, currency, null, priceWithoutTax, taxRate, priceWithTax, null, sellable);
+	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
+		return setPrice(priceId, priceList, currency, null, priceWithoutTax, taxRate, priceWithTax, null, indexed);
 	}
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean sellable) {
-		return setPrice(priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, null, sellable);
+	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
+		return setPrice(priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, null, indexed);
 	}
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean sellable) {
-		return setPrice(priceId, priceList, currency, null, priceWithoutTax, taxRate, priceWithTax, validity, sellable);
+	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean indexed) {
+		return setPrice(priceId, priceList, currency, null, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
 	}
 
 	@Override

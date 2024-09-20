@@ -65,7 +65,7 @@ public interface PriceIndexMutator {
 		@Nullable DateTimeRange validity,
 		@Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal priceWithTax,
-		boolean sellable,
+		boolean indexed,
 		@Nonnull BiFunction<PriceKey, Integer, PriceInternalIdContainer> internalIdSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
@@ -75,7 +75,7 @@ public interface PriceIndexMutator {
 		priceUpsert(
 			entityType, executor, entityIndex, priceKey, innerRecordId, validity,
 			priceWithoutTax, priceWithTax,
-			sellable,
+			indexed,
 			formerPrice, innerRecordHandling,
 			internalIdSupplier,
 			undoActionConsumer
@@ -95,7 +95,7 @@ public interface PriceIndexMutator {
 		@Nullable DateTimeRange validity,
 		@Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal priceWithTax,
-		boolean sellable,
+		boolean indexed,
 		@Nullable PriceWithInternalIds formerPrice,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
 		@Nonnull BiFunction<PriceKey, Integer, PriceInternalIdContainer> internalIdSupplier,
@@ -132,7 +132,7 @@ public interface PriceIndexMutator {
 			}
 		}
 		// now insert new price
-		if (sellable) {
+		if (indexed) {
 			final PriceInternalIdContainer internalPriceIds = internalIdSupplier.apply(priceKey, innerRecordId);
 			final Integer internalPriceId = internalPriceIds.getInternalPriceId();
 			final int priceWithoutTaxAsInt = convertToInt(priceWithoutTax, indexedPricePlaces);

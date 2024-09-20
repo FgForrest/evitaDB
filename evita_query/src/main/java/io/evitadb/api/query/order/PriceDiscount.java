@@ -33,6 +33,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -83,12 +84,13 @@ public class PriceDiscount extends AbstractOrderConstraintLeaf implements PriceC
 	}
 
 	@Creator
-	public PriceDiscount(@Nonnull OrderDirection order, @Nonnull String... inPriceLists) {
+	public PriceDiscount(@Nullable OrderDirection order, @Nonnull String... inPriceLists) {
 		super(
-			ArrayUtils.mergeArrays(
-				new Serializable[] { order },
-				inPriceLists
-			)
+			order == OrderDirection.ASC ?
+				ArrayUtils.mergeArrays(
+					new Serializable[] { order },
+					inPriceLists
+				) : inPriceLists
 		);
 		Assert.isTrue(
 			inPriceLists != null && inPriceLists.length > 0,
@@ -106,8 +108,8 @@ public class PriceDiscount extends AbstractOrderConstraintLeaf implements PriceC
 	 * @return order direction
 	 */
 	@Nonnull
-	public OrderDirection getOrderDirection() {
-		return (OrderDirection) getArguments()[0];
+	public OrderDirection getOrder() {
+		return getArguments()[0] instanceof OrderDirection od ? od : OrderDirection.DESC;
 	}
 
 	/**
@@ -115,11 +117,19 @@ public class PriceDiscount extends AbstractOrderConstraintLeaf implements PriceC
 	 * @return array of price lists
 	 */
 	@Nonnull
-	public String[] getPriceLists() {
+	public String[] getInPriceLists() {
 		return Arrays.stream(getArguments())
 			.filter(String.class::isInstance)
 			.map(String.class::cast)
 			.toArray(String[]::new);
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(super.getArgumentsExcludingDefaults())
+			.filter(it -> it != OrderDirection.DESC)
+			.toArray(Serializable[]::new);
 	}
 
 	@Nonnull

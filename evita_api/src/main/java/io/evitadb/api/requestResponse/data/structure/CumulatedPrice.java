@@ -104,7 +104,7 @@ public record CumulatedPrice(
 			MemoryMeasuringConstants.INT_SIZE +
 			// dropped
 			MemoryMeasuringConstants.BYTE_SIZE +
-			// sellable
+			// indexed
 			MemoryMeasuringConstants.BYTE_SIZE +
 			// key
 			MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.OBJECT_HEADER_SIZE +

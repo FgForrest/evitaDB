@@ -450,11 +450,11 @@ The price has the following structure:
         Date and time interval for which the price is valid (inclusive).
     </dd>
     <dt>
-        <LS to="e,j,r,g">[boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `sellable`</LS>
-        <LS to="c">[bool](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool) `Sellable`</LS>
+        <LS to="e,j,r,g">[boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `indexed`</LS>
+        <LS to="c">[bool](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool) `Indexed`</LS>
     </dt>
     <dd>
-        Controls whether the price is subject to filtering/sorting logic, unindexed prices will be fetched along with
+        Controls whether the price is subject to filtering/sorting logic, non-indexed prices will be fetched along with
         the entity, but will not be considered when evaluating the query. These prices can be used for "informational"
         prices, such as the reference price (the crossed out price often found on e-commerce sites as the
         "usual price"), but are not used as the "price for sale".
