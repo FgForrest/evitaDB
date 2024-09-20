@@ -20,7 +20,7 @@ query {
       priceList
       currency
       innerRecordId
-      sellable
+      indexed
       validity
       priceWithoutTax
       priceWithTax

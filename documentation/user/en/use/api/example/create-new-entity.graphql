@@ -45,7 +45,7 @@ mutation {
           priceWithoutTax: "345.9"
           taxRate: "22"
           priceWithTax: "422"
-          sellable: true
+          indexed: true
         }
       },
       {
@@ -56,7 +56,7 @@ mutation {
           priceWithoutTax: "365.57"
           taxRate: "22"
           priceWithTax: "446"
-          sellable: true
+          indexed: true
         }
       },
       {

@@ -166,7 +166,7 @@ POST /rest/evita/Product
         "priceWithoutTax": "63.93",
         "taxRate": "22",
         "priceWithTax": "78",
-        "sellable": true
+        "indexed": true
       }
     },
     {
@@ -177,7 +177,7 @@ POST /rest/evita/Product
         "priceWithoutTax": "68.03",
         "taxRate": "22",
         "priceWithTax": "83",
-        "sellable": true
+        "indexed": true
       }
     },
     {
@@ -251,7 +251,7 @@ POST /rest/evita/Product
         "priceWithoutTax": "27.87",
         "taxRate": "22",
         "priceWithTax": "34",
-        "sellable": true
+        "indexed": true
       }
     },
     {
@@ -262,7 +262,7 @@ POST /rest/evita/Product
         "priceWithoutTax": "29.5",
         "taxRate": "22",
         "priceWithTax": "36",
-        "sellable": true
+        "indexed": true
       }
     },
     {
@@ -335,7 +335,7 @@ POST /rest/evita/Product
         "priceWithoutTax": "1040.16",
         "taxRate": "22",
         "priceWithTax": "1269",
-        "sellable": true
+        "indexed": true
       }
     },
     {
@@ -346,7 +346,7 @@ POST /rest/evita/Product
         "priceWithoutTax": "1097.54",
         "taxRate": "22",
         "priceWithTax": "1339",
-        "sellable": true
+        "indexed": true
       }
     },
     {
@@ -418,7 +418,7 @@ POST /rest/evita/Product
         "priceWithoutTax": "627.05",
         "taxRate": "22",
         "priceWithTax": "765",
-        "sellable": true
+        "indexed": true
       }
     },
     {
@@ -429,7 +429,7 @@ POST /rest/evita/Product
         "priceWithoutTax": "654.92",
         "taxRate": "22",
         "priceWithTax": "799",
-        "sellable": true
+        "indexed": true
       }
     },
     {
@@ -501,7 +501,7 @@ POST /rest/evita/Product
         "priceWithoutTax": "345.9",
         "taxRate": "22",
         "priceWithTax": "422",
-        "sellable": true
+        "indexed": true
       }
     },
     {
@@ -512,7 +512,7 @@ POST /rest/evita/Product
         "priceWithoutTax": "365.57",
         "taxRate": "22",
         "priceWithTax": "446",
-        "sellable": true
+        "indexed": true
       }
     },
     {

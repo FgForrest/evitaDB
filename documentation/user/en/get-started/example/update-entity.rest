@@ -17,7 +17,7 @@ PUT /rest/evita/Product/1
         "priceWithoutTax": "51.64",
         "taxRate": "22",
         "priceWithTax": "63",
-        "sellable": true
+        "indexed": true
       }
     }
   ]

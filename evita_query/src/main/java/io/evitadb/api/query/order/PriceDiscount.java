@@ -100,7 +100,7 @@ public class PriceDiscount extends AbstractOrderConstraintLeaf implements PriceC
 
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 1;
+		return Arrays.stream(getArguments()).anyMatch(String.class::isInstance);
 	}
 
 	/**

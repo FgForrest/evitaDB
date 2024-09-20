@@ -105,7 +105,7 @@ requirement of the query (price with tax is used by default).
 
 Yes, prices must be indexed in the database in order to sort products by discount amount. Non-indexed prices are 
 accessible only when the entity body is fetched from disk, which would be very inefficient for sorting large datasets. 
-Therefore, even the "non-sellable" prices must be indexed and kept in memory indexes to be able to calculate the discount 
+Therefore, even the "non-indexed" prices must be indexed and kept in memory indexes to be able to calculate the discount 
 amount in an efficient way.
 
 </Note>
@@ -127,19 +127,19 @@ to `basic` price list and `EUR`), we can use the following query:
 
 <LS to="e,j">
 
-<MDInclude>[List products with largest discount first](/documentation/user/en/query/ordering/examples/price/price-natural.evitaql.md)</MDInclude>
+<MDInclude>[List products with largest discount first](/documentation/user/en/query/ordering/examples/price/price-discount.evitaql.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[List products with largest discount first](/documentation/user/en/query/ordering/examples/price/price-natural.graphql.json.md)</MDInclude>
+<MDInclude>[List products with largest discount first](/documentation/user/en/query/ordering/examples/price/price-discount.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[List products with largest discount first](/documentation/user/en/query/ordering/examples/price/price-natural.rest.json.md)</MDInclude>
+<MDInclude>[List products with largest discount first](/documentation/user/en/query/ordering/examples/price/price-discount.rest.json.md)</MDInclude>
 
 </LS>
 

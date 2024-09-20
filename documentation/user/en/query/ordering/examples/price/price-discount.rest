@@ -19,7 +19,9 @@ POST /rest/evita/Product/query
   ],
   "require" : {
     "entityFetch" : {
-      "priceContentRespectingFilter" : [ ]
+      "priceContentRespectingFilter" : [
+        "basic"
+      ]
     }
   }
 }

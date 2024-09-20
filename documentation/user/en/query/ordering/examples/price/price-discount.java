@@ -36,7 +36,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				),
 				require(
 					entityFetch(
-						priceContentRespectingFilter()
+						priceContentRespectingFilter("basic")
 					)
 				)
 			)

@@ -9,7 +9,7 @@ query(
     ),
     require(
         entityFetch(
-            priceContentRespectingFilter()
+            priceContentRespectingFilter("basic")
         )
     )
 )
