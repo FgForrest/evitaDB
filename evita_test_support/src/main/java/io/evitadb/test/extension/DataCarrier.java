@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@
  */
 
 package io.evitadb.test.extension;
+
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -101,6 +103,16 @@ public class DataCarrier {
 		this.valuesByType.putIfAbsent(value2.getClass(), value2);
 		this.valuesByType.putIfAbsent(value3.getClass(), value3);
 		this.valuesByType.putIfAbsent(value4.getClass(), value4);
+	}
+
+	@Nonnull
+	public DataCarrier put(@Nonnull String name, @Nonnull Object value) {
+		Assert.isPremiseValid(!valuesByName.containsKey(name), () -> "Value with name `" + name + "` already exists!");
+		this.valuesByName.put(name, value);
+		if (!valuesByType.containsKey(value.getClass())) {
+			this.valuesByType.put(value.getClass(), value);
+		}
+		return this;
 	}
 
 	@Nullable

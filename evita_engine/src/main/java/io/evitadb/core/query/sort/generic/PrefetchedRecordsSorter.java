@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute;
+package io.evitadb.core.query.sort.generic;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.QueryExecutionContext;

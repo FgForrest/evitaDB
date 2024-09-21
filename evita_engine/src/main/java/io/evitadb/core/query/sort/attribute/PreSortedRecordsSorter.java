@@ -30,6 +30,7 @@ import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.cache.FlattenedMergedSortedRecordsProvider;
+import io.evitadb.core.query.sort.generic.AbstractRecordsSorter;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;

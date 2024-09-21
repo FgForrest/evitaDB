@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,9 +30,15 @@ import io.evitadb.utils.MemoryMeasuringConstants;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.stream.LongStream;
+
+import static java.time.LocalDateTime.ofEpochSecond;
 
 /**
  * DTO that is connected to {@link PriceTerminationFormula} allowing to optimize formula tree in the such way,
@@ -43,10 +49,20 @@ import java.util.Arrays;
  *                           the local scope of the input query.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public record PriceEvaluationContext(@Nonnull PriceIndexKey... targetPriceIndexes) implements Serializable {
+public record PriceEvaluationContext(
+	long validIn,
+	@Nonnull PriceIndexKey... targetPriceIndexes
+) implements Serializable {
 	@Serial private static final long serialVersionUID = -2132423408087460595L;
 
-	public PriceEvaluationContext {
+	public PriceEvaluationContext(
+		@Nullable OffsetDateTime validIn,
+		@Nonnull PriceIndexKey... targetPriceIndexes
+	) {
+		this(
+			validIn == null ? Long.MIN_VALUE : validIn.toEpochSecond(),
+			targetPriceIndexes
+		);
 		Assert.isPremiseValid(
 			!ArrayUtils.isEmpty(targetPriceIndexes),
 			"Expected at least one target price index identification!"
@@ -60,12 +76,14 @@ public record PriceEvaluationContext(@Nonnull PriceIndexKey... targetPriceIndexe
 	public int estimateSize() {
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 			MemoryMeasuringConstants.ARRAY_BASE_SIZE +
+			MemoryMeasuringConstants.LONG_SIZE +
 			targetPriceIndexes.length * (MemoryMeasuringConstants.REFERENCE_SIZE + PriceIndexKey.MEMORY_SIZE);
 	}
 
 	@Override
 	public String toString() {
-		return Arrays.toString(targetPriceIndexes);
+		return Arrays.toString(targetPriceIndexes) + (validIn == Long.MIN_VALUE ? "" : " validIn: " +
+			ofEpochSecond(validIn, 0, ZoneOffset.UTC));
 	}
 
 	/**
@@ -74,9 +92,12 @@ public record PriceEvaluationContext(@Nonnull PriceIndexKey... targetPriceIndexe
 	 */
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
+			LongStream.concat(
+					LongStream.of(validIn),
 					Arrays.stream(targetPriceIndexes)
 						.mapToLong(it -> hashFunction.hashChars(it.toString()))
-						.toArray()
-				);
+				)
+				.toArray()
+		);
 	}
 }

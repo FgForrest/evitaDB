@@ -49,7 +49,12 @@ message GrpcUpsertPriceMutation {
   // entity but won't be considered when evaluating search query. These prices may be
   // used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
   // as "usual price") but are not considered as the "selling" price.
-  bool sellable = 9;
+  bool sellable = 9 [deprecated = true];
+  // Controls whether price is subject to filtering / sorting logic, non-indexed prices will be fetched along with
+  // entity but won't be considered when evaluating search query. These prices may be
+  // used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+  // as "usual price") but are not considered as the "selling" price.
+  bool indexed = 10;
 }
 
 message GrpcRemovePriceMutation {

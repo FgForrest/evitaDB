@@ -38,8 +38,8 @@ java \
         "api.exposedOn=localhost" \
         "api.accessLog=true" \
         "cache.enabled=false" \
-        "api.endpoints.graphQL.tlsMode=FORCE_NO_TLS" \
-        "api.endpoints.rest.tlsMode=FORCE_NO_TLS" \
-        "api.endpoints.lab.tlsMode=FORCE_NO_TLS" \
-        "api.endpoints.gRPC.tlsMode=FORCE_NO_TLS" \
+        "api.endpoints.graphQL.tlsMode=RELAXED" \
+        "api.endpoints.rest.tlsMode=RELAXED" \
+        "api.endpoints.lab.tlsMode=RELAXED" \
+        "api.endpoints.gRPC.tlsMode=RELAXED" \
         "api.endpoints.gRPC.exposeDocsService=true"

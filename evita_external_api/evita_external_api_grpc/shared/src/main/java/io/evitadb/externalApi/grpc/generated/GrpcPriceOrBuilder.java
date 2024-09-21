@@ -249,12 +249,14 @@ public interface GrpcPriceOrBuilder extends
    * entity but won't be considered when evaluating search. These prices may be
    * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
    * as "usual price") but are not considered as the "selling" price.
+   * RENAMED TO "indexed"
    * </pre>
    *
-   * <code>bool sellable = 9;</code>
+   * <code>bool sellable = 9 [deprecated = true];</code>
+   * @deprecated
    * @return The sellable.
    */
-  boolean getSellable();
+  @java.lang.Deprecated boolean getSellable();
 
   /**
    * <pre>
@@ -266,4 +268,17 @@ public interface GrpcPriceOrBuilder extends
    * @return The version.
    */
   int getVersion();
+
+  /**
+   * <pre>
+   * Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+   * entity but won't be considered when evaluating search. These prices may be
+   * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+   * as "usual price") but are not considered as the "selling" price.
+   * </pre>
+   *
+   * <code>bool indexed = 11;</code>
+   * @return The indexed.
+   */
+  boolean getIndexed();
 }

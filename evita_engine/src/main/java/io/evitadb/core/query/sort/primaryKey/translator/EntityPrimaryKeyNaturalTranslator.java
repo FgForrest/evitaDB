@@ -36,7 +36,7 @@ import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
-import io.evitadb.core.query.sort.attribute.PrefetchedRecordsSorter;
+import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.primaryKey.ReversedSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;

@@ -69,11 +69,11 @@ public class PriceInCurrencyTranslator extends AbstractPriceRelatedConstraintTra
 		if (filterByVisitor.isAnyConstraintPresentInConjunctionScopeExcludingUserFilter(PriceInPriceLists.class, PriceValidIn.class, PriceBetween.class)) {
 			return SkipFormula.INSTANCE;
 		} else {
-			final Currency requestedCurrency = priceInCurrency.getCurrency();
+			final Currency currency = priceInCurrency.getCurrency();
 			if (filterByVisitor.isEntityTypeKnown()) {
 				final Formula filteringFormula = PriceListCompositionTerminationVisitor.translate(
-					createFormula(filterByVisitor, requestedCurrency),
-					filterByVisitor.getQueryPriceMode(), null
+					createFormula(filterByVisitor, currency),
+					null, currency, null, filterByVisitor.getQueryPriceMode(), null
 				);
 				if (filterByVisitor.isPrefetchPossible()) {
 					return new SelectionFormula(
@@ -103,7 +103,7 @@ public class PriceInCurrencyTranslator extends AbstractPriceRelatedConstraintTra
 	@Nonnull
 	List<Formula> createFormula(@Nonnull FilterByVisitor filterByVisitor, @Nonnull Currency requestedCurrency) {
 		return createPriceListFormula(
-			null, requestedCurrency,
+			null, requestedCurrency, null,
 			(serializable, currency, innerRecordHandling) ->
 				filterByVisitor.applyOnIndexes(
 					entityIndex -> FormulaFactory.or(

@@ -498,17 +498,17 @@ public class EntityByAttributeFilteringFunctionalTest {
 	@Test
 	void shouldReturnEntityByGlobalAttributeEqualToStringAndPriceConstraint(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity selectedEntity = originalProductEntities.stream()
-			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::indexed))
 			.skip(10)
 			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("There is no entity with a sellable price!"));
+			.orElseThrow(() -> new IllegalStateException("There is no entity with a indexed price!"));
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String codeAttribute = selectedEntity.getAttribute(ATTRIBUTE_CODE);
 				final PriceContract firstPrice = selectedEntity.getPrices()
 					.stream()
-					.filter(PriceContract::sellable)
+					.filter(PriceContract::indexed)
 					.findFirst()
 					.orElse(null);
 				final EvitaResponse<EntityReference> result = session.query(
@@ -747,12 +747,12 @@ public class EntityByAttributeFilteringFunctionalTest {
 	void shouldReturnEntityByGlobalAttributeEqualToStringAndPriceConstraintAndSortByPrice(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity selectedEntity = originalProductEntities
 			.stream()
-			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::indexed))
 			.findFirst()
 			.orElseThrow();
 		final PriceContract firstPrice = selectedEntity.getPrices()
 			.stream()
-			.filter(PriceContract::sellable)
+			.filter(PriceContract::indexed)
 			.findFirst()
 			.orElseThrow();
 		final List<SealedEntity> selectedEntities = originalProductEntities.stream()

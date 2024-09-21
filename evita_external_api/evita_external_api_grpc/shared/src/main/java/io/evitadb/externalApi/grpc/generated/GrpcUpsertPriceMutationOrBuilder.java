@@ -251,8 +251,22 @@ public interface GrpcUpsertPriceMutationOrBuilder extends
    * as "usual price") but are not considered as the "selling" price.
    * </pre>
    *
-   * <code>bool sellable = 9;</code>
+   * <code>bool sellable = 9 [deprecated = true];</code>
+   * @deprecated
    * @return The sellable.
    */
-  boolean getSellable();
+  @java.lang.Deprecated boolean getSellable();
+
+  /**
+   * <pre>
+   * Controls whether price is subject to filtering / sorting logic, non-indexed prices will be fetched along with
+   * entity but won't be considered when evaluating search query. These prices may be
+   * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+   * as "usual price") but are not considered as the "selling" price.
+   * </pre>
+   *
+   * <code>bool indexed = 10;</code>
+   * @return The indexed.
+   */
+  boolean getIndexed();
 }

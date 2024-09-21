@@ -30,6 +30,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.generic.AbstractRecordsSorter;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import lombok.Getter;

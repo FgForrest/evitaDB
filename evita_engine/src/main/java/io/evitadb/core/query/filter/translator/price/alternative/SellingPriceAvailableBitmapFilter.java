@@ -23,11 +23,13 @@
 
 package io.evitadb.core.query.filter.translator.price.alternative;
 
+import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.structure.CumulatedPrice;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -51,7 +53,10 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord;
+import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
+import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
@@ -60,6 +65,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -105,13 +111,42 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 		@Nonnull PriceContractPredicate filter
 	) {
 		this.entityFetch = ArrayUtils.isEmpty(additionalPriceLists) ? ENTITY_REQUIRE : new EntityFetch(PriceContent.respectingFilter(additionalPriceLists));
-		this.converter = (entityPrimaryKey, indexedPricePlaces, priceQueryMode, priceContract) -> new CumulatedVirtualPriceRecord(
-			entityPrimaryKey,
-			priceQueryMode == QueryPriceMode.WITH_TAX ?
-				NumberUtils.convertToInt(priceContract.priceWithTax(), indexedPricePlaces) :
-				NumberUtils.convertToInt(priceContract.priceWithoutTax(), indexedPricePlaces),
-			priceQueryMode
-		);
+		this.converter = (entityPrimaryKey, indexedPricePlaces, priceQueryMode, priceContract) -> {
+			if (priceContract instanceof CumulatedPrice cumulatedPrice) {
+				final Set<Integer> innerRecordIds = cumulatedPrice.innerRecordIds();
+				final IntHashSet intSetInnerRecordIds = new IntHashSet(innerRecordIds.size());
+				for (Integer innerRecordId : innerRecordIds) {
+					intSetInnerRecordIds.add(innerRecordId);
+				}
+				return new CumulatedVirtualPriceRecord(
+					entityPrimaryKey,
+					priceQueryMode == QueryPriceMode.WITH_TAX ?
+						NumberUtils.convertToInt(cumulatedPrice.priceWithTax(), indexedPricePlaces) :
+						NumberUtils.convertToInt(cumulatedPrice.priceWithoutTax(), indexedPricePlaces),
+					priceQueryMode,
+					intSetInnerRecordIds
+				);
+			} else if (priceContract.innerRecordId() == null) {
+				return new PriceRecord(
+					priceContract instanceof PriceInternalIdContainer priceWithInternalIds ?
+						priceWithInternalIds.getInternalPriceId() : -1,
+						priceContract.priceId(),
+					entityPrimaryKey,
+					NumberUtils.convertToInt(priceContract.priceWithTax(), indexedPricePlaces),
+					NumberUtils.convertToInt(priceContract.priceWithoutTax(), indexedPricePlaces)
+				);
+			} else {
+				return new PriceRecordInnerRecordSpecific(
+					priceContract instanceof PriceInternalIdContainer priceWithInternalIds ?
+						priceWithInternalIds.getInternalPriceId() : -1,
+					priceContract.priceId(),
+					entityPrimaryKey,
+					priceContract.innerRecordId(),
+					NumberUtils.convertToInt(priceContract.priceWithTax(), indexedPricePlaces),
+					NumberUtils.convertToInt(priceContract.priceWithoutTax(), indexedPricePlaces)
+				);
+			}
+		};
 		this.filter = filter;
 	}
 
@@ -187,7 +222,7 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 								() -> filterOutResult.add(primaryKey)
 							);
 					} else {
-						if (entity.getPrices().stream().filter(PriceContract::sellable).anyMatch(filter)) {
+						if (entity.getPrices().stream().filter(PriceContract::indexed).anyMatch(filter)) {
 							result.add(primaryKey);
 						} else {
 							filterOutResult.add(primaryKey);

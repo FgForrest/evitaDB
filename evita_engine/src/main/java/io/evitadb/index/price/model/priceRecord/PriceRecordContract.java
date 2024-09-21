@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Comparator;
 
@@ -86,5 +87,14 @@ public interface PriceRecordContract extends Serializable, Comparable<PriceRecor
 	 * key or inner record id from it.
 	 */
 	boolean isInnerRecordSpecific();
+
+	/**
+	 * Method allow to check if the price relates to the another price in terms of the inner record ID equality.
+	 * Some price implementation might implement more complex logic to determine the relation.
+	 *
+	 * @param anotherPriceRecord another price to check relation with
+	 * @return true if the price relates to the another price
+	 */
+	boolean relatesTo(@Nonnull PriceRecordContract anotherPriceRecord);
 
 }

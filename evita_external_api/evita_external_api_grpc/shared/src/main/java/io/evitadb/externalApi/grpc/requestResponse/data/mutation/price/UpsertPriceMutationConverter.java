@@ -56,7 +56,7 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 			EvitaDataTypesConverter.toBigDecimal(mutation.getTaxRate()),
 			EvitaDataTypesConverter.toBigDecimal(mutation.getPriceWithTax()),
 			mutation.hasValidity() ? EvitaDataTypesConverter.toDateTimeRange(mutation.getValidity()) : null,
-			mutation.getSellable()
+			mutation.getIndexed()
 		);
 	}
 
@@ -70,7 +70,8 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 			.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getPriceWithoutTax()))
 			.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getTaxRate()))
 			.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getPriceWithTax()))
-			.setSellable(mutation.isSellable());
+			.setSellable(mutation.isIndexed())
+			.setIndexed(mutation.isIndexed());
 
 		if (mutation.getInnerRecordId() != null) {
 			builder.setInnerRecordId(Int32Value.of(mutation.getInnerRecordId()));

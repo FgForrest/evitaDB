@@ -25,6 +25,7 @@ package io.evitadb.core.query.filter.translator.price;
 
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -37,8 +38,8 @@ import io.evitadb.core.query.algebra.price.termination.FirstVariantPriceTerminat
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormulaWithPriceFilter;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
+import io.evitadb.core.query.algebra.price.termination.PriceFilteringEnvelopeContainer;
 import io.evitadb.core.query.algebra.price.termination.SumPriceTerminationFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -49,8 +50,10 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Currency;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -63,16 +66,20 @@ import static java.util.Optional.ofNullable;
  * PriceListCompositionTerminationVisitor traverses tree of {@link Formula}, finds {@link PriceHandlingContainerFormula}
  * containers and envelops them to the terminating formulas based on their {@link PriceHandlingContainerFormula#getInnerRecordHandling()}.
  * These formulas can provide {@link io.evitadb.index.bitmap.Bitmap} of output entity ids along with accessing
- * {@link FilteredPriceRecordAccessor#getFilteredPriceRecords()} prices that led to those. The latter might be needed
- * in case ordering by price is involved in the query.
+ * {@link FilteredPriceRecordAccessor#getFilteredPriceRecords(QueryExecutionContext)}  prices that led to those.
+ * The latter might be needed in case ordering by price is involved in the query.
  */
 @RequiredArgsConstructor
-class PriceListCompositionTerminationVisitor implements FormulaVisitor {
+public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	private static final Formula[] EMPTY_FORMULA = new Formula[0];
 	/**
 	 * Contains query price mode of the current query.
 	 */
 	@Getter private final QueryPriceMode queryPriceMode;
+	/**
+	 * Contains the moment the prices must be valid in.
+	 */
+	@Getter private final OffsetDateTime validIn;
 	/**
 	 * Map contains set of formulas that has been already visited by this visitor. Formula tree could deliberately contain
 	 * same instance of the formula on multiple places to get advantage of memoized results. We need to alter usually only
@@ -101,6 +108,9 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	 */
 	public static Formula translate(
 		@Nonnull List<Formula> formula,
+		@Nullable String[] priceLists,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime validIn,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nullable PriceRecordPredicate priceFilter
 	) {
@@ -108,12 +118,16 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 		for (int i = 0; i < formula.size(); i++) {
 			final Formula singleFormula = formula.get(i);
 			final PriceListCompositionTerminationVisitor visitor = new PriceListCompositionTerminationVisitor(
-				queryPriceMode, priceFilter
+				queryPriceMode, validIn, priceFilter
 			);
 			singleFormula.accept(visitor);
 			result[i] = visitor.getResultFormula();
 		}
-		return FormulaFactory.or(result);
+		return result.length == 0 ?
+			EmptyFormula.INSTANCE :
+			new PriceFilteringEnvelopeContainer(
+				priceLists, currency, validIn, result
+			);
 	}
 
 	@Override
@@ -161,8 +175,9 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 		final Formula convertedFormula;
 		// if the formula is PriceHandlingContainerFormula
 		if (processedFormula instanceof final PriceHandlingContainerFormula containerFormula) {
-			final PriceInnerRecordHandling innerRecordHandling = ((PriceHandlingContainerFormula) processedFormula).getInnerRecordHandling();
+			final PriceInnerRecordHandling innerRecordHandling = containerFormula.getInnerRecordHandling();
 			final PriceEvaluationContext priceEvaluationContext = new PriceEvaluationContext(
+				this.validIn,
 				FormulaFinder.find(
 						containerFormula, PriceIndexProvidingFormula.class, LookUp.SHALLOW
 					)

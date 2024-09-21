@@ -444,7 +444,7 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 						.map(ReferenceContract::getReferenceName)
 						.distinct()
 						.count() == expectedReferenceCount &&
-					it.getPrices().stream().anyMatch(PriceContract::sellable)
+					it.getPrices().stream().anyMatch(PriceContract::indexed)
 			)
 			.findFirst()
 			.orElseThrow();
@@ -864,7 +864,7 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
-			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::indexed))
 			.findFirst()
 			.orElseThrow();
 
@@ -922,7 +922,7 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
-			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::indexed))
 			.findFirst()
 			.orElseThrow();
 

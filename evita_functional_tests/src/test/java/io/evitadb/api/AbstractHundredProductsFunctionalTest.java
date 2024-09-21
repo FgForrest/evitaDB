@@ -63,7 +63,11 @@ public class AbstractHundredProductsFunctionalTest {
 	public static final String ATTRIBUTE_OPTIONAL_AVAILABILITY = "optionalAvailability";
 	public static final String ASSOCIATED_DATA_MARKETS = "markets";
 	private static final int SEED = 40;
-	protected final DataGenerator dataGenerator = new DataGenerator();
+	protected final DataGenerator dataGenerator = new DataGenerator.Builder()
+		.registerValueGenerator(
+			Entities.PRODUCT, ATTRIBUTE_ENUM,
+			faker -> TestEnum.values()[faker.random().nextInt(TestEnum.values().length)].name()
+		).build();
 
 	@Nonnull
 	protected BiFunction<String, Faker, Integer> getRandomEntityPicker(EvitaSessionContract session) {
@@ -168,11 +172,6 @@ public class AbstractHundredProductsFunctionalTest {
 				.limit(100)
 				.map(session::upsertEntity)
 				.toList();
-
-			dataGenerator.registerValueGenerator(
-				Entities.PRODUCT, ATTRIBUTE_ENUM,
-				faker -> TestEnum.values()[faker.random().nextInt(TestEnum.values().length)].name()
-			);
 
 			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(

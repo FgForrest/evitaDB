@@ -23,6 +23,7 @@
 
 package io.evitadb.spike.mock;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
@@ -33,6 +34,7 @@ import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 import lombok.Getter;
+import org.mockito.Mockito;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
@@ -58,6 +60,7 @@ public class PriceIdsWithPriceRecordsRecordState {
 	@Getter private Bitmap priceIds;
 	@Getter private PriceListAndCurrencyPriceIndex priceIndex;
 	@Getter private Formula priceIdsFormula;
+	@Getter private QueryExecutionContext queryExecutionContext = Mockito.mock(QueryExecutionContext.class);
 
 	/**
 	 * This setup is called once for each `valueCount`.

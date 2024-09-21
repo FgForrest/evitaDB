@@ -1197,7 +1197,7 @@ flag indicating that there are multiple prices for sale available.
 ### Accompanying prices
 
 There may be times when you need not only the concrete [price for sale](#prices-for-sale), but also it's accompanying prices, e.g.
-reference price (usually not sellable, but displayed for comparison because it's usually higher than the price for sale). 
+reference price (used only for comparison because it's usually higher than the price for sale). 
 This calculation becomes quite complex when we need to handle prices with different inner record handling 
 ([LOWEST_PRICE, SUM](https://evitadb.io/documentation/query/filtering/price#price-for-sale-selection-in-a-nutshell)).
 In such cases, the accompanying prices must correctly reflect the prices for sale for each inner record.
@@ -1255,7 +1255,7 @@ As you can see, the prices for sale as well as custom reference prices are retur
 
 ### Prices
 
-The `prices` field returns all prices of the entity. Both sellable and non-sellable.
+The `prices` field returns all prices of the entity. Both indexed and non-indexed.
 
 <SourceCodeTabs langSpecificTabOnly>
 

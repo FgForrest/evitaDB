@@ -182,7 +182,7 @@ class EvitaQLOrderConstraintVisitorTest {
     }
 
     @Test
-    void shouldParsePriceConstraint() {
+    void shouldParsePriceNaturalConstraint() {
         final OrderConstraint constraint1 = parseOrderConstraint("priceNatural()");
         assertEquals(priceNatural(), constraint1);
 
@@ -203,13 +203,43 @@ class EvitaQLOrderConstraintVisitorTest {
     }
 
     @Test
-    void shouldNotParsePriceConstraint() {
+    void shouldNotParsePriceNaturalConstraint() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("priceNatural(DESC)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("priceNatural(?)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("priceNatural(@a)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceNatural"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceNatural('a')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceNatural('a', 'b')"));
+    }
+
+    @Test
+    void shouldParsePriceDiscountConstraint() {
+        final OrderConstraint constraint1 = parseOrderConstraintUnsafe("priceDiscount('reference', 'basic')");
+        assertEquals(priceDiscount("reference", "basic"), constraint1);
+
+        final OrderConstraint constraint2 = parseOrderConstraintUnsafe("priceDiscount( 'basic' )");
+        assertEquals(priceDiscount("basic"), constraint2);
+
+        final OrderConstraint constraint3 = parseOrderConstraintUnsafe("priceDiscount(ASC, 'reference', 'basic')");
+        assertEquals(priceDiscount(ASC, "reference", "basic"), constraint3);
+
+        final OrderConstraint constraint4 = parseOrderConstraintUnsafe("priceDiscount(  ASC, 'basic' )");
+        assertEquals(priceDiscount(ASC, "basic"), constraint4);
+
+        final OrderConstraint constraint5 = parseOrderConstraint("priceDiscount(?, ?)", ASC, "basic");
+        assertEquals(priceDiscount(ASC, "basic"), constraint5);
+
+        final OrderConstraint constraint6 = parseOrderConstraint("priceDiscount(@dir, @ref1, @ref2)", Map.of("dir", ASC, "ref1", "reference", "ref2", "basic"));
+        assertEquals(priceDiscount(ASC, "reference", "basic"), constraint6);
+    }
+
+    @Test
+    void shouldNotParsePriceDiscountConstraint() {
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceDiscount(DESC)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("priceDiscount(?)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("priceDiscount(@a)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceDiscount"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceDiscount()"));
     }
 
     @Test
