@@ -51,23 +51,6 @@
 	</dependencies>
 	<build>
 		<plugins>
-			<plugin>
-				<groupId>org.antlr</groupId>
-				<artifactId>antlr4-maven-plugin</artifactId>
-				<version>${antlr4.version}</version>
-				<executions>
-					<execution>
-						<goals>
-							<goal>antlr4</goal>
-						</goals>
-					</execution>
-				</executions>
-				<configuration>
-					<sourceDirectory>${basedir}/src/main/resources/META-INF/io/evitadb/api/query/parser/</sourceDirectory>
-					<outputDirectory>${basedir}/src/main/java/io/evitadb/api/query/parser/grammar/</outputDirectory>
-					<visitor>true</visitor>
-				</configuration>
-			</plugin>
 			<!-- this replacement solves the problem described in https://github.com/grpc/grpc-java/issues/6833 -->
 			<plugin>
 				<groupId>com.google.code.maven-replacer-plugin</groupId>
@@ -111,4 +94,55 @@ $1package io.evitadb.api.query.parser.grammar;
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<profile>
+			<id>evitaql-grammar</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.antlr</groupId>
+						<artifactId>antlr4-maven-plugin</artifactId>
+						<version>${antlr4.version}</version>
+						<executions>
+							<execution>
+								<goals>
+									<goal>antlr4</goal>
+								</goals>
+							</execution>
+						</executions>
+						<configuration>
+							<sourceDirectory>${basedir}/src/main/resources/META-INF/io/evitadb/api/query/parser/</sourceDirectory>
+							<outputDirectory>${basedir}/src/main/java/io/evitadb/api/query/predicate/grammar/</outputDirectory>
+							<visitor>true</visitor>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+		<profile>
+			<id>predicate-grammar</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.antlr</groupId>
+						<artifactId>antlr4-maven-plugin</artifactId>
+						<version>${antlr4.version}</version>
+						<executions>
+							<execution>
+								<goals>
+									<goal>antlr4</goal>
+								</goals>
+							</execution>
+						</executions>
+						<configuration>
+							<sourceDirectory>${basedir}/src/main/resources/META-INF/io/evitadb/api/query/predicate/parser/</sourceDirectory>
+							<outputDirectory>${basedir}/src/main/java/io/evitadb/api/query/predicate/parser/grammar/</outputDirectory>
+							<visitor>true</visitor>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 </project>

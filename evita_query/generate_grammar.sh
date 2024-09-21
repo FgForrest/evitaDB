@@ -22,5 +22,12 @@
 #   limitations under the License.
 #
 
-rm  src/main/java/io/evitadb/api/query/parser/grammar/*
-mvn clean antlr4:antlr4 replacer:replace
+# todo lho fix
+
+#echo "Generating EvitaQL.g4..."
+#rm  src/main/java/io/evitadb/api/query/parser/grammar/*
+#mvn -Pevitaql-grammar clean antlr4:antlr4 replacer:replace
+
+echo "Generating Predicate.g4..."
+rm  src/main/java/io/evitadb/api/query/predicate/parser/grammar/*
+mvn -Ppredicate-grammar clean antlr4:antlr4 replacer:replace
