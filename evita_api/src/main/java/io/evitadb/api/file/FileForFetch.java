@@ -101,24 +101,6 @@ public record FileForFetch(
 	}
 
 	/**
-	 * Returns new instance of the record with updated total size in bytes.
-	 * @param actualSize Actual size of the file in bytes.
-	 * @return New instance of the record with updated total size in bytes.
-	 */
-	@Nonnull
-	public FileForFetch withTotalSizeInBytes(long actualSize) {
-		return new FileForFetch(
-			this.fileId,
-			this.name,
-			this.description,
-			this.contentType,
-			actualSize,
-			this.created,
-			this.origin
-		);
-	}
-
-	/**
 	 * Creates new instance of the record from the metadata lines.
 	 * Might throw exception and in that case metadata file is corrupted.
 	 *
