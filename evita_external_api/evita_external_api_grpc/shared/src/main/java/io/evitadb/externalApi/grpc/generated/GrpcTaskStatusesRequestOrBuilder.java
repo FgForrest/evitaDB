@@ -56,29 +56,48 @@ public interface GrpcTaskStatusesRequestOrBuilder extends
    * in this argument filters the returned status to only those that are related to the tasks of specified type
    * </pre>
    *
-   * <code>.google.protobuf.StringValue taskType = 3;</code>
-   * @return Whether the taskType field is set.
+   * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
    */
-  boolean hasTaskType();
+  java.util.List<com.google.protobuf.StringValue>
+      getTaskTypeList();
   /**
    * <pre>
    * Optional taskType of the listed task, passing non-null value
    * in this argument filters the returned status to only those that are related to the tasks of specified type
    * </pre>
    *
-   * <code>.google.protobuf.StringValue taskType = 3;</code>
-   * @return The taskType.
+   * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
    */
-  com.google.protobuf.StringValue getTaskType();
+  com.google.protobuf.StringValue getTaskType(int index);
   /**
    * <pre>
    * Optional taskType of the listed task, passing non-null value
    * in this argument filters the returned status to only those that are related to the tasks of specified type
    * </pre>
    *
-   * <code>.google.protobuf.StringValue taskType = 3;</code>
+   * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
    */
-  com.google.protobuf.StringValueOrBuilder getTaskTypeOrBuilder();
+  int getTaskTypeCount();
+  /**
+   * <pre>
+   * Optional taskType of the listed task, passing non-null value
+   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+   */
+  java.util.List<? extends com.google.protobuf.StringValueOrBuilder>
+      getTaskTypeOrBuilderList();
+  /**
+   * <pre>
+   * Optional taskType of the listed task, passing non-null value
+   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getTaskTypeOrBuilder(
+      int index);
 
   /**
    * <pre>

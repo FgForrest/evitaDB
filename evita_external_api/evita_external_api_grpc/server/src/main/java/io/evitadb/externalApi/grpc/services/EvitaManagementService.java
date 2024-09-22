@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
+import com.google.protobuf.StringValue;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
@@ -489,7 +490,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(
 					request.getPageNumber(),
 					request.getPageSize(),
-					request.hasTaskType() ? request.getTaskType().getValue() : null,
+					request.getTaskTypeList()
+						.stream()
+						.map(StringValue::getValue)
+						.toArray(String[]::new),
 					request.getSimplifiedStateList()
 						.stream()
 						.map(EvitaEnumConverter::toSimplifiedStatus)

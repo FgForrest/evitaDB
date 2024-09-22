@@ -98,7 +98,7 @@ class SchedulerTest {
 		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listTaskStatuses(1, 20, null);
 		assertEquals(1, jobStatuses.getTotalRecordCount());
 
-		final PaginatedList<TaskStatus<?, ?>> typeFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, ClientCallableTask.class.getSimpleName());
+		final PaginatedList<TaskStatus<?, ?>> typeFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, new String[] { ClientCallableTask.class.getSimpleName() });
 		assertEquals(1, typeFilteredJobStatuses.getTotalRecordCount());
 
 		while (scheduler.listTaskStatuses(1, 20, null).getData().get(0).simplifiedState() != TaskSimplifiedState.FINISHED) {
@@ -110,7 +110,7 @@ class SchedulerTest {
 		final PaginatedList<TaskStatus<?, ?>> statusFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, null, TaskSimplifiedState.QUEUED);
 		assertEquals(0, statusFilteredJobStatuses.getTotalRecordCount());
 
-		final PaginatedList<TaskStatus<?, ?>> typeFilteredOutJobStatuses = scheduler.listTaskStatuses(1, 20, "Non-existing task");
+		final PaginatedList<TaskStatus<?, ?>> typeFilteredOutJobStatuses = scheduler.listTaskStatuses(1, 20, new String[] { "Non-existing task" });
 		assertEquals(0, typeFilteredOutJobStatuses.getTotalRecordCount());
 
 		assertEquals(5, result.get());
@@ -118,7 +118,7 @@ class SchedulerTest {
 		final PaginatedList<TaskStatus<?, ?>> statusFilteredJobStatusesWhenDone = scheduler.listTaskStatuses(1, 20, null, TaskSimplifiedState.FINISHED);
 		assertEquals(1, statusFilteredJobStatusesWhenDone.getTotalRecordCount());
 
-		final PaginatedList<TaskStatus<?, ?>> nonMatchingFilteredJobStatusesWhenDone = scheduler.listTaskStatuses(1, 20, "Non-existing task", TaskSimplifiedState.FINISHED);
+		final PaginatedList<TaskStatus<?, ?>> nonMatchingFilteredJobStatusesWhenDone = scheduler.listTaskStatuses(1, 20, new String[] { "Non-existing task" }, TaskSimplifiedState.FINISHED);
 		assertEquals(0, nonMatchingFilteredJobStatusesWhenDone.getTotalRecordCount());
 
 		final Optional<TaskStatus<?, ?>> jobStatus = scheduler.getTaskStatus(typeFilteredJobStatuses.getData().get(0).taskId());

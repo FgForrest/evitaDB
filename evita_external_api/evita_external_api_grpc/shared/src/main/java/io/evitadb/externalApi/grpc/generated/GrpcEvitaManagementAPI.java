@@ -227,7 +227,7 @@ public final class GrpcEvitaManagementAPI {
       "25.io.evitadb.externalApi.grpc.generated" +
       ".GrpcTaskStatus\"\310\001\n\027GrpcTaskStatusesRequ" +
       "est\022\022\n\npageNumber\030\001 \001(\005\022\020\n\010pageSize\030\002 \001(" +
-      "\005\022.\n\010taskType\030\003 \001(\0132\034.google.protobuf.St" +
+      "\005\022.\n\010taskType\030\003 \003(\0132\034.google.protobuf.St" +
       "ringValue\022W\n\017simplifiedState\030\004 \003(\0162>.io." +
       "evitadb.externalApi.grpc.generated.GrpcT" +
       "askSimplifiedState\"\251\001\n\030GrpcTaskStatusesR" +
