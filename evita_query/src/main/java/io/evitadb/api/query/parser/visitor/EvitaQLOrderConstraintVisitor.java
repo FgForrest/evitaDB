@@ -27,15 +27,7 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.parser.EnumWrapper;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetExactConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetInFilterConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityGroupPropertyConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactNaturalContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPropertyConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.PriceDiscountConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.ValueArgsContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
 import javax.annotation.Nonnull;
@@ -213,7 +205,15 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 
 	@Override
 	public OrderConstraint visitRandomConstraint(@Nonnull EvitaQLParser.RandomConstraintContext ctx) {
-		return parse(ctx, Random::new);
+		return parse(ctx, () -> Random.INSTANCE);
+	}
+
+	@Override
+	public OrderConstraint visitRandomWithSeedConstraint(RandomWithSeedConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new Random(ctx.args.value.accept(intValueTokenVisitor).asLong())
+		);
 	}
 
 	@Override

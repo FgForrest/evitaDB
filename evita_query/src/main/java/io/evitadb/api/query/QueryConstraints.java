@@ -2524,11 +2524,47 @@ public interface QueryConstraints {
 	 * random()
 	 * </pre>
 	 *
+	 * If you need to make output random, but always random in the same way (e.g. for testing purposes, or for consistent
+	 * output for a given user), you can use the `seed` constraint to provide a seed for the random number generator.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * randomWithSeed(42)
+	 * </pre>
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static Random random() {
-		return new Random();
+		return Random.INSTANCE;
+	}
+
+	/**
+	 * Random ordering is useful in situations where you want to present the end user with the unique entity listing every
+	 * time he/she accesses it. The constraint makes the order of the entities in the result random and does not take any
+	 * arguments.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * random()
+	 * </pre>
+	 *
+	 * If you need to make output random, but always random in the same way (e.g. for testing purposes, or for consistent
+	 * output for a given user), you can use the `seed` constraint to provide a seed for the random number generator.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * randomWithSeed(42)
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static Random randomWithSeed(long seed) {
+		return new Random(seed);
 	}
 
 	/*

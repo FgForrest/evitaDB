@@ -737,6 +737,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterRandomWithSeedConstraint(EvitaQLParser.RandomWithSeedConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitRandomWithSeedConstraint(EvitaQLParser.RandomWithSeedConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}

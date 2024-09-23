@@ -249,12 +249,20 @@ class EvitaQLOrderConstraintVisitorTest {
 
         final OrderConstraint constraint2 = parseOrderConstraint("random (  )");
         assertEquals(random(), constraint2);
+
+        final OrderConstraint constraint3 = parseOrderConstraintUnsafe("randomWithSeed(42)");
+        assertEquals(randomWithSeed(42), constraint3);
+
+        final OrderConstraint constraint4 = parseOrderConstraintUnsafe("randomWithSeed(  42 )");
+        assertEquals(randomWithSeed(42), constraint4);
     }
 
     @Test
     void shouldNotParseRandomConstraint() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("random"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("random('a')"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("randomWithSeed()"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("randomWithSeed(42, 4)"));
     }
 
     @Test

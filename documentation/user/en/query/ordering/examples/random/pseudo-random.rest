@@ -3,7 +3,7 @@ POST /rest/evita/Product/query
 {
   "orderBy" : [
     {
-      "random" : true
+      "randomWithSeed" : "42"
     }
   ],
   "require" : {

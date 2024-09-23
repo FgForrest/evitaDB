@@ -40,7 +40,16 @@ import java.util.Random;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class RandomSorter implements Sorter {
-	private static final int[] EMPTY_RESULT = new int[0];
+	public static final RandomSorter INSTANCE = new RandomSorter();
+	private final Long seed;
+
+	public RandomSorter() {
+		this.seed = null;
+	}
+
+	public RandomSorter(long seed) {
+		this.seed = seed;
+	}
 
 	@Nonnull
 	@Override
@@ -71,7 +80,7 @@ public class RandomSorter implements Sorter {
 			if (length < 0) {
 				throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + filteredRecordIds.length);
 			}
-			final Random random = queryContext.getRandom();
+			final Random random = seed == null ? queryContext.getRandom() : new Random(seed);
 			for (int i = 0; i < length; i++) {
 				final int tmp = filteredRecordIds[startIndex + i];
 				final int swapPosition = random.nextInt(filteredRecordIds.length);
