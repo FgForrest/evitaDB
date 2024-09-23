@@ -409,7 +409,13 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 					catalogVersion, entityTypeFileIndex.entityType(), entityTypeFileIndex.entityTypePrimaryKey()
 				) :
 				closeables.add(
-					this.catalogPersistenceService.createEntityCollectionPersistenceService(catalogPersistenceService.getStoragePart(catalogVersion, 1, EntityCollectionHeader.class))
+					this.catalogPersistenceService.createEntityCollectionPersistenceService(
+						catalogPersistenceService.getStoragePart(
+							catalogVersion,
+							entityTypeFileIndex.entityTypePrimaryKey(),
+							EntityCollectionHeader.class
+						)
+					)
 				);
 			final ServiceWithStatistics serviceStats = new ServiceWithStatistics(
 				entityCollectionPersistenceService,
