@@ -705,7 +705,7 @@ public class EntityConverter {
 			EvitaDataTypesConverter.toBigDecimal(grpcPrice.getTaxRate()),
 			EvitaDataTypesConverter.toBigDecimal(grpcPrice.getPriceWithTax()),
 			grpcPrice.hasValidity() ? EvitaDataTypesConverter.toDateTimeRange(grpcPrice.getValidity()) : null,
-			grpcPrice.getIndexed()
+			grpcPrice.getIndexed() || grpcPrice.getSellable()
 		);
 	}
 

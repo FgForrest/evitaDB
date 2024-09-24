@@ -119,17 +119,19 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 				final IntObjectMap<PriceRecordContract> intSetInnerRecordIds = new IntObjectHashMap<>(innerRecordIds.size());
 				for (Entry<Integer, PriceContract> entry : innerRecordIds.entrySet()) {
 					final PriceContract innerRecordPrice = entry.getValue();
-					intSetInnerRecordIds.put(
-						entry.getKey(),
-						new PriceRecordInnerRecordSpecific(
-							-1,
-							innerRecordPrice.priceId(),
-							entityPrimaryKey,
-							innerRecordPrice.innerRecordId(),
-							NumberUtils.convertToInt(innerRecordPrice.priceWithTax(), indexedPricePlaces),
-							NumberUtils.convertToInt(innerRecordPrice.priceWithoutTax(), indexedPricePlaces)
-						)
-					);
+					if (entry.getKey() != null) {
+						intSetInnerRecordIds.put(
+							entry.getKey(),
+							new PriceRecordInnerRecordSpecific(
+								-1,
+								innerRecordPrice.priceId(),
+								entityPrimaryKey,
+								innerRecordPrice.innerRecordId(),
+								NumberUtils.convertToInt(innerRecordPrice.priceWithTax(), indexedPricePlaces),
+								NumberUtils.convertToInt(innerRecordPrice.priceWithoutTax(), indexedPricePlaces)
+							)
+						);
+					}
 				}
 				return new CumulatedVirtualPriceRecord(
 					entityPrimaryKey,
