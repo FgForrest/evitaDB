@@ -23,7 +23,8 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
-import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntCollection;
+import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.IntObjectWormMap;
 import com.carrotsearch.hppc.ObjectContainer;
@@ -85,7 +86,17 @@ import java.util.function.ToIntFunction;
  */
 public class SumPriceTerminationFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
 	private static final long CLASS_ID = 8387802561001219891L;
-	private static final Predicate<PriceRecordContract> ALL_MATCHING_PREDICATE = priceContract -> true;
+	private static final SumPredicate<PriceRecordContract> ALL_MATCHING_PREDICATE = new SumPredicate<>() {
+		@Override
+		public int getMissingComponentsPrice(@Nonnull IntCollection includedInnerRecordIds) {
+			return 0;
+		}
+
+		@Override
+		public boolean test(PriceRecordContract priceRecordContract) {
+			return true;
+		}
+	};
 
 	/**
 	 * Price evaluation context allows optimizing formula tree in the such way, that terminating formula with same
@@ -103,7 +114,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	/**
 	 * Predicate that filters out individual prices from being calculated in selling price.
 	 */
-	private final Predicate<PriceRecordContract> individualPricePredicate;
+	private final SumPredicate<PriceRecordContract> individualPricePredicate;
 	/**
 	 * Function retrieves the proper price from the price record.
 	 */
@@ -146,7 +157,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate sellingPricePredicate,
-		@Nonnull Predicate<PriceRecordContract> individualPricePredicate
+		@Nonnull SumPredicate<PriceRecordContract> individualPricePredicate
 	) {
 		super(computationCallback);
 		this.sellingPricePredicate = sellingPricePredicate;
@@ -167,7 +178,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull PriceRecordPredicate sellingPricePredicate,
-		@Nonnull Predicate<PriceRecordContract> individualPricePredicate,
+		@Nonnull SumPredicate<PriceRecordContract> individualPricePredicate,
 		@Nonnull Bitmap recordsFilteredOutByPredicate
 	) {
 		super(recordsFilteredOutByPredicate, computationCallback);
@@ -193,7 +204,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	 * @return a new instance of SumPriceTerminationFormula with the specified individual price predicate
 	 */
 	@Nonnull
-	public SumPriceTerminationFormula withIndividualPricePredicate(@Nonnull Predicate<PriceRecordContract> individualPricePredicate) {
+	public SumPriceTerminationFormula withIndividualPricePredicate(@Nonnull SumPredicate<PriceRecordContract> individualPricePredicate) {
 		return new SumPriceTerminationFormula(
 			computationCallback,
 			getDelegate(),
@@ -377,17 +388,22 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 						);
 
 						int cumulatedPrice = 0;
-						final IntHashSet includedInnerRecordIds = new IntHashSet(entityInnerRecordPrice.size());
+						final IntObjectMap<PriceRecordContract> includedInnerRecordIds = new IntObjectHashMap<>(entityInnerRecordPrice.size());
 						final ObjectContainer<PriceRecordContract> values = entityInnerRecordPrice.values();
 						for (ObjectCursor<PriceRecordContract> value : values) {
 							// we need to filter the price using individual price predicate
 							// this handles the situation when we want to consider only prices that relate
 							// for previously selected selling price (e.g. when we calculate the discount)
 							if (individualPricePredicate.test(value.value)) {
-								includedInnerRecordIds.add(value.value.innerRecordId());
+								includedInnerRecordIds.put(
+									value.value.innerRecordId(),
+									value.value
+								);
 								cumulatedPrice += this.transformer.applyAsInt(value.value);
 							}
 						}
+						// now include selling prices of those components, that were not found in current price lists
+						cumulatedPrice += individualPricePredicate.getMissingComponentsPrice(includedInnerRecordIds.keys());
 
 						// if the cumulated price was calculated from at least one price record
 						if (!includedInnerRecordIds.isEmpty()) {
@@ -444,6 +460,26 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
+	}
+
+	/**
+	 * The SumPredicate interface extends the Predicate interface and adds a method to calculate the cumulated price
+	 * of entity components that were not matched by the predicate. This ensures that unmatched components are still
+	 * considered in the final price.
+	 *
+	 * @param <T> the type of objects that the predicate will be tested against
+	 */
+	public interface SumPredicate<T> extends Predicate<T> {
+
+		/**
+		 * Returns cumulated price for all entity components that were not matched by the predicate, so that they wouldn't
+		 * be omitted from the final price.
+		 *
+		 * @param includedInnerRecordIds the set of inner record ids that were included in the final price
+		 * @return cumulated price for all entity components that were not matched by the predicate
+		 */
+		int getMissingComponentsPrice(@Nonnull IntCollection includedInnerRecordIds);
+
 	}
 
 }
