@@ -24,21 +24,18 @@
 package io.evitadb.api.query.order;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.filter.EntityHaving;
-import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.Optional;
-import java.util.OptionalInt;
 
 /**
  * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
@@ -99,105 +96,40 @@ import java.util.OptionalInt;
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "segment",
-	shortDescription = "The constraint specifies the order and scope of a single segment in the output.",
+	name = "segments",
+	shortDescription = "The container encapsulates inner segments into one main prioritized constraint container that controls the output of the query.",
 	userDocsLink = "/documentation/query/ordering/segment"
 )
-public class Segment extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
-	@Serial private static final long serialVersionUID = -4576848889850648026L;
-
-	/**
-	 * Internal constructor, should be used only by deserializers.
-	 * @param children The order constraints of this segment.
-	 * @param additionalChildren The additional constraints of this segment.
-	 */
-	@Nonnull
-	public static Segment _internalBuild(Segment[] children, Constraint<?>[] additionalChildren) {
-		return new Segment(children, additionalChildren);
-	}
-
-	private Segment(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
-		super(children, additionalChildren);
-	}
+public class Segments extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
+	@Serial private static final long serialVersionUID = 6352220342769661652L;
 
 	@Creator
-	public Segment(
-		@Nullable EntityHaving entityHaving,
-		@Nonnull OrderBy orderBy,
-		@Nullable SegmentLimit limit
-	) {
-		super(
-			limit == null ? new OrderConstraint[] { orderBy } : new OrderConstraint[] { orderBy, limit },
-			entityHaving == null ? new FilterConstraint[0] : new FilterConstraint[] { entityHaving }
-		);
-	}
-
-	public Segment(
-		@Nonnull OrderBy orderBy,
-		@Nullable SegmentLimit limit
-	) {
-		super(limit == null ? new OrderConstraint[] { orderBy } : new OrderConstraint[] { orderBy, limit });
-	}
-
-	public Segment(
-		@Nullable EntityHaving entityHaving,
-		@Nonnull OrderBy orderBy
-	) {
-		super(
-			new OrderConstraint[] { orderBy },
-			entityHaving == null ? new FilterConstraint[0] : new FilterConstraint[] { entityHaving }
-		);
-	}
-
-	public Segment(@Nonnull OrderBy orderBy) {
-		super(orderBy);
+	public Segments(@Nonnull @Child Segment... children) {
+		super(children);
 	}
 
 	/**
-	 * Retrieves the ordering clause of this segment.
+	 * Returns all segments defined in this container.
 	 *
-	 * @return The first {@link OrderBy} instance found among the children of this segment.
+	 * @return array of segments
 	 */
-	@Nonnull
-	public OrderBy getOrderBy() {
+	@Nullable
+	public Segment[] getSegments() {
 		return Arrays.stream(getChildren())
-			.filter(OrderBy.class::isInstance)
-			.map(OrderBy.class::cast)
-			.findFirst()
-			.orElseThrow(() -> new EvitaInvalidUsageException("Segment must contain at least one orderBy clause!"));
-	}
-
-	/**
-	 * Returns the limit of entities to be extracted from the sorted result for this segment.
-	 *
-	 * @return The first {@link SegmentLimit} value found among the children of this segment or empty if not present.
-	 */
-	@Nonnull
-	public OptionalInt getLimit() {
-		return Arrays.stream(getChildren())
-			.filter(SegmentLimit.class::isInstance)
-			.map(SegmentLimit.class::cast)
-			.mapToInt(SegmentLimit::getLimit)
-			.findFirst();
-	}
-
-	/**
-	 * Retrieves the optional filtering constraint of this segment.
-	 *
-	 * @return The first {@link EntityHaving} instance found among the additional children of this segment.
-	 */
-	@Nonnull
-	public Optional<EntityHaving> getEntityHaving() {
-		return Arrays.stream(getAdditionalChildren())
-			.filter(EntityHaving.class::isInstance)
-			.map(EntityHaving.class::cast)
-			.findFirst();
+			.map(Segment.class::cast)
+			.toArray(Segment[]::new);
 	}
 
 	@Nonnull
 	@Override
 	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return new Segment(children, additionalChildren);
+		Assert.isPremiseValid(additionalChildren.length == 0, "Segments cannot have additional children!");
+		return new Segments(
+			Arrays.stream(children)
+				.peek(it -> Assert.isPremiseValid(it instanceof Segment, "Segments can only contain segments!"))
+				.map(Segment.class::cast)
+				.toArray(Segment[]::new)
+		);
 	}
 
 	@Override
@@ -208,6 +140,6 @@ public class Segment extends AbstractOrderConstraintContainer implements Generic
 	@Nonnull
 	@Override
 	public OrderConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		throw new UnsupportedOperationException("OrderBy ordering query has no arguments!");
+		throw new UnsupportedOperationException("Segments container doesn't support arguments!");
 	}
 }

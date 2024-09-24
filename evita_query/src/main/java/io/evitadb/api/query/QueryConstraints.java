@@ -1954,6 +1954,371 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
+	 * sort it by the order clauses defined within particular segment and extract specified number of entities from
+	 * the sorted output. The extracted entities are then excluded from the original result and the process is repeated
+	 * with the next segment until all segments are processed. If there are any entities left in the original result,
+	 * they are appended to the final result in the order or the primary key (ascending).
+	 *
+	 * Segments also allow to define a filtering constraint that selects only entities that are to be processed / ordered
+	 * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
+	 * result but rather their order limited to this segment).
+	 *
+	 * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
+	 * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
+	 * defined after this one, it will never be reached.
+	 *
+	 * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
+	 * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting
+	 * orders for different parts of the result set.
+	 *
+	 * Example of usage:
+	 *
+	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
+	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
+	 *    and only first 2 entities of those will be added to the final result
+	 * 3. the rest of the entities will be sorted by code and create date in ascending order
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segments(
+	 *       segment(
+	 *          orderBy(
+	 *             attributeNatural("orderedQuantity, DESC)
+	 *          ),
+	 *          limit(3)
+	 *       ),
+	 *       segment(
+	 *          entityHaving(
+	 *             attributeEquals("new", true)
+	 *          ),
+	 *          orderBy(
+	 *             random()
+	 *          ),
+	 *          limit(2)
+	 *       ),
+	 *       segment(
+	 *          orderBy(
+	 *             ascending("code"),
+	 *             ascending("create")
+	 *          )
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Segments segments(@Nullable Segment... constraints) {
+		if (ArrayUtils.isEmpty(constraints)) {
+			return null;
+		}
+		return new Segments(constraints);
+	}
+
+	/**
+	 * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
+	 * sort it by the order clauses defined within particular segment and extract specified number of entities from
+	 * the sorted output. The extracted entities are then excluded from the original result and the process is repeated
+	 * with the next segment until all segments are processed. If there are any entities left in the original result,
+	 * they are appended to the final result in the order or the primary key (ascending).
+	 *
+	 * Segments also allow to define a filtering constraint that selects only entities that are to be processed / ordered
+	 * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
+	 * result but rather their order limited to this segment).
+	 *
+	 * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
+	 * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
+	 * defined after this one, it will never be reached.
+	 *
+	 * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
+	 * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting
+	 * orders for different parts of the result set.
+	 *
+	 * Example of usage:
+	 *
+	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
+	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
+	 *    and only first 2 entities of those will be added to the final result
+	 * 3. the rest of the entities will be sorted by code and create date in ascending order
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segments(
+	 *       segment(
+	 *          orderBy(
+	 *             attributeNatural("orderedQuantity, DESC)
+	 *          ),
+	 *          limit(3)
+	 *       ),
+	 *       segment(
+	 *          entityHaving(
+	 *             attributeEquals("new", true)
+	 *          ),
+	 *          orderBy(
+	 *             random()
+	 *          ),
+	 *          limit(2)
+	 *       ),
+	 *       segment(
+	 *          orderBy(
+	 *             ascending("code"),
+	 *             ascending("create")
+	 *          )
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Segment segment(@Nonnull OrderBy orderBy) {
+		if (orderBy == null) {
+			return null;
+		}
+		return new Segment(orderBy);
+	}
+
+	/**
+	 * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
+	 * sort it by the order clauses defined within particular segment and extract specified number of entities from
+	 * the sorted output. The extracted entities are then excluded from the original result and the process is repeated
+	 * with the next segment until all segments are processed. If there are any entities left in the original result,
+	 * they are appended to the final result in the order or the primary key (ascending).
+	 *
+	 * Segments also allow to define a filtering constraint that selects only entities that are to be processed / ordered
+	 * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
+	 * result but rather their order limited to this segment).
+	 *
+	 * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
+	 * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
+	 * defined after this one, it will never be reached.
+	 *
+	 * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
+	 * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting
+	 * orders for different parts of the result set.
+	 *
+	 * Example of usage:
+	 *
+	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
+	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
+	 *    and only first 2 entities of those will be added to the final result
+	 * 3. the rest of the entities will be sorted by code and create date in ascending order
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segments(
+	 *       segment(
+	 *          orderBy(
+	 *             attributeNatural("orderedQuantity, DESC)
+	 *          ),
+	 *          limit(3)
+	 *       ),
+	 *       segment(
+	 *          entityHaving(
+	 *             attributeEquals("new", true)
+	 *          ),
+	 *          orderBy(
+	 *             random()
+	 *          ),
+	 *          limit(2)
+	 *       ),
+	 *       segment(
+	 *          orderBy(
+	 *             ascending("code"),
+	 *             ascending("create")
+	 *          )
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Segment segment(
+		@Nonnull OrderBy orderBy,
+		@Nullable SegmentLimit limit
+	) {
+		if (orderBy == null) {
+			return null;
+		}
+		return new Segment(orderBy, limit);
+	}
+
+	/**
+	 * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
+	 * sort it by the order clauses defined within particular segment and extract specified number of entities from
+	 * the sorted output. The extracted entities are then excluded from the original result and the process is repeated
+	 * with the next segment until all segments are processed. If there are any entities left in the original result,
+	 * they are appended to the final result in the order or the primary key (ascending).
+	 *
+	 * Segments also allow to define a filtering constraint that selects only entities that are to be processed / ordered
+	 * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
+	 * result but rather their order limited to this segment).
+	 *
+	 * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
+	 * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
+	 * defined after this one, it will never be reached.
+	 *
+	 * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
+	 * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting
+	 * orders for different parts of the result set.
+	 *
+	 * Example of usage:
+	 *
+	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
+	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
+	 *    and only first 2 entities of those will be added to the final result
+	 * 3. the rest of the entities will be sorted by code and create date in ascending order
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segments(
+	 *       segment(
+	 *          orderBy(
+	 *             attributeNatural("orderedQuantity, DESC)
+	 *          ),
+	 *          limit(3)
+	 *       ),
+	 *       segment(
+	 *          entityHaving(
+	 *             attributeEquals("new", true)
+	 *          ),
+	 *          orderBy(
+	 *             random()
+	 *          ),
+	 *          limit(2)
+	 *       ),
+	 *       segment(
+	 *          orderBy(
+	 *             ascending("code"),
+	 *             ascending("create")
+	 *          )
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Segment segment(
+		@Nullable EntityHaving entityHaving,
+		@Nonnull OrderBy orderBy
+	) {
+		if (orderBy == null) {
+			return null;
+		}
+		return new Segment(entityHaving, orderBy);
+	}
+
+	/**
+	 * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
+	 * sort it by the order clauses defined within particular segment and extract specified number of entities from
+	 * the sorted output. The extracted entities are then excluded from the original result and the process is repeated
+	 * with the next segment until all segments are processed. If there are any entities left in the original result,
+	 * they are appended to the final result in the order or the primary key (ascending).
+	 *
+	 * Segments also allow to define a filtering constraint that selects only entities that are to be processed / ordered
+	 * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
+	 * result but rather their order limited to this segment).
+	 *
+	 * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
+	 * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
+	 * defined after this one, it will never be reached.
+	 *
+	 * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
+	 * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting
+	 * orders for different parts of the result set.
+	 *
+	 * Example of usage:
+	 *
+	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
+	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
+	 *    and only first 2 entities of those will be added to the final result
+	 * 3. the rest of the entities will be sorted by code and create date in ascending order
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segments(
+	 *       segment(
+	 *          orderBy(
+	 *             attributeNatural("orderedQuantity, DESC)
+	 *          ),
+	 *          limit(3)
+	 *       ),
+	 *       segment(
+	 *          entityHaving(
+	 *             attributeEquals("new", true)
+	 *          ),
+	 *          orderBy(
+	 *             random()
+	 *          ),
+	 *          limit(2)
+	 *       ),
+	 *       segment(
+	 *          orderBy(
+	 *             ascending("code"),
+	 *             ascending("create")
+	 *          )
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Segment segment(
+		@Nullable EntityHaving entityHaving,
+		@Nonnull OrderBy orderBy,
+		@Nullable SegmentLimit limit
+	) {
+		if (orderBy == null) {
+			return null;
+		}
+		return new Segment(entityHaving, orderBy, limit);
+	}
+
+	/**
+	 * The distance constraint can only be used within the {@link Segment} container and limits the number or entities
+	 * in particular segment.
+	 *
+	 * See the following figure - the limit constraint narrows the result set to only 3 entities:
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segment(
+	 *       orderBy(
+	 *          attributeNatural("orderedQuantity, DESC)
+	 *       ),
+	 *       limit(3)
+	 *    ),
+	 *    segment(
+	 *       orderBy(
+	 *          ascending("code"),
+	 *          ascending("create")
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment#limit">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static SegmentLimit limit(
+		@Nullable Integer limit
+	) {
+		if (limit == null) {
+			return null;
+		}
+		return new SegmentLimit(limit);
+	}
+
+	/**
 	 * The constraint allows to sort output entities by primary key values in the exact order.
 	 *
 	 * Example usage:

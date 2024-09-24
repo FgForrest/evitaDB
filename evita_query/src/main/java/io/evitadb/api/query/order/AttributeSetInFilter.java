@@ -80,7 +80,7 @@ public class AttributeSetInFilter extends AbstractOrderConstraintLeaf implements
 
 	@Creator()
 	public AttributeSetInFilter(@Nonnull @Classifier String attributeName) {
-		super(attributeName);
+		super(new Serializable[] { attributeName });
 	}
 
 	/**
