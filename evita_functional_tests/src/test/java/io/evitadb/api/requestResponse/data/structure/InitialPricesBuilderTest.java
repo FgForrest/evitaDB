@@ -34,6 +34,7 @@ import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -155,7 +156,8 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 
 		assertEquals(
 			new CumulatedPrice(
-				1, new PriceKey(2, "vip", CZK), Set.of(3),
+				1, new PriceKey(2, "vip", CZK),
+				Map.of(3, prices.getPrice(3, "basic", CZK).orElseThrow()),
 				new BigDecimal("21"), BigDecimal.ZERO, new BigDecimal("21")
 			),
 			priceContract

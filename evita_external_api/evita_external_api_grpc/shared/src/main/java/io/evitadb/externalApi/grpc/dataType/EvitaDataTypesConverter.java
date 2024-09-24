@@ -1518,11 +1518,10 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static GrpcCatalogStatistics toGrpcCatalogStatistics(@Nonnull CatalogStatistics catalogStatistics) {
-		return GrpcCatalogStatistics.newBuilder()
+		final GrpcCatalogStatistics.Builder builder = GrpcCatalogStatistics.newBuilder()
 			.setCatalogName(catalogStatistics.catalogName())
 			.setCorrupted(catalogStatistics.corrupted())
 			.setCatalogVersion(catalogStatistics.catalogVersion())
-			.setCatalogState(EvitaEnumConverter.toGrpcCatalogState(catalogStatistics.catalogState()))
 			.setTotalRecords(catalogStatistics.totalRecords())
 			.setIndexCount(catalogStatistics.indexCount())
 			.setSizeOnDiskInBytes(catalogStatistics.sizeOnDiskInBytes())
@@ -1530,7 +1529,11 @@ public class EvitaDataTypesConverter {
 				Arrays.stream(catalogStatistics.entityCollectionStatistics())
 					.map(EvitaDataTypesConverter::toGrpcEntityCollectionStatistics)
 					.collect(Collectors.toList())
-			)
+			);
+		if (catalogStatistics.catalogState() != null) {
+			builder.setCatalogState(EvitaEnumConverter.toGrpcCatalogState(catalogStatistics.catalogState()));
+		}
+		return builder
 			.build();
 	}
 

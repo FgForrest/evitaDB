@@ -39,15 +39,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Currency;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -318,18 +310,31 @@ public interface PricesContract extends Versioned, Serializable {
 							final Map<String, Integer> accompanyingPriorityIndex = getPriceListPriorityIndex(
 								accompanyingPrice.priceListPriority()
 							);
-
 							final List<PriceContract> pricesToSum = accompanyingPriceBaseCollection
 								.stream()
-								.map(it -> it.values().stream().filter(prices -> accompanyingPriorityIndex.containsKey(prices.priceList()))
-									.min(Comparator.comparing(o -> accompanyingPriorityIndex.get(o.priceList()))))
+								.map(
+									it -> it.values().stream().filter(prices -> accompanyingPriorityIndex.containsKey(prices.priceList()))
+									.min(Comparator.comparing(o -> accompanyingPriorityIndex.get(o.priceList())))
+								)
 								.filter(Optional::isPresent)
 								.map(Optional::get)
-								.toList();
+								.collect(Collectors.toCollection(ArrayList::new));
 
 							if (pricesToSum.isEmpty()) {
 								return empty();
 							} else {
+								if (priceForSale instanceof CumulatedPrice cumulatedPrice && pricesToSum.size() < cumulatedPrice.innerRecordPrices().size()) {
+									// the reference prices are not complete,
+									// we cannot calculate the sum price without adding prices of missing components
+									final Set<Integer> componentsWithReferencePrice = pricesToSum
+										.stream()
+										.map(PriceContract::innerRecordId)
+										.collect(Collectors.toSet());
+									cumulatedPrice.innerRecordPrices().entrySet().stream()
+										.filter(it -> !componentsWithReferencePrice.contains(it.getKey()))
+										.map(Map.Entry::getValue)
+										.forEach(pricesToSum::add);
+								}
 								return of(calculateSumPrice(pricesToSum));
 							}
 						}
@@ -352,7 +357,7 @@ public interface PricesContract extends Versioned, Serializable {
 		// create virtual sum price
 		return new CumulatedPrice(
 			1, firstPrice.priceKey(),
-			pricesToSum.stream().map(PriceContract::innerRecordId).collect(Collectors.toSet()),
+			pricesToSum.stream().collect(Collectors.toMap(PriceContract::innerRecordId, Function.identity())),
 			pricesToSum.stream().map(PriceContract::priceWithoutTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
 			pricesToSum.stream().map(PriceContract::taxRate).reduce((tax, tax2) -> {
 				Assert.isTrue(tax.compareTo(tax2) == 0, "Prices have to have same tax rate in order to compute selling price!");

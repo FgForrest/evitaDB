@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,7 +71,11 @@ public class NonResolvedFilteredPriceRecords implements FilteredPriceRecords {
 	 */
 	private boolean alreadyResolved;
 
-	public NonResolvedFilteredPriceRecords(@Nonnull PriceRecordContract[] cumulatedPriceRecords, @Nonnull Bitmap priceRecordsIds, @Nonnull PriceListAndCurrencyPriceIndex<?,?>[] priceIndexes) {
+	public NonResolvedFilteredPriceRecords(
+		@Nonnull PriceRecordContract[] cumulatedPriceRecords,
+		@Nonnull Bitmap priceRecordsIds,
+		@Nonnull PriceListAndCurrencyPriceIndex<?,?>[] priceIndexes
+	) {
 		this.cumulatedPriceRecords = cumulatedPriceRecords;
 		this.priceRecordsIds = priceRecordsIds;
 		this.priceIndexes = priceIndexes;
@@ -93,6 +97,7 @@ public class NonResolvedFilteredPriceRecords implements FilteredPriceRecords {
 	 * This method returns price records in this object and ensures the output is sorted by entity id in the ascending
 	 * order.
 	 */
+	@Nonnull
 	public ResolvedFilteredPriceRecords toResolvedFilteredPriceRecords() {
 		Assert.isPremiseValid(!alreadyResolved, "This instance was already resolved!");
 		final PriceRecordContract[] result = new PriceRecordContract[cumulatedPriceRecords.length + priceRecordsIds.size()];
