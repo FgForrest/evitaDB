@@ -23,7 +23,7 @@
 
 package io.evitadb.index.price.model.priceRecord;
 
-import com.carrotsearch.hppc.IntCollection;
+import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import lombok.Getter;
@@ -43,7 +43,7 @@ public record CumulatedVirtualPriceRecord(
 	@Getter int entityPrimaryKey,
 	@Getter int price,
 	@Getter QueryPriceMode priceMode,
-	@Nonnull IntCollection innerRecordIds
+	@Nonnull IntObjectMap<PriceRecordContract> innerRecordPrices
 ) implements PriceRecordContract {
 
 	@Serial private static final long serialVersionUID = -8702849059439375941L;
@@ -84,7 +84,7 @@ public record CumulatedVirtualPriceRecord(
 
 	@Override
 	public boolean relatesTo(@Nonnull PriceRecordContract anotherPriceRecord) {
-		return this.innerRecordIds.contains(anotherPriceRecord.innerRecordId());
+		return this.innerRecordPrices.keys().contains(anotherPriceRecord.innerRecordId());
 	}
 
 	@Override
@@ -106,7 +106,7 @@ public record CumulatedVirtualPriceRecord(
 			"entityPrimaryKey=" + entityPrimaryKey +
 			", price=" + price +
 			", priceMode=" + priceMode +
-			", innerRecordIds=[" + innerRecordIds + "]" +
+			", innerRecordPrices=[" + innerRecordPrices + "]" +
 			'}';
 	}
 }

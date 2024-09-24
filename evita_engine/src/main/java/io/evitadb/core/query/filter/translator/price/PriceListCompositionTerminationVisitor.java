@@ -34,7 +34,7 @@ import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingCont
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexProvidingFormula;
-import io.evitadb.core.query.algebra.price.termination.FirstVariantPriceTerminationFormula;
+import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormulaWithPriceFilter;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
@@ -192,7 +192,7 @@ public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 				case NONE -> priceFilter == null ?
 					new PlainPriceTerminationFormula(containerFormula, priceEvaluationContext) :
 					new PlainPriceTerminationFormulaWithPriceFilter(containerFormula, priceEvaluationContext, priceFilter);
-				case LOWEST_PRICE -> new FirstVariantPriceTerminationFormula(
+				case LOWEST_PRICE -> new LowestPriceTerminationFormula(
 					containerFormula, priceEvaluationContext, queryPriceMode,
 					ofNullable(priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
 				);

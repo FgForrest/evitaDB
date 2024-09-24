@@ -23,9 +23,9 @@
 
 package io.evitadb.store.cache.serializer;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
-import com.carrotsearch.hppc.cursors.IntCursor;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
@@ -48,6 +48,7 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -170,6 +171,7 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 	 */
 	private static void writeResolvedPriceRecords(@Nonnull Output output, @Nonnull ResolvedFilteredPriceRecords filteredPriceRecords) {
 		final PriceRecordContract[] priceRecords = filteredPriceRecords.getPriceRecords();
+		final int[] sellingPriceBuffer = new int[6];
 
 		// we need one iteration to create a list of internal price ids of all standard prices
 		final int[] ordinaryPriceRecordIds = Arrays.stream(priceRecords)
@@ -190,9 +192,17 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 					output.writeVarInt(priceRecord.entityPrimaryKey(), false);
 					output.writeVarInt(cumulatedPrice.price(), false);
 					output.writeByte((byte) cumulatedPrice.priceMode().ordinal());
-					output.writeVarInt(cumulatedPrice.innerRecordIds().size(), true);
-					for (IntCursor innerRecordId : cumulatedPrice.innerRecordIds()) {
-						output.writeVarInt(innerRecordId.value, false);
+					output.writeVarInt(cumulatedPrice.innerRecordPrices().size(), true);
+					for (ObjectCursor<PriceRecordContract> sellingPriceRecord : cumulatedPrice.innerRecordPrices().values()) {
+						sellingPriceBuffer[0] = sellingPriceRecord.value.internalPriceId();
+						sellingPriceBuffer[1] = sellingPriceRecord.value.priceId();
+						sellingPriceBuffer[2] = sellingPriceRecord.value.entityPrimaryKey();
+						sellingPriceBuffer[3] = sellingPriceRecord.value.innerRecordId();
+						sellingPriceBuffer[4] = sellingPriceRecord.value.priceWithTax();
+						sellingPriceBuffer[5] = sellingPriceRecord.value.priceWithoutTax();
+						output.writeInts(
+							sellingPriceBuffer, 0, 6, false
+						);
 					}
 					writtenCumulatedRecordCount++;
 				}
@@ -225,9 +235,15 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 			final int price = input.readVarInt(false);
 			final QueryPriceMode queryPriceMode = QUERY_PRICE_MODE_VALUES[input.readByte()];
 			final int innerRecordIdsCount = input.readVarInt(true);
-			final IntSet innerRecordIds = new IntHashSet(innerRecordIdsCount);
+			final IntObjectMap<PriceRecordContract> innerRecordIds = new IntObjectHashMap<>(innerRecordIdsCount);
 			for (int j = 0; j < innerRecordIdsCount; j++) {
-				innerRecordIds.add(input.readVarInt(false));
+				final int[] ints = input.readInts(6);
+				innerRecordIds.put(
+					ints[0],
+					new PriceRecordInnerRecordSpecific(
+						ints[0], ints[1], ints[2], ints[3], ints[4], ints[5]
+					)
+				);
 			}
 			cumulatedPriceRecords[i] = new CumulatedVirtualPriceRecord(
 				entityPrimaryKey, price, queryPriceMode, innerRecordIds
