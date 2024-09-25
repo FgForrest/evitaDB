@@ -71,3 +71,8 @@ jobs:
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
       uses: advanced-security/maven-dependency-submission-action@v3
+
+    - name: Deploy with Maven       # deploy SNAPSHOTS to Maven repository
+      run: |
+        mvn -T 1C -B deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
+      continue-on-error: true
