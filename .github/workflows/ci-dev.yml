@@ -76,3 +76,7 @@ jobs:
       run: |
         mvn -T 1C -B deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
       continue-on-error: true
+      env:
+        MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+        MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
