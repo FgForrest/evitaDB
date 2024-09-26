@@ -255,7 +255,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 		RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
 		final IntSet alreadySortedRecordIds = new IntHashSet(selectedRecordIds.size());
 		int recordsToSortCount = selectedRecordIds.size();
-		for (final SortedRecordsProvider sortedRecordsProvider : sortedRecordsProviders) {
+		for (final SortedRecordsProvider sortedRecordsProvider : this.sortedRecordsProviders) {
 			final MaskResult maskResult = getMask(
 				queryContext, sortedRecordsProvider, recordsToSort, recordsToSortCount
 			);
