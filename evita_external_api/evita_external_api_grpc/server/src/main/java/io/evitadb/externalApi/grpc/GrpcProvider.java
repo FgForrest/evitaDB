@@ -68,7 +68,10 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	 */
 	private final ClientFactory clientFactory = ClientFactory.builder()
 		.useHttp1Pipelining(true)
-		.idleTimeoutMillis(100)
+		// 1 second timeout for connection establishment
+		.connectTimeoutMillis(1000)
+		// 1 second timeout for idle connections
+		.idleTimeoutMillis(1000)
 		.tlsNoVerify()
 		.build();
 
@@ -129,11 +132,11 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	public boolean checkReachable(@Nonnull String uri) {
 		try {
 			final EvitaServiceBlockingStub evitaService = GrpcClients.builder(uri)
-				.factory(clientFactory)
+				.factory(this.clientFactory)
 				.responseTimeoutMillis(100)
 				.build(EvitaServiceBlockingStub.class);
 			if (evitaService.isReady(Empty.newBuilder().build()).getReady()) {
-				reachableUrl = uri;
+				this.reachableUrl = uri;
 				return true;
 			} else {
 				log.error("gRPC API is not ready at: {}", uri);

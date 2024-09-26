@@ -159,6 +159,9 @@ public class ObservabilityManager {
 	public static void javaErrorEvent(@Nonnull String simpleName) {
 		MetricHandler.JAVA_ERRORS_TOTAL.labelValues(simpleName).inc();
 		JAVA_ERRORS.incrementAndGet();
+		if (simpleName.equals(OOM_NAME)) {
+			JAVA_OOM_ERRORS.incrementAndGet();
+		}
 	}
 
 	/**
@@ -167,9 +170,6 @@ public class ObservabilityManager {
 	public static void evitaErrorEvent(@Nonnull String simpleName) {
 		MetricHandler.EVITA_ERRORS_TOTAL.labelValues(simpleName).inc();
 		EVITA_ERRORS.incrementAndGet();
-		if (simpleName.equals(OOM_NAME)) {
-			JAVA_OOM_ERRORS.incrementAndGet();
-		}
 	}
 
 	public ObservabilityManager(ObservabilityConfig config, Evita evita) {
