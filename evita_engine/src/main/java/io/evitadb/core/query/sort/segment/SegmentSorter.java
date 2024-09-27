@@ -40,6 +40,7 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntConsumer;
 
 /**
  * The SegmentSorter class is a specialized sorter that sorts only a single output segment of the query result defined
@@ -106,7 +107,8 @@ public class SegmentSorter implements Sorter {
 		int startIndex,
 		int endIndex,
 		@Nonnull int[] result,
-		int peak
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final Bitmap filteredRecordIdBitmap = input.compute();
 		if (filteredRecordIdBitmap.isEmpty()) {
@@ -125,48 +127,45 @@ public class SegmentSorter implements Sorter {
 					peak
 				);
 			} else {
-				/* TODO JNO - až tohle bude fungovat, tak do `sortAndSlice` přidat podporu pro IntConsumer pro přeskočené položky */
 				// otherwise, we need to fully calculate the segment to be able to exclude it from the next sorter
 				final int endIndexOrLimit = Math.min(this.limit, endIndex);
-				final int[] tmpArray = new int[endIndexOrLimit];
-				final int sortedCount = sorterToUse.sortAndSlice(
+
+				// all the skipped records will be written to this bitmap
+				final RoaringBitmapWriter<RoaringBitmap> drainedRecordPks = RoaringBitmapBackedBitmap.buildWriter();
+				final int lastSortedItem = sorterToUse.sortAndSlice(
 					queryContext,
 					input,
-					/* TODO JNO - a tady pak můžeme použít startIndex */
-					0,
+					Math.min(startIndex, endIndexOrLimit),
 					endIndexOrLimit,
-					tmpArray,
-					0
+					result,
+					peak,
+					drainedRecordPks::add
 				);
-				final int appended = Math.max(0, sortedCount - startIndex);
-				final int lastSortedItem = peak + appended;
-				for (int i = startIndex; i < sortedCount; i++) {
-					result[peak++] = tmpArray[i];
+				// now we have to manually add also all the records that were added to the result
+				// since the hadn't been passed to drained records via skipped records consumer
+				for (int i = peak; i < lastSortedItem; i++) {
+					drainedRecordPks.add(result[i]);
 				}
 
 				// if there are no more records to sort or no additional sorter is present, return entire result
 				if (lastSortedItem == filteredRecordIdBitmap.size()) {
 					return lastSortedItem;
 				} else {
-					// collect all "sorted" record ids by this segment
-					final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-					for (int i = 0; i < sortedCount; i++) {
-						writer.add(tmpArray[i]);
-					}
-
 					// recalculate indexes for the next sorter
 					final int recomputedStartIndex = Math.max(0, startIndex - this.limit);
 					final int recomputedEndIndex = Math.max(0, endIndex - this.limit);
 
+					final ConstantFormula drainedRecordsFormula = new ConstantFormula(new BaseBitmap(drainedRecordPks.get()));
 					return unknownRecordIdsSorter.sortAndSlice(
 						queryContext,
 						// and filter the filtered input to next query to avoid records that has been already consumed
 						// by this segment
-						FormulaFactory.not(new ConstantFormula(new BaseBitmap(writer.get())), input),
+						FormulaFactory.not(drainedRecordsFormula, input),
 						recomputedStartIndex, recomputedEndIndex, result, lastSortedItem
 					);
 				}
 			}
 		}
 	}
+
 }

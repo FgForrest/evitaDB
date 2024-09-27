@@ -91,7 +91,7 @@ public class EntityViewPortRulesFunctionalTest {
 		final java.util.Random random = new java.util.Random(SEED);
 		return Stream.of(
 			IntStream.generate(() -> 1)
-				.limit(20)
+				.limit(50)
 				.mapToObj(i -> {
 					int segmentCount = 1 + random.nextInt(3);
 					final Set<String> attributesToChooseFrom = new HashSet<>(sortableAttributes);

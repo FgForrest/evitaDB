@@ -43,6 +43,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.function.IntConsumer;
 
 /**
  * Implementation of the {@link SortedRecordsProvider} that merges multiple instances into a one discarding
@@ -73,7 +74,8 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 		int length,
 		@Nonnull int[] result,
 		int peak,
-		@Nonnull int[] buffer
+		@Nonnull int[] buffer,
+		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final RoaringBatchIterator batchIterator = positions.getBatchIterator();
 		final int[] preSortedRecordIds = sortedRecordsProvider.getSortedRecordIds();
@@ -91,6 +93,12 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 			if (toSkip > 0) {
 				toSkip -= bufferPeak;
 			}
+			if (skippedRecordsConsumer != null && skip > 0) {
+				for (int i = 0; i < bufferPeak + toSkip; i++) {
+					skippedRecordsConsumer.accept(preSortedRecordIds[buffer[i]]);
+				}
+			}
+
 			// now we are on the page
 			if (toSkip <= 0) {
 				// copy records for page
@@ -121,6 +129,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	 * Returns mask of the positions in the presorted array that matched the computational result
 	 * Mask also contains record ids not found in presorted record index.
 	 */
+	@Nonnull
 	private static MaskResult getMask(
 		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull SortedRecordsProvider sortedRecordsProvider,
@@ -208,7 +217,15 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(
+		@Nonnull QueryExecutionContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
 		final Bitmap selectedRecordIds = input.compute();
 		if (selectedRecordIds.size() < startIndex) {
 			throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + selectedRecordIds.size());
@@ -219,7 +236,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 			final int[] buffer = queryContext.borrowBuffer();
 			try {
 				final SortResult sortResult = collectPartialResults(
-					queryContext, selectedRecordIds, startIndex, endIndex, result, peak, buffer
+					queryContext, selectedRecordIds, startIndex, endIndex, result, peak, buffer, skippedRecordsConsumer
 				);
 				return returnResultAppendingUnknown(
 					queryContext, sortResult.notSortedRecords(),
@@ -246,7 +263,8 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
-		@Nonnull int[] buffer
+		@Nonnull int[] buffer,
+		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final int toRead = endIndex - startIndex;
 		int alreadyRead = 0;
@@ -262,7 +280,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 			final PartialSortResult currentResult = fetchSlice(
 				sortedRecordsProvider, maskResult.mask(), alreadySortedRecordIds,
 				skip, toRead - alreadyRead,
-				result, peak, buffer
+				result, peak, buffer, skippedRecordsConsumer
 			);
 			skip = skip - currentResult.skipped();
 			alreadyRead += currentResult.read();
@@ -305,7 +323,8 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	}
 
 	/**
-	 * This DTO allows to information collected from {@link #collectPartialResults(QueryExecutionContext, Bitmap, int, int, int[], int, int[])}
+	 * This DTO allows to information collected from
+	 * {@link #collectPartialResults(QueryExecutionContext, Bitmap, int, int, int[], int, int[], IntConsumer) collectPartialResults}
 	 * method.
 	 *
 	 * @param notSortedRecords roaring bitmap with all records that hasn't been sorted yet

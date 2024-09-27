@@ -27,10 +27,10 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntConsumer;
 
 /**
  * Exact sorter outputs filtered results in reversed order of the primary keys.
@@ -63,18 +63,34 @@ public class ReversedSorter implements Sorter {
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(
+		@Nonnull QueryExecutionContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
 		final Bitmap filteredRecordIdBitmap = input.compute();
 		if (filteredRecordIdBitmap.isEmpty()) {
 			return 0;
 		} else {
-			final int[] filteredRecordIds = filteredRecordIdBitmap.getArray();
-			ArrayUtils.reverseInPlace(filteredRecordIds);
+			final int size = filteredRecordIdBitmap.size();
 
 			// copy the sorted data to result
 			final int length = endIndex - startIndex;
-			final int newPeak = Math.min(filteredRecordIds.length, length);
-			System.arraycopy(filteredRecordIds, startIndex, result, peak, newPeak);
+			final int newPeak = Math.min(size, length);
+
+			// recalculate positions for reversed order
+			final int[] range = filteredRecordIdBitmap.getRange(
+				size - newPeak,
+				size - startIndex
+			);
+			// and copy the range contents in reversed order
+			for (int i = range.length - 1; i >= 0; i--) {
+				result[peak++] = range[i];
+			}
 			return newPeak;
 		}
 	}

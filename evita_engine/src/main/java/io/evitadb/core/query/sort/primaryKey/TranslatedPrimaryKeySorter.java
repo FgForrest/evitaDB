@@ -33,6 +33,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntConsumer;
 
 /**
  * This sorter sorts translated primary keys according to original primary keys in ascending order. It is used with
@@ -66,7 +67,15 @@ public class TranslatedPrimaryKeySorter implements Sorter {
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(
+		@Nonnull QueryExecutionContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
 		final Bitmap translatedPrimaryKeysBitmap = input.compute();
 		final int[] translatedPrimaryKeys = translatedPrimaryKeysBitmap.getArray();
 		final int[] originalPrimaryKeys = translatedPrimaryKeysBitmap.stream().map(queryContext::translateToEntityPrimaryKey).toArray();

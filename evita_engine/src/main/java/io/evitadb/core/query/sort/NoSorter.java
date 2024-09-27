@@ -29,6 +29,7 @@ import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntConsumer;
 
 /**
  * This implementation of {@link Sorter} doesn't sort but just slices the formula output. The result ids are sorted
@@ -62,7 +63,15 @@ public class NoSorter implements Sorter {
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(
+		@Nonnull QueryExecutionContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
 		final Bitmap filteredRecordIdBitmap = input.compute();
 		final int maxLength = Math.min(endIndex - startIndex, filteredRecordIdBitmap.size() - startIndex);
 		if (endIndex > 0 && !filteredRecordIdBitmap.isEmpty()) {
