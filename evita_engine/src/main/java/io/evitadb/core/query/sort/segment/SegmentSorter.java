@@ -61,19 +61,25 @@ public class SegmentSorter implements Sorter {
 	 */
 	private final Sorter delegateSorter;
 	/**
+	 * The filter that will be used to filter the input records prior to sorting.
+	 */
+	private final Formula filter;
+	/**
 	 * The maximum number of records that will be sorted by this sorter - even though the input may contain more records.
 	 * The value is sourced from {@link SegmentLimit} constraint.
 	 */
 	private final int limit;
 
-	public SegmentSorter(@Nonnull Sorter delegateSorter, int limit) {
+	public SegmentSorter(@Nonnull Sorter delegateSorter, @Nullable Formula filter, int limit) {
 		this.delegateSorter = delegateSorter;
+		this.filter = filter;
 		this.limit = limit;
 		this.unknownRecordIdsSorter = NoSorter.INSTANCE;
 	}
 
-	public SegmentSorter(@Nonnull Sorter delegateSorter, int limit, @Nonnull Sorter unknownRecordIdsSorter) {
+	public SegmentSorter(@Nonnull Sorter delegateSorter, @Nullable Formula filter, int limit, @Nonnull Sorter unknownRecordIdsSorter) {
 		this.delegateSorter = delegateSorter;
+		this.filter = filter;
 		this.limit = limit;
 		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 	}
@@ -83,6 +89,7 @@ public class SegmentSorter implements Sorter {
 	public Sorter cloneInstance() {
 		return new SegmentSorter(
 			this.delegateSorter.cloneInstance(),
+			this.filter,
 			this.limit,
 			this.unknownRecordIdsSorter
 		);
@@ -91,7 +98,7 @@ public class SegmentSorter implements Sorter {
 	@Nonnull
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		return new SegmentSorter(this.delegateSorter, this.limit, sorterForUnknownRecords);
+		return new SegmentSorter(this.delegateSorter, this.filter, this.limit, sorterForUnknownRecords);
 	}
 
 	@Nullable
@@ -110,60 +117,61 @@ public class SegmentSorter implements Sorter {
 		int peak,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		final Bitmap filteredRecordIdBitmap = input.compute();
+		// if the filter is defined we need to narrow the input to only records that satisfy the filter
+		final Formula filterFormula = this.filter == null ? input : FormulaFactory.and(input, this.filter);
+		final Bitmap filteredRecordIdBitmap = filterFormula.compute();
+		// if there are no records to sort
 		if (filteredRecordIdBitmap.isEmpty()) {
-			return 0;
+			// and even the non-filtered input is empty
+			if (input.compute().isEmpty()) {
+				return 0;
+			} else {
+				// otherwise, our filter is too strict and we need to pass the input to the next sorter
+				return unknownRecordIdsSorter.sortAndSlice(
+					queryContext,
+					// we may pass the complete input, since we didn't drained any records in this segment
+					input, startIndex, endIndex, result, peak
+				);
+			}
 		} else {
 			final Sorter sorterToUse = ConditionalSorter.getFirstApplicableSorter(queryContext, this.delegateSorter);
-			// if the end index is below the limit
-			if (endIndex <= this.limit) {
-				// this segment will be the last we need to calculate
-				return sorterToUse.sortAndSlice(
-					queryContext,
-					input,
-					startIndex,
-					endIndex,
-					result,
-					peak
-				);
+			// otherwise, we need to fully calculate the segment to be able to exclude it from the next sorter
+			final int physicalLimit = Math.min(filteredRecordIdBitmap.size(), this.limit);
+			final int endIndexOrLimit = Math.min(physicalLimit, endIndex);
+
+			// all the skipped records will be written to this bitmap
+			final RoaringBitmapWriter<RoaringBitmap> drainedRecordPks = RoaringBitmapBackedBitmap.buildWriter();
+			final int lastSortedItem = sorterToUse.sortAndSlice(
+				queryContext,
+				filterFormula,
+				Math.min(startIndex, endIndexOrLimit),
+				endIndexOrLimit,
+				result,
+				peak,
+				drainedRecordPks::add
+			);
+			// now we have to manually add also all the records that were added to the result
+			// since the hadn't been passed to drained records via skipped records consumer
+			for (int i = peak; i < lastSortedItem; i++) {
+				drainedRecordPks.add(result[i]);
+			}
+
+			// recalculate indexes for the next sorter
+			final int recomputedStartIndex = Math.max(0, startIndex - physicalLimit);
+			final int recomputedEndIndex = Math.max(0, endIndex - physicalLimit);
+
+			if (recomputedStartIndex >= recomputedEndIndex || lastSortedItem - peak >= endIndex) {
+				// if the next sorter would receive empty input, we can skip it
+				return lastSortedItem;
 			} else {
-				// otherwise, we need to fully calculate the segment to be able to exclude it from the next sorter
-				final int endIndexOrLimit = Math.min(this.limit, endIndex);
-
-				// all the skipped records will be written to this bitmap
-				final RoaringBitmapWriter<RoaringBitmap> drainedRecordPks = RoaringBitmapBackedBitmap.buildWriter();
-				final int lastSortedItem = sorterToUse.sortAndSlice(
+				final ConstantFormula drainedRecordsFormula = new ConstantFormula(new BaseBitmap(drainedRecordPks.get()));
+				return unknownRecordIdsSorter.sortAndSlice(
 					queryContext,
-					input,
-					Math.min(startIndex, endIndexOrLimit),
-					endIndexOrLimit,
-					result,
-					peak,
-					drainedRecordPks::add
+					// and filter the filtered input to next query to avoid records that has been already consumed
+					// by this segment
+					FormulaFactory.not(drainedRecordsFormula, input),
+					recomputedStartIndex, recomputedEndIndex, result, lastSortedItem
 				);
-				// now we have to manually add also all the records that were added to the result
-				// since the hadn't been passed to drained records via skipped records consumer
-				for (int i = peak; i < lastSortedItem; i++) {
-					drainedRecordPks.add(result[i]);
-				}
-
-				// if there are no more records to sort or no additional sorter is present, return entire result
-				if (lastSortedItem == filteredRecordIdBitmap.size()) {
-					return lastSortedItem;
-				} else {
-					// recalculate indexes for the next sorter
-					final int recomputedStartIndex = Math.max(0, startIndex - this.limit);
-					final int recomputedEndIndex = Math.max(0, endIndex - this.limit);
-
-					final ConstantFormula drainedRecordsFormula = new ConstantFormula(new BaseBitmap(drainedRecordPks.get()));
-					return unknownRecordIdsSorter.sortAndSlice(
-						queryContext,
-						// and filter the filtered input to next query to avoid records that has been already consumed
-						// by this segment
-						FormulaFactory.not(drainedRecordsFormula, input),
-						recomputedStartIndex, recomputedEndIndex, result, lastSortedItem
-					);
-				}
 			}
 		}
 	}

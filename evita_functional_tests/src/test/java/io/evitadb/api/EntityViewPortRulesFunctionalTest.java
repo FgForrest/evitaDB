@@ -26,6 +26,7 @@ package io.evitadb.api;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.filter.AttributeLessThanEquals;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.Segment;
@@ -52,6 +53,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -59,6 +61,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -85,10 +88,21 @@ public class EntityViewPortRulesFunctionalTest {
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForViewPortTesting";
 	private static final int SEED = 42;
 
+	/**
+	 * Generates a stream of randomized segments based on specific attributes and order directions.
+	 * The method creates segments using a set of sortable attributes and randomized settings.
+	 * Each segment can either include or exclude a filtering condition based on a generated set of ASCII character limits.
+	 *
+	 * @return a stream of Arguments, each containing a randomized segment configuration.
+	 */
 	@Nonnull
 	static Stream<Arguments> randomizedSegments() {
 		final Set<String> sortableAttributes = Set.of(ATTRIBUTE_NAME, ATTRIBUTE_EAN, ATTRIBUTE_QUANTITY);
 		final java.util.Random random = new java.util.Random(SEED);
+		// generate all ASCII characters from B ... T
+		final List<String> characters = IntStream.rangeClosed('B', 'T')
+			.mapToObj(i -> String.valueOf((char) i))
+			.toList();
 		return Stream.of(
 			IntStream.generate(() -> 1)
 				.limit(50)
@@ -103,12 +117,18 @@ public class EntityViewPortRulesFunctionalTest {
 								attributesToChooseFrom.remove(attributeName);
 								final OrderDirection orderDirection = random.nextBoolean() ? OrderDirection.ASC : OrderDirection.DESC;
 								final int limit = 1 + random.nextInt(30);
-								return segment(
-									orderBy(
-										attributeNatural(attributeName, orderDirection)
-									),
-									limit(limit)
-								);
+								if (random.nextBoolean()) {
+									return segment(
+										entityHaving(attributeLessThanEquals(ATTRIBUTE_NAME, characters.get(random.nextInt(characters.size())))),
+										orderBy(attributeNatural(attributeName, orderDirection)),
+										limit(limit)
+									);
+								} else {
+									return segment(
+										orderBy(attributeNatural(attributeName, orderDirection)),
+										limit(limit)
+									);
+								}
 							})
 							.toArray(Segment[]::new)
 					);
@@ -225,8 +245,16 @@ public class EntityViewPortRulesFunctionalTest {
 					final OrderDirection orderDirection = orderingConstraint.getOrderDirection();
 					final Comparator<Comparable> comparator = orderDirection == OrderDirection.ASC ?
 						Comparator.naturalOrder() : Comparator.reverseOrder();
+					final Predicate<SealedEntity> filter = segment.getEntityHaving()
+						.map(entityHaving -> {
+							final AttributeLessThanEquals attributeFilter = (AttributeLessThanEquals) entityHaving.getChild();
+							final String attrName = attributeFilter.getAttributeName();
+							final Serializable value = attributeFilter.getAttributeValue();
+							return (Predicate<SealedEntity>) sealedEntity -> sealedEntity.getAttribute(attrName, String.class).compareTo(value.toString()) <= 0;
+						})
+						.orElseGet(() -> sealedEntity -> true);
 					originalProductEntities.stream()
-						.filter(it -> !drainedPks.contains(it.getPrimaryKey()))
+						.filter(it -> filter.test(it) && !drainedPks.contains(it.getPrimaryKey()))
 						.sorted(
 							(o1, o2) -> comparator.compare(
 								o1.getAttribute(attributeName),
@@ -401,6 +429,211 @@ public class EntityViewPortRulesFunctionalTest {
 					"Fifth page must have only 4 entities be sorted by quantity in ascending order.",
 					fifthPage.subList(0, 4),
 					originalProductEntities.stream()
+						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()))
+						.sorted(
+							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class))
+						)
+						.skip(2)
+						.limit(4)
+						.mapToInt(SealedEntity::getPrimaryKey)
+						.peek(quantityDrainedPks::add)
+						.toArray()
+				);
+
+				assertSortedResultEquals(
+					"Fifth page must end with first entity sorted by PK in ascending order.",
+					fifthPage.subList(4, 5),
+					originalProductEntities.stream()
+						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()) && !quantityDrainedPks.contains(it.getPrimaryKey()))
+						.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
+						.limit(1)
+						.mapToInt(SealedEntity::getPrimaryKey)
+						.toArray()
+				);
+
+				assertSortedResultEquals(
+					"Sixth page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					session.query(
+							fabricateSegmentedQuery(6, 5, segments),
+							EntityReference.class
+						)
+						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+					originalProductEntities.stream()
+						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()) && !quantityDrainedPks.contains(it.getPrimaryKey()))
+						.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
+						.skip(1)
+						.limit(5)
+						.mapToInt(SealedEntity::getPrimaryKey)
+						.toArray()
+				);
+
+				assertSortedResultEquals(
+					"Seventh page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					session.query(
+							fabricateSegmentedQuery(7, 5, segments),
+							EntityReference.class
+						)
+						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+					originalProductEntities.stream()
+						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()) && !quantityDrainedPks.contains(it.getPrimaryKey()))
+						.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
+						.skip(6)
+						.limit(5)
+						.mapToInt(SealedEntity::getPrimaryKey)
+						.toArray()
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return filtered entities in manually crafted segmented order")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnDifferentlySortedAndFilteredSegments(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Set<Integer> nameDrainedPks = new HashSet<>();
+				final Set<Integer> eanDrainedPks = new HashSet<>();
+				final Set<Integer> quantityDrainedPks = new HashSet<>();
+
+				final Segments segments = segments(
+					segment(
+						entityHaving(
+							attributeLessThanEquals(ATTRIBUTE_NAME, "L")
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+						),
+						limit(10)
+					),
+					segment(
+						entityHaving(
+							attributeLessThanEquals(ATTRIBUTE_NAME, "P")
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_EAN, OrderDirection.DESC)
+						),
+						limit(8)
+					),
+					segment(
+						entityHaving(
+							attributeLessThanEquals(ATTRIBUTE_NAME, "T")
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_QUANTITY, OrderDirection.ASC)
+						),
+						limit(6)
+					)
+				);
+
+				assertSortedResultEquals(
+					"First page must be sorted by name in descending order.",
+					session.query(
+							fabricateSegmentedQuery(1, 5, segments),
+							EntityReference.class
+						)
+						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+					originalProductEntities.stream()
+						.filter(it -> it.getAttribute(ATTRIBUTE_NAME, String.class).compareTo("L") <= 0)
+						.sorted(
+							(o1, o2) -> o2.getAttribute(ATTRIBUTE_NAME, String.class)
+								.compareTo(o1.getAttribute(ATTRIBUTE_NAME, String.class))
+						)
+						.limit(5)
+						.mapToInt(SealedEntity::getPrimaryKey)
+						.peek(nameDrainedPks::add)
+						.toArray()
+				);
+				assertSortedResultEquals(
+					"Second page must be sorted by name in descending order.",
+					session.query(
+							fabricateSegmentedQuery(2, 5, segments),
+							EntityReference.class
+						)
+						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+					originalProductEntities.stream()
+						.filter(it -> it.getAttribute(ATTRIBUTE_NAME, String.class).compareTo("L") <= 0)
+						.sorted(
+							(o1, o2) -> o2.getAttribute(ATTRIBUTE_NAME, String.class)
+								.compareTo(o1.getAttribute(ATTRIBUTE_NAME, String.class))
+						)
+						.skip(5)
+						.limit(5)
+						.mapToInt(SealedEntity::getPrimaryKey)
+						.peek(nameDrainedPks::add)
+						.toArray()
+				);
+
+				assertSortedResultEquals(
+					"Third page must be sorted by EAN in descending order (excluding items on first two pages).",
+					session.query(
+							fabricateSegmentedQuery(3, 5, segments),
+							EntityReference.class
+						)
+						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+					originalProductEntities.stream()
+						.filter(it -> it.getAttribute(ATTRIBUTE_NAME, String.class).compareTo("P") <= 0)
+						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()))
+						.sorted(
+							(o1, o2) -> o2.getAttribute(ATTRIBUTE_EAN, String.class)
+								.compareTo(o1.getAttribute(ATTRIBUTE_EAN, String.class))
+						)
+						.limit(5)
+						.mapToInt(SealedEntity::getPrimaryKey)
+						.peek(eanDrainedPks::add)
+						.toArray()
+				);
+
+				final List<Integer> fourthPage = session.query(
+						fabricateSegmentedQuery(4, 5, segments),
+						EntityReference.class
+					)
+					.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList());
+				assertSortedResultEquals(
+					"Fourth page contains 3 entities sorted according to EAN in descending order.",
+					fourthPage.subList(0, 3),
+					originalProductEntities.stream()
+						.filter(it -> it.getAttribute(ATTRIBUTE_NAME, String.class).compareTo("P") <= 0)
+						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()))
+						.sorted(
+							(o1, o2) -> o2.getAttribute(ATTRIBUTE_EAN, String.class)
+								.compareTo(o1.getAttribute(ATTRIBUTE_EAN, String.class))
+						)
+						.skip(5)
+						.limit(3)
+						.mapToInt(SealedEntity::getPrimaryKey)
+						.peek(eanDrainedPks::add)
+						.toArray()
+				);
+
+				assertSortedResultEquals(
+					"Fourth page ends with first 2 entities sorted according to quantity in ascending order.",
+					fourthPage.subList(3, 5),
+					originalProductEntities.stream()
+						.filter(it -> it.getAttribute(ATTRIBUTE_NAME, String.class).compareTo("T") <= 0)
+						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()))
+						.sorted(
+							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class))
+						)
+						.limit(2)
+						.mapToInt(SealedEntity::getPrimaryKey)
+						.peek(quantityDrainedPks::add)
+						.toArray()
+				);
+
+				final List<Integer> fifthPage = session.query(
+						fabricateSegmentedQuery(5, 5, segments),
+						EntityReference.class
+					)
+					.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList());
+				assertSortedResultEquals(
+					"Fifth page must have only 4 entities be sorted by quantity in ascending order.",
+					fifthPage.subList(0, 4),
+					originalProductEntities.stream()
+						.filter(it -> it.getAttribute(ATTRIBUTE_NAME, String.class).compareTo("T") <= 0)
 						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()))
 						.sorted(
 							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class))
