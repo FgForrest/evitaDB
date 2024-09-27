@@ -82,7 +82,11 @@ public class OrderBy extends AbstractOrderConstraintContainer implements Generic
 
 	@Nullable
 	public OrderConstraint getChild() {
-		return getChildrenCount() == 0 ? null : getChildren()[0];
+		final OrderConstraint[] children = getChildren();
+		if (children.length > 1) {
+			throw new IllegalStateException("OrderBy ordering query has more than one child!");
+		}
+		return children.length == 1 ? children[0] : null;
 	}
 
 	@Nonnull

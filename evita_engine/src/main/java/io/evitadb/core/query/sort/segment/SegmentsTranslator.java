@@ -48,17 +48,21 @@ public class SegmentsTranslator implements OrderingConstraintTranslator<Segments
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull Segments segments, @Nonnull OrderByVisitor orderByVisitor) {
-		return Arrays.stream(segments.getSegments()).map(segment -> {
-			final OrderBy orderBy = segment.getOrderBy();
-			final Sorter segmentSorter = orderByVisitor.collectIsolatedSorter(
-				() -> Arrays.stream(orderBy.getChildren()).forEach(it-> it.accept(orderByVisitor))
-			);
-			final OptionalInt limit = segment.getLimit();
-			return new SegmentSorter(
-				segmentSorter,
-				limit.orElse(0)
-			);
-		});
+		// map each segment to a separate sorter
+		return Arrays.stream(segments.getSegments())
+			.map(segment -> {
+				final OrderBy orderBy = segment.getOrderBy();
+				final Sorter delegate = orderByVisitor.collectIsolatedSorter(
+					() -> Arrays.stream(orderBy.getChildren()).forEach(it -> it.accept(orderByVisitor))
+				);
+				final OptionalInt limit = segment.getLimit();
+				// segment sorter will delegate sorting to internal sorter, but will limit the number of sorted records
+				// and also exclude records that were already sorted by previous segments
+				return new SegmentSorter(
+					delegate,
+					limit.orElse(Integer.MAX_VALUE)
+				);
+			});
 	}
 
 }

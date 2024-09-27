@@ -42,13 +42,17 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * TODO JNO - document me
+ * The SegmentSorter class is a specialized sorter that sorts only a single output segment of the query result defined
+ * by a {@link SegmentLimit} constraint - extracted to {@link #limit}. The sorter will delegate sorting to another sorter,
+ * and when the limit is reached, it excludes all primary keys that has been already sorted by this segment and passes
+ * the rest to another sorter in the chain (probably another segment sorter).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class SegmentSorter implements Sorter {
 	/**
 	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
+	 * Usually the next segment sorter.
 	 */
 	private final Sorter unknownRecordIdsSorter;
 	/**
@@ -108,9 +112,10 @@ public class SegmentSorter implements Sorter {
 		if (filteredRecordIdBitmap.isEmpty()) {
 			return 0;
 		} else {
-			// this segment will be the last we need to calculate
 			final Sorter sorterToUse = ConditionalSorter.getFirstApplicableSorter(queryContext, this.delegateSorter);
+			// if the end index is below the limit
 			if (endIndex <= this.limit) {
+				// this segment will be the last we need to calculate
 				return sorterToUse.sortAndSlice(
 					queryContext,
 					input,
@@ -131,7 +136,7 @@ public class SegmentSorter implements Sorter {
 					0,
 					endIndexOrLimit,
 					tmpArray,
-					peak
+					0
 				);
 				final int appended = Math.max(0, sortedCount - startIndex);
 				final int lastSortedItem = peak + appended;
@@ -143,18 +148,21 @@ public class SegmentSorter implements Sorter {
 				if (lastSortedItem == filteredRecordIdBitmap.size()) {
 					return lastSortedItem;
 				} else {
-					// collect all "sorted" record ids
+					// collect all "sorted" record ids by this segment
 					final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 					for (int i = 0; i < sortedCount; i++) {
 						writer.add(tmpArray[i]);
 					}
 
-					// pass them to another sorter
+					// recalculate indexes for the next sorter
 					final int recomputedStartIndex = Math.max(0, startIndex - this.limit);
 					final int recomputedEndIndex = Math.max(0, endIndex - this.limit);
 
 					return unknownRecordIdsSorter.sortAndSlice(
-						queryContext, FormulaFactory.not(new ConstantFormula(new BaseBitmap(writer.get())), input),
+						queryContext,
+						// and filter the filtered input to next query to avoid records that has been already consumed
+						// by this segment
+						FormulaFactory.not(new ConstantFormula(new BaseBitmap(writer.get())), input),
 						recomputedStartIndex, recomputedEndIndex, result, lastSortedItem
 					);
 				}
