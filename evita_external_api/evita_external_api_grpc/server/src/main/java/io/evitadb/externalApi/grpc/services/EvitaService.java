@@ -30,6 +30,10 @@ import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
+import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
@@ -125,6 +129,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void isReady(Empty request, StreamObserver<GrpcReadyResponse> responseObserver) {
+		new ReadinessEvent(GrpcProvider.CODE, Prospective.SERVER).finish(Result.READY);
 		responseObserver.onNext(GrpcReadyResponse.newBuilder().setReady(true).build());
 		responseObserver.onCompleted();
 	}

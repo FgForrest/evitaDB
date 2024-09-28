@@ -38,96 +38,96 @@ public enum GrpcReadiness
   /**
    * <pre>
    **
+   * Unknown state - cannot determine the state of the APIs (should not happen).
+   * </pre>
+   *
+   * <code>API_UNKNOWN = 0;</code>
+   */
+  API_UNKNOWN(0),
+  /**
+   * <pre>
+   **
    * At least one API is not ready.
    * </pre>
    *
-   * <code>API_STARTING = 0;</code>
+   * <code>API_STARTING = 1;</code>
    */
-  API_STARTING(0),
+  API_STARTING(1),
   /**
    * <pre>
    **
    * All APIs are ready.
    * </pre>
    *
-   * <code>API_READY = 1;</code>
+   * <code>API_READY = 2;</code>
    */
-  API_READY(1),
+  API_READY(2),
   /**
    * <pre>
    **
    * At least one API that was ready is not ready anymore.
    * </pre>
    *
-   * <code>API_STALLING = 2;</code>
+   * <code>API_STALLING = 3;</code>
    */
-  API_STALLING(2),
+  API_STALLING(3),
   /**
    * <pre>
    **
    * Server is shutting down. None of the APIs are ready.
    * </pre>
    *
-   * <code>API_SHUTDOWN = 3;</code>
+   * <code>API_SHUTDOWN = 4;</code>
    */
-  API_SHUTDOWN(3),
-  /**
-   * <pre>
-   **
-   * Unknown state - cannot determine the state of the APIs (should not happen).
-   * </pre>
-   *
-   * <code>API_UNKNOWN = 4;</code>
-   */
-  API_UNKNOWN(4),
+  API_SHUTDOWN(4),
   UNRECOGNIZED(-1),
   ;
 
   /**
    * <pre>
    **
+   * Unknown state - cannot determine the state of the APIs (should not happen).
+   * </pre>
+   *
+   * <code>API_UNKNOWN = 0;</code>
+   */
+  public static final int API_UNKNOWN_VALUE = 0;
+  /**
+   * <pre>
+   **
    * At least one API is not ready.
    * </pre>
    *
-   * <code>API_STARTING = 0;</code>
+   * <code>API_STARTING = 1;</code>
    */
-  public static final int API_STARTING_VALUE = 0;
+  public static final int API_STARTING_VALUE = 1;
   /**
    * <pre>
    **
    * All APIs are ready.
    * </pre>
    *
-   * <code>API_READY = 1;</code>
+   * <code>API_READY = 2;</code>
    */
-  public static final int API_READY_VALUE = 1;
+  public static final int API_READY_VALUE = 2;
   /**
    * <pre>
    **
    * At least one API that was ready is not ready anymore.
    * </pre>
    *
-   * <code>API_STALLING = 2;</code>
+   * <code>API_STALLING = 3;</code>
    */
-  public static final int API_STALLING_VALUE = 2;
+  public static final int API_STALLING_VALUE = 3;
   /**
    * <pre>
    **
    * Server is shutting down. None of the APIs are ready.
    * </pre>
    *
-   * <code>API_SHUTDOWN = 3;</code>
+   * <code>API_SHUTDOWN = 4;</code>
    */
-  public static final int API_SHUTDOWN_VALUE = 3;
-  /**
-   * <pre>
-   **
-   * Unknown state - cannot determine the state of the APIs (should not happen).
-   * </pre>
-   *
-   * <code>API_UNKNOWN = 4;</code>
-   */
-  public static final int API_UNKNOWN_VALUE = 4;
+  public static final int API_SHUTDOWN_VALUE = 4;
 
 
   public final int getNumber() {
@@ -154,11 +154,11 @@ public enum GrpcReadiness
    */
   public static GrpcReadiness forNumber(int value) {
     switch (value) {
-      case 0: return API_STARTING;
-      case 1: return API_READY;
-      case 2: return API_STALLING;
-      case 3: return API_SHUTDOWN;
-      case 4: return API_UNKNOWN;
+      case 0: return API_UNKNOWN;
+      case 1: return API_STARTING;
+      case 2: return API_READY;
+      case 3: return API_STALLING;
+      case 4: return API_SHUTDOWN;
       default: return null;
     }
   }

@@ -23,6 +23,9 @@
 
 package io.evitadb.externalApi.observability;
 
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
 import io.evitadb.utils.NetworkUtils;
@@ -33,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.function.Predicate;
 
-import static io.evitadb.externalApi.observability.ObservabilityManager.METRICS_SUFFIX;
+import static io.evitadb.externalApi.observability.ObservabilityManager.LIVENESS_SUFFIX;
 
 /**
  * Descriptor of external API provider that provides Metrics API.
@@ -81,16 +84,32 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(
-				url, "GET", "text/plain", null,
-				error -> log.error("Error while checking readiness of Observability API: {}", error)
-			)
-			.map(content -> !content.isEmpty())
-			.orElse(false);
+		final Predicate<String> isReady = url -> {
+			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+			return NetworkUtils.fetchContent(
+					url, "GET", "text/plain", null,
+					error -> {
+						log.error("Error while checking readiness of Observability API: {}", error);
+						readinessEvent.finish(Result.ERROR);
+					},
+					timeouted -> {
+						log.error("{}", timeouted);
+						readinessEvent.finish(Result.TIMEOUT);
+					}
+				)
+				.map(content -> {
+					final boolean result = !content.isEmpty();
+					if (result) {
+						readinessEvent.finish(Result.READY);
+					}
+					return result;
+				})
+				.orElse(false);
+		};
 		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
-				final String url = baseUrl + METRICS_SUFFIX;
+				final String url = baseUrl + LIVENESS_SUFFIX;
 				if (isReady.test(url)) {
 					this.reachableUrl = url;
 					return true;

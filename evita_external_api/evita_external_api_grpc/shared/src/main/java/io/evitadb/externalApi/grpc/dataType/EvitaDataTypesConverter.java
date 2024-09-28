@@ -1532,6 +1532,8 @@ public class EvitaDataTypesConverter {
 			);
 		if (catalogStatistics.catalogState() != null) {
 			builder.setCatalogState(EvitaEnumConverter.toGrpcCatalogState(catalogStatistics.catalogState()));
+		} else {
+			builder.setCatalogState(GrpcCatalogState.UNKNOWN_CATALOG_STATE);
 		}
 		return builder
 			.build();

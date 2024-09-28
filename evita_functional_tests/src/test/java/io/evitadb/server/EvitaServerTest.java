@@ -255,7 +255,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
-				error -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", error)
+				error -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", error),
+				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
 				content -> fail("The system API is accessible via Observability port: " + content)
 			);
@@ -266,7 +267,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
-				error -> assertEquals("Error fetching content from URL: https://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name HTTP status 403: This endpoint requires TLS.", error)
+				error -> assertEquals("Error fetching content from URL: https://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name HTTP status 403: This endpoint requires TLS.", error),
+				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
 				content -> fail("The system API is accessible via invalid scheme: " + content)
 			);
@@ -277,7 +279,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
-				error -> assertTrue(error.contains("Error fetching content from URL: https://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name"))
+				error -> assertTrue(error.contains("Error fetching content from URL: https://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name")),
+				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
 				content -> fail("The system API is accessible via invalid scheme and Observability port: " + content)
 			);
@@ -288,7 +291,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
-				error -> fail("The system API should be accessible via correct scheme and port: " + error)
+				error -> fail("The system API should be accessible via correct scheme and port: " + error),
+				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
 				content -> assertTrue(content.contains("evitaDB-"), "The system API should be accessible via correct scheme and port: " + content)
 			);
@@ -299,7 +303,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
-				error -> fail("The system API should be accessible via Lab scheme and port: " + error)
+				error -> fail("The system API should be accessible via Lab scheme and port: " + error),
+				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
 				content -> assertTrue(content.contains("evitaDB-"), "The system API should be accessible via Lab scheme and port: " + content)
 			);
@@ -310,7 +315,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
-				error -> fail("The system API should be accessible via Lab scheme and port: " + error)
+				error -> fail("The system API should be accessible via Lab scheme and port: " + error),
+				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
 				content -> assertTrue(content.contains("evitaDB-"), "The system API should be accessible via Lab scheme and port: " + content)
 			);
@@ -484,7 +490,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					"GET",
 					"application/json",
 					null,
-					error -> log.error("Error while checking readiness of API: {}", error)
+					error -> log.error("Error while checking readiness of API: {}", error),
+					timeout -> log.error("Error while checking readiness of API: {}", timeout)
 				);
 
 				if (readiness.isPresent() && readiness.get().contains("\"status\": \"READY\"")) {
@@ -515,7 +522,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"application/json",
 				null,
-				error -> log.error("Error while checking readiness of API: {}", error)
+				error -> log.error("Error while checking readiness of API: {}", error),
+				timeout -> log.error("Error while checking readiness of API: {}", timeout)
 			);
 
 			assertTrue(liveness.isPresent());
@@ -529,7 +537,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"application/json",
 				null,
-				error -> log.error("Error while checking readiness of API: {}", error)
+				error -> log.error("Error while checking readiness of API: {}", error),
+				timeout -> log.error("Error while checking readiness of API: {}", timeout)
 			);
 
 			assertTrue(status.isPresent());

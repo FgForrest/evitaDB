@@ -41,6 +41,9 @@ import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.evitadb.externalApi.http.ExternalApiProvider;
@@ -282,7 +285,10 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			"/" + ENDPOINT_SERVER_NAME,
 			createCorsWrapper(
 				systemConfig,
-				(ctx, req) -> HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT, evita.getConfiguration().name())
+				(ctx, req) -> {
+					new ReadinessEvent(SystemProvider.CODE, Prospective.SERVER).finish(Result.READY);
+					return HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT, evita.getConfiguration().name());
+				}
 			)
 		);
 

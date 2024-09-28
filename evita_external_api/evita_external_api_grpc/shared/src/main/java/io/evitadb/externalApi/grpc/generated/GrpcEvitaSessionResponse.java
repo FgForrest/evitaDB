@@ -158,7 +158,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       sessionId_ = s;
@@ -178,7 +178,7 @@ private static final long serialVersionUID = 0L;
       getSessionIdBytes() {
     java.lang.Object ref = sessionId_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       sessionId_ = b;
@@ -285,7 +285,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       catalogId_ = s;
@@ -305,7 +305,7 @@ private static final long serialVersionUID = 0L;
       getCatalogIdBytes() {
     java.lang.Object ref = catalogId_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       catalogId_ = b;
@@ -338,7 +338,7 @@ private static final long serialVersionUID = 0L;
     if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
       output.writeEnum(3, commitBehaviour_);
     }
-    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
+    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNKNOWN_CATALOG_STATE.getNumber()) {
       output.writeEnum(4, catalogState_);
     }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogId_)) {
@@ -364,7 +364,7 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(3, commitBehaviour_);
     }
-    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
+    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNKNOWN_CATALOG_STATE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(4, catalogState_);
     }
@@ -719,7 +719,7 @@ private static final long serialVersionUID = 0L;
         getSessionIdBytes() {
       java.lang.Object ref = sessionId_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         sessionId_ = b;
@@ -742,7 +742,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       sessionId_ = value;
       onChanged();
       return this;
@@ -756,7 +756,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSessionId() {
-      
+
       sessionId_ = getDefaultInstance().getSessionId();
       onChanged();
       return this;
@@ -776,7 +776,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       sessionId_ = value;
       onChanged();
       return this;
@@ -804,7 +804,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSessionTypeValue(int value) {
-      
+
       sessionType_ = value;
       onChanged();
       return this;
@@ -836,7 +836,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       sessionType_ = value.getNumber();
       onChanged();
       return this;
@@ -850,7 +850,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSessionType() {
-      
+
       sessionType_ = 0;
       onChanged();
       return this;
@@ -878,7 +878,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCommitBehaviourValue(int value) {
-      
+
       commitBehaviour_ = value;
       onChanged();
       return this;
@@ -910,7 +910,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       commitBehaviour_ = value.getNumber();
       onChanged();
       return this;
@@ -924,7 +924,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCommitBehaviour() {
-      
+
       commitBehaviour_ = 0;
       onChanged();
       return this;
@@ -952,7 +952,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogStateValue(int value) {
-      
+
       catalogState_ = value;
       onChanged();
       return this;
@@ -984,7 +984,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       catalogState_ = value.getNumber();
       onChanged();
       return this;
@@ -998,7 +998,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogState() {
-      
+
       catalogState_ = 0;
       onChanged();
       return this;
@@ -1037,7 +1037,7 @@ private static final long serialVersionUID = 0L;
         getCatalogIdBytes() {
       java.lang.Object ref = catalogId_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         catalogId_ = b;
@@ -1060,7 +1060,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       catalogId_ = value;
       onChanged();
       return this;
@@ -1074,7 +1074,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogId() {
-      
+
       catalogId_ = getDefaultInstance().getCatalogId();
       onChanged();
       return this;
@@ -1094,7 +1094,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       catalogId_ = value;
       onChanged();
       return this;
