@@ -1,5 +1,12 @@
 ### Java Flight Recorder (JFR) Events
 
+#### API
+
+<dl>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/event/ReadinessEvent.java</SourceClass> Readiness probe</dt>
+  <dd>Event that is fired when a readiness probe is either executed by client or invoked on the server side.</dd>
+</dl>
+
 #### API / GraphQL / Instance / Schema
 
 <dl>

@@ -47,6 +47,8 @@ import javax.annotation.Nonnull;
 @Category({"evitaDB", "API"})
 @ExportInvocationMetric(label = "Readiness probe invoked total")
 @ExportDurationMetric(label = "Readiness probe duration")
+@Description("Event that is fired when a readiness probe is either executed by client or invoked on the server side.")
+@Label("Readiness probe")
 @Getter
 public class ReadinessEvent extends CustomMetricsExecutionEvent {
 	protected static final String PACKAGE_NAME = "io.evitadb.externalApi";
