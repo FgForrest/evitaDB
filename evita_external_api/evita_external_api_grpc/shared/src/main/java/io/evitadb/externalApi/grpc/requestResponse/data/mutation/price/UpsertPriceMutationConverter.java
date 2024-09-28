@@ -56,7 +56,7 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 			EvitaDataTypesConverter.toBigDecimal(mutation.getTaxRate()),
 			EvitaDataTypesConverter.toBigDecimal(mutation.getPriceWithTax()),
 			mutation.hasValidity() ? EvitaDataTypesConverter.toDateTimeRange(mutation.getValidity()) : null,
-			mutation.getIndexed()
+			mutation.getIndexed() || mutation.getSellable()
 		);
 	}
 

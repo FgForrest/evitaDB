@@ -23,7 +23,8 @@
 
 package io.evitadb.core.query.filter.translator.price.alternative;
 
-import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
@@ -64,8 +65,9 @@ import io.evitadb.utils.NumberUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -113,10 +115,23 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 		this.entityFetch = ArrayUtils.isEmpty(additionalPriceLists) ? ENTITY_REQUIRE : new EntityFetch(PriceContent.respectingFilter(additionalPriceLists));
 		this.converter = (entityPrimaryKey, indexedPricePlaces, priceQueryMode, priceContract) -> {
 			if (priceContract instanceof CumulatedPrice cumulatedPrice) {
-				final Set<Integer> innerRecordIds = cumulatedPrice.innerRecordIds();
-				final IntHashSet intSetInnerRecordIds = new IntHashSet(innerRecordIds.size());
-				for (Integer innerRecordId : innerRecordIds) {
-					intSetInnerRecordIds.add(innerRecordId);
+				final Map<Integer, PriceContract> innerRecordIds = cumulatedPrice.innerRecordPrices();
+				final IntObjectMap<PriceRecordContract> intSetInnerRecordIds = new IntObjectHashMap<>(innerRecordIds.size());
+				for (Entry<Integer, PriceContract> entry : innerRecordIds.entrySet()) {
+					final PriceContract innerRecordPrice = entry.getValue();
+					if (entry.getKey() != null) {
+						intSetInnerRecordIds.put(
+							entry.getKey(),
+							new PriceRecordInnerRecordSpecific(
+								-1,
+								innerRecordPrice.priceId(),
+								entityPrimaryKey,
+								innerRecordPrice.innerRecordId(),
+								NumberUtils.convertToInt(innerRecordPrice.priceWithTax(), indexedPricePlaces),
+								NumberUtils.convertToInt(innerRecordPrice.priceWithoutTax(), indexedPricePlaces)
+							)
+						);
+					}
 				}
 				return new CumulatedVirtualPriceRecord(
 					entityPrimaryKey,

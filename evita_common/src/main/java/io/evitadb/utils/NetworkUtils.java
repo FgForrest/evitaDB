@@ -42,6 +42,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
@@ -66,7 +67,7 @@ public class NetworkUtils {
 	 * This shouldn't be changed - only in tests which needs to extend this timeout for slower machines runnning
 	 * parallel tests and squeezing the resources.
 	 */
-	public static int DEFAULT_CLIENT_TIMEOUT = 500;
+	public static int DEFAULT_CLIENT_TIMEOUT = 1000;
 	private static OkHttpClient HTTP_CLIENT;
 
 	/**
@@ -106,7 +107,8 @@ public class NetworkUtils {
 	 */
 	public static boolean isReachable(
 		@Nonnull String url,
-		@Nullable Consumer<String> errorConsumer
+		@Nullable Consumer<String> errorConsumer,
+		@Nullable Consumer<String> timeoutConsumer
 	) {
 		try {
 			try (
@@ -124,6 +126,10 @@ public class NetworkUtils {
 				}
 				return response.code() == 200;
 			}
+		} catch (SocketTimeoutException e) {
+			ofNullable(timeoutConsumer)
+				.ifPresent(it -> it.accept("Fetching content from URL timed out: " + url + " - " + e.getMessage()));
+			return false;
 		} catch (IOException e) {
 			ofNullable(errorConsumer)
 				.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " - " + e.getMessage()));
@@ -147,7 +153,8 @@ public class NetworkUtils {
 		@Nullable String method,
 		@Nonnull String contentType,
 		@Nullable String body,
-		@Nullable Consumer<String> errorConsumer
+		@Nullable Consumer<String> errorConsumer,
+		@Nullable Consumer<String> timeoutConsumer
 	) {
 		try {
 			final RequestBody requestBody = ofNullable(body)
@@ -173,6 +180,10 @@ public class NetworkUtils {
 					return of(response.body().string());
 				}
 			}
+		} catch (SocketTimeoutException e) {
+			ofNullable(timeoutConsumer)
+				.ifPresent(it -> it.accept("Fetching content from URL timed out: " + url + " - " + e.getMessage()));
+			return empty();
 		} catch (IOException e) {
 			ofNullable(errorConsumer)
 				.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " - " + e.getMessage()));

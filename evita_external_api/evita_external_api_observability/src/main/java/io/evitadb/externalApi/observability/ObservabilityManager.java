@@ -25,6 +25,9 @@ package io.evitadb.externalApi.observability;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.file.FileService;
 import io.evitadb.api.exception.SingletonTaskAlreadyRunningException;
@@ -35,6 +38,9 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.observability.agent.ErrorMonitor;
@@ -90,6 +96,7 @@ import static java.util.Optional.of;
 @Slf4j
 public class ObservabilityManager {
 	public static final String METRICS_SUFFIX = "metrics";
+	public static final String LIVENESS_SUFFIX = "liveness";
 	/**
 	 * Directory where JFR recording file is stored.
 	 */
@@ -114,22 +121,6 @@ public class ObservabilityManager {
 	 * Name of the OutOfMemoryError class to detect the problems of OOM kind.
 	 */
 	private static final String OOM_NAME = OutOfMemoryError.class.getSimpleName();
-	/**
-	 * Router for observability endpoints.
-	 */
-	private final PathHandlingService observabilityRouter = new PathHandlingService();
-	/**
-	 * Observability API config.
-	 */
-	private final ObservabilityConfig config;
-	/**
-	 * Evita instance.
-	 */
-	private final Evita evita;
-	/**
-	 * Common object mapper for endpoints
-	 */
-	@Nonnull @Getter private final ObjectMapper objectMapper;
 
 	static {
 		ClassLoader classLoader = null;
@@ -154,11 +145,31 @@ public class ObservabilityManager {
 	}
 
 	/**
+	 * Router for observability endpoints.
+	 */
+	private final PathHandlingService observabilityRouter = new PathHandlingService();
+	/**
+	 * Observability API config.
+	 */
+	private final ObservabilityConfig config;
+	/**
+	 * Evita instance.
+	 */
+	private final Evita evita;
+	/**
+	 * Common object mapper for endpoints
+	 */
+	@Nonnull @Getter private final ObjectMapper objectMapper;
+
+	/**
 	 * Method increments the counter of Java errors in the Prometheus metrics.
 	 */
 	public static void javaErrorEvent(@Nonnull String simpleName) {
 		MetricHandler.JAVA_ERRORS_TOTAL.labelValues(simpleName).inc();
 		JAVA_ERRORS.incrementAndGet();
+		if (simpleName.equals(OOM_NAME)) {
+			JAVA_OOM_ERRORS.incrementAndGet();
+		}
 	}
 
 	/**
@@ -167,9 +178,6 @@ public class ObservabilityManager {
 	public static void evitaErrorEvent(@Nonnull String simpleName) {
 		MetricHandler.EVITA_ERRORS_TOTAL.labelValues(simpleName).inc();
 		EVITA_ERRORS.incrementAndGet();
-		if (simpleName.equals(OOM_NAME)) {
-			JAVA_OOM_ERRORS.incrementAndGet();
-		}
 	}
 
 	public ObservabilityManager(ObservabilityConfig config, Evita evita) {
@@ -214,8 +222,9 @@ public class ObservabilityManager {
 
 	/**
 	 * Records readiness of the API to the Prometheus metrics.
+	 *
 	 * @param apiCode the code of the API taken from {@link ExternalApiProviderRegistrar#getExternalApiCode()}
-	 * @param ready true if the API is ready, false otherwise
+	 * @param ready   true if the API is ready, false otherwise
 	 */
 	public void recordReadiness(@Nonnull String apiCode, boolean ready) {
 		MetricHandler.API_READINESS.labelValues(apiCode).set(ready ? 1 : 0);
@@ -223,6 +232,7 @@ public class ObservabilityManager {
 
 	/**
 	 * Records health problem to the Prometheus metrics.
+	 *
 	 * @param healthProblem the health problem to be recorded
 	 */
 	public void recordHealthProblem(@Nonnull String healthProblem) {
@@ -231,6 +241,7 @@ public class ObservabilityManager {
 
 	/**
 	 * Clears health problem from the Prometheus metrics.
+	 *
 	 * @param healthProblem the health problem to be cleared
 	 */
 	public void clearHealthProblem(@Nonnull String healthProblem) {
@@ -239,23 +250,24 @@ public class ObservabilityManager {
 
 	/**
 	 * Returns list of all available JFR event types.
+	 *
 	 * @return list of all available JFR event types
 	 */
 	@Nonnull
 	public List<RecordingGroup> getAvailableJfrEventTypes() {
 		return Stream.concat(
-			EvitaJfrEventRegistry.getEvitaEventGroups()
-				.values()
-				.stream()
-				.sorted(Comparator.comparing(EvitaEventGroup::name))
-				.map(it -> new RecordingGroup(it.id(), it.name(), it.description())),
-			EvitaJfrEventRegistry.getJdkEventGroups()
-				.values()
-				.stream()
-				.sorted(Comparator.comparing(JdkEventGroup::name))
-				.map(it -> new RecordingGroup(it.id(), it.name(), it.description()))
-		)
-		.toList();
+				EvitaJfrEventRegistry.getEvitaEventGroups()
+					.values()
+					.stream()
+					.sorted(Comparator.comparing(EvitaEventGroup::name))
+					.map(it -> new RecordingGroup(it.id(), it.name(), it.description())),
+				EvitaJfrEventRegistry.getJdkEventGroups()
+					.values()
+					.stream()
+					.sorted(Comparator.comparing(JdkEventGroup::name))
+					.map(it -> new RecordingGroup(it.id(), it.name(), it.description()))
+			)
+			.toList();
 	}
 
 	/**
@@ -301,6 +313,7 @@ public class ObservabilityManager {
 
 	/**
 	 * Returns the status of the currently running JFR recording task or empty result if no task is running.
+	 *
 	 * @return the status of the currently running JFR recording task or empty result if no task is running
 	 */
 	@Nonnull
@@ -387,11 +400,22 @@ public class ObservabilityManager {
 			"/getRecordingEventTypes",
 			corsEndpoint.toHandler(new ObservabilityExceptionHandler(objectMapper, getJfrRecordingEventTypesHandler))
 		);
+		this.observabilityRouter.addExactPath(
+			"/" + LIVENESS_SUFFIX,
+			corsEndpoint.toHandler(
+				new ObservabilityExceptionHandler(objectMapper,
+					(ctx, req) -> {
+						new ReadinessEvent(ObservabilityProvider.CODE, Prospective.SERVER).finish(Result.READY);
+						return HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT, evita.getConfiguration().name());
+					})
+			)
+		);
 	}
 
 	/**
 	 * Represents a group of JFR events that could be recorded.
-	 * @param name the name of the group
+	 *
+	 * @param name        the name of the group
 	 * @param description the description of the group
 	 */
 	public record RecordingGroup(

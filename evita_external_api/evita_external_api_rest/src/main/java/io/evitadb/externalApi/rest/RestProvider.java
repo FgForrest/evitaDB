@@ -23,6 +23,9 @@
 
 package io.evitadb.externalApi.rest;
 
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
@@ -78,12 +81,28 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(
-				url, "GET", "application/json", null,
-				error -> log.error("Error while checking readiness of REST API: {}", error)
-			)
-			.map(content -> content.contains("true"))
-			.orElse(false);
+		final Predicate<String> isReady = url -> {
+			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+			return NetworkUtils.fetchContent(
+					url, "GET", "application/json", null,
+					error -> {
+						log.error("Error while checking readiness of REST API: {}", error);
+						readinessEvent.finish(Result.ERROR);
+					},
+					timeouted -> {
+						log.error("{}", timeouted);
+						readinessEvent.finish(Result.TIMEOUT);
+					}
+				)
+				.map(content -> {
+					final boolean result = content.contains("true");
+					if (result) {
+						readinessEvent.finish(Result.READY);
+					}
+					return result;
+				})
+				.orElse(false);
+		};
 		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {

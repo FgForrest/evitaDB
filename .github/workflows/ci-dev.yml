@@ -45,6 +45,11 @@ jobs:
          distribution: 'temurin'
          java-version: '17'
          cache: 'maven'
+         server-id: ossrh
+         server-username: MAVEN_USERNAME
+         server-password: MAVEN_CENTRAL_TOKEN
+         gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+         gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
     - name: Build with Maven       # run Maven with tests
       run: |
@@ -71,3 +76,12 @@ jobs:
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
       uses: advanced-security/maven-dependency-submission-action@v3
+
+    - name: Deploy with Maven       # deploy SNAPSHOTS to Maven repository
+      run: |
+        mvn -T 1C -B deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
+      continue-on-error: true
+      env:
+        MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+        MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}

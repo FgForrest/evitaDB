@@ -390,10 +390,9 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 								if (priceCnt.getFetchMode() == PriceContentMode.RESPECTING_FILTER) {
 									if (ArrayUtils.isEmpty(priceCnt.getAdditionalPriceListsToFetch())) {
 										return allPriceForSaleConstraintsSet ?
-											Stream.of(PRICE_FOR_SALE, PRICES) : Stream.of(PRICES);
+											Stream.of(PRICE_FOR_SALE) : Stream.of(PRICES);
 									} else {
-										final String additionalPrices = ALTERNATIVE_PRICES + Arrays.stream(priceCnt.getAdditionalPriceListsToFetch())
-											.collect(Collectors.joining(", "));
+										final String additionalPrices = ALTERNATIVE_PRICES + String.join(", ", priceCnt.getAdditionalPriceListsToFetch());
 										return allPriceForSaleConstraintsSet ?
 											Stream.of(PRICE_FOR_SALE, additionalPrices) : Stream.of(additionalPrices);
 									}

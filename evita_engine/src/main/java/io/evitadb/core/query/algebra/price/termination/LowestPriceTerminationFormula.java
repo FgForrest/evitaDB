@@ -71,7 +71,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
- * FirstVariantPriceTerminationFormula picks lowest filtered price for each entity id as a representative price for it.
+ * LowestPriceTerminationFormula picks lowest filtered price for each entity id as a representative price for it.
  * It may also filter out entity ids which don't pass {@link #sellingPricePredicate} predicate test.
  *
  * This formula consumes and produces {@link Formula} of {@link PriceRecord#entityPrimaryKey() entity ids}. It uses
@@ -80,7 +80,7 @@ import java.util.function.Predicate;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
+public class LowestPriceTerminationFormula extends AbstractCacheableFormula implements FilteredPriceRecordAccessor, PriceTerminationFormula {
 	private static final long CLASS_ID = -4905806490462655316L;
 	private static final Predicate<PriceRecordContract> ALL_MATCHING_PREDICATE = priceContract -> true;
 
@@ -118,7 +118,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	 */
 	@Getter private Bitmap recordsFilteredOutByPredicate;
 
-	public FirstVariantPriceTerminationFormula(
+	public LowestPriceTerminationFormula(
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
 		@Nonnull QueryPriceMode queryPriceMode,
@@ -135,7 +135,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		this.initFields(containerFormula);
 	}
 
-	private FirstVariantPriceTerminationFormula(
+	private LowestPriceTerminationFormula(
 		@Nullable Consumer<CacheableFormula> computationCallback,
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
@@ -154,7 +154,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 		this.initFields(containerFormula);
 	}
 
-	private FirstVariantPriceTerminationFormula(
+	private LowestPriceTerminationFormula(
 		@Nullable Consumer<CacheableFormula> computationCallback,
 		@Nonnull Formula containerFormula,
 		@Nonnull PriceEvaluationContext priceEvaluationContext,
@@ -176,18 +176,18 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	}
 
 	/**
-	 * Creates a new instance of FirstVariantPriceTerminationFormula with the specified individual price predicate and
+	 * Creates a new instance of LowestPriceTerminationFormula with the specified individual price predicate and
 	 * retains the existing computation callback, delegate formula, price evaluation context, query price mode,
 	 * and selling price predicate.
 	 *
 	 * @param individualPricePredicate the predicate to filter individual price records; must not be null
-	 * @return a new instance of FirstVariantPriceTerminationFormula with the specified individual price predicate
+	 * @return a new instance of LowestPriceTerminationFormula with the specified individual price predicate
 	 */
 	@Nonnull
-	public FirstVariantPriceTerminationFormula withIndividualPricePredicate(
+	public LowestPriceTerminationFormula withIndividualPricePredicate(
 		@Nonnull Predicate<PriceRecordContract> individualPricePredicate
 	) {
-		return new FirstVariantPriceTerminationFormula(
+		return new LowestPriceTerminationFormula(
 			computationCallback,
 			getDelegate(),
 			priceEvaluationContext,
@@ -220,7 +220,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new FirstVariantPriceTerminationFormula(
+		return new LowestPriceTerminationFormula(
 			computationCallback,
 			innerFormulas[0],
 			priceEvaluationContext, queryPriceMode, sellingPricePredicate, individualPricePredicate
@@ -235,7 +235,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	@Nonnull
 	@Override
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		return new FirstVariantPriceTerminationFormula(
+		return new LowestPriceTerminationFormula(
 			computationCallback, innerFormulas[0],
 			priceEvaluationContext, queryPriceMode, PricePredicate.ALL_RECORD_FILTER, individualPricePredicate,
 			recordsFilteredOutByPredicate
@@ -246,7 +246,7 @@ public class FirstVariantPriceTerminationFormula extends AbstractCacheableFormul
 	@Override
 	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new FirstVariantPriceTerminationFormula(
+		return new LowestPriceTerminationFormula(
 			selfOperator,
 			innerFormulas[0],
 			priceEvaluationContext, queryPriceMode, sellingPricePredicate, individualPricePredicate

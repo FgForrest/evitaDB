@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Currency;
-import java.util.Set;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 public record CumulatedPrice(
 	int version,
 	@Nonnull PriceKey priceKey,
-	@Nullable Set<Integer> innerRecordIds,
+	@Nullable Map<Integer, PriceContract> innerRecordPrices,
 	@Nonnull BigDecimal priceWithoutTax,
 	@Nonnull BigDecimal taxRate,
 	@Nonnull BigDecimal priceWithTax
@@ -94,7 +94,7 @@ public record CumulatedPrice(
 
 	@Override
 	public boolean relatesTo(@Nonnull PriceContract anotherPrice) {
-		return this.innerRecordIds.contains(anotherPrice.innerRecordId());
+		return this.innerRecordPrices().containsKey(anotherPrice.innerRecordId());
 	}
 
 	@Override
@@ -115,7 +115,7 @@ public record CumulatedPrice(
 			// currency
 			MemoryMeasuringConstants.REFERENCE_SIZE +
 			// inner record id
-			MemoryMeasuringConstants.REFERENCE_SIZE + innerRecordIds.size() * MemoryMeasuringConstants.REFERENCE_SIZE +
+			MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.computeHashMapSize(innerRecordPrices()) +
 			// price without and with tax + tax
 			3 * (MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.BIG_DECIMAL_SIZE);
 	}
@@ -143,7 +143,7 @@ public record CumulatedPrice(
 		return "\uD83D\uDCB0 \uD83D\uDCB5 " + priceWithTax + " " + priceKey.currency() + " (" + taxRate + "%)" +
 			", price list " + priceKey.priceList() +
 			", external id " + priceKey.priceId() +
-			", SUM of inner record ids: [" + innerRecordIds.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
+			", SUM of inner record ids: [" + innerRecordPrices().keySet().stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
 	}
 
 }

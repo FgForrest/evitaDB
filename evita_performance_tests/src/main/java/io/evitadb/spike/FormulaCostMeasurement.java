@@ -34,7 +34,7 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
-import io.evitadb.core.query.algebra.price.termination.FirstVariantPriceTerminationFormula;
+import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormulaWithPriceFilter;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
@@ -205,7 +205,7 @@ public class FormulaCostMeasurement {
 
 	@Benchmark
 	public void firstVariantPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
-		final FirstVariantPriceTerminationFormula testedFormula = new FirstVariantPriceTerminationFormula(
+		final LowestPriceTerminationFormula testedFormula = new LowestPriceTerminationFormula(
 			new PriceHandlingContainerFormula(
 				PriceInnerRecordHandling.LOWEST_PRICE,
 				priceDataSet.getFormula()

@@ -146,6 +146,14 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	boolean indexed();
 
 	/**
+	 * Renamed to {@link #indexed()}.
+	 */
+	@Deprecated
+	default boolean sellable() {
+		return indexed();
+	}
+
+	/**
 	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
 	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
 	 */

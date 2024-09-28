@@ -1245,8 +1245,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
-	public void emitStartObservabilityEvents() {
-		this.persistenceService.emitStartObservabilityEvents();
+	public void emitObservabilityEvents() {
+		this.persistenceService.emitObservabilityEvents();
 	}
 
 	/**
