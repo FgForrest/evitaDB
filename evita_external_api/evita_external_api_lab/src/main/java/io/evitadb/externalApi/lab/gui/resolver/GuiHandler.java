@@ -174,19 +174,10 @@ public class GuiHandler implements HttpService {
 			return preconfiguredConnections;
 		}
 
-		final SystemConfig systemConfig = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
-		final GrpcConfig grpcConfig = apiOptions.getEndpointConfiguration(GrpcProvider.CODE);
-		final GraphQLConfig graphQLConfig = apiOptions.getEndpointConfiguration(GraphQLProvider.CODE);
-		final RestConfig restConfig = apiOptions.getEndpointConfiguration(RestProvider.CODE);
-		final ObservabilityConfig observabilityConfig = apiOptions.getEndpointConfiguration(ObservabilityProvider.CODE);
 		final EvitaDBConnection selfConnection = new EvitaDBConnection(
 			null,
 			serverName,
-			Optional.ofNullable(systemConfig).map(it -> it.getBaseUrls()[0]).orElseThrow(() -> new ExternalApiInternalError("Missing system API.")),
-			Optional.ofNullable(grpcConfig).map(it -> it.getBaseUrls()[0]).orElseThrow(() -> new ExternalApiInternalError("Missing gRPC API.")),
-			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls()[0]).orElse(null),
-			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls()[0]).orElse(null),
-			Optional.ofNullable(observabilityConfig).map(it -> it.getBaseUrls()[0]).orElse(null)
+			labConfig.getExposeOn()
 		);
 		return List.of(selfConnection);
 	}

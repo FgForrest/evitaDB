@@ -35,17 +35,10 @@ import javax.annotation.Nullable;
  *           if not specified, hash from the name will be used instead (not recommended, if name is changed, evitaLab will
  *           recognize it as a new connection)
  * @param name name of the connection displayed to users
- * @param systemUrl URL of the system API
- * @param grpcUrl gRPC API URL
- * @param restUrl optional URL of the REST API of the target evitaDB instance
- * @param gqlUrl optional URL of the GraphQL API of the target evitaDB instance
+ * @param serverUrl base server URL
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public record EvitaDBConnection(@Nullable String id,
                                 @Nonnull String name,
-                                @Nonnull String systemUrl,
-								@Nonnull String grpcUrl,
-								@Nullable String gqlUrl,
-								@Nullable String restUrl,
-                                @Nonnull String observabilityUrl) {
+								@Nonnull String serverUrl) {
 }
