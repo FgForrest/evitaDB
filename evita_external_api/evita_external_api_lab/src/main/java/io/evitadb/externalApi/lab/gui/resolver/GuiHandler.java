@@ -201,6 +201,6 @@ public class GuiHandler implements HttpService {
 
 	@Nonnull
 	private static String createCookie(@Nonnull String name, @Nonnull String value) {
-		return name + "=" + BASE_64_ENCODER.encodeToString(value.getBytes(StandardCharsets.UTF_8)) + ";SameSite=Strict";
+		return name + "=" + BASE_64_ENCODER.encodeToString(value.getBytes(StandardCharsets.UTF_8)) + ";Max-Age=30;SameSite=Strict";
 	}
 }
