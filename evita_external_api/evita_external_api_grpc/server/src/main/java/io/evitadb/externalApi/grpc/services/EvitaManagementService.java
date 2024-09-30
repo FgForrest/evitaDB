@@ -189,7 +189,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					.setInstanceId(systemStatus.instanceId())
 					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
 					.setCatalogsOk(systemStatus.catalogsOk())
-					.setReadiness(toGrpcReadinessState(readiness.map(Readiness::state).orElse(ReadinessState.UNKNOWN)));
+					.setReadiness(toGrpcReadinessState(readiness.map(Readiness::state).orElse(ReadinessState.UNKNOWN)))
+					.setReadOnly(evita.getConfiguration().server().readOnly());
 
 				probes.stream()
 					.flatMap(probe -> probe.getHealthProblems(evita, externalApiServer, enabledApiEndpoints).stream())
