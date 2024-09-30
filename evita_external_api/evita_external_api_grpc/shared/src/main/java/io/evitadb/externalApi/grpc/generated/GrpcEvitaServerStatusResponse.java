@@ -626,7 +626,7 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < healthProblems_.size(); i++) {
       output.writeEnumNoTag(healthProblems_.get(i));
     }
-    if (readiness_ != io.evitadb.externalApi.grpc.generated.GrpcReadiness.API_UNKNOWN.getNumber()) {
+    if (readiness_ != io.evitadb.externalApi.grpc.generated.GrpcReadiness.API_STARTING.getNumber()) {
       output.writeEnum(8, readiness_);
     }
     com.google.protobuf.GeneratedMessageV3
@@ -678,7 +678,7 @@ private static final long serialVersionUID = 0L;
           .computeUInt32SizeNoTag(dataSize);
       }healthProblemsMemoizedSerializedSize = dataSize;
     }
-    if (readiness_ != io.evitadb.externalApi.grpc.generated.GrpcReadiness.API_UNKNOWN.getNumber()) {
+    if (readiness_ != io.evitadb.externalApi.grpc.generated.GrpcReadiness.API_STARTING.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(8, readiness_);
     }

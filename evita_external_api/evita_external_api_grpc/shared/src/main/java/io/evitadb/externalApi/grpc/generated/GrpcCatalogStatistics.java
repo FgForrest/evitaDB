@@ -442,7 +442,7 @@ private static final long serialVersionUID = 0L;
     if (corrupted_ != false) {
       output.writeBool(3, corrupted_);
     }
-    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNKNOWN_CATALOG_STATE.getNumber()) {
+    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
       output.writeEnum(4, catalogState_);
     }
     if (catalogVersion_ != 0L) {
@@ -480,7 +480,7 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(3, corrupted_);
     }
-    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNKNOWN_CATALOG_STATE.getNumber()) {
+    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(4, catalogState_);
     }

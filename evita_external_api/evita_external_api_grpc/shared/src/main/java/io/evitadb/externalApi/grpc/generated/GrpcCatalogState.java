@@ -37,14 +37,6 @@ public enum GrpcCatalogState
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
-   * Unknown state of the catalog. Used when catalog is corrupted.
-   * </pre>
-   *
-   * <code>UNKNOWN_CATALOG_STATE = 0;</code>
-   */
-  UNKNOWN_CATALOG_STATE(0),
-  /**
-   * <pre>
    * Initial state of the Evita catalog.
    * This state has several limitations but also advantages.
    * This state requires single threaded access - this means only single thread can read/write data to the catalog
@@ -57,9 +49,9 @@ public enum GrpcCatalogState
    * is also planned to be used when new replica is created and needs to quickly catch up with the master.
    * </pre>
    *
-   * <code>WARMING_UP = 1;</code>
+   * <code>WARMING_UP = 0;</code>
    */
-  WARMING_UP(1),
+  WARMING_UP(0),
   /**
    * <pre>
    * Standard "serving" state of the Evita catalog.
@@ -67,22 +59,22 @@ public enum GrpcCatalogState
    * Multiple readers and writers can work with the catalog simultaneously.
    * </pre>
    *
-   * <code>ALIVE = 2;</code>
+   * <code>ALIVE = 1;</code>
    */
-  ALIVE(2),
+  ALIVE(1),
+  /**
+   * <pre>
+   * Unknown state of the catalog. Used when catalog is corrupted.
+   * </pre>
+   *
+   * <code>UNKNOWN_CATALOG_STATE = 2;</code>
+   */
+  UNKNOWN_CATALOG_STATE(2),
   UNRECOGNIZED(-1),
   ;
 
   /**
    * <pre>
-   * Unknown state of the catalog. Used when catalog is corrupted.
-   * </pre>
-   *
-   * <code>UNKNOWN_CATALOG_STATE = 0;</code>
-   */
-  public static final int UNKNOWN_CATALOG_STATE_VALUE = 0;
-  /**
-   * <pre>
    * Initial state of the Evita catalog.
    * This state has several limitations but also advantages.
    * This state requires single threaded access - this means only single thread can read/write data to the catalog
@@ -95,9 +87,9 @@ public enum GrpcCatalogState
    * is also planned to be used when new replica is created and needs to quickly catch up with the master.
    * </pre>
    *
-   * <code>WARMING_UP = 1;</code>
+   * <code>WARMING_UP = 0;</code>
    */
-  public static final int WARMING_UP_VALUE = 1;
+  public static final int WARMING_UP_VALUE = 0;
   /**
    * <pre>
    * Standard "serving" state of the Evita catalog.
@@ -105,9 +97,17 @@ public enum GrpcCatalogState
    * Multiple readers and writers can work with the catalog simultaneously.
    * </pre>
    *
-   * <code>ALIVE = 2;</code>
+   * <code>ALIVE = 1;</code>
    */
-  public static final int ALIVE_VALUE = 2;
+  public static final int ALIVE_VALUE = 1;
+  /**
+   * <pre>
+   * Unknown state of the catalog. Used when catalog is corrupted.
+   * </pre>
+   *
+   * <code>UNKNOWN_CATALOG_STATE = 2;</code>
+   */
+  public static final int UNKNOWN_CATALOG_STATE_VALUE = 2;
 
 
   public final int getNumber() {
@@ -134,9 +134,9 @@ public enum GrpcCatalogState
    */
   public static GrpcCatalogState forNumber(int value) {
     switch (value) {
-      case 0: return UNKNOWN_CATALOG_STATE;
-      case 1: return WARMING_UP;
-      case 2: return ALIVE;
+      case 0: return WARMING_UP;
+      case 1: return ALIVE;
+      case 2: return UNKNOWN_CATALOG_STATE;
       default: return null;
     }
   }

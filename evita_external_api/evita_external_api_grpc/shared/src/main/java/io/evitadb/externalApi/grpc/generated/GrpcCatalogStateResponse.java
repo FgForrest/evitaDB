@@ -155,7 +155,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (state_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNKNOWN_CATALOG_STATE.getNumber()) {
+    if (state_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
       output.writeEnum(1, state_);
     }
     unknownFields.writeTo(output);
@@ -167,7 +167,7 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (state_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNKNOWN_CATALOG_STATE.getNumber()) {
+    if (state_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(1, state_);
     }

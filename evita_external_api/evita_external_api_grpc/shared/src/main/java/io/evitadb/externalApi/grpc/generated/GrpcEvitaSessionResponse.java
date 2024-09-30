@@ -338,7 +338,7 @@ private static final long serialVersionUID = 0L;
     if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
       output.writeEnum(3, commitBehaviour_);
     }
-    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNKNOWN_CATALOG_STATE.getNumber()) {
+    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
       output.writeEnum(4, catalogState_);
     }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogId_)) {
@@ -364,7 +364,7 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(3, commitBehaviour_);
     }
-    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNKNOWN_CATALOG_STATE.getNumber()) {
+    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(4, catalogState_);
     }
