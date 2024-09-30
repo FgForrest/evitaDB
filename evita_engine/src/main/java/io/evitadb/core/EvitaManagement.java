@@ -183,7 +183,12 @@ public class EvitaManagement implements EvitaManagementContract {
 
 	@Nonnull
 	@Override
-	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize, @Nullable String taskType, @Nonnull TaskSimplifiedState... states) {
+	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(
+		int page,
+		int pageSize,
+		@Nullable String[] taskType,
+		@Nonnull TaskSimplifiedState... states
+	) {
 		this.evita.assertActive();
 		return this.serviceExecutor.listTaskStatuses(page, pageSize, taskType, states);
 	}

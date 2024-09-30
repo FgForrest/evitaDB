@@ -205,7 +205,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
-	void emitStartObservabilityEvents();
+	void emitObservabilityEvents();
 
 	/**
 	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.

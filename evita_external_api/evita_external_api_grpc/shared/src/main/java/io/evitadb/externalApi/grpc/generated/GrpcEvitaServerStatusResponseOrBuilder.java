@@ -248,4 +248,14 @@ public interface GrpcEvitaServerStatusResponseOrBuilder extends
 
   io.evitadb.externalApi.grpc.generated.GrpcApiStatus getApiOrThrow(
       java.lang.String key);
+
+  /**
+   * <pre>
+   * Flag indicating that the server is in read-only mode
+   * </pre>
+   *
+   * <code>bool readOnly = 10;</code>
+   * @return The readOnly.
+   */
+  boolean getReadOnly();
 }

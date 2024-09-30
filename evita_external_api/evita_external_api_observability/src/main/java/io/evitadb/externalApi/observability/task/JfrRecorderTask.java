@@ -27,6 +27,9 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.async.ClientInfiniteCallableTask;
 import io.evitadb.core.file.ExportFileService;
+import io.evitadb.core.file.ExportFileService.ExportFileHandle;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.EvitaEventGroup;
@@ -40,7 +43,10 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -51,6 +57,8 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static java.util.Optional.ofNullable;
 
@@ -68,7 +76,7 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 	/**
 	 * Target file where the JFR recording will be stored.
 	 */
-	private final FileForFetch targetFile;
+	private final Path targetFile;
 	/**
 	 * Export file service that manages the target file.
 	 */
@@ -83,15 +91,15 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 		super(
 			"JFR recording",
 			new RecordingSettings(allowedEvents, maxSizeInBytes, maxAgeInSeconds),
-			(task) -> ((JfrRecorderTask) task).start(),
+			(task) -> {
+				((JfrRecorderTask) task).start();
+				return null;
+			},
 			TaskTrait.CAN_BE_STARTED, TaskTrait.NEEDS_TO_BE_STOPPED
 		);
 		this.recording = new Recording();
-		this.targetFile = exportFileService.createFile(
-			"jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + ".jfr",
-			"JFR recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + " with events: " + Arrays.toString(allowedEvents) + ".",
-			"application/octet-stream",
-			this.getClass().getSimpleName()
+		this.targetFile = exportFileService.createTempFile(
+			"jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + ".jfr"
 		);
 		this.exportFileService = exportFileService;
 	}
@@ -104,13 +112,11 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 
 	/**
 	 * Starts the JFR recording.
-	 * @return File where the recording will be stored.
 	 */
-	@Nonnull
-	private FileForFetch start() {
+	private void start() {
 		try {
 			this.recording.setToDisk(true);
-			this.recording.setDestination(this.exportFileService.getFilePath(this.targetFile).toAbsolutePath());
+			this.recording.setDestination(this.targetFile);
 			final RecordingSettings settings = getStatus().settings();
 			ofNullable(settings.maxSizeInBytes()).ifPresent(this.recording::setMaxSize);
 			ofNullable(settings.maxAgeInSeconds()).map(Duration::ofSeconds).ifPresent(this.recording::setMaxAge);
@@ -123,7 +129,6 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 			enableEvitaEvents(allowedEvents);
 
 			this.recording.start();
-			return this.targetFile;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
@@ -135,8 +140,48 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 		if (this.recording.getState() != RecordingState.RUNNING) {
 			throw new JfRException("Recording is not running.");
 		}
+
 		this.recording.stop();
-		return this.exportFileService.updateFileData(this.targetFile);
+		final RecordingSettings settings = getStatus().settings();
+
+		final String fileName = "jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+		final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
+			fileName + ".zip",
+			"JFR recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + " with events: " + Arrays.toString(settings.allowedEvents()) + ".",
+			"application/zip",
+			this.getClass().getSimpleName()
+		);
+
+		try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
+			zipOutputStream.putNextEntry(new ZipEntry(fileName + ".jfr"));
+			// copy contents of the JFR recording to the zip file
+			Files.copy(this.targetFile, zipOutputStream);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to compress and store JFR recording: `" + this.targetFile + "`!",
+				"Failed to compress and store JFR recording!",
+				e
+			);
+		} finally {
+			try {
+				Files.deleteIfExists(this.targetFile);
+			} catch (IOException e) {
+				log.error(
+					"Failed to delete temporary JFR recording file: `" + this.targetFile + "`!",
+					e
+				);
+			}
+		}
+
+		log.info("JFR recording export completed.");
+
+		return ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
+			.orElseThrow(
+				() -> new GenericEvitaInternalError(
+					"File for fetch should be generated in close method and" +
+						" should be already available by now."
+				)
+			);
 	}
 
 	/**

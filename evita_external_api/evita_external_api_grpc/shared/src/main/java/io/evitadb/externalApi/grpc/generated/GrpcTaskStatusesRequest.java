@@ -43,6 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcTaskStatusesRequest() {
+    taskType_ = java.util.Collections.emptyList();
     simplifiedState_ = java.util.Collections.emptyList();
   }
 
@@ -88,23 +89,19 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 26: {
-            com.google.protobuf.StringValue.Builder subBuilder = null;
-            if (taskType_ != null) {
-              subBuilder = taskType_.toBuilder();
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              taskType_ = new java.util.ArrayList<com.google.protobuf.StringValue>();
+              mutable_bitField0_ |= 0x00000001;
             }
-            taskType_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
-            if (subBuilder != null) {
-              subBuilder.mergeFrom(taskType_);
-              taskType_ = subBuilder.buildPartial();
-            }
-
+            taskType_.add(
+                input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry));
             break;
           }
           case 32: {
             int rawValue = input.readEnum();
-            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+            if (!((mutable_bitField0_ & 0x00000002) != 0)) {
               simplifiedState_ = new java.util.ArrayList<java.lang.Integer>();
-              mutable_bitField0_ |= 0x00000001;
+              mutable_bitField0_ |= 0x00000002;
             }
             simplifiedState_.add(rawValue);
             break;
@@ -114,9 +111,9 @@ private static final long serialVersionUID = 0L;
             int oldLimit = input.pushLimit(length);
             while(input.getBytesUntilLimit() > 0) {
               int rawValue = input.readEnum();
-              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              if (!((mutable_bitField0_ & 0x00000002) != 0)) {
                 simplifiedState_ = new java.util.ArrayList<java.lang.Integer>();
-                mutable_bitField0_ |= 0x00000001;
+                mutable_bitField0_ |= 0x00000002;
               }
               simplifiedState_.add(rawValue);
             }
@@ -139,6 +136,9 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        taskType_ = java.util.Collections.unmodifiableList(taskType_);
+      }
+      if (((mutable_bitField0_ & 0x00000002) != 0)) {
         simplifiedState_ = java.util.Collections.unmodifiableList(simplifiedState_);
       }
       this.unknownFields = unknownFields.build();
@@ -189,19 +189,18 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int TASKTYPE_FIELD_NUMBER = 3;
-  private com.google.protobuf.StringValue taskType_;
+  private java.util.List<com.google.protobuf.StringValue> taskType_;
   /**
    * <pre>
    * Optional taskType of the listed task, passing non-null value
    * in this argument filters the returned status to only those that are related to the tasks of specified type
    * </pre>
    *
-   * <code>.google.protobuf.StringValue taskType = 3;</code>
-   * @return Whether the taskType field is set.
+   * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
    */
   @java.lang.Override
-  public boolean hasTaskType() {
-    return taskType_ != null;
+  public java.util.List<com.google.protobuf.StringValue> getTaskTypeList() {
+    return taskType_;
   }
   /**
    * <pre>
@@ -209,12 +208,12 @@ private static final long serialVersionUID = 0L;
    * in this argument filters the returned status to only those that are related to the tasks of specified type
    * </pre>
    *
-   * <code>.google.protobuf.StringValue taskType = 3;</code>
-   * @return The taskType.
+   * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
    */
   @java.lang.Override
-  public com.google.protobuf.StringValue getTaskType() {
-    return taskType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : taskType_;
+  public java.util.List<? extends com.google.protobuf.StringValueOrBuilder>
+      getTaskTypeOrBuilderList() {
+    return taskType_;
   }
   /**
    * <pre>
@@ -222,11 +221,36 @@ private static final long serialVersionUID = 0L;
    * in this argument filters the returned status to only those that are related to the tasks of specified type
    * </pre>
    *
-   * <code>.google.protobuf.StringValue taskType = 3;</code>
+   * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
    */
   @java.lang.Override
-  public com.google.protobuf.StringValueOrBuilder getTaskTypeOrBuilder() {
-    return getTaskType();
+  public int getTaskTypeCount() {
+    return taskType_.size();
+  }
+  /**
+   * <pre>
+   * Optional taskType of the listed task, passing non-null value
+   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getTaskType(int index) {
+    return taskType_.get(index);
+  }
+  /**
+   * <pre>
+   * Optional taskType of the listed task, passing non-null value
+   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getTaskTypeOrBuilder(
+      int index) {
+    return taskType_.get(index);
   }
 
   public static final int SIMPLIFIEDSTATE_FIELD_NUMBER = 4;
@@ -333,8 +357,8 @@ private static final long serialVersionUID = 0L;
     if (pageSize_ != 0) {
       output.writeInt32(2, pageSize_);
     }
-    if (taskType_ != null) {
-      output.writeMessage(3, getTaskType());
+    for (int i = 0; i < taskType_.size(); i++) {
+      output.writeMessage(3, taskType_.get(i));
     }
     if (getSimplifiedStateList().size() > 0) {
       output.writeUInt32NoTag(34);
@@ -360,9 +384,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(2, pageSize_);
     }
-    if (taskType_ != null) {
+    for (int i = 0; i < taskType_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, getTaskType());
+        .computeMessageSize(3, taskType_.get(i));
     }
     {
       int dataSize = 0;
@@ -395,11 +419,8 @@ private static final long serialVersionUID = 0L;
         != other.getPageNumber()) return false;
     if (getPageSize()
         != other.getPageSize()) return false;
-    if (hasTaskType() != other.hasTaskType()) return false;
-    if (hasTaskType()) {
-      if (!getTaskType()
-          .equals(other.getTaskType())) return false;
-    }
+    if (!getTaskTypeList()
+        .equals(other.getTaskTypeList())) return false;
     if (!simplifiedState_.equals(other.simplifiedState_)) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
@@ -416,9 +437,9 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getPageNumber();
     hash = (37 * hash) + PAGESIZE_FIELD_NUMBER;
     hash = (53 * hash) + getPageSize();
-    if (hasTaskType()) {
+    if (getTaskTypeCount() > 0) {
       hash = (37 * hash) + TASKTYPE_FIELD_NUMBER;
-      hash = (53 * hash) + getTaskType().hashCode();
+      hash = (53 * hash) + getTaskTypeList().hashCode();
     }
     if (getSimplifiedStateCount() > 0) {
       hash = (37 * hash) + SIMPLIFIEDSTATE_FIELD_NUMBER;
@@ -556,6 +577,7 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
+        getTaskTypeFieldBuilder();
       }
     }
     @java.lang.Override
@@ -566,13 +588,13 @@ private static final long serialVersionUID = 0L;
       pageSize_ = 0;
 
       if (taskTypeBuilder_ == null) {
-        taskType_ = null;
+        taskType_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
       } else {
-        taskType_ = null;
-        taskTypeBuilder_ = null;
+        taskTypeBuilder_.clear();
       }
       simplifiedState_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      bitField0_ = (bitField0_ & ~0x00000002);
       return this;
     }
 
@@ -603,13 +625,17 @@ private static final long serialVersionUID = 0L;
       result.pageNumber_ = pageNumber_;
       result.pageSize_ = pageSize_;
       if (taskTypeBuilder_ == null) {
+        if (((bitField0_ & 0x00000001) != 0)) {
+          taskType_ = java.util.Collections.unmodifiableList(taskType_);
+          bitField0_ = (bitField0_ & ~0x00000001);
+        }
         result.taskType_ = taskType_;
       } else {
         result.taskType_ = taskTypeBuilder_.build();
       }
-      if (((bitField0_ & 0x00000001) != 0)) {
+      if (((bitField0_ & 0x00000002) != 0)) {
         simplifiedState_ = java.util.Collections.unmodifiableList(simplifiedState_);
-        bitField0_ = (bitField0_ & ~0x00000001);
+        bitField0_ = (bitField0_ & ~0x00000002);
       }
       result.simplifiedState_ = simplifiedState_;
       onBuilt();
@@ -666,13 +692,36 @@ private static final long serialVersionUID = 0L;
       if (other.getPageSize() != 0) {
         setPageSize(other.getPageSize());
       }
-      if (other.hasTaskType()) {
-        mergeTaskType(other.getTaskType());
+      if (taskTypeBuilder_ == null) {
+        if (!other.taskType_.isEmpty()) {
+          if (taskType_.isEmpty()) {
+            taskType_ = other.taskType_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+          } else {
+            ensureTaskTypeIsMutable();
+            taskType_.addAll(other.taskType_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.taskType_.isEmpty()) {
+          if (taskTypeBuilder_.isEmpty()) {
+            taskTypeBuilder_.dispose();
+            taskTypeBuilder_ = null;
+            taskType_ = other.taskType_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+            taskTypeBuilder_ =
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getTaskTypeFieldBuilder() : null;
+          } else {
+            taskTypeBuilder_.addAllMessages(other.taskType_);
+          }
+        }
       }
       if (!other.simplifiedState_.isEmpty()) {
         if (simplifiedState_.isEmpty()) {
           simplifiedState_ = other.simplifiedState_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+          bitField0_ = (bitField0_ & ~0x00000002);
         } else {
           ensureSimplifiedStateIsMutable();
           simplifiedState_.addAll(other.simplifiedState_);
@@ -795,35 +844,31 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private com.google.protobuf.StringValue taskType_;
-    private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> taskTypeBuilder_;
-    /**
-     * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
-     * </pre>
-     *
-     * <code>.google.protobuf.StringValue taskType = 3;</code>
-     * @return Whether the taskType field is set.
-     */
-    public boolean hasTaskType() {
-      return taskTypeBuilder_ != null || taskType_ != null;
+    private java.util.List<com.google.protobuf.StringValue> taskType_ =
+      java.util.Collections.emptyList();
+    private void ensureTaskTypeIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        taskType_ = new java.util.ArrayList<com.google.protobuf.StringValue>(taskType_);
+        bitField0_ |= 0x00000001;
+       }
     }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> taskTypeBuilder_;
+
     /**
      * <pre>
      * Optional taskType of the listed task, passing non-null value
      * in this argument filters the returned status to only those that are related to the tasks of specified type
      * </pre>
      *
-     * <code>.google.protobuf.StringValue taskType = 3;</code>
-     * @return The taskType.
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
-    public com.google.protobuf.StringValue getTaskType() {
+    public java.util.List<com.google.protobuf.StringValue> getTaskTypeList() {
       if (taskTypeBuilder_ == null) {
-        return taskType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : taskType_;
+        return java.util.Collections.unmodifiableList(taskType_);
       } else {
-        return taskTypeBuilder_.getMessage();
+        return taskTypeBuilder_.getMessageList();
       }
     }
     /**
@@ -832,19 +877,50 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned status to only those that are related to the tasks of specified type
      * </pre>
      *
-     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
-    public Builder setTaskType(com.google.protobuf.StringValue value) {
+    public int getTaskTypeCount() {
+      if (taskTypeBuilder_ == null) {
+        return taskType_.size();
+      } else {
+        return taskTypeBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+     */
+    public com.google.protobuf.StringValue getTaskType(int index) {
+      if (taskTypeBuilder_ == null) {
+        return taskType_.get(index);
+      } else {
+        return taskTypeBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+     */
+    public Builder setTaskType(
+        int index, com.google.protobuf.StringValue value) {
       if (taskTypeBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        taskType_ = value;
+        ensureTaskTypeIsMutable();
+        taskType_.set(index, value);
         onChanged();
       } else {
-        taskTypeBuilder_.setMessage(value);
+        taskTypeBuilder_.setMessage(index, value);
       }
-
       return this;
     }
     /**
@@ -853,17 +929,79 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned status to only those that are related to the tasks of specified type
      * </pre>
      *
-     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
     public Builder setTaskType(
+        int index, com.google.protobuf.StringValue.Builder builderForValue) {
+      if (taskTypeBuilder_ == null) {
+        ensureTaskTypeIsMutable();
+        taskType_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        taskTypeBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+     */
+    public Builder addTaskType(com.google.protobuf.StringValue value) {
+      if (taskTypeBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureTaskTypeIsMutable();
+        taskType_.add(value);
+        onChanged();
+      } else {
+        taskTypeBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+     */
+    public Builder addTaskType(
+        int index, com.google.protobuf.StringValue value) {
+      if (taskTypeBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureTaskTypeIsMutable();
+        taskType_.add(index, value);
+        onChanged();
+      } else {
+        taskTypeBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+     */
+    public Builder addTaskType(
         com.google.protobuf.StringValue.Builder builderForValue) {
       if (taskTypeBuilder_ == null) {
-        taskType_ = builderForValue.build();
+        ensureTaskTypeIsMutable();
+        taskType_.add(builderForValue.build());
         onChanged();
       } else {
-        taskTypeBuilder_.setMessage(builderForValue.build());
+        taskTypeBuilder_.addMessage(builderForValue.build());
       }
-
       return this;
     }
     /**
@@ -872,21 +1010,17 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned status to only those that are related to the tasks of specified type
      * </pre>
      *
-     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
-    public Builder mergeTaskType(com.google.protobuf.StringValue value) {
+    public Builder addTaskType(
+        int index, com.google.protobuf.StringValue.Builder builderForValue) {
       if (taskTypeBuilder_ == null) {
-        if (taskType_ != null) {
-          taskType_ =
-            com.google.protobuf.StringValue.newBuilder(taskType_).mergeFrom(value).buildPartial();
-        } else {
-          taskType_ = value;
-        }
+        ensureTaskTypeIsMutable();
+        taskType_.add(index, builderForValue.build());
         onChanged();
       } else {
-        taskTypeBuilder_.mergeFrom(value);
+        taskTypeBuilder_.addMessage(index, builderForValue.build());
       }
-
       return this;
     }
     /**
@@ -895,17 +1029,36 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned status to only those that are related to the tasks of specified type
      * </pre>
      *
-     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+     */
+    public Builder addAllTaskType(
+        java.lang.Iterable<? extends com.google.protobuf.StringValue> values) {
+      if (taskTypeBuilder_ == null) {
+        ensureTaskTypeIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, taskType_);
+        onChanged();
+      } else {
+        taskTypeBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
     public Builder clearTaskType() {
       if (taskTypeBuilder_ == null) {
-        taskType_ = null;
+        taskType_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        taskType_ = null;
-        taskTypeBuilder_ = null;
+        taskTypeBuilder_.clear();
       }
-
       return this;
     }
     /**
@@ -914,12 +1067,17 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned status to only those that are related to the tasks of specified type
      * </pre>
      *
-     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
-    public com.google.protobuf.StringValue.Builder getTaskTypeBuilder() {
-
-      onChanged();
-      return getTaskTypeFieldBuilder().getBuilder();
+    public Builder removeTaskType(int index) {
+      if (taskTypeBuilder_ == null) {
+        ensureTaskTypeIsMutable();
+        taskType_.remove(index);
+        onChanged();
+      } else {
+        taskTypeBuilder_.remove(index);
+      }
+      return this;
     }
     /**
      * <pre>
@@ -927,14 +1085,25 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned status to only those that are related to the tasks of specified type
      * </pre>
      *
-     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
-    public com.google.protobuf.StringValueOrBuilder getTaskTypeOrBuilder() {
-      if (taskTypeBuilder_ != null) {
-        return taskTypeBuilder_.getMessageOrBuilder();
-      } else {
-        return taskType_ == null ?
-            com.google.protobuf.StringValue.getDefaultInstance() : taskType_;
+    public com.google.protobuf.StringValue.Builder getTaskTypeBuilder(
+        int index) {
+      return getTaskTypeFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getTaskTypeOrBuilder(
+        int index) {
+      if (taskTypeBuilder_ == null) {
+        return taskType_.get(index);  } else {
+        return taskTypeBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -943,15 +1112,61 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned status to only those that are related to the tasks of specified type
      * </pre>
      *
-     * <code>.google.protobuf.StringValue taskType = 3;</code>
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
-    private com.google.protobuf.SingleFieldBuilderV3<
+    public java.util.List<? extends com.google.protobuf.StringValueOrBuilder>
+         getTaskTypeOrBuilderList() {
+      if (taskTypeBuilder_ != null) {
+        return taskTypeBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(taskType_);
+      }
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+     */
+    public com.google.protobuf.StringValue.Builder addTaskTypeBuilder() {
+      return getTaskTypeFieldBuilder().addBuilder(
+          com.google.protobuf.StringValue.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+     */
+    public com.google.protobuf.StringValue.Builder addTaskTypeBuilder(
+        int index) {
+      return getTaskTypeFieldBuilder().addBuilder(
+          index, com.google.protobuf.StringValue.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Optional taskType of the listed task, passing non-null value
+     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
+     */
+    public java.util.List<com.google.protobuf.StringValue.Builder>
+         getTaskTypeBuilderList() {
+      return getTaskTypeFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getTaskTypeFieldBuilder() {
       if (taskTypeBuilder_ == null) {
-        taskTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        taskTypeBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
-                getTaskType(),
+                taskType_,
+                ((bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
         taskType_ = null;
@@ -962,9 +1177,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<java.lang.Integer> simplifiedState_ =
       java.util.Collections.emptyList();
     private void ensureSimplifiedStateIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
+      if (!((bitField0_ & 0x00000002) != 0)) {
         simplifiedState_ = new java.util.ArrayList<java.lang.Integer>(simplifiedState_);
-        bitField0_ |= 0x00000001;
+        bitField0_ |= 0x00000002;
       }
     }
     /**
@@ -1075,7 +1290,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearSimplifiedState() {
       simplifiedState_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      bitField0_ = (bitField0_ & ~0x00000002);
       onChanged();
       return this;
     }

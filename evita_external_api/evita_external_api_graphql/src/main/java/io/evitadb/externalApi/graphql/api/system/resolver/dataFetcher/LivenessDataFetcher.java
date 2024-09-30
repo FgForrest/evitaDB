@@ -25,6 +25,10 @@ package io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher;
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 
 import javax.annotation.Nonnull;
@@ -40,6 +44,7 @@ public class LivenessDataFetcher implements DataFetcher<Boolean>, ReadDataFetche
 	@Nonnull
 	@Override
 	public Boolean get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+		new ReadinessEvent(GraphQLProvider.CODE, Prospective.SERVER).finish(Result.READY);
 		return true;
 	}
 }

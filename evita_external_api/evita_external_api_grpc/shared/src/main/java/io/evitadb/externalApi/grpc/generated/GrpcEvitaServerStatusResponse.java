@@ -162,6 +162,11 @@ private static final long serialVersionUID = 0L;
                 api__.getKey(), api__.getValue());
             break;
           }
+          case 80: {
+
+            readOnly_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -225,7 +230,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       version_ = s;
@@ -245,7 +250,7 @@ private static final long serialVersionUID = 0L;
       getVersionBytes() {
     java.lang.Object ref = version_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       version_ = b;
@@ -324,7 +329,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       instanceId_ = s;
@@ -344,7 +349,7 @@ private static final long serialVersionUID = 0L;
       getInstanceIdBytes() {
     java.lang.Object ref = instanceId_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       instanceId_ = b;
@@ -495,7 +500,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaServerStatusResponse_ApiEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaServerStatusResponse_ApiEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -586,6 +591,21 @@ private static final long serialVersionUID = 0L;
     return map.get(key);
   }
 
+  public static final int READONLY_FIELD_NUMBER = 10;
+  private boolean readOnly_;
+  /**
+   * <pre>
+   * Flag indicating that the server is in read-only mode
+   * </pre>
+   *
+   * <code>bool readOnly = 10;</code>
+   * @return The readOnly.
+   */
+  @java.lang.Override
+  public boolean getReadOnly() {
+    return readOnly_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -635,6 +655,9 @@ private static final long serialVersionUID = 0L;
         internalGetApi(),
         ApiDefaultEntryHolder.defaultEntry,
         9);
+    if (readOnly_ != false) {
+      output.writeBool(10, readOnly_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -692,6 +715,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(9, api__);
     }
+    if (readOnly_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(10, readOnly_);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -726,6 +753,8 @@ private static final long serialVersionUID = 0L;
     if (readiness_ != other.readiness_) return false;
     if (!internalGetApi().equals(
         other.internalGetApi())) return false;
+    if (getReadOnly()
+        != other.getReadOnly()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -762,6 +791,9 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + API_FIELD_NUMBER;
       hash = (53 * hash) + internalGetApi().hashCode();
     }
+    hash = (37 * hash) + READONLY_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getReadOnly());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -942,6 +974,8 @@ private static final long serialVersionUID = 0L;
       readiness_ = 0;
 
       internalGetMutableApi().clear();
+      readOnly_ = false;
+
       return this;
     }
 
@@ -987,6 +1021,7 @@ private static final long serialVersionUID = 0L;
       result.readiness_ = readiness_;
       result.api_ = internalGetApi();
       result.api_.makeImmutable();
+      result.readOnly_ = readOnly_;
       onBuilt();
       return result;
     }
@@ -1070,6 +1105,9 @@ private static final long serialVersionUID = 0L;
       }
       internalGetMutableApi().mergeFrom(
           other.internalGetApi());
+      if (other.getReadOnly() != false) {
+        setReadOnly(other.getReadOnly());
+      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -1133,7 +1171,7 @@ private static final long serialVersionUID = 0L;
         getVersionBytes() {
       java.lang.Object ref = version_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         version_ = b;
@@ -1156,7 +1194,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       version_ = value;
       onChanged();
       return this;
@@ -1170,7 +1208,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-      
+
       version_ = getDefaultInstance().getVersion();
       onChanged();
       return this;
@@ -1190,7 +1228,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       version_ = value;
       onChanged();
       return this;
@@ -1311,7 +1349,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getStartedAtBuilder() {
-      
+
       onChanged();
       return getStartedAtFieldBuilder().getBuilder();
     }
@@ -1338,7 +1376,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getStartedAtFieldBuilder() {
       if (startedAtBuilder_ == null) {
         startedAtBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1374,7 +1412,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setUptime(long value) {
-      
+
       uptime_ = value;
       onChanged();
       return this;
@@ -1388,7 +1426,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearUptime() {
-      
+
       uptime_ = 0L;
       onChanged();
       return this;
@@ -1427,7 +1465,7 @@ private static final long serialVersionUID = 0L;
         getInstanceIdBytes() {
       java.lang.Object ref = instanceId_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         instanceId_ = b;
@@ -1450,7 +1488,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       instanceId_ = value;
       onChanged();
       return this;
@@ -1464,7 +1502,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearInstanceId() {
-      
+
       instanceId_ = getDefaultInstance().getInstanceId();
       onChanged();
       return this;
@@ -1484,7 +1522,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       instanceId_ = value;
       onChanged();
       return this;
@@ -1513,7 +1551,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogsCorrupted(int value) {
-      
+
       catalogsCorrupted_ = value;
       onChanged();
       return this;
@@ -1527,7 +1565,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogsCorrupted() {
-      
+
       catalogsCorrupted_ = 0;
       onChanged();
       return this;
@@ -1556,7 +1594,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogsOk(int value) {
-      
+
       catalogsOk_ = value;
       onChanged();
       return this;
@@ -1570,7 +1608,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogsOk() {
-      
+
       catalogsOk_ = 0;
       onChanged();
       return this;
@@ -1786,7 +1824,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setReadinessValue(int value) {
-      
+
       readiness_ = value;
       onChanged();
       return this;
@@ -1818,7 +1856,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       readiness_ = value.getNumber();
       onChanged();
       return this;
@@ -1832,7 +1870,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReadiness() {
-      
+
       readiness_ = 0;
       onChanged();
       return this;
@@ -1994,6 +2032,49 @@ private static final long serialVersionUID = 0L;
         java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> values) {
       internalGetMutableApi().getMutableMap()
           .putAll(values);
+      return this;
+    }
+
+    private boolean readOnly_ ;
+    /**
+     * <pre>
+     * Flag indicating that the server is in read-only mode
+     * </pre>
+     *
+     * <code>bool readOnly = 10;</code>
+     * @return The readOnly.
+     */
+    @java.lang.Override
+    public boolean getReadOnly() {
+      return readOnly_;
+    }
+    /**
+     * <pre>
+     * Flag indicating that the server is in read-only mode
+     * </pre>
+     *
+     * <code>bool readOnly = 10;</code>
+     * @param value The readOnly to set.
+     * @return This builder for chaining.
+     */
+    public Builder setReadOnly(boolean value) {
+
+      readOnly_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Flag indicating that the server is in read-only mode
+     * </pre>
+     *
+     * <code>bool readOnly = 10;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearReadOnly() {
+
+      readOnly_ = false;
+      onChanged();
       return this;
     }
     @java.lang.Override

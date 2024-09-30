@@ -93,4 +93,5 @@ module evita.external.api.observability {
 	exports io.evitadb.externalApi.observability.configuration;
 	exports io.evitadb.externalApi.observability.trace;
 	exports io.evitadb.externalApi.observability.metric;
+	exports io.evitadb.externalApi.observability;
 }

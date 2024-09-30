@@ -23,6 +23,9 @@
 
 package io.evitadb.externalApi.graphql;
 
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.utils.NetworkUtils;
@@ -81,11 +84,23 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
 	@Override
     public boolean isReady() {
         final Predicate<String> isReady = url -> {
-            final Optional<String> post = NetworkUtils.fetchContent(
+	        final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+			final Optional<String> post = NetworkUtils.fetchContent(
 				url, "POST", "application/json", "{\"query\":\"{liveness}\"}",
-	            error -> log.error("Error while checking readiness of GraphQL API: {}", error)
-            );
-            return post.map(content -> content.contains("true")).orElse(false);
+				error -> {
+					log.error("Error while checking readiness of GraphQL API: {}", error);
+					readinessEvent.finish(Result.ERROR);
+				},
+				timeouted -> {
+					log.error("{}", timeouted);
+					readinessEvent.finish(Result.TIMEOUT);
+				}
+			);
+			final Boolean result = post.map(content -> content.contains("true")).orElse(false);
+			if (result) {
+				readinessEvent.finish(Result.READY);
+			}
+			return result;
         };
         final String[] baseUrls = this.configuration.getBaseUrls();
         if (this.reachableUrl == null) {

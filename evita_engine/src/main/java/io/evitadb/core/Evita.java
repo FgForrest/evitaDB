@@ -275,6 +275,12 @@ public final class Evita implements EvitaContract {
 			.filter(CatalogStructuralChangeObserverWithEvitaContractCallback.class::isInstance)
 			.map(CatalogStructuralChangeObserverWithEvitaContractCallback.class::cast)
 			.forEach(it -> it.onInit(this));
+
+		// repeatedly call the updateCatalogStatistics method every 10 minutes, so that metrics are updated
+		this.serviceExecutor.scheduleAtFixedRate(
+			this::updateCatalogStatistics,
+			10, 10, TimeUnit.MINUTES
+		);
 	}
 
 	/**
@@ -984,7 +990,7 @@ public final class Evita implements EvitaContract {
 		// iterate over all catalogs and emit the event
 		for (CatalogContract catalog : this.catalogs.values()) {
 			if (catalog instanceof Catalog theCatalog) {
-				theCatalog.emitStartObservabilityEvents();
+				theCatalog.emitObservabilityEvents();
 			}
 		}
 	}

@@ -1031,7 +1031,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void emitStartObservabilityEvents() {
+	public void emitObservabilityEvents() {
 		// emit statistics event
 		final CatalogHeader catalogHeader = getCatalogHeader(this.bootstrapUsed.catalogVersion());
 		new CatalogStatisticsEvent(

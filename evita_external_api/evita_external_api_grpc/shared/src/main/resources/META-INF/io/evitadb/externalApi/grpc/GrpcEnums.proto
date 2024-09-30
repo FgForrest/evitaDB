@@ -21,6 +21,8 @@ enum GrpcCatalogState {
   // All operations are executed transactionally and leave the date in consistent state even if any error occurs.
   // Multiple readers and writers can work with the catalog simultaneously.
   ALIVE = 1;
+  // Unknown state of the catalog. Used when catalog is corrupted.
+  UNKNOWN_CATALOG_STATE = 2;
 }
 
 // This enum represents the uniqueness type of an {@link AttributeSchema}. It is used to determine whether the attribute
