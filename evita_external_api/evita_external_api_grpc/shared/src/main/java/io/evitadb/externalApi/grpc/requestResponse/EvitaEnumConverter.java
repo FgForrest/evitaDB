@@ -88,11 +88,9 @@ public class EvitaEnumConverter {
 	@Nonnull
 	public static CatalogState toCatalogState(@Nonnull GrpcCatalogState grpcCatalogState) {
 		return switch (grpcCatalogState.getNumber()) {
-			case 0 -> {
-				throw new GenericEvitaInternalError("Catalog probably corrupted. Uknown state of the catalog.");
-			}
-			case 1 -> CatalogState.WARMING_UP;
-			case 2 -> CatalogState.ALIVE;
+			case 0 -> CatalogState.WARMING_UP;
+			case 1 -> CatalogState.ALIVE;
+			case 2 -> throw new GenericEvitaInternalError("Catalog probably corrupted. Unknown state of the catalog.");
 			default -> throw new GenericEvitaInternalError("Unrecognized remote catalog state: " + grpcCatalogState);
 		};
 	}
@@ -101,7 +99,10 @@ public class EvitaEnumConverter {
 	 * Converts {@link CatalogState} to {@link GrpcCatalogState}.
 	 */
 	@Nonnull
-	public static GrpcCatalogState toGrpcCatalogState(@Nonnull CatalogState catalogState) {
+	public static GrpcCatalogState toGrpcCatalogState(@Nullable CatalogState catalogState) {
+		if (catalogState == null) {
+			return GrpcCatalogState.UNKNOWN_CATALOG_STATE;
+		}
 		return switch (catalogState) {
 			case WARMING_UP -> GrpcCatalogState.WARMING_UP;
 			case ALIVE -> GrpcCatalogState.ALIVE;

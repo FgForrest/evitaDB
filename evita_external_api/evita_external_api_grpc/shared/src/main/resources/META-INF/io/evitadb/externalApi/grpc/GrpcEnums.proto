@@ -6,8 +6,6 @@ option csharp_namespace = "EvitaDB";
 
 // Indicates actual state in which Evita operates. See detailed information for each state.
 enum GrpcCatalogState {
-  // Unknown state of the catalog. Used when catalog is corrupted.
-  UNKNOWN_CATALOG_STATE = 0;
   // Initial state of the Evita catalog.
   // This state has several limitations but also advantages.
   // This state requires single threaded access - this means only single thread can read/write data to the catalog
@@ -18,11 +16,13 @@ enum GrpcCatalogState {
   // transactional logic is disabled and doesn't slow down the writing process.
   // This phase is meant to quickly fill initial state of the catalog from the external primary data store. This state
   // is also planned to be used when new replica is created and needs to quickly catch up with the master.
-  WARMING_UP = 1;
+  WARMING_UP = 0;
   // Standard "serving" state of the Evita catalog.
   // All operations are executed transactionally and leave the date in consistent state even if any error occurs.
   // Multiple readers and writers can work with the catalog simultaneously.
-  ALIVE = 2;
+  ALIVE = 1;
+  // Unknown state of the catalog. Used when catalog is corrupted.
+  UNKNOWN_CATALOG_STATE = 2;
 }
 
 // This enum represents the uniqueness type of an {@link AttributeSchema}. It is used to determine whether the attribute
@@ -567,25 +567,25 @@ enum GrpcHealthProblem {
 enum GrpcReadiness {
 
   /**
-   * Unknown state - cannot determine the state of the APIs (should not happen).
-   */
-  API_UNKNOWN = 0;
-  /**
    * At least one API is not ready.
    */
-  API_STARTING = 1;
+  API_STARTING = 0;
   /**
    * All APIs are ready.
    */
-  API_READY = 2;
+  API_READY = 1;
   /**
    * At least one API that was ready is not ready anymore.
    */
-  API_STALLING = 3;
+  API_STALLING = 2;
   /**
    * Server is shutting down. None of the APIs are ready.
    */
-  API_SHUTDOWN = 4;
+  API_SHUTDOWN = 3;
+  /**
+   * Unknown state - cannot determine the state of the APIs (should not happen).
+   */
+  API_UNKNOWN = 4;
 
 }
 
