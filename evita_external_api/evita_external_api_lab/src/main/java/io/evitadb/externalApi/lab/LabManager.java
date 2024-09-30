@@ -64,7 +64,6 @@ public class LabManager {
 	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Nonnull private final Evita evita;
-	@Nonnull private final ApiOptions apiOptions;
 	@Nonnull private final LabConfig labConfig;
 
 	/**
@@ -73,9 +72,8 @@ public class LabManager {
 	@Nonnull private final RoutingHandlerService labRouter = new RoutingHandlerService();
 	@Nonnull private final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
-	public LabManager(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull LabConfig labConfig) {
+	public LabManager(@Nonnull Evita evita, @Nonnull LabConfig labConfig) {
 		this.evita = evita;
-		this.apiOptions = apiOptions;
 		this.labConfig = labConfig;
 
 		final long buildingStartTime = System.currentTimeMillis();
@@ -135,7 +133,7 @@ public class LabManager {
 			HttpMethod.GET,
 			endpointPath.toString(),
 			new CorsFilter(
-				GuiHandler.create(labConfig, configuration.name(), apiOptions, objectMapper)
+				GuiHandler.create(labConfig, configuration.name(), objectMapper)
 					.decorate(service -> new LabExceptionHandler(objectMapper, service)),
 				labConfig.getAllowedOrigins()
 			)

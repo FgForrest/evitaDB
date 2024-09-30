@@ -121,7 +121,7 @@ public interface EvitaManagementContract {
 	@Nonnull
 	PaginatedList<TaskStatus<?, ?>> listTaskStatuses(
 		int page, int pageSize,
-		@Nullable String taskType,
+		@Nullable String[] taskType,
 		@Nonnull TaskSimplifiedState... states
 	);
 

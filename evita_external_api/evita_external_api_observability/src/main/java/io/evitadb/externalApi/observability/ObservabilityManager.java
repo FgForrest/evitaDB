@@ -183,10 +183,10 @@ public class ObservabilityManager {
 	public ObservabilityManager(ObservabilityConfig config, Evita evita) {
 		this.config = config;
 		this.evita = evita;
+		this.objectMapper = new ObjectMapper();
 		createAndRegisterPrometheusServlet();
 		registerJfrControlEndpoints();
 		registerRecordingFileResourceHandler();
-		objectMapper = new ObjectMapper();
 
 		final SimpleModule module = new SimpleModule();
 		module.addSerializer(OffsetDateTime.class, new OffsetDateTimeSerializer());

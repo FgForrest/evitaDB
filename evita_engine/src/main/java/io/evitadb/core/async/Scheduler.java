@@ -31,6 +31,7 @@ import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.utils.ArrayUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -305,15 +306,16 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 */
 	@Nonnull
 	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(
-		int page, int pageSize,
-		@Nullable String taskType,
+		int page,
+		int pageSize,
+		@Nullable String[] taskType,
 		@Nonnull TaskSimplifiedState... states
 	) {
 
 		final EnumSet<TaskSimplifiedState> stateSet = EnumSet.noneOf(TaskSimplifiedState.class);
 		Collections.addAll(stateSet, states);
 
-		final Predicate<TaskStatus<?, ?>> typePredicate = taskType == null ? null : status -> status.taskType().equals(taskType);
+		final Predicate<TaskStatus<?, ?>> typePredicate = ArrayUtils.isEmpty(taskType) ? null : status -> Arrays.stream(taskType).anyMatch(it -> it.equals(status.taskType()));
 		final Predicate<TaskStatus<?, ?>> statePredicate =  stateSet.isEmpty() ? null : status -> stateSet.contains(status.simplifiedState());
 		final Predicate<TaskStatus<?, ?>> finalPredicate = statePredicate == null ? typePredicate : (typePredicate == null ? statePredicate : typePredicate.and(statePredicate));
 

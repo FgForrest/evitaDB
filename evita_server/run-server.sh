@@ -30,6 +30,7 @@
 
 java \
         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8005 \
+        --add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
         -javaagent:target/evita-server.jar \
         -jar "target/evita-server.jar" \
         "configDir=../config/" \
