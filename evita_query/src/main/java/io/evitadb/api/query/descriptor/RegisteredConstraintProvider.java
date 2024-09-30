@@ -121,6 +121,10 @@ class RegisteredConstraintProvider {
 		PriceDiscount.class,
 		// reference
 		ReferenceProperty.class,
+		// segments
+		Segments.class,
+		Segment.class,
+		SegmentLimit.class,
 
 		// --- require constraints ---
 		// generic
