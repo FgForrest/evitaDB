@@ -30,21 +30,9 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.file.HttpFile;
-import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.exception.ExternalApiInternalError;
-import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
-import io.evitadb.externalApi.grpc.GrpcProvider;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.lab.configuration.GuiConfig;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
-import io.evitadb.externalApi.observability.ObservabilityProvider;
-import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
-import io.evitadb.externalApi.rest.RestProvider;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
-import io.evitadb.externalApi.system.SystemProvider;
-import io.evitadb.externalApi.system.configuration.SystemConfig;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -54,7 +42,6 @@ import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.Base64.Encoder;
 import java.util.List;
-import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -75,36 +62,30 @@ public class GuiHandler implements HttpService {
 
 	@Nonnull private final LabConfig labConfig;
 	@Nonnull private final String serverName;
-	@Nonnull private final ApiOptions apiOptions;
 	@Nonnull private final ObjectMapper objectMapper;
+
+	private List<EvitaDBConnection> preconfiguredConnections;
 
 	@Nonnull
 	public static GuiHandler create(
 		@Nonnull LabConfig labConfig,
 		@Nonnull String serverName,
-		@Nonnull ApiOptions apiOptions,
 		@Nonnull ObjectMapper objectMapper
 	) {
-		return new GuiHandler(labConfig, serverName, apiOptions, objectMapper);
+		return new GuiHandler(labConfig, serverName, objectMapper);
 	}
 
 	private GuiHandler(@Nonnull LabConfig labConfig,
 	                   @Nonnull String serverName,
-	                   @Nonnull ApiOptions apiOptions,
 	                   @Nonnull ObjectMapper objectMapper) {
 		this.labConfig = labConfig;
 		this.serverName = serverName;
-		this.apiOptions = apiOptions;
 		this.objectMapper = objectMapper;
 	}
 
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		passServerName(ctx);
-		passReadOnlyFlag(ctx);
-		passPreconfiguredEvitaDBConnections(ctx);
-
 		final String path;
 		if (ctx.query() == null) {
 			path = req.path();
@@ -114,11 +95,44 @@ public class GuiHandler implements HttpService {
 		final ClassLoader classLoader = getClass().getClassLoader();
 		final Path fsPath = Paths.get("META-INF/lab/gui/dist");
 		if (path.isEmpty() || path.equals("/") || path.equals("/index.html")) {
-			return HttpFile.of(classLoader, createJarResourceLocationWithForwardSlashes(fsPath.resolve("index.html"))).asService().serve(ctx, req);
+			return serveRoot(ctx, req, classLoader, fsPath);
 		} else if (ROOT_ASSETS_PATTERN.matcher(path).matches() || ASSETS_PATTERN.matcher(path).matches()) {
-			return HttpFile.of(classLoader, createJarResourceLocationWithForwardSlashes(fsPath.resolve(Paths.get(path.substring(1))))).asService().serve(ctx, req);
+			return serveAssets(ctx, req, classLoader, path, fsPath);
 		}
 		return HttpResponse.of(404);
+	}
+
+	@Nonnull
+	private HttpResponse serveRoot(@Nonnull ServiceRequestContext ctx,
+	                               @Nonnull HttpRequest req,
+	                               @Nonnull ClassLoader classLoader,
+	                               @Nonnull Path fsPath) throws Exception {
+		passServerName(ctx);
+		passReadOnlyFlag(ctx);
+		passPreconfiguredEvitaDBConnections(ctx);
+
+		return HttpFile.of(
+			classLoader,
+			createJarResourceLocationWithForwardSlashes(fsPath.resolve("index.html"))
+		)
+			.asService()
+			.serve(ctx, req);
+	}
+
+	@Nonnull
+	private HttpResponse serveAssets(@Nonnull ServiceRequestContext ctx,
+	                                 @Nonnull HttpRequest req,
+	                                 @Nonnull ClassLoader classLoader,
+									 @Nonnull String path,
+	                                 @Nonnull Path fsPath) throws Exception {
+		return HttpFile.of(
+			classLoader,
+			createJarResourceLocationWithForwardSlashes(
+				fsPath.resolve(Paths.get(path.substring(1)))
+			)
+		)
+			.asService()
+			.serve(ctx, req);
 	}
 
 
@@ -169,17 +183,20 @@ public class GuiHandler implements HttpService {
 
 	@Nonnull
 	private List<EvitaDBConnection> resolvePreconfiguredEvitaDBConnections() {
-		final List<EvitaDBConnection> preconfiguredConnections = labConfig.getGui().getPreconfiguredConnections();
-		if (preconfiguredConnections != null) {
-			return preconfiguredConnections;
+		if (preconfiguredConnections == null) {
+			final List<EvitaDBConnection> customPreconfiguredConnections = labConfig.getGui().getPreconfiguredConnections();
+			if (customPreconfiguredConnections != null) {
+				preconfiguredConnections = customPreconfiguredConnections;
+			} else {
+				final EvitaDBConnection selfConnection = new EvitaDBConnection(
+					null,
+					serverName,
+					labConfig.getBaseApiAccessUrl()
+				);
+				preconfiguredConnections = List.of(selfConnection);
+			}
 		}
-
-		final EvitaDBConnection selfConnection = new EvitaDBConnection(
-			null,
-			serverName,
-			labConfig.getExposeOn()
-		);
-		return List.of(selfConnection);
+		return preconfiguredConnections;
 	}
 
 	@Nonnull

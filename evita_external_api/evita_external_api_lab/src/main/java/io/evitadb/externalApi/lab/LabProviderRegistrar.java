@@ -56,7 +56,7 @@ public class LabProviderRegistrar implements ExternalApiProviderRegistrar<LabCon
 	@Nonnull
 	@Override
 	public ExternalApiProvider<LabConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull LabConfig labConfig) {
-		final LabManager labManager = new LabManager(evita, apiOptions, labConfig);
+		final LabManager labManager = new LabManager(evita, labConfig);
 		final HttpService apiHandler = labManager.getLabRouter();
 		return new LabProvider(labConfig, apiHandler);
 	}
