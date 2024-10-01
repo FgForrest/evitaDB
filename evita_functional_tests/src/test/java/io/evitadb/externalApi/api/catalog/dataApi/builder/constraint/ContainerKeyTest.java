@@ -29,7 +29,9 @@ import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
@@ -152,6 +154,34 @@ class ContainerKeyTest {
 				ConstraintType.FILTER,
 				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class), Set.of(), Set.of(Or.class, Not.class))
+			).toHash()
+		);
+	}
+
+	@Test
+	void shouldGenerateSpecificHashes() {
+		assertEquals(
+			"9921bb2864830a2a",
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class, Or.class), Set.of(),  Set.of(Not.class))
+			).toHash()
+		);
+		assertEquals(
+			"c0637b3fd0fe2a6d",
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new ReferenceDataLocator(new ManagedEntityTypePointer("product"), "groups"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class, Or.class), Set.of(),  Set.of(Not.class))
+			).toHash()
+		);
+		assertEquals(
+			"751a19ce28527c46",
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator(new ExternalEntityTypePointer("tagCategory")),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class, Or.class), Set.of(),  Set.of(Not.class))
 			).toHash()
 		);
 	}
