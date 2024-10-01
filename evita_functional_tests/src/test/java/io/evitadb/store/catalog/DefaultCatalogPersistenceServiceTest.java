@@ -299,7 +299,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			0,
 			null,
 			entityHeaders,
-			new WarmUpDataStoreMemoryBuffer<>(ioService.getStoragePartPersistenceService(0L))
+			new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
 		);
 
 		// try to deserialize again
@@ -512,7 +512,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				0,
 				null,
 				Collections.emptyList(),
-				new WarmUpDataStoreMemoryBuffer<>(cps.getStoragePartPersistenceService(0L))
+				new WarmUpDataStoreMemoryBuffer(cps.getStoragePartPersistenceService(0L))
 			);
 		}
 
@@ -588,7 +588,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		for (int i = 0; i <= 4; i++) {
 			final CatalogVersion record = catalogVersions.getData().get(i);
 			assertEquals(i, record.version());
-			assertNotNull(record.timestamp());
+			assertNotNull(record.introducedAt());
 		}
 
 		final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 3, 5);
@@ -596,7 +596,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		for (int i = 0; i < 3; i++) {
 			final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
 			assertEquals(10 + i, record.version());
-			assertNotNull(record.timestamp());
+			assertNotNull(record.introducedAt());
 		}
 
 		final Optional<CatalogBootstrap> first = getFirstCatalogBootstrap(catalogName, storageOptions);
@@ -649,7 +649,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		for (int i = 0; i < 5; i++) {
 			final CatalogVersion record = catalogVersions.getData().get(i);
 			assertEquals(13 - (i + 1), record.version());
-			assertNotNull(record.timestamp());
+			assertNotNull(record.introducedAt());
 		}
 
 		final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5);
@@ -657,7 +657,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		for (int i = 0; i < 3; i++) {
 			final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
 			assertEquals(3 - (i + 1), record.version());
-			assertNotNull(record.timestamp());
+			assertNotNull(record.introducedAt());
 		}
 	}
 
@@ -730,7 +730,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				brandCollection.flush(),
 				storeCollection.flush()
 			),
-			new WarmUpDataStoreMemoryBuffer<>(ioService.getStoragePartPersistenceService(0L))
+			new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
 		);
 
 		final Path dataDirectory = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);

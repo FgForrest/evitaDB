@@ -31,11 +31,23 @@ public interface GrpcEntityReferenceWithParentOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
   java.lang.String getEntityType();
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -43,28 +55,53 @@ public interface GrpcEntityReferenceWithParentOrBuilder extends
       getEntityTypeBytes();
 
   /**
+   * <pre>
+   * Unique Integer positive number representing the entity. Can be used for fast lookup for
+   * entity (entities). Primary key must be unique within the same entity type.
+   * </pre>
+   *
    * <code>int32 primaryKey = 2;</code>
    * @return The primaryKey.
    */
   int getPrimaryKey();
 
   /**
-   * <code>int32 version = 3;</code>
+   * <pre>
+   * Contains version of this entity and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * value is deprecated, it was never available in the first place - it was a mistake in the design.
+   * in order to get the entity version you need to fetch the entity itself (with entity body).
+   * </pre>
+   *
+   * <code>int32 version = 3 [deprecated = true];</code>
+   * @deprecated
    * @return The version.
    */
-  int getVersion();
+  @java.lang.Deprecated int getVersion();
 
   /**
+   * <pre>
+   * Recursive pointer to parent entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
    * @return Whether the parent field is set.
    */
   boolean hasParent();
   /**
+   * <pre>
+   * Recursive pointer to parent entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
    * @return The parent.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent getParent();
   /**
+   * <pre>
+   * Recursive pointer to parent entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder getParentOrBuilder();

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,12 @@
 
 package io.evitadb.api.requestResponse.data.mutation.attribute;
 
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -47,16 +49,28 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 
 	public UpsertAttributeMutation(@Nonnull AttributeKey attributeKey, @Nonnull Serializable value) {
 		super(attributeKey);
+		Assert.notNull(value,
+			"Value for attribute `" + attributeKey + "` must not be null. " +
+				"Use `removeAttribute` mutation if you want to remove existing attribute."
+		);
 		this.value = value;
 	}
 
 	public UpsertAttributeMutation(@Nonnull String attributeName, @Nonnull Serializable value) {
 		super(new AttributeKey(attributeName));
+		Assert.notNull(value,
+			"Value for attribute `" + attributeName + "` must not be null. " +
+				"Use `removeAttribute` mutation if you want to remove existing attribute."
+		);
 		this.value = value;
 	}
 
 	public UpsertAttributeMutation(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Serializable value) {
 		super(new AttributeKey(attributeName, locale));
+		Assert.notNull(value,
+			"Value for attribute `" + attributeName + "` must not be null. " +
+				"Use `removeAttribute` mutation if you want to remove existing attribute."
+		);
 		this.value = value;
 	}
 
@@ -83,6 +97,12 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 	@Override
 	public long getPriority() {
 		return PRIORITY_UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Override

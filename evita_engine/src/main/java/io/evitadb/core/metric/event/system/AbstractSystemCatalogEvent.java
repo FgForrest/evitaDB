@@ -24,6 +24,7 @@
 package io.evitadb.core.metric.event.system;
 
 import io.evitadb.core.metric.event.CatalogRelatedEvent;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
@@ -35,11 +36,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Getter
 abstract class AbstractSystemCatalogEvent extends AbstractSystemEvent implements CatalogRelatedEvent {
+
 	/**
 	 * The name of the catalog the transaction relates to.
 	 */
 	@Label("Catalog")
 	@Name("catalogName")
+	@Description("The name of the catalog to which this event/metric is associated.")
 	final String catalogName;
 
 }

@@ -101,25 +101,25 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 				final List<Formula> formula = PriceValidInTranslator.INSTANCE.createFormula(filterByVisitor, theMoment, priceLists, currency);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
-					queryPriceMode, formula, filterByVisitor
+					priceLists, currency, theMoment, queryPriceMode, formula, filterByVisitor
 				);
 			} else if (currency == null && theMoment != null) {
 				final List<Formula> formula = PriceValidInTranslator.INSTANCE.createFormula(filterByVisitor, theMoment, priceLists, null);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
-					queryPriceMode, formula, filterByVisitor
+					priceLists, null, theMoment, queryPriceMode, formula, filterByVisitor
 				);
 			} else if (currency == null) {
 				final List<Formula> formula = PriceInPriceListsTranslator.INSTANCE.createFormula(filterByVisitor, priceLists, null);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
-					queryPriceMode, formula, filterByVisitor
+					priceLists, null, null, queryPriceMode, formula, filterByVisitor
 				);
 			} else {
 				final List<Formula> formula = PriceInPriceListsTranslator.INSTANCE.createFormula(filterByVisitor, priceLists, currency);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
-					queryPriceMode, formula, filterByVisitor
+					priceLists, currency, null, queryPriceMode, formula, filterByVisitor
 				);
 			}
 
@@ -153,6 +153,9 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		@Nullable BigDecimal from,
 		@Nullable BigDecimal to,
 		int indexedPricePlaces,
+		@Nullable String[] priceLists,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime validIn,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull List<Formula> formula,
 		@Nonnull FilterByVisitor filterByVisitor
@@ -160,7 +163,7 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		final io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate priceFilter = new PriceRecordPredicate(from, to, queryPriceMode, indexedPricePlaces);
 
 		return PriceListCompositionTerminationVisitor.translate(
-			formula, filterByVisitor.getQueryPriceMode(), priceFilter
+			formula, priceLists, currency, validIn, filterByVisitor.getQueryPriceMode(), priceFilter
 		);
 	}
 

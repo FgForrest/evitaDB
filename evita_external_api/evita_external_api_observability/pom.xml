@@ -32,7 +32,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>2024.9-SNAPSHOT</version>
+		<version>2024.10-SNAPSHOT</version>
 	</parent>
 
 	<dependencyManagement>
@@ -108,7 +108,7 @@
 		</dependency>
 		<dependency>
 			<groupId>io.prometheus</groupId>
-			<artifactId>prometheus-metrics-exporter-servlet-jakarta</artifactId>
+			<artifactId>prometheus-metrics-exporter-common</artifactId>
 			<version>${prometheus.version}</version>
 		</dependency>
 		<dependency>
@@ -135,19 +135,19 @@
 		<dependency>
 			<groupId>io.evitadb</groupId>
 			<artifactId>evita_external_api_grpc</artifactId>
-			<version>2024.9-SNAPSHOT</version>
+			<version>2024.10-SNAPSHOT</version>
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
 			<groupId>io.evitadb</groupId>
 			<artifactId>evita_external_api_graphql</artifactId>
-			<version>2024.9-SNAPSHOT</version>
+			<version>2024.10-SNAPSHOT</version>
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
 			<groupId>io.evitadb</groupId>
 			<artifactId>evita_external_api_rest</artifactId>
-			<version>2024.9-SNAPSHOT</version>
+			<version>2024.10-SNAPSHOT</version>
 			<scope>compile</scope>
 		</dependency>
 	</dependencies>

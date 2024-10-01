@@ -45,19 +45,29 @@ public class AttributeInRangeSerializer extends Serializer<AttributeInRange> {
 	@Override
 	public void write(Kryo kryo, Output output, AttributeInRange object) {
 		output.writeString(object.getAttributeName());
-		kryo.writeClassAndObject(output, object.getUnknownArgument());
+		final Serializable unknownArgument = object.getUnknownArgument();
+		if (unknownArgument == null) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			kryo.writeClassAndObject(output, unknownArgument);
+		}
 	}
 
 	@Override
 	public AttributeInRange read(Kryo kryo, Input input, Class<? extends AttributeInRange> type) {
 		final String attributeName = input.readString();
-		final Serializable theValue = (Serializable) kryo.readClassAndObject(input);
-		if (theValue instanceof Number) {
-			return new AttributeInRange(attributeName, (Number) theValue);
-		} else if (theValue instanceof OffsetDateTime) {
-			return new AttributeInRange(attributeName, (OffsetDateTime) theValue);
+		if (input.readBoolean()) {
+			final Serializable theValue = (Serializable) kryo.readClassAndObject(input);
+			if (theValue instanceof Number) {
+				return new AttributeInRange(attributeName, (Number) theValue);
+			} else if (theValue instanceof OffsetDateTime) {
+				return new AttributeInRange(attributeName, (OffsetDateTime) theValue);
+			} else {
+				throw new GenericEvitaInternalError("Unsupported filter value: " + theValue);
+			}
 		} else {
-			throw new GenericEvitaInternalError("Unsupported filter value: " + theValue);
+			return new AttributeInRange(attributeName);
 		}
 	}
 

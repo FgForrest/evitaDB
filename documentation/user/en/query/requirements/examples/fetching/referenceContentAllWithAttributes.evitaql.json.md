@@ -16,7 +16,7 @@
           {
             "referencedKey": 66472,
             "attributes": {
-              "orderInCategory": "Predecessor[predecessorId=-1]"
+              "orderInCategory": "Predecessor[predecessorPk=-1]"
             }
           }
         ],

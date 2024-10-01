@@ -75,7 +75,7 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
             """)
 		.type(nonNullListRef(PriceForSaleDescriptor.THIS))
 		.build();
-	// todo #538: deprecated, remove
+	// TOBEDONE #538: deprecated, remove
 	PropertyDescriptor PRICE = PropertyDescriptor.builder()
 		.name("price")
 		.description("""

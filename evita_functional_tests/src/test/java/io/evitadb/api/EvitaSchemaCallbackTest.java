@@ -60,7 +60,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			getEvitaConfiguration()
 		);
 		evita.defineCatalog(TEST_CATALOG);
-		evitaInstanceId = evita.getSystemStatus().instanceId();
+		evitaInstanceId = evita.management().getSystemStatus().instanceId();
 	}
 
 	@AfterEach

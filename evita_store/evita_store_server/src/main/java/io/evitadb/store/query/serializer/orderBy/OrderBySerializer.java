@@ -41,12 +41,20 @@ public class OrderBySerializer extends Serializer<OrderBy> {
 
 	@Override
 	public void write(Kryo kryo, Output output, OrderBy object) {
-		kryo.writeClassAndObject(output, object.getChildren()[0]);
+		output.writeVarInt(object.getChildrenCount(), true);
+		for (OrderConstraint child : object.getChildren()) {
+			kryo.writeClassAndObject(output, child);
+		}
 	}
 
 	@Override
 	public OrderBy read(Kryo kryo, Input input, Class<? extends OrderBy> type) {
-		return new OrderBy((OrderConstraint) kryo.readClassAndObject(input));
+		final int childrenCount = input.readVarInt(true);
+		final OrderConstraint[] children = new OrderConstraint[childrenCount];
+		for (int i = 0; i < childrenCount; i++) {
+			children[i] = (OrderConstraint) kryo.readClassAndObject(input);
+		}
+		return new OrderBy(children);
 	}
 
 }

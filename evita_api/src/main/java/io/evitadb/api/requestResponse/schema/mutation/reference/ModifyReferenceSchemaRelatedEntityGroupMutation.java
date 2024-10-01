@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,8 +29,9 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
@@ -48,7 +49,7 @@ import java.util.Optional;
  * Mutation is responsible for setting value to a {@link ReferenceSchemaContract#getReferencedGroupType()}
  * in {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link ReferenceSchemaContract} alone.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -57,7 +58,7 @@ import java.util.Optional;
 @Immutable
 @EqualsAndHashCode(callSuper = true)
 public class ModifyReferenceSchemaRelatedEntityGroupMutation
-	extends AbstractModifyReferenceDataSchemaMutation implements CombinableEntitySchemaMutation {
+	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 5652064385493788515L;
 	@Nullable @Getter private final String referencedGroupType;
 	@Getter private final boolean referencedGroupTypeManaged;
@@ -70,7 +71,11 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
 		if (existingMutation instanceof ModifyReferenceSchemaRelatedEntityGroupMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
@@ -80,10 +85,14 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		Assert.isPremiseValid(
+			!(referenceSchema instanceof ReflectedReferenceSchema),
+			() -> "Group cannot be changed on reflected reference. This mutation can be applied only on original reference!"
+		);
 		return ReferenceSchema._internalBuild(
-			name,
+			this.name,
 			referenceSchema.getNameVariants(),
 			referenceSchema.getDescription(),
 			referenceSchema.getDeprecationNotice(),
@@ -91,9 +100,10 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 			referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
 			referenceSchema.isReferencedEntityTypeManaged(),
 			referenceSchema.getCardinality(),
-			referencedGroupType,
-			referencedGroupTypeManaged || referencedGroupType == null ? Collections.emptyMap() : NamingConvention.generate(referencedGroupType),
-			referencedGroupTypeManaged,
+			this.referencedGroupType,
+			this.referencedGroupTypeManaged || this.referencedGroupType == null ?
+				Collections.emptyMap() : NamingConvention.generate(this.referencedGroupType),
+			this.referencedGroupTypeManaged,
 			referenceSchema.isIndexed(),
 			referenceSchema.isFaceted(),
 			referenceSchema.getAttributes(),
@@ -107,9 +117,9 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
 		if (existingReferenceSchema.isEmpty()) {
-			// ups, the associated data is missing
+			// ups, the reference is missing
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
@@ -120,8 +130,8 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 
 	@Override
 	public String toString() {
-		return "Modify entity reference `" + name + "` schema: " +
-			"referencedGroupType='" + referencedGroupType + '\'' +
-			", relatesToEntity=" + referencedGroupTypeManaged;
+		return "Modify entity reference `" + this.name + "` schema: " +
+			"referencedGroupType='" + this.referencedGroupType + '\'' +
+			", relatesToEntity=" + this.referencedGroupTypeManaged;
 	}
 }

@@ -31,7 +31,7 @@ import io.evitadb.api.query.require.Debug;
 import io.evitadb.api.query.require.DebugMode;
 import lombok.RequiredArgsConstructor;
 
-import java.util.EnumSet;
+import java.io.Serializable;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link Debug} from/to binary format.
@@ -43,9 +43,9 @@ public class DebugSerializer extends Serializer<Debug> {
 
 	@Override
 	public void write(Kryo kryo, Output output, Debug object) {
-		final EnumSet<DebugMode> modes = object.getDebugMode();
-		output.writeVarInt(modes.size(), true);
-		for (DebugMode mode : modes) {
+		final Serializable[] modes = object.getArguments();
+		output.writeVarInt(modes.length, true);
+		for (Serializable mode : modes) {
 			kryo.writeObject(output, mode);
 		}
 	}

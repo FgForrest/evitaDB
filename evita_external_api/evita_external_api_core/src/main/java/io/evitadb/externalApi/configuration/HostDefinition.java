@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,6 @@
 
 package io.evitadb.externalApi.configuration;
 
-import io.evitadb.utils.NetworkUtils;
-
 import javax.annotation.Nonnull;
 import java.net.InetAddress;
 
@@ -32,21 +30,32 @@ import java.net.InetAddress;
  * Defines a host and port combination.
  *
  * @param host defines the hostname and port the endpoints will listen on
+ * @param localhost contains TRUE if configuration option represents a loop-back host (self)
  * @param port defines the port API endpoint will listen on
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record HostDefinition(
 	@Nonnull InetAddress host,
+	boolean localhost,
 	int port
 ) {
 
 	/**
-	 * Returns human comprehensible host name of the configured host.
+	 * Returns IP address as a string.
+	 * @return IP address as a string
 	 */
 	@Nonnull
-	public String hostName() {
-		return NetworkUtils.getHostName(host);
+	public String hostAddress() {
+		return host.getHostAddress();
+	}
+
+	/**
+	 * Returns IP address with port as a single string.
+	 */
+	@Nonnull
+	public String hostAddressWithPort() {
+		return host.getHostAddress() + ":" + port;
 	}
 
 }

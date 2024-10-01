@@ -217,7 +217,7 @@ must be distinguished by the inner entity id property (see interface
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass>). The product
 with variants must have a price inner entity reference handling mode
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceInnerRecordHandling.java</SourceClass>
-set to `FIRST_OCCURRENCE`.
+set to `LOWEST_PRICE`.
 
 In this product setup, the selling price is selected as the lowest selling price of all variants. This price is used to
 filter products by price.

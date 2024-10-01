@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,14 +39,16 @@ public class SetReferenceSchemaFacetedMutationSerializer extends Serializer<SetR
 	@Override
 	public void write(Kryo kryo, Output output, SetReferenceSchemaFacetedMutation mutation) {
 		output.writeString(mutation.getName());
-		output.writeBoolean(mutation.isFaceted());
+		final Boolean faceted = mutation.getFaceted();
+		output.writeBoolean(faceted != null);
+		output.writeBoolean(faceted);
 	}
 
 	@Override
 	public SetReferenceSchemaFacetedMutation read(Kryo kryo, Input input, Class<? extends SetReferenceSchemaFacetedMutation> type) {
 		return new SetReferenceSchemaFacetedMutation(
 			input.readString(),
-			input.readBoolean()
+			input.readBoolean() ? input.readBoolean() : null
 		);
 	}
 

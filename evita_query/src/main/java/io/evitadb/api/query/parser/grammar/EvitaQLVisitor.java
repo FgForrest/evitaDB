@@ -420,6 +420,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitPriceNaturalConstraint(EvitaQLParser.PriceNaturalConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code priceDiscountConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPriceDiscountConstraint(EvitaQLParser.PriceDiscountConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code randomConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
@@ -769,6 +776,41 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitFacetSummary2Constraint(EvitaQLParser.FacetSummary2ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code facetSummary3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetSummary3Constraint(EvitaQLParser.FacetSummary3ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code facetSummary4Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetSummary4Constraint(EvitaQLParser.FacetSummary4ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code facetSummary5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetSummary5Constraint(EvitaQLParser.FacetSummary5ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code facetSummary6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetSummary6Constraint(EvitaQLParser.FacetSummary6ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code facetSummary7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetSummary7Constraint(EvitaQLParser.FacetSummary7ConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code facetSummaryOfReference1Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
@@ -1311,6 +1353,36 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitFacetSummary2Args(EvitaQLParser.FacetSummary2ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#facetSummary3Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetSummary3Args(EvitaQLParser.FacetSummary3ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#facetSummary4Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetSummary4Args(EvitaQLParser.FacetSummary4ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#facetSummary5Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetSummary5Args(EvitaQLParser.FacetSummary5ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#facetSummary6Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetSummary6Args(EvitaQLParser.FacetSummary6ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#facetSummary7Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetSummary7Args(EvitaQLParser.FacetSummary7ArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#facetSummaryOfReference2Args}.
 	 * @param ctx the parse tree

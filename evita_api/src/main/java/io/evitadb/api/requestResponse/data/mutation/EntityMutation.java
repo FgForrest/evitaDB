@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 
 import javax.annotation.Nonnull;
@@ -41,6 +41,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -65,7 +66,7 @@ public non-sealed interface EntityMutation extends Mutation {
 	 * @param catalogSchema to check entity against
 	 */
 	@Nonnull
-	static Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
+	static Optional<LocalEntitySchemaMutation[]> verifyOrEvolveSchema(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull SealedEntitySchema entitySchema,
 		@Nonnull Collection<? extends LocalMutation<?, ?>> localMutations
@@ -117,7 +118,7 @@ public non-sealed interface EntityMutation extends Mutation {
 	 * @param entityCollectionEmpty TRUE if entire collection is empty
 	 */
 	@Nonnull
-	Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
+	Optional<LocalEntitySchemaMutation[]> verifyOrEvolveSchema(
 		@Nonnull SealedCatalogSchema catalogSchema,
 		@Nonnull SealedEntitySchema entitySchema,
 		boolean entityCollectionEmpty
@@ -133,7 +134,7 @@ public non-sealed interface EntityMutation extends Mutation {
 	 * Returns collection of all local mutations that modify this entity.
 	 */
 	@Nonnull
-	Collection<? extends LocalMutation<?, ?>> getLocalMutations();
+	List<? extends LocalMutation<?, ?>> getLocalMutations();
 
 	/**
 	 * Contains set of all possible expected states for the entity.

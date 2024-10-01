@@ -25,6 +25,7 @@ package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.*;
+import io.evitadb.api.query.parser.EnumWrapper;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetExactConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetInFilterConstraintContext;
@@ -33,24 +34,28 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactCo
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactNaturalContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPropertyConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.PriceDiscountConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.ValueArgsContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of {@link EvitaQLVisitor} for parsing all order type constraints
  * ({@link OrderConstraint}).
  * This visitor should not be used directly if not needed instead use generic {@link EvitaQLConstraintVisitor}.
  *
- * @see EvitaQLConstraintVisitor
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
+ * @see EvitaQLConstraintVisitor
  */
 public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<OrderConstraint> {
 
-	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
@@ -63,7 +68,13 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor orderDirectionValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(OrderDirection.class);
-
+	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
+	protected final EvitaQLValueTokenVisitor orderDirectionOrStringTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		OrderDirection.class,
+		String.class,
+		String[].class,
+		Iterable.class
+	);
 
 	@Override
 	public OrderConstraint visitOrderByConstraint(@Nonnull EvitaQLParser.OrderByConstraintContext ctx) {
@@ -161,6 +172,46 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	}
 
 	@Override
+	public OrderConstraint visitPriceDiscountConstraint(@Nonnull PriceDiscountConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final LinkedList<Serializable> settings = Arrays.stream(ctx.args.values
+						.accept(orderDirectionOrStringTokenVisitor)
+						.asSerializableArray())
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				// due to the varargs of any value in QL, we don't know which enum is where, on top of that it can be
+				// enum directly or just wrapper
+				final Serializable firstSettings = settings.peekFirst();
+				if (firstSettings instanceof OrderDirection) {
+					return new PriceDiscount(
+						castArgument(ctx, settings.pop(), OrderDirection.class),
+						settings.stream()
+							.map(it -> castArgument(ctx, it, String.class))
+							.toArray(String[]::new)
+					);
+				}
+				if (firstSettings instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(OrderDirection.class)) {
+					return new PriceDiscount(
+						castArgument(ctx, settings.pop(), EnumWrapper.class)
+							.toEnum(OrderDirection.class),
+						settings.stream()
+							.map(it -> castArgument(ctx, it, String.class))
+							.toArray(String[]::new)
+					);
+				}
+				return new PriceDiscount(
+					OrderDirection.DESC,
+					settings.stream()
+						.map(it -> castArgument(ctx, it, String.class))
+						.toArray(String[]::new)
+				);
+			}
+		);
+	}
+
+	@Override
 	public OrderConstraint visitRandomConstraint(@Nonnull EvitaQLParser.RandomConstraintContext ctx) {
 		return parse(ctx, Random::new);
 	}
@@ -179,6 +230,20 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		);
 	}
 
+	@Nullable
+	@Override
+	public OrderConstraint visitEntityPrimaryKeyExactNatural(EntityPrimaryKeyExactNaturalContext ctx) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyNatural(
+				Optional.ofNullable(ctx.args)
+					.map(ValueArgsContext::valueToken)
+					.map(it -> it.accept(orderDirectionValueTokenVisitor).asEnum(OrderDirection.class))
+					.orElse(OrderDirection.ASC)
+			)
+		);
+	}
+
 	@Override
 	public OrderConstraint visitEntityPrimaryKeyExactConstraint(EntityPrimaryKeyExactConstraintContext ctx) {
 		return parse(
@@ -192,20 +257,6 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	@Override
 	public OrderConstraint visitEntityPrimaryKeyInFilterConstraint(EntityPrimaryKeyInFilterConstraintContext ctx) {
 		return parse(ctx, EntityPrimaryKeyInFilter::new);
-	}
-
-	@Nullable
-	@Override
-	public OrderConstraint visitEntityPrimaryKeyExactNatural(EntityPrimaryKeyExactNaturalContext ctx) {
-		return parse(
-			ctx,
-			() -> new EntityPrimaryKeyNatural(
-				Optional.ofNullable(ctx.args)
-					.map(ValueArgsContext::valueToken)
-					.map(it -> it.accept(orderDirectionValueTokenVisitor).asEnum(OrderDirection.class))
-					.orElse(OrderDirection.ASC)
-			)
-		);
 	}
 
 	@Override

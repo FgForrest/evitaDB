@@ -90,6 +90,7 @@ orderConstraint
     | 'attributeSetExact'                   args = attributeSetExactArgs                                    # attributeSetExactConstraint
     | 'attributeSetInFilter'                args = classifierArgs                                           # attributeSetInFilterConstraint
     | 'priceNatural'                        (emptyArgs | args = valueArgs)                                  # priceNaturalConstraint
+    | 'priceDiscount'                       args = valueListArgs                                            # priceDiscountConstraint
     | 'random'                              emptyArgs                                                       # randomConstraint
     | 'referenceProperty'                   args = classifierWithOrderConstraintListArgs                    # referencePropertyConstraint
     | 'entityPrimaryKeyNatural'             (emptyArgs | args = valueArgs)                                  # entityPrimaryKeyExactNatural
@@ -145,6 +146,11 @@ requireConstraint
     | 'dataInLocales'                       args = valueListArgs                                            # dataInLocalesConstraint
     | 'facetSummary'                        (emptyArgs | args = facetSummary1Args)                          # facetSummary1Constraint
     | 'facetSummary'                        args = facetSummary2Args                                        # facetSummary2Constraint
+    | 'facetSummary'                        args = facetSummary3Args                                        # facetSummary3Constraint
+    | 'facetSummary'                        args = facetSummary4Args                                        # facetSummary4Constraint
+    | 'facetSummary'                        args = facetSummary5Args                                        # facetSummary5Constraint
+    | 'facetSummary'                        args = facetSummary6Args                                        # facetSummary6Constraint
+    | 'facetSummary'                        args = facetSummary7Args                                        # facetSummary7Constraint
     | 'facetSummaryOfReference'             args = classifierArgs                                           # facetSummaryOfReference1Constraint
     | 'facetSummaryOfReference'             args = facetSummaryOfReference2Args                             # facetSummaryOfReference2Constraint
     | 'facetGroupsConjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsConjunctionConstraint
@@ -296,9 +302,19 @@ allRequiresHierarchyContentArgs :                   argsOpening stopAt = require
 
 facetSummary1Args :                                 argsOpening depth = valueToken argsClosing ;
 
-facetSummary2Args :                                 argsOpening depth = valueToken (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
+facetSummary2Args :                                 argsOpening depth = valueToken ARGS_DELIMITER filter = facetSummaryFilterArgs (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
 
-facetSummaryOfReference2Args :                      argsOpening referenceName = valueToken ARGS_DELIMITER depth = valueToken (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
+facetSummary3Args :                                 argsOpening depth = valueToken ARGS_DELIMITER order = facetSummaryOrderArgs (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
+
+facetSummary4Args :                                 argsOpening depth = valueToken ARGS_DELIMITER requirements = facetSummaryRequirementsArgs argsClosing ;
+
+facetSummary5Args :                                 argsOpening filter = facetSummaryFilterArgs (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
+
+facetSummary6Args :                                 argsOpening order = facetSummaryOrderArgs (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
+
+facetSummary7Args :                                 argsOpening requirements = facetSummaryRequirementsArgs argsClosing ;
+
+facetSummaryOfReference2Args :                      argsOpening referenceName = valueToken (ARGS_DELIMITER depth = valueToken)? (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = facetSummaryRequirementsArgs)? argsClosing ;
 
 facetSummaryRequirementsArgs :                      (
                                                         (requirement = requireConstraint) |
@@ -327,7 +343,7 @@ hierarchyFromNodeArgs :                             argsOpening outputName = val
 
 fullHierarchyOfSelfArgs :                           argsOpening orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing;
 
-// todo lho support for multiple reference names
+// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 
 basicHierarchyOfReferenceArgs :                     argsOpening referenceName = valueToken (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing ;
 

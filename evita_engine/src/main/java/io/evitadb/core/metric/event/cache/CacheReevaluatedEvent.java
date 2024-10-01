@@ -47,30 +47,37 @@ import javax.annotation.Nonnull;
 public class CacheReevaluatedEvent extends AbstractCacheStatisticsRelatedEvent {
 
 	@Label("Number of adepts to evaluate")
+	@Description("The number of adepts added to the evaluation for promotion to the cache.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private int adepts;
 
 	@Label("Number of evaluated adepts and records")
+	@Description("The number of adepts and already cached records that were evaluated in the cache reevaluation.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private int evaluatedItems;
 
 	@Label("Adepts that were promoted")
+	@Description("The number of adepts that were newly promoted to the cache.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private int promotedAdepts;
 
 	@Label("Cached records that survived the evaluation")
+	@Description("The number of records that were already cached and survived the evaluation.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private int survivingRecords;
 
 	@Label("Cached records that may be evicted in the future")
+	@Description("The number of records that have already been cached but have not been hit in the last period and may be evicted in the future if they cool down enough.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private int cooldownRecords;
 
 	@Label("Cached records that were evicted")
+	@Description("The number of records that were evicted from the cache.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private int evictedRecords;
 
 	@Label("Estimated size of the cache after the evaluation in Bytes")
+	@Description("The estimated size of the cache after the evaluation in Bytes.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long occupiedSizeBytes;
 

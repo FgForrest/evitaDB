@@ -31,7 +31,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>2024.9-SNAPSHOT</version>
+		<version>2024.10-SNAPSHOT</version>
 		<relativePath>../../pom.xml</relativePath>
 	</parent>
 	<properties>
@@ -149,6 +149,11 @@ $1package io.evitadb.externalApi.grpc.generated;
 		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_external_api_core</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_query</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>
@@ -180,14 +185,10 @@ $1package io.evitadb.externalApi.grpc.generated;
 		</dependency>
 		<dependency>
 			<groupId>io.grpc</groupId>
-			<artifactId>grpc-netty</artifactId>
+			<artifactId>grpc-services</artifactId>
 			<version>${grpc.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>io.netty</groupId>
-			<artifactId>netty-handler</artifactId>
-			<version>${nettyHandler.version}</version>
-		</dependency>
+
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
@@ -197,6 +198,15 @@ $1package io.evitadb.externalApi.grpc.generated;
 			<groupId>com.google.guava</groupId>
 			<artifactId>guava</artifactId>
 			<version>32.0.0-android</version>
+		</dependency>
+		<dependency>
+			<groupId>com.linecorp.armeria</groupId>
+			<artifactId>armeria</artifactId>
+			<version>${armeria.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.evitadb</groupId>
+			<artifactId>evita_external_api_core</artifactId>
 		</dependency>
 	</dependencies>
 </project>

@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * This class implementation of {@link ExecutorService} that allows to process asynchronous tasks in a safe and limited
@@ -47,6 +48,15 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Slf4j
 public class ObservableThreadExecutor implements ObservableExecutorService {
+	private static final int BUFFER_CAPACITY = 512;
+	/**
+	 * Buffer used for purging finished tasks.
+	 */
+	private final ArrayList<ObservableTask> buffer = new ArrayList<>(BUFFER_CAPACITY);
+	/**
+	 * Lock synchronizing access to the buffer and purge operation.
+	 */
+	private final ReentrantLock bufferLock = new ReentrantLock();
 	/**
 	 * Name used in log messages and events.
 	 */
@@ -317,38 +327,48 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 	 * still waiting or running and not timed out are added to the tail of the queue again.
 	 */
 	private void cancelTimedOutTasks() {
-		// go through the entire queue, but only once
-		final int bufferSize = 512;
-		final ArrayList<ObservableTask> buffer = new ArrayList<>(bufferSize);
-		final int queueSize = this.queue.size();
 		int timedOutTasks = 0;
-		for (int i = 0; i < queueSize;) {
-			// initialize threshold for entire batch only once
-			final long threshold = System.currentTimeMillis() - this.timeoutInMilliseconds;
-			// effectively withdraw first block of tasks from the queue
-			i += this.queue.drainTo(buffer, bufferSize);
-			// now go through all of them
-			final Iterator<ObservableTask> it = buffer.iterator();
-			while (it.hasNext()) {
-				final ObservableTask task = it.next();
-				if (task.isFinished()) {
-					// if task is finished, remove it from the queue
-					it.remove();
-				} else {
-					// if task is running / waiting longer than the threshold, cancel it and remove it from the queue
-					if (task.isTimedOut(threshold)) {
-						timedOutTasks++;
-						task.cancel();
-						it.remove();
-					} else {
-						// if task is not finished and not timed out, leave it in the buffer
+		if (this.bufferLock.tryLock()) {
+			try {
+				// go through the entire queue, but only once
+				final int queueSize = this.queue.size();
+				for (int i = 0; i < queueSize; ) {
+					// initialize threshold for entire batch only once
+					final long threshold = System.currentTimeMillis() - this.timeoutInMilliseconds;
+					// effectively withdraw first block of tasks from the queue
+					i += this.queue.drainTo(this.buffer, BUFFER_CAPACITY);
+					// now go through all of them
+					final Iterator<ObservableTask> it = this.buffer.iterator();
+					while (it.hasNext()) {
+						final ObservableTask task = it.next();
+						if (task.isFinished()) {
+							// if task is finished, remove it from the queue
+							it.remove();
+						} else {
+							// if task is running / waiting longer than the threshold, cancel it and remove it from the queue
+							if (task.isTimedOut(threshold)) {
+								timedOutTasks++;
+								task.cancel();
+								it.remove();
+							} else {
+								// if task is not finished and not timed out, leave it in the buffer
+							}
+						}
 					}
+					// add the remaining tasks back to the queue in an effective way
+					this.queue.addAll(this.buffer);
+					// clear the buffer for the next iteration
+					this.buffer.clear();
 				}
+			} finally {
+				this.bufferLock.unlock();
 			}
-			// add the remaining tasks back to the queue in an effective way
-			this.queue.addAll(buffer);
-			// clear the buffer for the next iteration
-			buffer.clear();
+		} else {
+			// someone else is currently purging the queue
+			// we need to wait until he's done and then the queue should have enough free room
+			while (this.bufferLock.isLocked()) {
+				Thread.onSpinWait();
+			}
 		}
 		// emit aggregate event
 		new BackgroundTaskTimedOutEvent(this.name, timedOutTasks).commit();

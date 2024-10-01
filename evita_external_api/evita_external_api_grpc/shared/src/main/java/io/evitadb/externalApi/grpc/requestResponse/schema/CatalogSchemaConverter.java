@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,13 +60,16 @@ public class CatalogSchemaConverter {
 
 	/**
 	 * Creates {@link GrpcCatalogSchema} from the {@link CatalogSchemaContract}.
+	 *
+	 * @param catalogSchema catalog schema to convert
+	 * @param includeNameVariants if true, name variants will be included in the result
 	 */
 	@Nonnull
-	public static GrpcCatalogSchema convert(@Nonnull CatalogSchemaContract catalogSchema) {
+	public static GrpcCatalogSchema convert(@Nonnull CatalogSchemaContract catalogSchema, boolean includeNameVariants) {
 		final GrpcCatalogSchema.Builder builder = GrpcCatalogSchema.newBuilder()
 			.setName(catalogSchema.getName())
 			.setVersion(catalogSchema.version())
-			.putAllAttributes(toGrpcGlobalAttributeSchemas(catalogSchema.getAttributes()));
+			.putAllAttributes(toGrpcGlobalAttributeSchemas(catalogSchema.getAttributes(), includeNameVariants));
 
 		if (catalogSchema.getDescription() != null) {
 			builder.setDescription(StringValue.of(catalogSchema.getDescription()));
@@ -76,9 +79,15 @@ public class CatalogSchemaConverter {
 			builder.addCatalogEvolutionMode(EvitaEnumConverter.toGrpcCatalogEvolutionMode(catalogEvolutionMode));
 		}
 
+		if (includeNameVariants) {
+			catalogSchema.getNameVariants()
+				.forEach(
+					(namingConvention, nameVariant) -> builder.addNameVariant(EvitaDataTypesConverter.toGrpcNameVariant(namingConvention, nameVariant))
+				);
+		}
+
 		return builder.build();
 	}
-
 
 	/**
 	 * Creates {@link SealedCatalogSchema} from the {@link GrpcCatalogSchema}.
@@ -110,13 +119,14 @@ public class CatalogSchemaConverter {
 	 * to {@link GrpcGlobalAttributeSchema}.
 	 *
 	 * @param originalAttributeSchemas map of {@link GlobalAttributeSchema} to be converted to map of {@link GrpcGlobalAttributeSchema}
+	 * @param includeNameVariants if true, name variants will be included in the result
 	 * @return map with same keys as original map and values of type {@link GrpcGlobalAttributeSchema}
 	 */
 	@Nonnull
-	private static Map<String, GrpcGlobalAttributeSchema> toGrpcGlobalAttributeSchemas(@Nonnull Map<String, GlobalAttributeSchemaContract> originalAttributeSchemas) {
+	private static Map<String, GrpcGlobalAttributeSchema> toGrpcGlobalAttributeSchemas(@Nonnull Map<String, GlobalAttributeSchemaContract> originalAttributeSchemas, boolean includeNameVariants) {
 		final Map<String, GrpcGlobalAttributeSchema> attributeSchemas = CollectionUtils.createHashMap(originalAttributeSchemas.size());
 		for (Map.Entry<String, GlobalAttributeSchemaContract> entry : originalAttributeSchemas.entrySet()) {
-			attributeSchemas.put(entry.getKey(), toGrpcGlobalAttributeSchema(entry.getValue()));
+			attributeSchemas.put(entry.getKey(), toGrpcGlobalAttributeSchema(entry.getValue(), includeNameVariants));
 		}
 		return attributeSchemas;
 	}
@@ -125,10 +135,11 @@ public class CatalogSchemaConverter {
 	 * Converts single {@link GlobalAttributeSchema} to {@link GrpcGlobalAttributeSchema}.
 	 *
 	 * @param attributeSchema instance of {@link GlobalAttributeSchema} to be converted to {@link GrpcGlobalAttributeSchema}
+	 * @param includeNameVariants if true, name variants will be included in the result
 	 * @return built instance of {@link GrpcGlobalAttributeSchema}
 	 */
 	@Nonnull
-	private static GrpcGlobalAttributeSchema toGrpcGlobalAttributeSchema(@Nonnull GlobalAttributeSchemaContract attributeSchema) {
+	private static GrpcGlobalAttributeSchema toGrpcGlobalAttributeSchema(@Nonnull GlobalAttributeSchemaContract attributeSchema, boolean includeNameVariants) {
 		final Builder builder = GrpcGlobalAttributeSchema.newBuilder()
 			.setName(attributeSchema.getName())
 			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(attributeSchema.getUniquenessType()))
@@ -146,6 +157,13 @@ public class CatalogSchemaConverter {
 			.ifPresent(it -> builder.setDescription(StringValue.of(it)));
 		ofNullable(attributeSchema.getDeprecationNotice())
 			.ifPresent(it -> builder.setDeprecationNotice(StringValue.of(it)));
+
+		if (includeNameVariants) {
+			attributeSchema.getNameVariants()
+				.forEach(
+					(namingConvention, nameVariant) -> builder.addNameVariant(EvitaDataTypesConverter.toGrpcNameVariant(namingConvention, nameVariant))
+				);
+		}
 
 		return builder.build();
 	}

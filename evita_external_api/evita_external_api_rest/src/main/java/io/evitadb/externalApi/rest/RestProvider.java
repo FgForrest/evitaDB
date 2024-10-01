@@ -23,17 +23,19 @@
 
 package io.evitadb.externalApi.rest;
 
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.utils.NetworkUtils;
-import io.undertow.server.HttpHandler;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.function.Predicate;
 
 /**
@@ -41,6 +43,7 @@ import java.util.function.Predicate;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Slf4j
 @RequiredArgsConstructor
 public class RestProvider implements ExternalApiProvider<RestConfig> {
 
@@ -63,10 +66,12 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 		return CODE;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public HttpHandler getApiHandler() {
-		return restManager.getRestRouter();
+	public HttpServiceDefinition[] getHttpServiceDefinitions() {
+		return new HttpServiceDefinition[] {
+			new HttpServiceDefinition(restManager.getRestRouter(), PathHandlingMode.DYNAMIC_PATH_HANDLING)
+		};
 	}
 
 	@Override
@@ -76,10 +81,29 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(url, "GET", "application/json", null)
-			.map(content -> content.contains("true"))
-			.orElse(false);
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		final Predicate<String> isReady = url -> {
+			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+			return NetworkUtils.fetchContent(
+					url, "GET", "application/json", null,
+					error -> {
+						log.error("Error while checking readiness of REST API: {}", error);
+						readinessEvent.finish(Result.ERROR);
+					},
+					timeouted -> {
+						log.error("{}", timeouted);
+						readinessEvent.finish(Result.TIMEOUT);
+					}
+				)
+				.map(content -> {
+					final boolean result = content.contains("true");
+					if (result) {
+						readinessEvent.finish(Result.READY);
+					}
+					return result;
+				})
+				.orElse(false);
+		};
+		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
 				final String url = baseUrl + OpenApiSystemEndpoint.URL_PREFIX + "/" + LivenessDescriptor.LIVENESS_SUFFIX;

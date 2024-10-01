@@ -27,7 +27,7 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EntitySchemaMutationAggregateConverter;
@@ -68,10 +68,10 @@ public class UpdateEntitySchemaMutatingDataFetcher implements DataFetcher<Entity
 		final Arguments arguments = Arguments.from(environment);
 
 		final ModifyEntitySchemaMutation entitySchemaMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
-			final EntitySchemaMutation[] schemaMutations = arguments.mutations()
+			final LocalEntitySchemaMutation[] schemaMutations = arguments.mutations()
 				.stream()
 				.flatMap(m -> mutationAggregateResolver.convert(m).stream())
-				.toArray(EntitySchemaMutation[]::new);
+				.toArray(LocalEntitySchemaMutation[]::new);
 			return new ModifyEntitySchemaMutation(entitySchema.getName(), schemaMutations);
 		});
 

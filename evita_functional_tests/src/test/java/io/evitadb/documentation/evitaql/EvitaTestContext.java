@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,14 +61,14 @@ public class EvitaTestContext implements TestContext {
 			profile == Environment.LOCALHOST ?
 				EvitaClientConfiguration.builder()
 					.host("localhost")
-					.port(5556)
+					.port(5555)
 					.useGeneratedCertificate(true)
 					.mtlsEnabled(true)
 					.build()
 				:
 				EvitaClientConfiguration.builder()
 					.host("demo.evitadb.io")
-					.port(5556)
+					.port(5555)
 					// demo server provides Let's encrypt trusted certificate
 					.useGeneratedCertificate(false)
 					// the client will not be mutually verified by the server side

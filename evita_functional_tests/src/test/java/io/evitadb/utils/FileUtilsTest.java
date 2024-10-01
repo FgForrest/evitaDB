@@ -103,4 +103,8 @@ class FileUtilsTest {
 		assertEquals(expectedSize, actualSize);
 	}
 
+	@Test
+	void shouldConvertToSafeFileName() {
+		assertEquals("Abc-d784_2.z1p", FileUtils.convertToSupportedName("Abc   +-_ d784 2 .z1p"));
+	}
 }

@@ -25,15 +25,15 @@ package io.evitadb.externalApi.grpc.services.interceptors;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
-import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Context;
 import io.grpc.Contexts;
 import io.grpc.Metadata;
+import io.grpc.Metadata.Key;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
@@ -45,7 +45,6 @@ import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.Set;
 
-import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CATALOG_NAME_HEADER;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.METADATA_HEADER;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.METHOD_NAME_HEADER;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADER;
@@ -60,8 +59,10 @@ import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADE
 @RequiredArgsConstructor
 public class ServerSessionInterceptor implements ServerInterceptor {
 	private static final Set<String> ENDPOINTS_NOT_REQUIRING_SESSION = CollectionUtils.createHashSet(32);
+	public static final String METADATA_CAUSE = "cause";
+
 	static {
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/ServerStatus");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/IsReady");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateReadOnlySession");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateReadWriteSession");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateBinaryReadOnlySession");
@@ -71,18 +72,23 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/DefineCatalog");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/RenameCatalog");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/ReplaceCatalog");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/RestoreCatalog");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/RestoreCatalogFromServerFile");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/DeleteCatalogIfExists");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/ListTaskStatuses");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/GetTaskStatus");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/GetTaskStatuses");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CancelTask");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/ListFilesToFetch");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/GetFileToFetch");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/FetchFile");
-		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/DeleteFile");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/Update");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/DeleteCatalogIfExists");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/ServerStatus");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/RestoreCatalog");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/RestoreCatalogUnary");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/RestoreCatalogFromServerFile");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/ListTaskStatuses");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/GetTaskStatus");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/GetTaskStatuses");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/CancelTask");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/ListFilesToFetch");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/GetFileToFetch");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/FetchFile");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/DeleteFile");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/GetCatalogStatistics");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/GetConfiguration");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaManagementService/ListReservedKeywords");
 
 		// might be already closed, same behaviour as server session
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaSessionService/Close");
@@ -94,7 +100,6 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	 * Context that holds current {@link EvitaSessionContract} session.
 	 */
 	public static final Context.Key<EvitaInternalSessionContract> SESSION = Context.key(SESSION_ID_HEADER);
-	public static final Context.Key<String> CATALOG_NAME = Context.key(CATALOG_NAME_HEADER);
 	public static final Context.Key<Metadata> METADATA = Context.key(METADATA_HEADER);
 
 	/**
@@ -116,39 +121,44 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	 */
 	@Override
 	public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> serverCall, Metadata metadata, ServerCallHandler<ReqT, RespT> serverCallHandler) {
-		final Metadata.Key<String> catalogNameMetadata = Metadata.Key.of(CATALOG_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER);
+		if (serverCall.getMethodDescriptor().getServiceName().equals("grpc.reflection.v1alpha.ServerReflection")) {
+			return serverCallHandler.startCall(serverCall, metadata);
+		}
+
+		// initialize method name header
+		metadata.put(
+			Metadata.Key.of(METHOD_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER),
+			serverCall.getMethodDescriptor().getBareMethodName()
+		);
+
 		final Metadata.Key<String> sessionMetadata = Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER);
-		final String catalogName = metadata.get(catalogNameMetadata);
 		final String sessionId = metadata.get(sessionMetadata);
-		final Optional<EvitaInternalSessionContract> activeSession = resolveActiveSession(catalogName, sessionId);
+		final Optional<EvitaInternalSessionContract> activeSession = resolveActiveSession(sessionId);
 		if (activeSession.isEmpty() && isEndpointRequiresSession(serverCall)) {
 			final Status status = Status.UNAUTHENTICATED
-				.withCause(new EvitaInvalidUsageException("Your session is either not set or is not active."))
-				.withDescription("Your session (catalog: "+ catalogName + ", session id: " + sessionId + ") is either not set or is not active.");
-			serverCall.close(status, metadata);
+				.withCause(new SessionNotFoundException("Your session is either not set or is not active."))
+				.withDescription("Your session (session id: " + sessionId + ") is either not set or is not active.");
+			Metadata trailers = new Metadata();
+			trailers.put(Key.of(METADATA_CAUSE, Metadata.ASCII_STRING_MARSHALLER), "sessionNotFound");
+			serverCall.sendHeaders(trailers);
+			serverCall.close(status, trailers);
 			return new ServerCall.Listener<>() {};
 		}
 
-		metadata.put(Metadata.Key.of(METHOD_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER), serverCall.getMethodDescriptor().getBareMethodName());
-
-		Context context = Context.current();
+		Context context = Context.current().withValue(METADATA, metadata);
 
 		if (activeSession.isPresent()) {
 			context = context.withValue(SESSION, activeSession.get());
 		}
-		context = context.withValue(METADATA, metadata).withValue(CATALOG_NAME, catalogName);
 		return Contexts.interceptCall(context, serverCall, metadata, serverCallHandler);
 	}
 
 	@Nonnull
-	private Optional<EvitaInternalSessionContract> resolveActiveSession(@Nullable String catalogName, @Nullable String sessionId) {
-		if (catalogName == null && sessionId == null) {
+	private Optional<EvitaInternalSessionContract> resolveActiveSession(@Nullable String sessionId) {
+		if (sessionId == null) {
 			return Optional.empty();
 		}
-		Assert.notNull(catalogName, "Both `catalogName` and `sessionId` must be specified to identify session.");
-		Assert.notNull(sessionId, "Both `catalogName` and `sessionId` must be specified to identify session.");
-
-		return evita.getSessionById(catalogName, UUIDUtil.uuid(sessionId))
+		return evita.getSessionById(UUIDUtil.uuid(sessionId))
 			.map(session -> {
 				if (!session.isActive()) {
 					return null;

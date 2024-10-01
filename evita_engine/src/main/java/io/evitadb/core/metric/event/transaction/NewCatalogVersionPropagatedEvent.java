@@ -40,13 +40,15 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".NewCatalogVersionPropagated")
-@Description("Event that is fired when a new catalog version is propagated shared view.")
+@Description("Event that is fired when a new catalog version is propagated to a shared view.")
 @Label("New catalog version propagated")
 @ExportDurationMetric(label = "New catalog version propagation duration in milliseconds")
 @ExportInvocationMetric(label = "Catalog versions propagated")
 @Getter
 public class NewCatalogVersionPropagatedEvent extends AbstractTransactionEvent {
+
 	@Label("Transactions propagated to live view.")
+	@Description("The number of transactions that were propagated to the live view in a single transition.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private int collapsedTransactions;
 

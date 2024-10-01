@@ -23,13 +23,13 @@
 
 package io.evitadb.externalApi.observability.trace;
 
+import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
-import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -58,8 +58,8 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		@Nonnull Runnable runnable,
 		@Nullable SpanAttribute... attributes
 	) {
-		if (context instanceof HttpServerExchange httpServerExchange) {
-			jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, runnable, attributes);
+		if (context instanceof HttpRequest httpRequest) {
+			jsonApiTracingContext.executeWithinBlock(protocolName, httpRequest, runnable, attributes);
 		} else if (context instanceof Metadata metadata) {
 			grpcApiTracingContext.executeWithinBlock(protocolName, metadata, runnable, attributes);
 		} else {
@@ -74,8 +74,8 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		@Nonnull Supplier<T> lambda,
 		@Nullable SpanAttribute... attributes
 	) {
-		if (context instanceof HttpServerExchange httpServerExchange) {
-			return jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, lambda, attributes);
+		if (context instanceof HttpRequest httpRequest) {
+			return jsonApiTracingContext.executeWithinBlock(protocolName, httpRequest, lambda, attributes);
 		} else if (context instanceof Metadata metadata) {
 			return grpcApiTracingContext.executeWithinBlock(protocolName, metadata, lambda, attributes);
 		} else {
@@ -90,8 +90,8 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		@Nonnull Runnable runnable,
 		@Nullable Supplier<SpanAttribute[]> attributes
 	) {
-		if (context instanceof HttpServerExchange httpServerExchange) {
-			jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, runnable, attributes);
+		if (context instanceof HttpRequest httpRequest) {
+			jsonApiTracingContext.executeWithinBlock(protocolName, httpRequest, runnable, attributes);
 		} else if (context instanceof Metadata metadata) {
 			grpcApiTracingContext.executeWithinBlock(protocolName, metadata, runnable, attributes);
 		} else {
@@ -106,8 +106,8 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		@Nonnull Supplier<T> lambda,
 		@Nullable Supplier<SpanAttribute[]> attributes
 	) {
-		if (context instanceof HttpServerExchange httpServerExchange) {
-			return jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, lambda, attributes);
+		if (context instanceof HttpRequest httpRequest) {
+			return jsonApiTracingContext.executeWithinBlock(protocolName, httpRequest, lambda, attributes);
 		} else if (context instanceof Metadata metadata) {
 			return grpcApiTracingContext.executeWithinBlock(protocolName, metadata, lambda, attributes);
 		} else {
@@ -117,8 +117,8 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 
 	@Override
 	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Runnable runnable) {
-		if (context instanceof HttpServerExchange httpServerExchange) {
-			jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, runnable);
+		if (context instanceof HttpRequest httpRequest) {
+			jsonApiTracingContext.executeWithinBlock(protocolName, httpRequest, runnable);
 		} else if (context instanceof Metadata metadata) {
 			grpcApiTracingContext.executeWithinBlock(protocolName, metadata, runnable);
 		} else {
@@ -129,8 +129,8 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 	@Nullable
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Supplier<T> lambda) {
-		if (context instanceof HttpServerExchange httpServerExchange) {
-			return jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, lambda);
+		if (context instanceof HttpRequest httpRequest) {
+			return jsonApiTracingContext.executeWithinBlock(protocolName, httpRequest, lambda);
 		} else if (context instanceof Metadata metadata) {
 			return grpcApiTracingContext.executeWithinBlock(protocolName, metadata, lambda);
 		} else {

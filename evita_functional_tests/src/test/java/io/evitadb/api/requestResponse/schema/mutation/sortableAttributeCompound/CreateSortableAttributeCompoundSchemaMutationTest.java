@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -88,7 +88,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 				of(createExistingAttributeCompoundSchema())
 			);
 		RemoveSortableAttributeCompoundSchemaMutation removeMutation = new RemoveSortableAttributeCompoundSchemaMutation(ATTRIBUTE_COMPOUND_NAME);
-		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(
+		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
 			Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
 		);
 		assertNotNull(result);
@@ -119,7 +119,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 		final SortableAttributeCompoundSchemaContract compoundSchema = mutation.mutate(
 			Mockito.mock(EntitySchemaContract.class),
 			Mockito.mock(ReferenceSchemaContract.class),
-			null
+			(SortableAttributeCompoundSchemaContract) null
 		);
 		assertNotNull(compoundSchema);
 		assertEquals(ATTRIBUTE_COMPOUND_NAME, compoundSchema.getName());

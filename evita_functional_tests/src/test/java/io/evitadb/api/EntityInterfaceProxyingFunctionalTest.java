@@ -69,6 +69,8 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
+import static io.evitadb.test.generator.DataGenerator.CURRENCY_CZK;
+import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -165,7 +167,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 	) {
 		assertEquals(sealedEntity.getPrimaryKey(), productCategory.getPrimaryKey());
 
-		assertTrue(productCategory instanceof SealedEntityReferenceProxy);
+		assertInstanceOf(SealedEntityReferenceProxy.class, productCategory);
 		final ReferenceContract theReference = ((SealedEntityReferenceProxy) productCategory).getReference();
 		final Long categoryPriority = theReference.getAttribute(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY, Long.class);
 		assertEquals(categoryPriority, productCategory.getOrderInCategory());
@@ -260,6 +262,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		@Nullable ProductInterface product,
 		@Nonnull Map<Integer, SealedEntity> originalCategories,
 		@Nullable Locale locale,
+		@Nullable Currency currency,
 		boolean externalEntities
 	) {
 		assertProductBasicData(originalProduct, product);
@@ -370,7 +373,9 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 			);
 		}
 
-		final PriceContract[] expectedAllPrices = originalProduct.getPrices().toArray(PriceContract[]::new);
+		final PriceContract[] expectedAllPrices = currency == null ?
+			originalProduct.getPrices().toArray(PriceContract[]::new) :
+			originalProduct.getPrices().stream().filter(it -> currency.equals(it.currency())).toArray(PriceContract[]::new);
 		final PriceContract[] allPrices = Arrays.stream(product.getAllPricesAsArray())
 			.toArray(PriceContract[]::new);
 
@@ -381,6 +386,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		assertArrayEquals(expectedAllPrices, product.getAllPricesAsSet().toArray(PriceContract[]::new));
 		assertArrayEquals(expectedAllPrices, product.getAllPrices().toArray(PriceContract[]::new));
 
+if (currency != null) {
 		final Optional<PriceContract> first = Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.priceList())).findFirst();
 		if (first.isEmpty()) {
 			assertNull(product.getBasicPrice());
@@ -394,6 +400,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 				first,
 				product.getBasicPriceIfPresent()
 			);
+		}
 		}
 	}
 
@@ -480,8 +487,21 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
 	@Override
-	DataCarrier setUp(Evita evita) {
-		return super.setUp(evita);
+	protected DataCarrier setUp(Evita evita) {
+		final DataCarrier dataCarrier = super.setUp(evita);
+
+
+		final List<SealedEntity> originalProducts = (List<SealedEntity>) dataCarrier.getValueByName("originalProducts");
+		final List<SealedEntity> productsWithCzkSellingPrice = originalProducts
+			.stream()
+			.filter(it -> it.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC).isPresent())
+			.limit(2)
+			.toList();
+		assertEquals(2, productsWithCzkSellingPrice.size());
+
+		return dataCarrier
+			.put("productWithCzkSellingPrice", productsWithCzkSellingPrice.get(0))
+			.put("productsWithCzkSellingPrice", productsWithCzkSellingPrice);
 	}
 
 	@DisplayName("Should return entity schema directly or via model class")
@@ -495,11 +515,11 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 			evitaSession.getEntitySchema(ProductInterface.class)
 		);
 
-		assertNotNull(evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchemaOrThrow(ProductInterface.class));
+		assertNotNull(evitaSession.getEntitySchemaOrThrowException(Entities.PRODUCT));
+		assertNotNull(evitaSession.getEntitySchemaOrThrowException(ProductInterface.class));
 		assertEquals(
-			evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT),
-			evitaSession.getEntitySchemaOrThrow(ProductInterface.class)
+			evitaSession.getEntitySchemaOrThrowException(Entities.PRODUCT),
+			evitaSession.getEntitySchemaOrThrowException(ProductInterface.class)
 		);
 	}
 
@@ -538,7 +558,9 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 			theProduct,
 			product,
 			originalCategories,
-			null, false
+			null,
+			null,
+			false
 		);
 	}
 
@@ -567,7 +589,9 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 				entityFetchAllContent()
 			),
 			originalCategories,
-			null, false
+			null,
+			null,
+			false
 		);
 	}
 
@@ -648,24 +672,36 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 
 		final SealedEntity theProduct = originalProducts
 			.stream()
-			.filter(it -> it.getPrimaryKey() == primaryKey)
+			.filter(it -> it.getPrimaryKey() >= primaryKey && it.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC).isPresent())
 			.findFirst()
 			.orElseThrow();
 
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(
-				entityPrimaryKeyInSet(primaryKey),
+				entityPrimaryKeyInSet(theProduct.getPrimaryKey()),
+				priceInCurrency(CURRENCY_CZK),
 				attributeEquals(ATTRIBUTE_ENUM, TestEnum.valueOf(theProduct.getAttribute(ATTRIBUTE_ENUM, String.class)))
 			),
-			require(entityFetchAll())
+			require(
+				entityFetch(
+					hierarchyContent(),
+					attributeContentAll(),
+					associatedDataContentAll(),
+					priceContentRespectingFilter(),
+					referenceContentAllWithAttributes(),
+					dataInLocalesAll()
+				)
+			)
 		);
 
 		assertProduct(
 			theProduct,
 			evitaSession.queryOne(query, ProductInterface.class).orElse(null),
 			originalCategories,
-			null, false
+			null,
+			CURRENCY_CZK,
+			false
 		);
 	}
 
@@ -674,26 +710,34 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryOneCustomEntity(
 		EvitaSessionContract evitaSession,
-		List<SealedEntity> originalProducts,
+		SealedEntity productWithCzkSellingPrice,
 		Map<Integer, SealedEntity> originalCategories
 	) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
-			filterBy(entityPrimaryKeyInSet(1)),
-			require(entityFetchAll())
+			filterBy(
+				entityPrimaryKeyInSet(productWithCzkSellingPrice.getPrimaryKey()),
+				priceInCurrency(CURRENCY_CZK)
+			),
+			require(
+				entityFetch(
+					hierarchyContent(),
+					attributeContentAll(),
+					associatedDataContentAll(),
+					priceContentRespectingFilter(),
+					referenceContentAllWithAttributes(),
+					dataInLocalesAll()
+				)
+			)
 		);
 
-		final SealedEntity theProduct = originalProducts
-			.stream()
-			.filter(it -> it.getPrimaryKey() == 1)
-			.findFirst()
-			.orElseThrow();
-
 		assertProduct(
-			theProduct,
+			productWithCzkSellingPrice,
 			evitaSession.queryOne(query, ProductInterface.class).orElse(null),
 			originalCategories,
-			null, false
+			null,
+			CURRENCY_CZK,
+			false
 		);
 	}
 
@@ -790,29 +834,41 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryListOfCustomEntities(
 		EvitaSessionContract evitaSession,
-		List<SealedEntity> originalProducts,
+		List<SealedEntity> productsWithCzkSellingPrice,
 		Map<Integer, SealedEntity> originalCategories
 	) {
+		final int[] fetchedProducts = productsWithCzkSellingPrice.stream()
+			.mapToInt(EntityContract::getPrimaryKey)
+			.toArray();
 		final Query query = query(
 			collection(Entities.PRODUCT),
-			filterBy(entityPrimaryKeyInSet(1, 2)),
-			require(entityFetchAll())
+			filterBy(
+				entityPrimaryKeyInSet(fetchedProducts),
+				priceInCurrency(CURRENCY_CZK)
+			),
+			require(
+				entityFetch(
+					hierarchyContent(),
+					attributeContentAll(),
+					associatedDataContentAll(),
+					priceContentRespectingFilter(),
+					referenceContentAllWithAttributes(),
+					dataInLocales(Locale.ENGLISH)
+				)
+			)
 		);
 
-		final List<SealedEntity> theProducts = originalProducts
-			.stream()
-			.filter(it -> it.getPrimaryKey() == 1 || it.getPrimaryKey() == 2)
-			.toList();
-
 		final List<ProductInterface> products = evitaSession.queryList(query, ProductInterface.class);
-		for (int i = 0; i < theProducts.size(); i++) {
-			final SealedEntity expectedProduct = theProducts.get(i);
+		for (int i = 0; i < productsWithCzkSellingPrice.size(); i++) {
+			final SealedEntity expectedProduct = productsWithCzkSellingPrice.get(i);
 			final ProductInterface actualProduct = products.get(i);
 			assertProduct(
 				expectedProduct,
 				actualProduct,
 				originalCategories,
-				null, false
+				Locale.ENGLISH,
+				CURRENCY_CZK,
+				false
 			);
 		}
 	}
@@ -866,29 +922,40 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryCustomEntities(
 		EvitaSessionContract evitaSession,
-		List<SealedEntity> originalProducts,
+		List<SealedEntity> productsWithCzkSellingPrice,
 		Map<Integer, SealedEntity> originalCategories
 	) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
-			filterBy(entityPrimaryKeyInSet(1, 2)),
-			require(entityFetchAll())
+			filterBy(
+				entityPrimaryKeyInSet(
+					productsWithCzkSellingPrice.stream().mapToInt(EntityContract::getPrimaryKey).toArray()
+				),
+				priceInCurrency(CURRENCY_CZK)
+			),
+			require(
+				entityFetch(
+					hierarchyContent(),
+					attributeContentAll(),
+					associatedDataContentAll(),
+					priceContentRespectingFilter(),
+					referenceContentAllWithAttributes(),
+					dataInLocales(Locale.ENGLISH)
+				)
+			)
 		);
 
-		final List<SealedEntity> theProducts = originalProducts
-			.stream()
-			.filter(it -> it.getPrimaryKey() == 1 || it.getPrimaryKey() == 2)
-			.toList();
-
 		final List<ProductInterface> products = evitaSession.query(query, ProductInterface.class).getRecordData();
-		for (int i = 0; i < theProducts.size(); i++) {
-			final SealedEntity expectedProduct = theProducts.get(i);
+		for (int i = 0; i < productsWithCzkSellingPrice.size(); i++) {
+			final SealedEntity expectedProduct = productsWithCzkSellingPrice.get(i);
 			final ProductInterface actualProduct = products.get(i);
 			assertProduct(
 				expectedProduct,
 				actualProduct,
 				originalCategories,
-				null, false
+				Locale.ENGLISH,
+				CURRENCY_CZK,
+				false
 			);
 		}
 	}
@@ -904,7 +971,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
-			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
+			.filter(it -> it.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC).isPresent())
 			.findFirst()
 			.orElseThrow();
 
@@ -913,13 +980,14 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 				collection(Entities.PRODUCT),
 				filterBy(
 					entityPrimaryKeyInSet(theProduct.getPrimaryKey()),
+					priceInCurrency(CURRENCY_CZK),
 					entityLocaleEquals(CZECH_LOCALE)
 				),
 				require(
 					entityFetch(
 						attributeContentAll(),
 						associatedDataContentAll(),
-						priceContentAll(),
+						priceContentRespectingFilter(),
 						referenceContentAllWithAttributes(
 							entityFetch(
 								hierarchyContent(
@@ -947,6 +1015,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 			productRef.orElse(null),
 			originalCategories,
 			CZECH_LOCALE,
+			CURRENCY_CZK,
 			true
 		);
 	}
@@ -962,7 +1031,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		final SealedEntity theProduct = originalProducts
 			.stream()
 			.filter(it -> it.getReferences(Entities.CATEGORY).size() > 1)
-			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::sellable))
+			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::indexed))
 			.findFirst()
 			.orElseThrow();
 
@@ -989,7 +1058,9 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 			theProduct,
 			productRef.orElse(null),
 			originalCategories,
-			null, true
+			null,
+			null,
+			true
 		);
 	}
 

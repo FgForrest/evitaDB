@@ -31,7 +31,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>2024.9-SNAPSHOT</version>
+		<version>2024.10-SNAPSHOT</version>
 	</parent>
 
 	<dependencies>
@@ -49,25 +49,6 @@
 		</dependency>
 
 		<dependency>
-			<groupId>io.undertow</groupId>
-			<artifactId>undertow-core</artifactId>
-			<version>${undertow.version}</version>
-		</dependency>
-
-		<dependency>
-			<groupId>io.undertow</groupId>
-			<artifactId>undertow-servlet</artifactId>
-			<version>${undertow.version}</version>
-		</dependency>
-
-		<dependency>
-			<groupId>jakarta.servlet</groupId>
-			<artifactId>jakarta.servlet-api</artifactId>
-			<version>6.0.0</version>
-			<scope>provided</scope>
-		</dependency>
-
-		<dependency>
 			<groupId>net.openhft</groupId>
 			<artifactId>zero-allocation-hashing</artifactId>
 		</dependency>
@@ -82,17 +63,10 @@
 			<artifactId>bcprov-jdk18on</artifactId>
 			<version>${bouncyCastle.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcprov-ext-jdk18on</artifactId>
-			<version>${bouncyCastle.version}</version>
-		</dependency>
 
 		<dependency>
-			<groupId>io.grpc</groupId>
-			<artifactId>grpc-netty</artifactId>
-			<version>${grpc.version}</version>
-			<scope>runtime</scope>
+			<groupId>com.linecorp.armeria</groupId>
+			<artifactId>armeria</artifactId>
 		</dependency>
 	</dependencies>
 </project>

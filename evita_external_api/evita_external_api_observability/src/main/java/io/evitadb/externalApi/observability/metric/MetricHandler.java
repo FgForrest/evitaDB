@@ -404,8 +404,8 @@ public class MetricHandler {
 		for (String loggingEvent : configuredEvents) {
 			if (loggingEvent.endsWith(".*")) {
 				final String packageName = loggingEvent.substring(0, loggingEvent.length() - 2);
-				final Set<Class<? extends CustomMetricsExecutionEvent>> classes = EvitaJfrEventRegistry.getEventClassesFromPackage(packageName);
-				allowedEventSet.addAll(classes);
+				EvitaJfrEventRegistry.getEventClassesFromPackage(packageName)
+					.ifPresent(it -> allowedEventSet.addAll(Arrays.asList(it)));
 			} else {
 				ofNullable(EvitaJfrEventRegistry.getEventClass(loggingEvent))
 					.ifPresent(allowedEventSet::add);

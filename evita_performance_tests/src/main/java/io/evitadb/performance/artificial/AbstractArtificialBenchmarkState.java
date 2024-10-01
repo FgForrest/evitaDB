@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,25 +61,26 @@ public abstract class AbstractArtificialBenchmarkState<S> implements TestConstan
 	 */
 	public static final long SEED = 42;
 	/**
-	 * Pseudo-randomizer for picking random entities to fetch.
-	 */
-	@Getter private final Random random = new Random(SEED);
-	/**
 	 * Instance of the data generator that is used for randomizing artificial test data.
 	 */
-	protected final DataGenerator dataGenerator = new DataGenerator(faker -> {
-		final int selectedOption = faker.random().nextInt(10);
-		if (selectedOption < 6) {
-			// 60% of basic products
-			return PriceInnerRecordHandling.NONE;
-		} else if (selectedOption < 9) {
-			// 30% of variant products
-			return PriceInnerRecordHandling.LOWEST_PRICE;
-		} else {
-			// 10% of set products
-			return PriceInnerRecordHandling.SUM;
-		}
-	});
+	protected final DataGenerator dataGenerator = new DataGenerator.Builder()
+		.withPriceInnerRecordHandlingGenerator(
+			faker -> {
+				final int selectedOption = faker.random().nextInt(10);
+				if (selectedOption < 6) {
+					// 60% of basic products
+					return PriceInnerRecordHandling.NONE;
+				} else if (selectedOption < 9) {
+					// 30% of variant products
+					return PriceInnerRecordHandling.LOWEST_PRICE;
+				} else {
+					// 10% of set products
+					return PriceInnerRecordHandling.SUM;
+				}
+			}
+		)
+		.build();
+
 	/**
 	 * Index of created entities that allows to retrieve referenced entities when creating product.
 	 */
@@ -96,6 +97,10 @@ public abstract class AbstractArtificialBenchmarkState<S> implements TestConstan
 	 * Open read-write session that can be used for upserting data.
 	 */
 	protected final ThreadLocal<S> session = new ThreadLocal<>();
+	/**
+	 * Pseudo-randomizer for picking random entities to fetch.
+	 */
+	@Getter private final Random random = new Random(SEED);
 	/**
 	 * Created randomized product schema.
 	 */

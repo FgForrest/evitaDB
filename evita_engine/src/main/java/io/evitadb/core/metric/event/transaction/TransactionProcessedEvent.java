@@ -39,11 +39,13 @@ import java.time.Duration;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".Processed")
-@Description("Event that is fired when a transaction reached the shared view.")
+@Description("Event fired when a transaction reaches the shared view.")
 @Label("Transaction processed and visible")
 @Getter
 public class TransactionProcessedEvent extends AbstractTransactionEvent {
-	@Label("Transaction lag between being committed and finally visible to all")
+
+	@Label("Transaction lag")
+	@Description("The time it took for the transaction to become visible to all new sessions. In other words, the time between when the transaction was committed and when the shared view was affected.")
 	@ExportMetric(metricName = "lagMilliseconds", metricType = MetricType.HISTOGRAM)
 	private final long lagMilliseconds;
 

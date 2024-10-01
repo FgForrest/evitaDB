@@ -23,6 +23,9 @@
 
 package io.evitadb.externalApi.rest.api.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpResponseWriter;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -30,13 +33,14 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
-import io.undertow.util.Methods;
+import io.netty.channel.EventLoop;
 
 import javax.annotation.Nonnull;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 
@@ -53,14 +57,16 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		return new SuccessEndpointResponse(restHandlingContext.getOpenApi());
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> new SuccessEndpointResponse(restHandlingContext.getOpenApi())
+		);
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.GET);
 	}
 
 	@Nonnull
@@ -73,8 +79,13 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 	}
 
 	@Override
-	protected void writeResult(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull OutputStream outputStream, @Nonnull Object openApiSpecification) {
+	protected void writeResponse(
+		@Nonnull RestEndpointExecutionContext executionContext,
+		@Nonnull HttpResponseWriter responseWriter,
+		@Nonnull Object openApiSpecification,
+		@Nonnull EventLoop eventLoop) {
 		final String preferredResponseMediaType = executionContext.preferredResponseContentType();
+		final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 		try {
 			if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_YAML)) {
 				OpenApiWriter.toYaml(openApiSpecification, outputStream);
@@ -83,6 +94,7 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 			} else {
 				throw createInternalError("Should never happen!");
 			}
+			responseWriter.write(HttpData.copyOf(outputStream.toByteArray()));
 		} catch (IOException e) {
 			throw createInternalError("Could not serialize OpenAPI specification: " + e.getMessage());
 		}

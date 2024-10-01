@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.http.EndpointResponse;
@@ -37,7 +38,6 @@ import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -45,6 +45,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles requests for multiple unknown entities identified by their URLs or codes.
@@ -64,32 +65,34 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		return executionContext.executeAsyncInRequestThreadPool(() -> {
+			final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
-		requestExecutedEvent.finishInputDeserialization();
+			final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+			requestExecutedEvent.finishInputDeserialization();
 
-		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
-			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restHandlingContext.getCatalogSchema()),
-			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
-		));
-		log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
+			final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
+				FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restHandlingContext.getCatalogSchema()),
+				RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
+			));
+			log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
 
-		final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			executionContext.session().queryList(query, EntityClassifier.class));
-		requestExecutedEvent.finishOperationExecution();
+			final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+				executionContext.session().queryList(query, EntityClassifier.class));
+			requestExecutedEvent.finishOperationExecution();
 
-		final Object result = convertResultIntoSerializableObject(executionContext, entities);
-		requestExecutedEvent.finishResultSerialization();
+			final Object result = convertResultIntoSerializableObject(executionContext, entities);
+			requestExecutedEvent.finishResultSerialization();
 
-		return new SuccessEndpointResponse(result);
+			return new SuccessEndpointResponse(result);
+		});
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.GET);
 	}
 
 	@Nonnull

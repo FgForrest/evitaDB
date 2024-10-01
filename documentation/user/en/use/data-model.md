@@ -121,6 +121,7 @@ whether the entity should be inserted as a new entity or whether an existing ent
 <NoteTitle toggles="true">
 
 ##### Why the limited `int` type was chosen for the primary key?
+
 </NoteTitle>
 
 All primary keys are stored in data structure called "[RoaringBitmap](https://github.com/RoaringBitmap/RoaringBitmap)".
@@ -339,6 +340,10 @@ has a unique <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java
 expect that evitaDB will only partially manage data and that it will coexist with other systems in a runtime - such as
 content management systems, warehouse systems, ERPs and so on.
 
+References are unidirectional in nature, which means that if the reference points from entity A to entity B, it does
+not mean that entity B automatically references entity A. It is possible to set up a bi-directional reference by creating
+a so-called "reflected reference" on the other entity type and identifying the original reference that should be reflected.
+
 The references may carry additional key-value data related to this entity relationship (e.g. number of items present on
 the relationship to a stock). The data on references is subject to the same rules as
 [entity attributes](#attributes-unique-filterable-sortable-localized).
@@ -354,6 +359,10 @@ Reference is represented by the interface:
 Reference schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LS>.
+
+Reflected reference is represented by the interface:
+<LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReflectedReferenceContract.java</SourceClass></LS>
+<LS to="c">(not yet supported in C# driver - see [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</LS>.
 
 </Note>
 
@@ -441,11 +450,11 @@ The price has the following structure:
         Date and time interval for which the price is valid (inclusive).
     </dd>
     <dt>
-        <LS to="e,j,r,g">[boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `sellable`</LS>
-        <LS to="c">[bool](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool) `Sellable`</LS>
+        <LS to="e,j,r,g">[boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `indexed`</LS>
+        <LS to="c">[bool](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool) `Indexed`</LS>
     </dt>
     <dd>
-        Controls whether the price is subject to filtering/sorting logic, unindexed prices will be fetched along with
+        Controls whether the price is subject to filtering/sorting logic, non-indexed prices will be fetched along with
         the entity, but will not be considered when evaluating the query. These prices can be used for "informational"
         prices, such as the reference price (the crossed out price often found on e-commerce sites as the
         "usual price"), but are not used as the "price for sale".

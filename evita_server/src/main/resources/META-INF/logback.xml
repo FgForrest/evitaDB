@@ -24,9 +24,11 @@
 
 <configuration>
 
+	<!-- avoid initial logs from LogBack itself -->
+	<statusListener class="ch.qos.logback.core.status.NopStatusListener" />
+
 	<appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
 		<target>System.err</target>
-		<filter class="io.evitadb.server.log.AppLogFilter" />
 		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
 			<level>WARN</level>
 		</filter>
@@ -37,7 +39,6 @@
 
 	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
 		<target>System.out</target>
-		<filter class="io.evitadb.server.log.AppLogFilter" />
 		<filter class="ch.qos.logback.classic.filter.LevelFilter">
 			<level>INFO</level>
 			<onMatch>ACCEPT</onMatch>
@@ -48,13 +49,33 @@
 		</encoder>
 	</appender>
 
+	<appender name="FILE" class="ch.qos.logback.core.FileAppender">
+		<file>logs/evita_server.log</file>
+
+		<encoder>
+			<pattern>%date %level [%thread] %logger{10} [%file:%line] -%kvp- %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<appender name="ACCESS_FILE" class="ch.qos.logback.core.FileAppender">
+		<file>logs/evita_server_access.log</file>
+
+		<encoder>
+			<pattern>%msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<logger name="com.linecorp.armeria.logging.access" level="INFO" additivity="false">
+		<appender-ref ref="ACCESS_FILE"/>
+	</logger>
+
 	<root level="INFO">
 		<appender-ref ref="STDOUT" />
 		<appender-ref ref="STDERR" />
+		<appender-ref ref="FILE" />
 	</root>
 
-	<logger name="org.xnio" level="ERROR"/>
-	<logger name="org.jboss" level="ERROR"/>
-	<logger name="io.undertow" level="ERROR"/>
+	<logger name="com.linecorp.armeria" level="ERROR"/>
+	<logger name="io.netty" level="ERROR"/>
 
 </configuration>

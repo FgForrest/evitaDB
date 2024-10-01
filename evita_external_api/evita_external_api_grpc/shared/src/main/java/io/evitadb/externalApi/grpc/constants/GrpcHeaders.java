@@ -35,10 +35,6 @@ import javax.annotation.Nonnull;
  */
 public interface GrpcHeaders {
 	/**
-	 * Constant string representing catalog name that is used to fetch session from context.
-	 */
-	String CATALOG_NAME_HEADER = "catalogName";
-	/**
 	 * Constant string representing sessionId that is used to fetch session from the context.
 	 */
 	String SESSION_ID_HEADER = "sessionId";
@@ -51,17 +47,9 @@ public interface GrpcHeaders {
 	 */
 	String METHOD_NAME_HEADER = "methodName";
 	/**
-	 * Constant string representing client address (IP address) that is used to identify the client.
-	 */
-	String CLIENT_ADDRESS_HEADER = "clientAddress";
-	/**
 	 * Constant string representing clientId that is used to fetch session from context.
 	 */
 	String CLIENT_ID_HEADER = "clientId";
-	/**
-	 * Constant string representing traceId identifying OpenTelemetry traces.
-	 */
-	String TRACE_ID_HEADER = "traceId";
 
 	/**
 	 * Returns the gRPC trace task name with method name.

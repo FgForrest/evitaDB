@@ -304,6 +304,8 @@ message GrpcEvitaAssociatedDataValue {
     // JSON string value.
     string jsonValue = 2;
   }
+  // The type of the stored value.
+  GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;
   // Contains version of this value and gets increased with any entity type update. Allows to execute
   //			optimistic locking i.e. avoiding parallel modifications.
   google.protobuf.Int32Value version = 3;
@@ -330,6 +332,11 @@ message GrpcFile {
 // Record representing status of particular asynchronous task
 message GrpcTaskStatus {
   // Type of the task (shortName of the task)
+  // Available tasks:
+  // - "BackupTask": Task responsible for backing up the catalog data and WAL files into a ZIP file.
+  // - "RestoreTask": This task is used to restore a catalog from a ZIP file.
+  // - "JfrRecorderTask": Task is responsible for recording selected JFR events into an exportable file.
+  // - "MetricTask": Task that listens for JFR events and transforms them into Prometheus metrics.
   string taskType = 1;
   // Longer, human-readable name of the task
   string taskName = 2;
@@ -343,17 +350,63 @@ message GrpcTaskStatus {
   GrpcOffsetDateTime started = 6;
   // Date and time when the task was finished
   GrpcOffsetDateTime finished = 7;
+  // Simplified state of the status
+  GrpcTaskSimplifiedState simplifiedState = 8;
   // Progress of the task (0-100)
-  int32 progress = 8;
+  int32 progress = 9;
   // Configuration settings of the task
-  google.protobuf.StringValue settings = 9;
+  google.protobuf.StringValue settings = 10;
   // Result of the task
   oneof result {
     // Textual result of the task
-    google.protobuf.StringValue text = 10;
+    google.protobuf.StringValue text = 11;
     // File that was created by the task and is available for fetching
-    GrpcFile file = 11;
+    GrpcFile file = 12;
   }
   // Exception that occurred during the task execution
-  google.protobuf.StringValue exception = 12;
+  google.protobuf.StringValue exception = 13;
+  // List of task traits
+  repeated GrpcTaskTrait trait = 14;
+}
+
+// Aggregates basic data about the catalog and entity types stored in it.
+message GrpcCatalogStatistics {
+  // name of the catalog
+  GrpcUuid catalogId = 1;
+  // name of the catalog
+  string catalogName = 2;
+  // true if the catalog is corrupted (other data will be not available)
+  bool corrupted = 3;
+  // current state of the catalog, null for corrupted catalog
+  GrpcCatalogState catalogState = 4;
+  // version of the catalog, -1 for corrupted catalog
+  int64 catalogVersion = 5;
+  // total number of records in the catalog, -1 for corrupted catalog
+  int64 totalRecords = 6;
+  // total number of indexes in the catalog, -1 for corrupted catalog
+  int64 indexCount = 7;
+  // total size of the catalog on disk in bytes
+  int64 sizeOnDiskInBytes = 8;
+  // statistics for each entity collection in the catalog, empty array for corrupted catalog
+  repeated GrpcEntityCollectionStatistics entityCollectionStatistics = 9;
+}
+
+// Aggregates basic data about the entity collection.
+message GrpcEntityCollectionStatistics {
+  // name of the entity collection
+  string entityType = 1;
+  // total number of records in the entity collection
+  int32 totalRecords = 2;
+  // total number of indexes in the entity collection
+  int32 indexCount = 3;
+  // total size of the entity collection on disk in bytes
+  int64 sizeOnDiskInBytes = 4;
+}
+
+// Structure for representing a name in a particular naming convention.
+message GrpcNameVariant {
+  // naming convention the name is in
+  GrpcNamingConvention namingConvention = 1;
+  // the name in the particular naming convention
+  string name = 2;
 }

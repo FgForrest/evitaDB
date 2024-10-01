@@ -23,6 +23,7 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -267,6 +268,8 @@ public interface EntityCollectionContract {
 
 	/**
 	 * Alters existing schema applying passed schema mutation.
+	 * Note that the schema update might have updated also instances of other schemas (for example due to reflected
+	 * reference schemas).
 	 *
 	 * @return new updated schema
 	 * @throws SchemaAlteringException signalizing that the schema alteration has failed and was not applied
@@ -285,10 +288,17 @@ public interface EntityCollectionContract {
 	long getVersion();
 
 	/**
+	 * Returns entity collection statistics aggregating basic information about the entity collection and the data
+	 * stored in it.
+	 * @return statistics about the entity collection
+	 */
+	@Nonnull
+	EntityCollectionStatistics getStatistics();
+
+	/**
 	 * Method terminates this instance of the {@link EntityCollectionContract} and marks this instance as unusable to
 	 * any following invocations. In bulk mode ({@link CatalogState#WARMING_UP}) the flush should
 	 * be called prior calling #terminate().
 	 */
 	void terminate();
-
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -180,6 +180,13 @@ public class GraphQLScalars {
         .name("Predecessor")
         .description("Predecessor in number format.")
         .coercing(PREDECESSOR_COERCING)
+        .build();
+
+    public static final Coercing<?, ?> REFERENCED_ENTITY_PREDECESSOR_COERCING = new ReferencedEntityPredecessorCoercing();
+    public static final GraphQLScalarType REFERENCED_ENTITY_PREDECESSOR = newScalar()
+        .name("ReferencedEntityPredecessor")
+        .description("An inverse Predecessor (using referenced entity PK intead of this entity PK) in number format.")
+        .coercing(REFERENCED_ENTITY_PREDECESSOR_COERCING)
         .build();
 
     public static final Coercing<?, ?> OBJECT_COERCING = new ObjectCoercing();

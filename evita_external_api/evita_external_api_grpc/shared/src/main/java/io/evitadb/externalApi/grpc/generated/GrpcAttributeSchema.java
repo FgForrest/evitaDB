@@ -60,6 +60,7 @@ private static final long serialVersionUID = 0L;
     unique_ = 0;
     uniqueGlobally_ = 0;
     type_ = 0;
+    nameVariant_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -82,6 +83,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -191,6 +193,20 @@ private static final long serialVersionUID = 0L;
             indexedDecimalPlaces_ = input.readInt32();
             break;
           }
+          case 122: {
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              nameVariant_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            nameVariant_.add(
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcNameVariant.parser(), extensionRegistry));
+            break;
+          }
+          case 128: {
+
+            inherited_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -206,6 +222,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        nameVariant_ = java.util.Collections.unmodifiableList(nameVariant_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -240,7 +259,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -261,7 +280,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -609,6 +628,81 @@ private static final long serialVersionUID = 0L;
     return indexedDecimalPlaces_;
   }
 
+  public static final int NAMEVARIANT_FIELD_NUMBER = 15;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> nameVariant_;
+  /**
+   * <pre>
+   * Contains attribute name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> getNameVariantList() {
+    return nameVariant_;
+  }
+  /**
+   * <pre>
+   * Contains attribute name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getNameVariantOrBuilderList() {
+    return nameVariant_;
+  }
+  /**
+   * <pre>
+   * Contains attribute name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+   */
+  @java.lang.Override
+  public int getNameVariantCount() {
+    return nameVariant_.size();
+  }
+  /**
+   * <pre>
+   * Contains attribute name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariant(int index) {
+    return nameVariant_.get(index);
+  }
+  /**
+   * <pre>
+   * Contains attribute name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
+      int index) {
+    return nameVariant_.get(index);
+  }
+
+  public static final int INHERITED_FIELD_NUMBER = 16;
+  private boolean inherited_;
+  /**
+   * <pre>
+   * Contains true if the attribute was inherited from the original object via reflected reference relation
+   * </pre>
+   *
+   * <code>bool inherited = 16;</code>
+   * @return The inherited.
+   */
+  @java.lang.Override
+  public boolean getInherited() {
+    return inherited_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -664,6 +758,12 @@ private static final long serialVersionUID = 0L;
     }
     if (indexedDecimalPlaces_ != 0) {
       output.writeInt32(14, indexedDecimalPlaces_);
+    }
+    for (int i = 0; i < nameVariant_.size(); i++) {
+      output.writeMessage(15, nameVariant_.get(i));
+    }
+    if (inherited_ != false) {
+      output.writeBool(16, inherited_);
     }
     unknownFields.writeTo(output);
   }
@@ -729,6 +829,14 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(14, indexedDecimalPlaces_);
     }
+    for (int i = 0; i < nameVariant_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(15, nameVariant_.get(i));
+    }
+    if (inherited_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(16, inherited_);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -777,6 +885,10 @@ private static final long serialVersionUID = 0L;
     }
     if (getIndexedDecimalPlaces()
         != other.getIndexedDecimalPlaces()) return false;
+    if (!getNameVariantList()
+        .equals(other.getNameVariantList())) return false;
+    if (getInherited()
+        != other.getInherited()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -827,6 +939,13 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + INDEXEDDECIMALPLACES_FIELD_NUMBER;
     hash = (53 * hash) + getIndexedDecimalPlaces();
+    if (getNameVariantCount() > 0) {
+      hash = (37 * hash) + NAMEVARIANT_FIELD_NUMBER;
+      hash = (53 * hash) + getNameVariantList().hashCode();
+    }
+    hash = (37 * hash) + INHERITED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getInherited());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -971,6 +1090,7 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
+        getNameVariantFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1016,6 +1136,14 @@ private static final long serialVersionUID = 0L;
       }
       indexedDecimalPlaces_ = 0;
 
+      if (nameVariantBuilder_ == null) {
+        nameVariant_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
+      } else {
+        nameVariantBuilder_.clear();
+      }
+      inherited_ = false;
+
       return this;
     }
 
@@ -1042,6 +1170,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema result = new io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema(this);
+      int from_bitField0_ = bitField0_;
       result.name_ = name_;
       result.schemaType_ = schemaType_;
       if (descriptionBuilder_ == null) {
@@ -1068,6 +1197,16 @@ private static final long serialVersionUID = 0L;
         result.defaultValue_ = defaultValueBuilder_.build();
       }
       result.indexedDecimalPlaces_ = indexedDecimalPlaces_;
+      if (nameVariantBuilder_ == null) {
+        if (((bitField0_ & 0x00000001) != 0)) {
+          nameVariant_ = java.util.Collections.unmodifiableList(nameVariant_);
+          bitField0_ = (bitField0_ & ~0x00000001);
+        }
+        result.nameVariant_ = nameVariant_;
+      } else {
+        result.nameVariant_ = nameVariantBuilder_.build();
+      }
+      result.inherited_ = inherited_;
       onBuilt();
       return result;
     }
@@ -1159,6 +1298,35 @@ private static final long serialVersionUID = 0L;
       if (other.getIndexedDecimalPlaces() != 0) {
         setIndexedDecimalPlaces(other.getIndexedDecimalPlaces());
       }
+      if (nameVariantBuilder_ == null) {
+        if (!other.nameVariant_.isEmpty()) {
+          if (nameVariant_.isEmpty()) {
+            nameVariant_ = other.nameVariant_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+          } else {
+            ensureNameVariantIsMutable();
+            nameVariant_.addAll(other.nameVariant_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.nameVariant_.isEmpty()) {
+          if (nameVariantBuilder_.isEmpty()) {
+            nameVariantBuilder_.dispose();
+            nameVariantBuilder_ = null;
+            nameVariant_ = other.nameVariant_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+            nameVariantBuilder_ =
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getNameVariantFieldBuilder() : null;
+          } else {
+            nameVariantBuilder_.addAllMessages(other.nameVariant_);
+          }
+        }
+      }
+      if (other.getInherited() != false) {
+        setInherited(other.getInherited());
+      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -1187,6 +1355,7 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
+    private int bitField0_;
 
     private java.lang.Object name_ = "";
     /**
@@ -1223,7 +1392,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -1247,7 +1416,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       name_ = value;
       onChanged();
       return this;
@@ -1262,7 +1431,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
+
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
@@ -1283,7 +1452,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       name_ = value;
       onChanged();
       return this;
@@ -1311,7 +1480,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSchemaTypeValue(int value) {
-      
+
       schemaType_ = value;
       onChanged();
       return this;
@@ -1343,7 +1512,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       schemaType_ = value.getNumber();
       onChanged();
       return this;
@@ -1357,7 +1526,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSchemaType() {
-      
+
       schemaType_ = 0;
       onChanged();
       return this;
@@ -1485,7 +1654,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
-      
+
       onChanged();
       return getDescriptionFieldBuilder().getBuilder();
     }
@@ -1514,7 +1683,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1656,7 +1825,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
-      
+
       onChanged();
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
@@ -1687,7 +1856,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1728,7 +1897,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setUniqueValue(int value) {
-      
+
       unique_ = value;
       onChanged();
       return this;
@@ -1766,7 +1935,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       unique_ = value.getNumber();
       onChanged();
       return this;
@@ -1783,7 +1952,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearUnique() {
-      
+
       unique_ = 0;
       onChanged();
       return this;
@@ -1803,7 +1972,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setUniqueGloballyValue(int value) {
-      
+
       uniqueGlobally_ = value;
       onChanged();
       return this;
@@ -1827,7 +1996,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       uniqueGlobally_ = value.getNumber();
       onChanged();
       return this;
@@ -1837,7 +2006,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearUniqueGlobally() {
-      
+
       uniqueGlobally_ = 0;
       onChanged();
       return this;
@@ -1874,7 +2043,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setFilterable(boolean value) {
-      
+
       filterable_ = value;
       onChanged();
       return this;
@@ -1892,7 +2061,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearFilterable() {
-      
+
       filterable_ = false;
       onChanged();
       return this;
@@ -1925,7 +2094,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSortable(boolean value) {
-      
+
       sortable_ = value;
       onChanged();
       return this;
@@ -1941,7 +2110,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSortable() {
-      
+
       sortable_ = false;
       onChanged();
       return this;
@@ -1970,7 +2139,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setLocalized(boolean value) {
-      
+
       localized_ = value;
       onChanged();
       return this;
@@ -1984,7 +2153,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearLocalized() {
-      
+
       localized_ = false;
       onChanged();
       return this;
@@ -2015,7 +2184,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setNullable(boolean value) {
-      
+
       nullable_ = value;
       onChanged();
       return this;
@@ -2030,7 +2199,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearNullable() {
-      
+
       nullable_ = false;
       onChanged();
       return this;
@@ -2067,7 +2236,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setRepresentative(boolean value) {
-      
+
       representative_ = value;
       onChanged();
       return this;
@@ -2085,7 +2254,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearRepresentative() {
-      
+
       representative_ = false;
       onChanged();
       return this;
@@ -2115,7 +2284,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setTypeValue(int value) {
-      
+
       type_ = value;
       onChanged();
       return this;
@@ -2149,7 +2318,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       type_ = value.getNumber();
       onChanged();
       return this;
@@ -2164,7 +2333,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearType() {
-      
+
       type_ = 0;
       onChanged();
       return this;
@@ -2292,7 +2461,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder getDefaultValueBuilder() {
-      
+
       onChanged();
       return getDefaultValueFieldBuilder().getBuilder();
     }
@@ -2321,7 +2490,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 13;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder>
         getDefaultValueFieldBuilder() {
       if (defaultValueBuilder_ == null) {
         defaultValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2363,7 +2532,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIndexedDecimalPlaces(int value) {
-      
+
       indexedDecimalPlaces_ = value;
       onChanged();
       return this;
@@ -2380,8 +2549,363 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndexedDecimalPlaces() {
-      
+
       indexedDecimalPlaces_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> nameVariant_ =
+      java.util.Collections.emptyList();
+    private void ensureNameVariantIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        nameVariant_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>(nameVariant_);
+        bitField0_ |= 0x00000001;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> nameVariantBuilder_;
+
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> getNameVariantList() {
+      if (nameVariantBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(nameVariant_);
+      } else {
+        return nameVariantBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public int getNameVariantCount() {
+      if (nameVariantBuilder_ == null) {
+        return nameVariant_.size();
+      } else {
+        return nameVariantBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariant(int index) {
+      if (nameVariantBuilder_ == null) {
+        return nameVariant_.get(index);
+      } else {
+        return nameVariantBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public Builder setNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (nameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureNameVariantIsMutable();
+        nameVariant_.set(index, value);
+        onChanged();
+      } else {
+        nameVariantBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public Builder setNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (nameVariantBuilder_ == null) {
+        ensureNameVariantIsMutable();
+        nameVariant_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        nameVariantBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public Builder addNameVariant(io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (nameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureNameVariantIsMutable();
+        nameVariant_.add(value);
+        onChanged();
+      } else {
+        nameVariantBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public Builder addNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant value) {
+      if (nameVariantBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureNameVariantIsMutable();
+        nameVariant_.add(index, value);
+        onChanged();
+      } else {
+        nameVariantBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public Builder addNameVariant(
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (nameVariantBuilder_ == null) {
+        ensureNameVariantIsMutable();
+        nameVariant_.add(builderForValue.build());
+        onChanged();
+      } else {
+        nameVariantBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public Builder addNameVariant(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder builderForValue) {
+      if (nameVariantBuilder_ == null) {
+        ensureNameVariantIsMutable();
+        nameVariant_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        nameVariantBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public Builder addAllNameVariant(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariant> values) {
+      if (nameVariantBuilder_ == null) {
+        ensureNameVariantIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, nameVariant_);
+        onChanged();
+      } else {
+        nameVariantBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public Builder clearNameVariant() {
+      if (nameVariantBuilder_ == null) {
+        nameVariant_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
+        onChanged();
+      } else {
+        nameVariantBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public Builder removeNameVariant(int index) {
+      if (nameVariantBuilder_ == null) {
+        ensureNameVariantIsMutable();
+        nameVariant_.remove(index);
+        onChanged();
+      } else {
+        nameVariantBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder getNameVariantBuilder(
+        int index) {
+      return getNameVariantFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
+        int index) {
+      if (nameVariantBuilder_ == null) {
+        return nameVariant_.get(index);  } else {
+        return nameVariantBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+         getNameVariantOrBuilderList() {
+      if (nameVariantBuilder_ != null) {
+        return nameVariantBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(nameVariant_);
+      }
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder addNameVariantBuilder() {
+      return getNameVariantFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcNameVariant.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder addNameVariantBuilder(
+        int index) {
+      return getNameVariantFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Contains attribute name converted to different naming conventions.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 15;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder>
+         getNameVariantBuilderList() {
+      return getNameVariantFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+        getNameVariantFieldBuilder() {
+      if (nameVariantBuilder_ == null) {
+        nameVariantBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>(
+                nameVariant_,
+                ((bitField0_ & 0x00000001) != 0),
+                getParentForChildren(),
+                isClean());
+        nameVariant_ = null;
+      }
+      return nameVariantBuilder_;
+    }
+
+    private boolean inherited_ ;
+    /**
+     * <pre>
+     * Contains true if the attribute was inherited from the original object via reflected reference relation
+     * </pre>
+     *
+     * <code>bool inherited = 16;</code>
+     * @return The inherited.
+     */
+    @java.lang.Override
+    public boolean getInherited() {
+      return inherited_;
+    }
+    /**
+     * <pre>
+     * Contains true if the attribute was inherited from the original object via reflected reference relation
+     * </pre>
+     *
+     * <code>bool inherited = 16;</code>
+     * @param value The inherited to set.
+     * @return This builder for chaining.
+     */
+    public Builder setInherited(boolean value) {
+
+      inherited_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains true if the attribute was inherited from the original object via reflected reference relation
+     * </pre>
+     *
+     * <code>bool inherited = 16;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearInherited() {
+
+      inherited_ = false;
       onChanged();
       return this;
     }

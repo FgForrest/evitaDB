@@ -24,13 +24,18 @@
 package io.evitadb.api.requestResponse.data.mutation;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithGeneratedPrimaryKeyMutation;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -38,9 +43,12 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -81,7 +89,7 @@ public class EntityUpsertMutation implements EntityMutation {
 	/**
 	 * List of all local mutations that modify internal data of the entity.
 	 */
-	private final Collection<? extends LocalMutation<?, ?>> localMutations;
+	private final List<? extends LocalMutation<?, ?>> localMutations;
 
 	public EntityUpsertMutation(
 		@Nonnull String entityType,
@@ -92,7 +100,8 @@ public class EntityUpsertMutation implements EntityMutation {
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.entityType = entityType;
 		this.entityExistence = entityExistence;
-		this.localMutations = localMutations;
+		this.localMutations = localMutations instanceof List<? extends LocalMutation<?, ?>> list ?
+			list : new ArrayList<>(localMutations);
 	}
 
 	public EntityUpsertMutation(
@@ -121,12 +130,12 @@ public class EntityUpsertMutation implements EntityMutation {
 
 	@Nonnull
 	@Override
-	public Optional<EntitySchemaMutation[]> verifyOrEvolveSchema(
+	public Optional<LocalEntitySchemaMutation[]> verifyOrEvolveSchema(
 		@Nonnull SealedCatalogSchema catalogSchema,
 		@Nonnull SealedEntitySchema entitySchema,
 		boolean entityCollectionEmpty
 	) {
-		final Optional<EntitySchemaMutation> pkMutation;
+		final Optional<LocalEntitySchemaMutation> pkMutation;
 		// when the collection is empty - we may redefine primary key behaviour in schema (this is the only moment to do so)
 		if (entityCollectionEmpty) {
 			if (entityPrimaryKey == null && !entitySchema.isWithGeneratedPrimaryKey()) {
@@ -159,16 +168,16 @@ public class EntityUpsertMutation implements EntityMutation {
 			pkMutation = empty();
 		}
 		// collect schema mutations from the local entity mutations
-		final Optional<EntitySchemaMutation[]> additionalMutations = EntityMutation.verifyOrEvolveSchema(catalogSchema, entitySchema, localMutations);
+		final Optional<LocalEntitySchemaMutation[]> additionalMutations = EntityMutation.verifyOrEvolveSchema(catalogSchema, entitySchema, localMutations);
 		// combine mutation local mutations with the entity primary key mutation is provided
 		return additionalMutations
 			.map(
 				mutations -> pkMutation
 					.map(it -> Stream.concat(Stream.of(it), Arrays.stream(mutations)))
 					.orElseGet(() -> Arrays.stream(mutations))
-					.toArray(EntitySchemaMutation[]::new)
+					.toArray(LocalEntitySchemaMutation[]::new)
 			)
-			.or(() -> pkMutation.map(x -> new EntitySchemaMutation[]{x}));
+			.or(() -> pkMutation.map(x -> new LocalEntitySchemaMutation[]{x}));
 	}
 
 	@Nonnull
@@ -182,14 +191,58 @@ public class EntityUpsertMutation implements EntityMutation {
 	}
 
 	@Nonnull
-	public Collection<? extends LocalMutation<?, ?>> getLocalMutations() {
+	public List<? extends LocalMutation<?, ?>> getLocalMutations() {
 		return localMutations;
 	}
 
+	@Nonnull
 	@Override
-	public String toString() {
-		return "entity `" + entityType + "` upsert (" + entityType + "): " + entityPrimaryKey +
-			" and mutations: [" + localMutations.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull CaptureContent content
+	) {
+		final MutationPredicateContext context = predicate.getContext();
+		context.setEntityType(this.entityType);
+		context.setPrimaryKey(this.entityPrimaryKey);
+		context.advance();
+
+		final Stream<ChangeCatalogCapture> entityMutation;
+		if (predicate.test(this)) {
+			entityMutation = Stream.of(
+				ChangeCatalogCapture.dataCapture(
+					context,
+					operation(),
+					content == CaptureContent.BODY ? this : null
+				)
+			);
+		} else {
+			entityMutation = Stream.empty();
+		}
+
+		if (context.getDirection() == StreamDirection.FORWARD) {
+			return Stream.concat(
+				entityMutation,
+				this.localMutations.stream()
+					.filter(predicate)
+					.flatMap(it -> it.toChangeCatalogCapture(predicate, content))
+			);
+		} else {
+			final ListIterator<? extends LocalMutation<?, ?>> iterator = this.localMutations.listIterator(this.localMutations.size());
+			return Stream.concat(
+				Stream.generate(() -> null)
+					.takeWhile(x -> iterator.hasPrevious())
+					.map(x -> iterator.previous())
+					.filter(predicate)
+					.flatMap(x -> x.toChangeCatalogCapture(predicate, content)),
+				entityMutation
+			);
+		}
 	}
 
 	@Override
@@ -223,5 +276,11 @@ public class EntityUpsertMutation implements EntityMutation {
 			}
 		}
 		return true;
+	}
+
+	@Override
+	public String toString() {
+		return "entity `" + entityType + "` upsert (" + entityType + "): " + entityPrimaryKey +
+			" and mutations: [" + localMutations.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
 	}
 }

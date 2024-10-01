@@ -27,6 +27,7 @@ import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.core.metric.event.CatalogRelatedEvent;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import jdk.jfr.Category;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
@@ -35,17 +36,23 @@ import lombok.RequiredArgsConstructor;
 /**
  * This event is base class for all transaction events.
  */
-@EventGroup(AbstractTransactionEvent.PACKAGE_NAME)
+@EventGroup(
+	value = AbstractTransactionEvent.PACKAGE_NAME,
+	name = "evitaDB - Transaction",
+	description = "evitaDB events related to transaction processing."
+)
 @Category({"evitaDB", "Transaction"})
 @RequiredArgsConstructor
 @Getter
 abstract class AbstractTransactionEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
 	protected static final String PACKAGE_NAME = "io.evitadb.transaction";
+
 	/**
 	 * The name of the catalog the transaction relates to.
 	 */
 	@Label("Catalog")
 	@Name("catalogName")
+	@Description("The name of the catalog to which this event/metric is associated.")
 	final String catalogName;
 
 }

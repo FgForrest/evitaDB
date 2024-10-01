@@ -39,7 +39,7 @@ You can access all our APIs on these addresses:
    - you can explore GraphQL API with our dataset using [online GraphiQL editor](https://cloud.hasura.io/public/graphiql?endpoint=https%3A%2F%2Fdemo.evitadb.io%3A5555%2Fgql%2Fevita) (for more, visit [GraphQL](../use/connectors/graphql.md) documentation)
 - `REST` API: [https://demo.evitadb.io:5555/rest/](https://demo.evitadb.io:5555/rest/evita)
    - you can fetch OpenAPI schema just be sending GET request to this URL (for more, visit [REST](../use/connectors/rest.md) documentation)
-- `gRPC` API: [https://demo.evitadb.io:5556/](https://demo.evitadb.io:5556/)
+- `gRPC` API: [https://demo.evitadb.io:5555/](https://demo.evitadb.io:5555/)
 
 ## Run your own evitaDB server with our dataset
 
@@ -62,14 +62,13 @@ in the set. To access the dataset on your hardware, you need to:
    ```
 4. start the evitaDB server
    ```shell
-   docker run --name evitadb -i --net=host \
+   docker run --name evitadb -i --net=host \          
           -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
 
    # there is open issue https://github.com/docker/roadmap/issues/238 for Windows / Mac OS
    # and you need to open ports manually and propagate host IP address to the container
-   docker run --name evitadb -i -p 5555:5555 -p 5556:5556 -p 5557:5557 \
-          -e "api.exposedOn=localhost" \
+   docker run --name evitadb -i -p 5555:5555 \        
           -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
    ```
@@ -84,7 +83,7 @@ When this procedure is completed you should see the similar output in the consol
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2024.7.2 (keep calm and report bugs 😉)
+beta build 2024.8.4 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 19:45:37.088 INFO  i.e.s.c.DefaultCatalogPersistenceService - Catalog `evita` is being loaded and  it contains:
@@ -109,11 +108,11 @@ Visit us at: https://evitadb.io
 Root CA Certificate fingerprint:        43:51:C6:A0:9C:21:9A:8A:BE:18:2B:53:93:CF:4E:1A:CE:7F:FF:B0:16:99:A5:4C:22:52:25:09:72:6F:5C:E3
 API `graphQL` listening on              https://localhost:5555/gql/
 API `rest` listening on                 https://localhost:5555/rest/
-API `gRPC` listening on                 https://localhost:5556/
-API `system` listening on               http://localhost:5557/system/
-   - server certificate served at:      http://localhost:5557/system/evitaDB-CA-selfSigned.crt
-   - client certificate served at:      http://localhost:5557/system/client.crt
-   - client private key served at:      http://localhost:5557/system/client.key
+API `gRPC` listening on                 https://localhost:5555/
+API `system` listening on               http://localhost:5555/system/
+   - server certificate served at:      http://localhost:5555/system/evitaDB-CA-selfSigned.crt
+   - client certificate served at:      http://localhost:5555/system/client.crt
+   - client private key served at:      http://localhost:5555/system/client.key
 
 ************************* WARNING!!! *************************
 You use mTLS with automatically generated client certificate.
@@ -137,13 +136,13 @@ Open your Java IDE and add the following dependency to your project:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2024.7.2</version>
+    <version>2024.8.4</version>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_java_driver:2024.7.2'
+implementation 'io.evitadb:evita_java_driver:2024.8.4'
 ```
 </CodeTabsBlock>
 </CodeTabs>

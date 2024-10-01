@@ -25,8 +25,10 @@ package io.evitadb.store.catalog.task;
 
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.async.ClientRunnableTask;
 import io.evitadb.core.async.Interruptible;
+import io.evitadb.core.file.ExportFileService.ExportFileInputStream;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.task.RestoreTask.RestoreSettings;
@@ -105,7 +107,8 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			catalogName,
 			"Restore catalog `" + catalogName + "`",
 			new RestoreSettings(inputStream, storageOptions.exportDirectory(), totalSizeInBytes),
-			task -> ((RestoreTask) task).doRestore()
+			task -> ((RestoreTask) task).doRestore(),
+			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
 		);
 		this.storageOptions = storageOptions;
 	}
@@ -199,23 +202,29 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 	) implements Serializable {
 
 		public RestoreSettings(@Nonnull InputStream inputStream, @Nonnull Path export, long totalSizeInBytes) {
-			this(UUIDUtil.randomUUID() + ".zip", totalSizeInBytes);
-			try {
-				// todo jno avoid copying the file to the disk when it's already in place
-				final long bytesCopied = Files.copy(
-					inputStream, export.resolve(fileName()),
-					StandardCopyOption.REPLACE_EXISTING
-				);
-				Assert.isPremiseValid(
-					bytesCopied == totalSizeInBytes,
-					"Unexpected number of bytes copied (" + bytesCopied + "B instead of " + totalSizeInBytes + "B)!"
-				);
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Unexpected exception occurred while storing catalog file for restoration: " + e.getMessage(),
-					"Unexpected exception occurred while storing catalog file for restoration!",
-					e
-				);
+			this(
+				inputStream instanceof ExportFileInputStream exportFileInputStream ?
+					exportFileInputStream.getFile().path(export).toFile().getName() : UUIDUtil.randomUUID() + ".zip",
+				totalSizeInBytes
+			);
+			if (!(inputStream instanceof ExportFileInputStream)) {
+				// if the file is not a locally stored export file, store it to the export directory first
+				try {
+					final long bytesCopied = Files.copy(
+						inputStream, export.resolve(fileName()),
+						StandardCopyOption.REPLACE_EXISTING
+					);
+					Assert.isPremiseValid(
+						bytesCopied == totalSizeInBytes,
+						"Unexpected number of bytes copied (" + bytesCopied + "B instead of " + totalSizeInBytes + "B)!"
+					);
+				} catch (IOException e) {
+					throw new UnexpectedIOException(
+						"Unexpected exception occurred while storing catalog file for restoration: " + e.getMessage(),
+						"Unexpected exception occurred while storing catalog file for restoration!",
+						e
+					);
+				}
 			}
 		}
 

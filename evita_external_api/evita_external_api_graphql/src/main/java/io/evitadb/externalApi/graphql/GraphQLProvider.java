@@ -23,15 +23,17 @@
 
 package io.evitadb.externalApi.graphql;
 
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.utils.NetworkUtils;
-import io.undertow.server.HttpHandler;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -43,6 +45,7 @@ import static io.evitadb.externalApi.graphql.io.GraphQLRouter.SYSTEM_PREFIX;
  * @see GraphQLProviderRegistrar
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Slf4j
 @RequiredArgsConstructor
 public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
 
@@ -65,10 +68,12 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
         return CODE;
     }
 
-	@Nullable
+	@Nonnull
 	@Override
-	public HttpHandler getApiHandler() {
-		return graphQLManager.getGraphQLRouter();
+	public HttpServiceDefinition[] getHttpServiceDefinitions() {
+		return new HttpServiceDefinition[] {
+			new HttpServiceDefinition(graphQLManager.getGraphQLRouter(), PathHandlingMode.DYNAMIC_PATH_HANDLING)
+		};
 	}
 
 	@Override
@@ -79,10 +84,25 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
 	@Override
     public boolean isReady() {
         final Predicate<String> isReady = url -> {
-            final Optional<String> post = NetworkUtils.fetchContent(url, "POST", "application/json", "{\"query\":\"{liveness}\"}");
-            return post.map(content -> content.contains("true")).orElse(false);
+	        final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+			final Optional<String> post = NetworkUtils.fetchContent(
+				url, "POST", "application/json", "{\"query\":\"{liveness}\"}",
+				error -> {
+					log.error("Error while checking readiness of GraphQL API: {}", error);
+					readinessEvent.finish(Result.ERROR);
+				},
+				timeouted -> {
+					log.error("{}", timeouted);
+					readinessEvent.finish(Result.TIMEOUT);
+				}
+			);
+			final Boolean result = post.map(content -> content.contains("true")).orElse(false);
+			if (result) {
+				readinessEvent.finish(Result.READY);
+			}
+			return result;
         };
-        final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+        final String[] baseUrls = this.configuration.getBaseUrls();
         if (this.reachableUrl == null) {
 	        for (String baseUrl : baseUrls) {
 		        final String url = baseUrl + SYSTEM_PREFIX;

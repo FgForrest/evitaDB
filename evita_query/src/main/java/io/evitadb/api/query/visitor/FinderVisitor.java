@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.api.query.visitor;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -53,13 +54,18 @@ public class FinderVisitor implements ConstraintVisitor {
 	 */
 	private final Predicate<Constraint<?>> stopper;
 
-	private FinderVisitor(Predicate<Constraint<?>> matcher) {
+	private FinderVisitor(@Nonnull Predicate<Constraint<?>> matcher) {
 		this.matcher = matcher;
 		this.stopper = constraint -> false;
 	}
 
 	/**
-	 * Finds all constraints that match the predicate.
+	 * Finds all constraints that match the given matcher predicate within the specified constraint container.
+	 *
+	 * @param constraint the root constraint from which to start the search, must not be null
+	 * @param matcher the predicate to match the desired constraints, must not be null
+	 * @param <T> the type of the expected constraints that match the predicate
+	 * @return a list of constraints that match the given matcher predicate
 	 */
 	@Nonnull
 	public static <T extends Constraint<?>> List<T> findConstraints(@Nonnull Constraint<?> constraint,
@@ -71,7 +77,12 @@ public class FinderVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Finds all constraints that match the predicate.
+	 * Finds a single constraint within the specified constraint container that matches the given matcher predicate.
+	 *
+	 * @param constraint the root constraint to start the search from, must not be null
+	 * @param matcher the predicate to match the desired constraint, must not be null
+	 * @param <T> the type of the expected constraint that matches the predicate
+	 * @return the matched constraint, or null if no constraints match
 	 */
 	@Nullable
 	public static <T extends Constraint<?>> T findConstraint(@Nonnull Constraint<?> constraint,
@@ -83,8 +94,14 @@ public class FinderVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Finds all constraints that match the predicate. Searching excluded contents of all constraints that match
-	 * `stopper`.
+	 * Finds all constraints that match the given matcher predicate within the specified constraint container.
+	 * The search can be stopped early if the stopper predicate is satisfied.
+	 *
+	 * @param constraint the root constraint from which to start the search, must not be null
+	 * @param matcher the predicate to match the desired constraints, must not be null
+	 * @param stopper the predicate to stop the search early, must not be null
+	 * @param <T> the type of the expected constraints that match the predicate
+	 * @return a list of constraints that match the given matcher predicate
 	 */
 	@Nonnull
 	public static <T extends Constraint<?>> List<T> findConstraints(@Nonnull Constraint<?> constraint,
@@ -97,8 +114,14 @@ public class FinderVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Finds all constraints that match the predicate. Searching excluded contents of all constraints that match
-	 * `stopper`.
+	 * Finds a single constraint within the specified constraint container that matches the given matcher predicate.
+	 * The search will stop if the constraint matches the stopper predicate.
+	 *
+	 * @param constraint the root constraint to start the search from, must not be null
+	 * @param matcher the predicate to match the desired constraint, must not be null
+	 * @param stopper the predicate to stop the search early, must not be null
+	 * @param <T> the type of the expected constraint that matches the predicate
+	 * @return the matched constraint, or null if no constraints match
 	 */
 	@Nullable
 	public static <T extends Constraint<?>> T findConstraint(
@@ -127,29 +150,59 @@ public class FinderVisitor implements ConstraintVisitor {
 		}
 	}
 
+	/**
+	 * Retrieves a single constraint if exactly one matches the criteria or null if no constraints match.
+	 * Throws an exception if more than one constraint matches.
+	 *
+	 * @return the matched constraint, or null if no constraints match
+	 * @throws MoreThanSingleResultException if more than one constraint matches
+	 */
 	@Nullable
 	public Constraint<?> getResult() throws MoreThanSingleResultException {
 		if (result.isEmpty()) {
 			return null;
 		} else if (result.size() == 1) {
 			return result.get(0);
+		} else if (matcher instanceof PredicateWithDescription<?> withDescription) {
+			throw new MoreThanSingleResultException(
+				"A total of `" + result.size() + "` constraints were found in a query that searched for " + withDescription + ", but only one was expected!"
+			);
 		} else {
 			throw new MoreThanSingleResultException(
-				"Total " + result.size() + " constraints found in query!"
+				"A total of `" + result.size() + "` constraints were found in a query, but expected is only one!"
 			);
 		}
 	}
 
+	/**
+	 * Retrieves a list of constraints that matched the predicate during traversal.
+	 *
+	 * @return a list of matched constraints.
+	 */
+	@Nonnull
 	public List<Constraint<?>> getResults() {
 		return result;
 	}
 
-	public static class MoreThanSingleResultException extends IllegalArgumentException {
+	public static class MoreThanSingleResultException extends EvitaInvalidUsageException {
 		@Serial private static final long serialVersionUID = 5992942222164725144L;
 
-		public MoreThanSingleResultException(String s) {
-			super(s);
+		public MoreThanSingleResultException(@Nonnull String publicMessage) {
+			super(publicMessage);
 		}
+
+	}
+
+	@FunctionalInterface
+	public interface PredicateWithDescription<T> extends Predicate<T> {
+
+		/**
+		 * Returns a human-readable description of the predicate.
+		 * @return a human-readable description of the predicate
+		 */
+		@Override
+		@Nonnull
+		String toString();
 
 	}
 

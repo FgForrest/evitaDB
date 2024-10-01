@@ -25,6 +25,7 @@ package io.evitadb.core.metric.event.transaction;
 
 import io.evitadb.api.configuration.metric.MetricType;
 import io.evitadb.api.observability.annotation.ExportMetric;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
@@ -38,7 +39,9 @@ import javax.annotation.Nonnull;
  */
 @Getter
 abstract class AbstractWalStatisticsEvent extends AbstractTransactionEvent {
+
 	@Label("Oldest WAL entry timestamp")
+	@Description("The timestamp of the oldest WAL entry in the WAL files (either active or historical).")
 	@Name("oldestWalEntrySeconds")
 	@ExportMetric(metricName = AbstractTransactionEvent.PACKAGE_NAME + ".WalStatistics.oldestWalEntryTimestampSeconds", metricType = MetricType.GAUGE)
 	long oldestWalEntryTimestampSeconds;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,16 +23,24 @@
 
 package io.evitadb.externalApi.http;
 
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.Headers;
-import io.undertow.util.StatusCodes;
-import lombok.RequiredArgsConstructor;
+import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpResponseBuilder;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.ResponseHeadersBuilder;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
+import com.linecorp.armeria.server.SimpleDecoratingHttpService;
+import io.netty.util.AsciiString;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
 import java.util.Set;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Filters requests with CORS. Mainly, checks if request origin is allowed to access certain endpoint. Should be
@@ -41,41 +49,52 @@ import java.util.Set;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-@RequiredArgsConstructor
-public class CorsFilter implements HttpHandler {
+public class CorsFilter extends SimpleDecoratingHttpService {
 
-	@Nonnull
-	private final HttpHandler next;
 	/**
 	 * Set of allowed origins, other origins will return error. If null, all origins are allowed.
 	 */
 	@Nullable
 	private final Set<String> allowedOrigins;
 
-	public CorsFilter(@Nonnull HttpHandler next, @Nullable String[] allowedOrigins) {
+	public CorsFilter(@Nonnull HttpService delegate, @Nullable String[] allowedOrigins) {
 		this(
-			next,
+			delegate,
 			allowedOrigins != null ? Set.of(allowedOrigins) : null
 		);
 	}
 
+	public CorsFilter(@Nonnull HttpService delegate, @Nullable Set<String> allowedOrigins) {
+		super(delegate);
+		this.allowedOrigins = allowedOrigins;
+	}
+
+	@Nonnull
 	@Override
-	public void handleRequest(HttpServerExchange exchange) throws Exception {
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+		final Map<AsciiString, String> responseHeaders = createHashMap(3);
+
 		if (allowedOrigins != null) {
-			final String requestOrigin = exchange.getRequestHeaders().getFirst(Headers.ORIGIN);
+			final String requestOrigin = req.headers().get(HttpHeaderNames.ORIGIN);
 			if (requestOrigin == null || !allowedOrigins.contains(requestOrigin)) {
 				log.warn("Forbidden origin `" + requestOrigin + "` is trying to access the API.");
-				exchange.setStatusCode(StatusCodes.FORBIDDEN);
-				exchange.endExchange();
-				return;
+				final HttpResponseBuilder responseBuilder = HttpResponse.builder();
+				responseBuilder.status(HttpStatus.FORBIDDEN);
+				return responseBuilder.build();
 			}
 
-			exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, requestOrigin);
-			exchange.getResponseHeaders().put(Headers.VARY, "Origin");
+			responseHeaders.put(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, requestOrigin);
+			responseHeaders.put(HttpHeaderNames.VARY, "Origin");
 		} else {
-			exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+			responseHeaders.put(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
 		}
 
-		next.handleRequest(exchange);
+		return unwrap().serve(ctx, req).mapHeaders(headers -> {
+			final ResponseHeadersBuilder builder = headers.toBuilder();
+			responseHeaders.forEach((name, value) -> {
+				builder.removeAndThen(name).add(name, value);
+			});
+			return builder.build();
+		});
 	}
 }

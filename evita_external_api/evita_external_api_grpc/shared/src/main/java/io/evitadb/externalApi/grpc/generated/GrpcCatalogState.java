@@ -62,6 +62,14 @@ public enum GrpcCatalogState
    * <code>ALIVE = 1;</code>
    */
   ALIVE(1),
+  /**
+   * <pre>
+   * Unknown state of the catalog. Used when catalog is corrupted.
+   * </pre>
+   *
+   * <code>UNKNOWN_CATALOG_STATE = 2;</code>
+   */
+  UNKNOWN_CATALOG_STATE(2),
   UNRECOGNIZED(-1),
   ;
 
@@ -92,6 +100,14 @@ public enum GrpcCatalogState
    * <code>ALIVE = 1;</code>
    */
   public static final int ALIVE_VALUE = 1;
+  /**
+   * <pre>
+   * Unknown state of the catalog. Used when catalog is corrupted.
+   * </pre>
+   *
+   * <code>UNKNOWN_CATALOG_STATE = 2;</code>
+   */
+  public static final int UNKNOWN_CATALOG_STATE_VALUE = 2;
 
 
   public final int getNumber() {
@@ -120,6 +136,7 @@ public enum GrpcCatalogState
     switch (value) {
       case 0: return WARMING_UP;
       case 1: return ALIVE;
+      case 2: return UNKNOWN_CATALOG_STATE;
       default: return null;
     }
   }

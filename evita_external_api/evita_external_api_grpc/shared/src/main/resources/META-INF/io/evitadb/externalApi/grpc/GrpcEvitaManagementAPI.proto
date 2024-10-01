@@ -1,0 +1,281 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
+
+import "google/protobuf/empty.proto";
+import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
+import "google/protobuf/wrappers.proto";
+
+// Response to a server status request.
+message GrpcEvitaServerStatusResponse {
+  // Version of evitaDB server taken from the MANIFEST.MF file
+  string version = 1;
+  // Date and time when the server was started
+  GrpcOffsetDateTime startedAt = 2;
+  // Duration of time since the server was started (seconds)
+  int64 uptime = 3;
+  // Unique identifier of the server instance
+  string instanceId = 4;
+  // Number of corrupted catalogs
+  int32 catalogsCorrupted = 5;
+  // Number of catalogs that are ok
+  int32 catalogsOk = 6;
+  // Health problems
+  repeated GrpcHealthProblem healthProblems = 7;
+  // Overall readiness of the evitaDB server
+  GrpcReadiness readiness = 8;
+  // Information about all available APIs
+  map<string, GrpcApiStatus> api = 9;
+  // Flag indicating that the server is in read-only mode
+  bool readOnly = 10;
+}
+
+// Status of the external API
+message GrpcApiStatus {
+  // True if the API is enabled
+  bool enabled = 1;
+  // API readiness status
+  bool ready = 2;
+  // list of base url of the web API
+  repeated string baseUrl = 3;
+  // list of specific endpoints of particular API
+  // currently only system API provides list of endpoints
+  repeated GrpcEndpoint endpoints = 4;
+}
+
+// Information about a system endpoint of particular purpose derived from name
+message GrpcEndpoint {
+  // logical name of the endpoint
+  string name = 1;
+  // absolute URL of the endpoint
+  repeated string url = 2;
+}
+
+// Response to an evitaDB configuration request.
+message GrpcEvitaConfigurationResponse {
+  // Current configuration of the server in YAML format with evaluated values.
+  string configuration = 1;
+}
+
+// Response to a server catalog statistics request.
+message GrpcEvitaCatalogStatisticsResponse {
+  // Collection of catalog statistics for all catalogs
+  repeated GrpcCatalogStatistics catalogStatistics = 1;
+}
+
+// Request to restore a catalog.
+message GrpcRestoreCatalogRequest {
+  // Name of the catalog where the backup will be restored
+  // The name must not clash with any of existing catalogs
+  string catalogName = 1;
+  // Binary contents of the backup file.
+  bytes backupFile = 2;
+}
+
+// Request to restore a catalog.
+message GrpcRestoreCatalogUnaryRequest {
+  // Name of the catalog where the backup will be restored
+  // The name must not clash with any of existing catalogs
+  string catalogName = 1;
+  // Binary contents of the backup file.
+  bytes backupFile = 2;
+  // Identification of the task (for continuation purpose)
+  GrpcUuid fileId = 3;
+  // Total size of uploaded file in Bytes, when the size is reached, restore automatically starts
+  int64 totalSizeInBytes = 4;
+}
+
+// Request to restore a catalog.
+message GrpcRestoreCatalogFromServerFileRequest {
+  // Name of the catalog where the backup will be restored
+  // The name must not clash with any of existing catalogs
+  string catalogName = 1;
+  // The identification of the file on the server that should be restored
+  GrpcUuid fileId = 2;
+}
+
+// Response to a catalog restore request.
+message GrpcRestoreCatalogResponse {
+  // returns the number of bytes read from the backup file
+  int64 read = 1;
+  // the task that is used to restore the catalog and getting its progress
+  GrpcTaskStatus task = 2;
+}
+
+// Request to list task statuses in paginated form.
+message GrpcTaskStatusesRequest {
+  // Page number of the task statuses to be listed.
+  int32 pageNumber = 1;
+  // Number of task statuses per page.
+  int32 pageSize = 2;
+  // Optional taskType of the listed task, passing non-null value
+  // in this argument filters the returned status to only those that are related to the tasks of specified type
+  repeated google.protobuf.StringValue taskType = 3;
+  // Optional set of simplified task states, passing list of enums in this argument
+  // filters the returned statuses to only those that match this simplified status
+  repeated GrpcTaskSimplifiedState simplifiedState = 4;
+}
+
+// Response to a task statuses request.
+message GrpcTaskStatusesResponse {
+  // The size of the page.
+  int32 pageSize = 1;
+  // The number of the page.
+  int32 pageNumber = 2;
+  // Collection of task statuses.
+  repeated GrpcTaskStatus taskStatus = 3;
+  // Total number of task statuses.
+  int32 totalNumberOfRecords = 4;
+}
+
+// Request to get multiple task statuses.
+message GrpcSpecifiedTaskStatusesRequest {
+  // set of task ids to be listed
+  repeated GrpcUuid taskIds = 1;
+}
+
+// Response to a multiple task statuses request.
+message GrpcSpecifiedTaskStatusesResponse {
+  // Collection of task statuses.
+  repeated GrpcTaskStatus taskStatus = 1;
+}
+
+// Request to get single task status by id
+message GrpcTaskStatusRequest {
+  // Identification of the task
+  GrpcUuid taskId = 1;
+}
+
+// Response to a task status request.
+message GrpcTaskStatusResponse {
+  // Task status if found
+  GrpcTaskStatus taskStatus = 1;
+}
+
+// Request to get cancel task status by id
+message GrpcCancelTaskRequest {
+  // Identification of the task
+  GrpcUuid taskId = 1;
+}
+
+// Request to get cancel task status by id
+message GrpcCancelTaskResponse {
+  // true if the task was found and canceled
+  bool success = 1;
+}
+
+// Request to list files to fetch in paginated form.
+message GrpcFilesToFetchRequest {
+  // Page number of the task statuses to be listed.
+  int32 pageNumber = 1;
+  // Number of task statuses per page.
+  int32 pageSize = 2;
+  // Optional origin of the files (derived from taskType), passing non-null value
+  // in this argument filters the returned files to only those that are related to the specified origin
+  google.protobuf.StringValue origin = 3;
+}
+
+// Response to a get files to fetch request.
+message GrpcFilesToFetchResponse {
+  // The size of the page.
+  int32 pageSize = 1;
+  // The number of the page.
+  int32 pageNumber = 2;
+  // Collection of files to fetch.
+  repeated GrpcFile filesToFetch = 3;
+  // Total number of files to fetch.
+  int32 totalNumberOfRecords = 4;
+}
+
+// Request to list task statuses in paginated form.
+message GrpcFileToFetchRequest {
+  // Identification of the file
+  GrpcUuid fileId = 1;
+}
+
+// Response to a task statuses request.
+message GrpcFileToFetchResponse {
+  // File to fetch.
+  GrpcFile fileToFetch = 1;
+}
+
+// Request to get single file by id
+message GrpcFetchFileRequest {
+  // Identification of the file
+  GrpcUuid fileId = 1;
+}
+
+// Response to a task status request.
+message GrpcFetchFileResponse {
+  // chunk of the file content
+  bytes fileContents = 1;
+  // total size of the file
+  int64 totalSizeInBytes = 2;
+}
+
+// Request to list task statuses in paginated form.
+message GrpcDeleteFileToFetchRequest {
+  // Identification of the file
+  GrpcUuid fileId = 1;
+}
+
+// Response to a task statuses request.
+message GrpcDeleteFileToFetchResponse {
+  // true if the file was found and deleted
+  bool success = 1;
+}
+
+// Single reserved keyword
+message GrpcReservedKeyword {
+  // Type of the keyword
+  GrpcClassifierType classifierType = 1;
+  // Reserved keyword
+  string classifier = 2;
+  // List of words that are part of the keyword
+  repeated string words = 3;
+}
+
+// Response that returns information about reserved keywords.
+message GrpcReservedKeywordsResponse {
+  // List of reserved keywords
+  repeated GrpcReservedKeyword keywords = 1;
+}
+
+// This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
+// a way to create sessions and catalogs, and to update the catalog.
+service EvitaManagementService {
+  // Procedure used to obtain server status.
+  rpc ServerStatus(google.protobuf.Empty) returns (GrpcEvitaServerStatusResponse);
+  // Procedure used to obtain server configuration.
+  rpc GetConfiguration(google.protobuf.Empty) returns (GrpcEvitaConfigurationResponse);
+  // Procedure used to obtain catalog statistics.
+  rpc GetCatalogStatistics(google.protobuf.Empty) returns (GrpcEvitaCatalogStatisticsResponse);
+  // Procedure used to restore a catalog from backup.
+  rpc RestoreCatalog(stream GrpcRestoreCatalogRequest) returns (GrpcRestoreCatalogResponse);
+  // Procedure used to restore a catalog from backup (unary version for gRPC/web).
+  rpc RestoreCatalogUnary(GrpcRestoreCatalogUnaryRequest) returns (GrpcRestoreCatalogResponse);
+  // Procedure used to restore a catalog from backup.
+  rpc RestoreCatalogFromServerFile(GrpcRestoreCatalogFromServerFileRequest) returns (GrpcRestoreCatalogResponse);
+  // Procedure used to get listing of task statuses.
+  rpc ListTaskStatuses(GrpcTaskStatusesRequest) returns (GrpcTaskStatusesResponse);
+  // Procedure used to get detail of particular task status.
+  rpc GetTaskStatus(GrpcTaskStatusRequest) returns (GrpcTaskStatusResponse);
+  // Procedure used to get multiple details of particular task statuses.
+  rpc GetTaskStatuses(GrpcSpecifiedTaskStatusesRequest) returns (GrpcSpecifiedTaskStatusesResponse);
+  // Procedure used to cancel queued or running task.
+  rpc CancelTask(GrpcCancelTaskRequest) returns (GrpcCancelTaskResponse);
+  // Procedure used to get listing of files available for fetching.
+  rpc ListFilesToFetch(GrpcFilesToFetchRequest) returns (GrpcFilesToFetchResponse);
+  // Procedure used to get single file by its id available for fetching.
+  rpc GetFileToFetch(GrpcFileToFetchRequest) returns (GrpcFileToFetchResponse);
+  // Procedure used to get file contents
+  rpc FetchFile(GrpcFetchFileRequest) returns (stream GrpcFetchFileResponse);
+  // Procedure used to delete file contents
+  rpc DeleteFile(GrpcDeleteFileToFetchRequest) returns (GrpcDeleteFileToFetchResponse);
+  // List reserved keywords
+  rpc ListReservedKeywords(google.protobuf.Empty) returns (GrpcReservedKeywordsResponse);
+
+}

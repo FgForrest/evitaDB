@@ -31,7 +31,6 @@ import io.evitadb.utils.Assert;
 import okhttp3.MediaType;
 import okhttp3.Request;
 import okhttp3.RequestBody;
-import okhttp3.Response;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -44,8 +43,20 @@ import java.util.Optional;
  */
 public class GraphQLClient extends ApiClient {
 
-	public GraphQLClient(@Nonnull String url, boolean validateSsl, boolean useConnectionPool) {
-		super(url, validateSsl, useConnectionPool);
+	private static void validateResponseBody(@Nonnull String document, @Nonnull JsonNode responseBody) {
+		try {
+			final JsonNode errors = responseBody.get("errors");
+			Assert.isPremiseValid(
+				errors == null || errors.isNull() || errors.isEmpty(),
+				"Call to GraphQL server with document: " + document + " ended with errors: " + objectMapper.writeValueAsString(errors)
+			);
+		} catch (JsonProcessingException e) {
+			throw new GenericEvitaInternalError("Failed to validate GraphQL response:" + e.getMessage(), e);
+		}
+	}
+
+	public GraphQLClient(@Nonnull String url, boolean validateSsl, boolean useConnectionPool, int numberOfRetries) {
+		super(url, validateSsl, useConnectionPool, numberOfRetries);
 	}
 
 	@Nonnull
@@ -55,57 +66,36 @@ public class GraphQLClient extends ApiClient {
 
 	@Nonnull
 	public Optional<JsonNode> call(@Nonnull String instancePath, @Nonnull String document) {
-		final Request request;
+		final Request request = createRequest(instancePath, document);
+
+		return getResponseBodyString(request)
+			.map(it -> {
+				final JsonNode responseBody = readResponseBody(it);
+				validateResponseBody(it, responseBody);
+				return responseBody;
+			})
+			.filter(it -> {
+				final JsonNode data = it.get("data");
+				return data != null && !data.isNull();
+			});
+	}
+
+	protected String createRequestBody(@Nonnull String document) {
 		try {
-			request = createRequest(instancePath, document);
+			final GraphQLRequest requestBody = new GraphQLRequest(document, null, null, null);
+			return objectMapper.writeValueAsString(requestBody);
 		} catch (IOException e) {
-			throw new GenericEvitaInternalError("Unexpected error.", e);
-		}
-
-		try (Response response = client.newCall(request).execute()) {
-			final int responseCode = response.code();
-			if (responseCode == 200) {
-				final JsonNode responseBody = readResponseBody(response.body());
-				validateResponseBody(document, responseBody);
-
-				final JsonNode data = responseBody.get("data");
-				if (data != null && !data.isNull()) {
-					return Optional.empty();
-				}
-
-				return Optional.of(responseBody);
-			}
-			if (responseCode >= 400 && responseCode <= 499 && responseCode != 404) {
-				final String errorResponseString = response.body() != null ? response.body().string() : "no response body";
-				throw new GenericEvitaInternalError("Call to GraphQL instance `" + this.url + instancePath + "` ended with status " + responseCode + ", query was:\n" + document + "\n and response was: \n" + errorResponseString);
-			}
-
-			throw new GenericEvitaInternalError("Call to GraphQL server ended with status " + responseCode + ", query was:\n" + document);
-		} catch (IOException e) {
-			throw new GenericEvitaInternalError("Unexpected error.", e);
+			throw new GenericEvitaInternalError("Failed to create GraphQL request:" + e.getMessage(), e);
 		}
 	}
 
 	@Nonnull
-	private Request createRequest(@Nonnull String instancePath, @Nonnull String document) throws IOException {
+	private Request createRequest(@Nonnull String instancePath, @Nonnull String document) {
 		return new Request.Builder()
 			.url(this.url + instancePath)
 			.addHeader("Accept", "application/graphql-response+json")
 			.addHeader("Content-Type", "application/json")
 			.method("POST", RequestBody.create(createRequestBody(document), MediaType.parse("application/json")))
 			.build();
-	}
-
-	protected String createRequestBody(@Nonnull String document) throws IOException {
-		final GraphQLRequest requestBody = new GraphQLRequest(document, null, null, null);
-		return objectMapper.writeValueAsString(requestBody);
-	}
-
-	private static void validateResponseBody(@Nonnull String document, @Nonnull JsonNode responseBody) throws JsonProcessingException {
-		final JsonNode errors = responseBody.get("errors");
-		Assert.isPremiseValid(
-			errors == null || errors.isNull() || errors.isEmpty(),
-			"Call to GraphQL server with document: " + document + " ended with errors: " + objectMapper.writeValueAsString(errors)
-		);
 	}
 }

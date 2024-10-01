@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,9 +36,11 @@ import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.protobuf.StatusProto;
+import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.CompletionException;
 
 /**
  * Centralized interceptor that handles all kinds of possible exceptions that could be emitted by evitaDB for input
@@ -50,6 +52,64 @@ import javax.annotation.Nonnull;
  */
 @Slf4j
 public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
+
+	/**
+	 * Method sends error to the client side using provided response observer the same way as it would if the exception
+	 * would be thrown directly in the service implementation and handled by the interceptor.
+	 *
+	 * @param exception exception that occurred
+	 * @param responseObserver response observer to send the error to
+	 */
+	public static void sendErrorToClient(@Nonnull Throwable exception, @Nonnull StreamObserver<?> responseObserver) {
+		final com.google.rpc.Status errorStatus = createErrorStatus(exception);
+		final StatusRuntimeException statusRuntimeException = StatusProto.toStatusRuntimeException(errorStatus);
+		final Metadata newHeaders = statusRuntimeException.getTrailers();
+		final Status newStatus = Status.fromThrowable(statusRuntimeException);
+		responseObserver.onError(newStatus.asRuntimeException(newHeaders));
+	}
+
+	/**
+	 * Method creates unified error status for the client side.
+	 * @param exception exception that occurred
+	 * @return unified error status
+	 */
+	@Nonnull
+	private static com.google.rpc.Status createErrorStatus(@Nonnull Throwable exception) {
+		final com.google.rpc.Status rpcStatus;
+
+		log.error("Exception occurred during processing of gRPC call: " + exception.getMessage(), exception);
+
+		if (exception instanceof CompletionException completionException) {
+			return createErrorStatus(completionException.getCause());
+		} else if (exception instanceof EvitaInvalidUsageException invalidUsageException) {
+			final ErrorInfo errorInfo = ErrorInfo.newBuilder()
+				.setReason(invalidUsageException.getErrorCode() + ": " + invalidUsageException.getPublicMessage())
+				.setDomain(invalidUsageException.getClass().getSimpleName())
+				.build();
+
+			rpcStatus = com.google.rpc.Status.newBuilder()
+				.setCode(Code.INVALID_ARGUMENT.value())
+				.setMessage(invalidUsageException.getErrorCode() + ": " + invalidUsageException.getPublicMessage())
+				.addDetails(Any.pack(errorInfo))
+				.build();
+		} else if (exception instanceof EvitaInternalError internalError) {
+			final ErrorInfo errorInfo = ErrorInfo.newBuilder()
+				.setReason(internalError.getErrorCode() + ": " + internalError.getPublicMessage())
+				.setDomain(internalError.getClass().getSimpleName())
+				.build();
+
+			rpcStatus = com.google.rpc.Status.newBuilder()
+				.setCode(Code.INTERNAL.value())
+				.setMessage(internalError.getErrorCode() + ": " + internalError.getPublicMessage())
+				.addDetails(Any.pack(errorInfo))
+				.build();
+		} else {
+			rpcStatus = com.google.rpc.Status.newBuilder()
+				.setCode(Code.INTERNAL.value())
+				.build();
+		}
+		return rpcStatus;
+	}
 
 	@Override
 	public <T, R> ServerCall.Listener<T> interceptCall(
@@ -80,40 +140,14 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 
 		private void handleException(@Nonnull RuntimeException exception, @Nonnull ServerCall<T, R> serverCall) {
 			if (serverCall.isReady()) {
-				final com.google.rpc.Status rpcStatus;
-				if (exception instanceof EvitaInvalidUsageException invalidUsageException) {
-					final ErrorInfo errorInfo = ErrorInfo.newBuilder()
-						.setReason(invalidUsageException.getErrorCode() + ": " + invalidUsageException.getPublicMessage())
-						.setDomain(invalidUsageException.getClass().getSimpleName())
-						.build();
-
-					rpcStatus = com.google.rpc.Status.newBuilder()
-						.setCode(Code.INVALID_ARGUMENT.value())
-						.setMessage(invalidUsageException.getErrorCode() + ": " + invalidUsageException.getPublicMessage())
-						.addDetails(Any.pack(errorInfo))
-						.build();
-				} else if (exception instanceof EvitaInternalError internalError) {
-					final ErrorInfo errorInfo = ErrorInfo.newBuilder()
-						.setReason(internalError.getErrorCode() + ": " + internalError.getPublicMessage())
-						.setDomain(internalError.getClass().getSimpleName())
-						.build();
-
-					rpcStatus = com.google.rpc.Status.newBuilder()
-						.setCode(Code.INTERNAL.value())
-						.setMessage(internalError.getErrorCode() + ": " + internalError.getPublicMessage())
-						.addDetails(Any.pack(errorInfo))
-						.build();
-				} else {
-					rpcStatus = com.google.rpc.Status.newBuilder()
-						.setCode(Code.INTERNAL.value())
-						.build();
-				}
+				final com.google.rpc.Status rpcStatus = createErrorStatus(exception);
 
 				final StatusRuntimeException statusRuntimeException = StatusProto.toStatusRuntimeException(rpcStatus);
-				final Status newStatus = Status.fromThrowable(statusRuntimeException);
 				final Metadata newHeaders = statusRuntimeException.getTrailers();
+				final Status newStatus = Status.fromThrowable(statusRuntimeException);
 				serverCall.close(newStatus, newHeaders);
 			}
 		}
 	}
+
 }

@@ -28,16 +28,17 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 
 /**
- * Described persisted version of the catalog we can go back to - it represents a point in time for the time machine
- * mechanism.
+ * This record represents the particular version of the catalog and the date / time when such version was introduced to
+ * the system. Introduction of the non-transactional catalog version is the moment when the catalog version was updated
+ * for the last time.
  *
- * @param version   version of the catalog
- * @param timestamp timestamp when particular version was created
+ * @param version      the version of the catalog
+ * @param introducedAt the date / time when the version was introduced to the system
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record CatalogVersion(
 	long version,
-	@Nonnull OffsetDateTime timestamp
+	@Nonnull OffsetDateTime introducedAt
 ) implements Serializable {
 }

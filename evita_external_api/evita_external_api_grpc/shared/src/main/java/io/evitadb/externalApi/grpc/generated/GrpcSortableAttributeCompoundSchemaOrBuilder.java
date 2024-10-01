@@ -123,7 +123,7 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement>
       getAttributeElementsList();
   /**
    * <pre>
@@ -151,7 +151,7 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>
       getAttributeElementsOrBuilderList();
   /**
    * <pre>
@@ -163,4 +163,58 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder getAttributeElementsOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Contains attribute compound name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+      getNameVariantList();
+  /**
+   * <pre>
+   * Contains attribute compound name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariant(int index);
+  /**
+   * <pre>
+   * Contains attribute compound name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
+   */
+  int getNameVariantCount();
+  /**
+   * <pre>
+   * Contains attribute compound name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getNameVariantOrBuilderList();
+  /**
+   * <pre>
+   * Contains attribute compound name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Contains true if the attribute was inherited from the original object via reflected reference relation
+   * </pre>
+   *
+   * <code>bool inherited = 6;</code>
+   * @return The inherited.
+   */
+  boolean getInherited();
 }

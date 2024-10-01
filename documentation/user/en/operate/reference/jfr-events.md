@@ -1,5 +1,12 @@
 ### Java Flight Recorder (JFR) Events
 
+#### API
+
+<dl>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/event/ReadinessEvent.java</SourceClass> Readiness probe</dt>
+  <dd>Event that is fired when a readiness probe is either executed by client or invoked on the server side.</dd>
+</dl>
+
 #### API / GraphQL / Instance / Schema
 
 <dl>
@@ -10,17 +17,19 @@
 #### API / gRPC
 
 <dl>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/grpc/metric/event/ProcedureCalledEvent.java</SourceClass> gRPC procedure called</dt>
-  <dd>Event that is fired when a gRPC procedure is called.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/grpc/metric/event/EvitaProcedureCalledEvent.java</SourceClass> gRPC evitaDB procedure called</dt>
+  <dd>Event that is fired when evitaDB gRPC procedure is called.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/externalApi/grpc/metric/event/SessionProcedureCalledEvent.java</SourceClass> gRPC session procedure called</dt>
+  <dd>Event that is fired when a session gRPC procedure is called.</dd>
 </dl>
 
 #### Cache
 
 <dl>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cache/AnteroomRecordStatisticsUpdatedEvent.java</SourceClass> Anteroom statistics updated</dt>
-  <dd>Event that is fired in regular intervals to update statistics about records waiting in anteroom.</dd>
+  <dd>Event that is fired periodically to update statistics about records waiting in the anteroom.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cache/AnteroomWastedEvent.java</SourceClass> Anteroom wasted</dt>
-  <dd>Event that is fired when an entire anteroom contents were thrown away.</dd>
+  <dd>Event that is fired when the entire contents of an anteroom have been discarded.</dd>
 </dl>
 
 #### ExternalAPI / GraphQL / Request
@@ -47,11 +56,11 @@
 #### Query
 
 <dl>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/query/EntityEnrichEvent.java</SourceClass> Entity fetched</dt>
-  <dd>Event that is fired when an entity is enriched directly.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/query/EntityEnrichEvent.java</SourceClass> Entity enriched</dt>
+  <dd>Event fired when an entity is directly enriched.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/query/EntityFetchEvent.java</SourceClass> Entity fetched</dt>
-  <dd>Event that is fired when an entity is fetched directly.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/query/FinishedEvent.java</SourceClass> Catalog finished</dt>
+  <dd>Event fired when an entity is directly fetched.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/query/FinishedEvent.java</SourceClass> Query finished</dt>
   <dd>Event that is fired when a query is finished.</dd>
 </dl>
 
@@ -61,7 +70,7 @@
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/session/ClosedEvent.java</SourceClass> Session closed</dt>
   <dd>Event that is fired when a session is closed.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/session/KilledEvent.java</SourceClass> Session killed</dt>
-  <dd>Event that is fired when a session is killed due to timeout.</dd>
+  <dd>Event that is fired when a session is terminated due to a timeout.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/session/OpenedEvent.java</SourceClass> Session opened</dt>
   <dd>Event that is fired when a session is started.</dd>
 </dl>
@@ -74,17 +83,17 @@
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/DataFileCompactEvent.java</SourceClass> OffsetIndex compaction</dt>
   <dd>Event that is fired when an OffsetIndex file is compacted.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/EvitaDBCompositionChangedEvent.java</SourceClass> Evita composition changed</dt>
-  <dd>Event that is fired when evitaDB composition changes.</dd>
+  <dd>Event that is fired when the evitaDB composition changes.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/ObservableOutputChangeEvent.java</SourceClass> ObservableOutput buffers</dt>
-  <dd>Event that is fired when an ObservableOutput buffer count is changed.</dd>
+  <dd>Event that is fired when an ObservableOutput buffer count changes.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/OffsetIndexFlushEvent.java</SourceClass> OffsetIndex flushed to disk</dt>
   <dd>Event that is fired when an OffsetIndex file is flushed.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/OffsetIndexHistoryKeptEvent.java</SourceClass> OffsetIndex last record kept</dt>
-  <dd>Event that is fired when history data kept in memory change.</dd>
+  <dd>Event fired when history data stored in memory changes.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/OffsetIndexNonFlushedEvent.java</SourceClass> OffsetIndex non-flushed records</dt>
-  <dd>Event that is fired when non flushed record count changes in offset index.</dd>
+  <dd>Event fired when the number of unflushed records in the offset index changes.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/OffsetIndexRecordTypeCountChangedEvent.java</SourceClass> OffsetIndex record type count changed</dt>
-  <dd>Event that is fired when number of records of a particular type in OffsetIndex file changes.</dd>
+  <dd>Event that is raised when the number of records of a certain type in the OffsetIndex file changes.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/ReadOnlyHandleClosedEvent.java</SourceClass> File read handles closed</dt>
   <dd>Event that is fired when a file read handle is closed.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/ReadOnlyHandleOpenedEvent.java</SourceClass> File read handles opened</dt>
@@ -95,46 +104,46 @@
 
 <dl>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/BackgroundTaskFinishedEvent.java</SourceClass> Background task finished</dt>
-  <dd>Event that is fired when a background task is finished.</dd>
+  <dd>Event that is fired when a background task is completed.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/BackgroundTaskRejectedEvent.java</SourceClass> Background task rejected</dt>
-  <dd>Event that is fired when a background task is rejected due to full queues.</dd>
+  <dd>Event raised when a background task is rejected due to full queues.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/BackgroundTaskStartedEvent.java</SourceClass> Background task started</dt>
   <dd>Event that is fired when a background task is started.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/BackgroundTaskTimedOutEvent.java</SourceClass> Background task timed out</dt>
-  <dd>Event that is fired when a background task was timed out and was canceled.</dd>
+  <dd>Event that is raised when a background task has timed out and has been canceled.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/EvitaStartedEvent.java</SourceClass> Evita started</dt>
-  <dd>Event that is fired when evitaDB instance is started.</dd>
+  <dd>Event that is triggered when the evitaDB instance is started.</dd>
 </dl>
 
 #### Transaction
 
 <dl>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/CatalogGoesLiveEvent.java</SourceClass> Catalog goes live</dt>
-  <dd>Event that is fired when a catalog goes live (transactional).</dd>
+  <dd>Event that is fired when a catalog goes live (becomes transactional).</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/IsolatedWalFileClosedEvent.java</SourceClass> Isolated WAL file closed</dt>
-  <dd>Event that is fired when a file for isolated WAL storage is closed and deleted.</dd>
+  <dd>Event fired when a file is closed and deleted for isolated WAL storage.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/IsolatedWalFileOpenedEvent.java</SourceClass> Isolated WAL file opened</dt>
-  <dd>Event that is fired when new file is opened for isolated WAL storage.</dd>
+  <dd>Event fired when a new file is opened for isolated WAL storage.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/NewCatalogVersionPropagatedEvent.java</SourceClass> New catalog version propagated</dt>
-  <dd>Event that is fired when a new catalog version is propagated shared view.</dd>
+  <dd>Event that is fired when a new catalog version is propagated to a shared view.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/OffHeapMemoryAllocationChangeEvent.java</SourceClass> Off-heap memory allocation change</dt>
-  <dd>Event that is fired when off-heap memory allocation changes.</dd>
+  <dd>Event that is fired when the off-heap memory allocation changes.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionAcceptedEvent.java</SourceClass> Transaction accepted</dt>
-  <dd>Event that is fired when a transaction passed conflict resolution stage.</dd>
+  <dd>Event fired when a transaction passes the conflict resolution phase.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionAppendedToWalEvent.java</SourceClass> Transaction appended to WAL</dt>
-  <dd>Event that is fired when a transaction passed conflict resolution stage.</dd>
+  <dd>Event fired when a transaction passes the conflict resolution phase.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionFinishedEvent.java</SourceClass> Transaction finished</dt>
-  <dd>Event that is fired when a transaction is finished either by commit or rollback and corresponding session is closed. This also includes waiting for transaction reaching requested stage of processing.</dd>
+  <dd>Event fired when a transaction is completed, either by commit or rollback, and the corresponding session is closed. This includes waiting for the transaction to reach the desired state of processing.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionIncorporatedToTrunkEvent.java</SourceClass> Transaction incorporated to trunk</dt>
-  <dd>Event that is fired when a transaction was incorporated into a shared data structures.</dd>
+  <dd>Event fired when a transaction is included in a shared data structure.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionProcessedEvent.java</SourceClass> Transaction processed and visible</dt>
-  <dd>Event that is fired when a transaction reached the shared view.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionQueuedEvent.java</SourceClass> Transaction waiting in queue</dt>
-  <dd>Event that is fired in each transaction processing stage to reflect the time transaction waited in the queue before it was picked up for processing.</dd>
+  <dd>Event fired when a transaction reaches the shared view.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionQueuedEvent.java</SourceClass> Transaction waiting in a queue</dt>
+  <dd>Event fired at each stage of transaction processing to indicate the amount of time the transaction waited in the queue before being picked up for processing.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/TransactionStartedEvent.java</SourceClass> Transaction started</dt>
   <dd>Event that is fired when a transaction is started.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/WalCacheSizeChangedEvent.java</SourceClass> WAL cache size changed</dt>
-  <dd>Event that is fired when a shared WAL location cache size is changed.</dd>
+  <dd>Event fired when the cache size of a shared WAL location is changed.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/WalRotationEvent.java</SourceClass> WAL rotated</dt>
   <dd>Event that is fired when a shared WAL is rotated.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/transaction/WalStatisticsEvent.java</SourceClass> WAL statistics</dt>

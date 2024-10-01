@@ -48,21 +48,26 @@ import java.time.OffsetDateTime;
 @Label("Session closed")
 @Getter
 public class ClosedEvent extends AbstractSessionEvent {
+
 	@Label("Number of queries performed in session")
+	@Description("The number of requests made during this session.")
 	@HistogramSettings(unit = "")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int queries;
 
 	@Label("Number of mutation calls performed in session")
+	@Description("The number of mutations made during this session.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(unit = "")
 	private int mutations;
 
 	@Label("Oldest session timestamp")
+	@Description("The timestamp of the oldest session at the time that session was closed.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long oldestSessionTimestampSeconds;
 
 	@Label("Number of still active sessions")
+	@Description("The number of still active sessions at the time this session was closed.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long activeSessions;
 

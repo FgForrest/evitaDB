@@ -138,6 +138,15 @@ class SchemaSerializationServiceTest {
 				Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs.faceted()
 			)
+			/* we can create reflected references to other entities */
+			.withReflectedReferenceToEntity(
+				"referencedInCategories",
+				Entities.CATEGORY,
+				"productsInCategory",
+				whichIs -> {
+					whichIs.withAttributesInheritedExcept("categoryPriority");
+				}
+			)
 			/* finally apply schema changes */
 			.toInstance();
 	}

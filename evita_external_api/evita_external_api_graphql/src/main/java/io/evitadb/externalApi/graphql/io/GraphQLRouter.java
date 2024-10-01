@@ -24,24 +24,22 @@
 package io.evitadb.externalApi.graphql.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.GraphQL;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.http.AdditionalHeaders;
+import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsFilter;
-import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.evitadb.externalApi.utils.UriPath;
+import io.evitadb.externalApi.utils.path.PathHandlingService;
+import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils.Property;
-import io.undertow.Handlers;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.RoutingHandler;
-import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.server.handlers.PathHandler;
-import io.undertow.util.Headers;
-import io.undertow.util.Methods;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -54,12 +52,12 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * Custom Undertow router for GraphQL APIs.
+ * Custom HTTP router for GraphQL APIs.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-public class GraphQLRouter implements HttpHandler {
+public class GraphQLRouter implements HttpService {
 
 	public static final String SYSTEM_PREFIX = "system";
 	private static final UriPath SYSTEM_PATH = UriPath.of("/", SYSTEM_PREFIX);
@@ -79,13 +77,14 @@ public class GraphQLRouter implements HttpHandler {
 	@Nonnull private final Evita evita;
 	@Nonnull private final GraphQLConfig graphQLConfig;
 
-	private final PathHandler delegateRouter = Handlers.path();
+	private final PathHandlingService delegateRouter = new PathHandlingService();
 	private boolean systemApiRegistered = false;
 	@Nonnull private final Map<String, RegisteredCatalog> registeredCatalogs = createConcurrentHashMap(20);
 
+	@Nonnull
 	@Override
-	public void handleRequest(HttpServerExchange httpServerExchange) throws Exception {
-		delegateRouter.handleRequest(httpServerExchange);
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+		return delegateRouter.serve(ctx, req);
 	}
 
 	/**
@@ -93,11 +92,11 @@ public class GraphQLRouter implements HttpHandler {
 	 */
 	public void registerSystemApi(@Nonnull GraphQL systemApi) {
 		Assert.isPremiseValid(
-			!systemApiRegistered,
+			!this.systemApiRegistered,
 			() -> new GraphQLInternalError("System API has been already registered.")
 		);
 
-		final RoutingHandler apiRouter = Handlers.routing();
+		final RoutingHandlerService apiRouter = new RoutingHandlerService();
 		registerApi(
 			apiRouter,
 			new RegisteredApi(
@@ -116,7 +115,7 @@ public class GraphQLRouter implements HttpHandler {
 	 */
 	public void registerCatalogApi(@Nonnull String catalogName, @Nonnull GraphQLInstanceType instanceType, @Nonnull GraphQL api) {
 		final RegisteredCatalog registeredCatalog = registeredCatalogs.computeIfAbsent(catalogName, k -> {
-			final RoutingHandler apiRouter = Handlers.routing();
+			final RoutingHandlerService apiRouter = new RoutingHandlerService();
 			delegateRouter.addPrefixPath(constructCatalogPath(catalogName).toString(), apiRouter);
 			return new RegisteredCatalog(apiRouter);
 		});
@@ -155,55 +154,38 @@ public class GraphQLRouter implements HttpHandler {
 	/**
 	 * Registers all needed endpoints for a single API into a passed router.
 	 */
-	private void registerApi(@Nonnull RoutingHandler apiRouter, @Nonnull RegisteredApi registeredApi) {
+	private void registerApi(@Nonnull RoutingHandlerService apiRouter, @Nonnull RegisteredApi registeredApi) {
+		final CorsEndpoint corsEndpoint = new CorsEndpoint(this.graphQLConfig);
+		corsEndpoint.addMetadata(Set.of(HttpMethod.GET, HttpMethod.POST), true, true);
+
 		// actual GraphQL query handler
 		apiRouter.add(
-			Methods.POST,
+			HttpMethod.POST,
 			registeredApi.path().toString(),
-			new BlockingHandler(
-				new CorsFilter(
-					new GraphQLExceptionHandler(
-						objectMapper,
-						new GraphQLHandler(objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
-					),
-					graphQLConfig.getAllowedOrigins()
-				)
+			new CorsFilter(
+				new GraphQLHandler(this.evita, this.objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
+					.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service)),
+				graphQLConfig.getAllowedOrigins()
 			)
 		);
 		// GraphQL schema handler
 		apiRouter.add(
-			Methods.GET,
+			HttpMethod.GET,
 			registeredApi.path().toString(),
-			new BlockingHandler(
-				new CorsFilter(
-					new GraphQLExceptionHandler(
-						objectMapper,
-						new GraphQLSchemaHandler(registeredApi.graphQLReference())
-					),
-					graphQLConfig.getAllowedOrigins()
+			new CorsFilter(
+				new GraphQLSchemaHandler(
+					this.evita,
+					registeredApi.graphQLReference()
 				)
+					.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service)),
+				graphQLConfig.getAllowedOrigins()
 			)
 		);
 		// CORS pre-flight handler for the GraphQL handler
 		apiRouter.add(
-			Methods.OPTIONS,
+			HttpMethod.OPTIONS,
 			registeredApi.path().toString(),
-			new BlockingHandler(
-				new CorsFilter(
-					new CorsPreflightHandler(
-						graphQLConfig.getAllowedOrigins(),
-						Set.of(Methods.GET_STRING, Methods.POST_STRING),
-						Set.of(
-							Headers.CONTENT_TYPE_STRING,
-							Headers.ACCEPT_STRING,
-							// default headers for tracing that are allowed on every endpoint by default
-							AdditionalHeaders.OPENTELEMETRY_TRACEPARENT_STRING,
-							AdditionalHeaders.EVITADB_CLIENTID_HEADER_STRING
-						)
-					),
-					graphQLConfig.getAllowedOrigins()
-				)
-			)
+			corsEndpoint.toHandler()
 		);
 	}
 
@@ -211,17 +193,17 @@ public class GraphQLRouter implements HttpHandler {
 	 * Unified way of building catalog's URL path from its name.
 	 */
 	@Nonnull
-	private UriPath constructCatalogPath(@Nonnull String catalogName) {
+	private static UriPath constructCatalogPath(@Nonnull String catalogName) {
 		return UriPath.of("/", catalogName);
 	}
 
 	@RequiredArgsConstructor
-	private class RegisteredCatalog {
+	private static class RegisteredCatalog {
 
 		private static final Set<GraphQLInstanceType> ALLOWED_API_INSTANCES = Set.of(GraphQLInstanceType.DATA, GraphQLInstanceType.SCHEMA);
 
 		@Getter
-		private final RoutingHandler apiRouter;
+		private final RoutingHandlerService apiRouter;
 		private final Map<GraphQLInstanceType, RegisteredApi> apis = createHashMap(2);
 
 		public void setApi(@Nonnull GraphQLInstanceType instanceType, @Nonnull RegisteredApi api) {
@@ -244,22 +226,6 @@ public class GraphQLRouter implements HttpHandler {
 			);
 			return api;
 		}
-//
-//		public void setDataApi(@Nonnull RegisteredApi dataApi) {
-//			Assert.isPremiseValid(
-//				dataApi == null,
-//				() -> new GraphQLInternalError("Data API has been already registered.")
-//			);
-//			this.dataApi = dataApi;
-//		}
-//
-//		public void setSchemaApi(@Nonnull RegisteredApi schemaApi) {
-//			Assert.isPremiseValid(
-//				schemaApi == null,
-//				() -> new GraphQLInternalError("Schema API has been already registered.")
-//			);
-//			this.schemaApi = schemaApi;
-//		}
 	}
 
 	private record RegisteredApi(@Nonnull GraphQLInstanceType instanceType,

@@ -37,6 +37,7 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.StringUtils;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -65,6 +66,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Disabled("This test is not meant to be run automatically, it's a one-time script")
 public class JavaDocCopy implements EvitaTestSupport {
 	/**
 	 * Field containing the relative directory paths to the folders with {@link Constraint} classes.

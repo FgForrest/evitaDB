@@ -39,12 +39,17 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".Queued")
-@Description("Event that is fired in each transaction processing stage to reflect the time transaction waited in the queue before it was picked up for processing.")
-@Label("Transaction waiting in queue")
-@ExportDurationMetric(label = "Transaction waiting time in queue.")
+@Label("Transaction waiting in a queue")
+@Description("Event fired at each stage of transaction processing to indicate the amount of time the transaction waited in the queue before being picked up for processing.")
+@ExportDurationMetric(label = "Transaction wait time in a queue.")
 @Getter
 public class TransactionQueuedEvent extends AbstractTransactionEvent {
+
+	/**
+	 * The name of the stage the transaction is waiting for.
+	 */
 	@Label("Transaction stage")
+	@Description("The name of the stage the transaction is waiting for.")
 	@ExportMetricLabel
 	private final String stage;
 

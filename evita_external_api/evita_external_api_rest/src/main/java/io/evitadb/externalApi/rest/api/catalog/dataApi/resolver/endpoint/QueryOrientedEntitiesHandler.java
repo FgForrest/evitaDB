@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
@@ -41,7 +42,6 @@ import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.ArrayUtils;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -51,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
@@ -87,8 +88,8 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.POST_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.POST);
 	}
 
 	@Nonnull
@@ -104,30 +105,31 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	}
 
 	@Nonnull
-	protected Query resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
+	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		return parseRequestBody(executionContext, QueryEntityRequestDto.class)
+			.thenApply(requestData -> {
+				requestExecutedEvent.finishInputDeserialization();
 
-		final QueryEntityRequestDto requestData = parseRequestBody(executionContext, QueryEntityRequestDto.class);
-		requestExecutedEvent.finishInputDeserialization();
+				return requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+					final FilterBy filterBy = requestData.getFilterBy()
+						.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
+						.orElse(null);
+					final OrderBy orderBy = requestData.getOrderBy()
+						.map(container -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
+						.orElse(null);
+					final Require require = requestData.getRequire()
+						.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
+						.orElse(null);
 
-		return requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
-			final FilterBy filterBy = requestData.getFilterBy()
-				.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
-				.orElse(null);
-			final OrderBy orderBy = requestData.getOrderBy()
-				.map(container -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
-				.orElse(null);
-			final Require require = requestData.getRequire()
-				.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
-				.orElse(null);
-
-			return query(
-				collection(restHandlingContext.getEntityType()),
-				addLocaleIntoFilterByWhenUrlPathLocalized(executionContext, filterBy),
-				orderBy,
-				require
-			);
-		});
+					return query(
+						collection(restHandlingContext.getEntityType()),
+						addLocaleIntoFilterByWhenUrlPathLocalized(executionContext, filterBy),
+						orderBy,
+						require
+					);
+				});
+			});
 	}
 
 	@Nonnull

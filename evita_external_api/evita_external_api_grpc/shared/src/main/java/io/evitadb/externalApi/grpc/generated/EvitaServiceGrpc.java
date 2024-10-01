@@ -41,34 +41,34 @@ public final class EvitaServiceGrpc {
 
   // Static method descriptors that strictly reflect the proto.
   private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
-      io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> getServerStatusMethod;
+      io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> getIsReadyMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "ServerStatus",
+      fullMethodName = SERVICE_NAME + '/' + "IsReady",
       requestType = com.google.protobuf.Empty.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcReadyResponse.class,
       methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
   public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
-      io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> getServerStatusMethod() {
-    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> getServerStatusMethod;
-    if ((getServerStatusMethod = EvitaServiceGrpc.getServerStatusMethod) == null) {
+      io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> getIsReadyMethod() {
+    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> getIsReadyMethod;
+    if ((getIsReadyMethod = EvitaServiceGrpc.getIsReadyMethod) == null) {
       synchronized (EvitaServiceGrpc.class) {
-        if ((getServerStatusMethod = EvitaServiceGrpc.getServerStatusMethod) == null) {
-          EvitaServiceGrpc.getServerStatusMethod = getServerStatusMethod =
-              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse>newBuilder()
+        if ((getIsReadyMethod = EvitaServiceGrpc.getIsReadyMethod) == null) {
+          EvitaServiceGrpc.getIsReadyMethod = getIsReadyMethod =
+              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcReadyResponse>newBuilder()
               .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ServerStatus"))
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "IsReady"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
                   com.google.protobuf.Empty.getDefaultInstance()))
               .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("ServerStatus"))
+                  io.evitadb.externalApi.grpc.generated.GrpcReadyResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("IsReady"))
               .build();
         }
       }
     }
-    return getServerStatusMethod;
+    return getIsReadyMethod;
   }
 
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest,
@@ -288,130 +288,6 @@ public final class EvitaServiceGrpc {
     return getDefineCatalogMethod;
   }
 
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> getRenameCatalogMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "RenameCatalog",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> getRenameCatalogMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> getRenameCatalogMethod;
-    if ((getRenameCatalogMethod = EvitaServiceGrpc.getRenameCatalogMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getRenameCatalogMethod = EvitaServiceGrpc.getRenameCatalogMethod) == null) {
-          EvitaServiceGrpc.getRenameCatalogMethod = getRenameCatalogMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RenameCatalog"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("RenameCatalog"))
-              .build();
-        }
-      }
-    }
-    return getRenameCatalogMethod;
-  }
-
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> getReplaceCatalogMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "ReplaceCatalog",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> getReplaceCatalogMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> getReplaceCatalogMethod;
-    if ((getReplaceCatalogMethod = EvitaServiceGrpc.getReplaceCatalogMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getReplaceCatalogMethod = EvitaServiceGrpc.getReplaceCatalogMethod) == null) {
-          EvitaServiceGrpc.getReplaceCatalogMethod = getReplaceCatalogMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ReplaceCatalog"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("ReplaceCatalog"))
-              .build();
-        }
-      }
-    }
-    return getReplaceCatalogMethod;
-  }
-
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "RestoreCatalog",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.CLIENT_STREAMING)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogMethod;
-    if ((getRestoreCatalogMethod = EvitaServiceGrpc.getRestoreCatalogMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getRestoreCatalogMethod = EvitaServiceGrpc.getRestoreCatalogMethod) == null) {
-          EvitaServiceGrpc.getRestoreCatalogMethod = getRestoreCatalogMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.CLIENT_STREAMING)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RestoreCatalog"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("RestoreCatalog"))
-              .build();
-        }
-      }
-    }
-    return getRestoreCatalogMethod;
-  }
-
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogFromServerFileMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "RestoreCatalogFromServerFile",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogFromServerFileMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogFromServerFileMethod;
-    if ((getRestoreCatalogFromServerFileMethod = EvitaServiceGrpc.getRestoreCatalogFromServerFileMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getRestoreCatalogFromServerFileMethod = EvitaServiceGrpc.getRestoreCatalogFromServerFileMethod) == null) {
-          EvitaServiceGrpc.getRestoreCatalogFromServerFileMethod = getRestoreCatalogFromServerFileMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RestoreCatalogFromServerFile"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("RestoreCatalogFromServerFile"))
-              .build();
-        }
-      }
-    }
-    return getRestoreCatalogFromServerFileMethod;
-  }
-
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest,
       io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse> getDeleteCatalogIfExistsMethod;
 
@@ -474,252 +350,66 @@ public final class EvitaServiceGrpc {
     return getUpdateMethod;
   }
 
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse> getListTaskStatusesMethod;
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> getRenameCatalogMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "ListTaskStatuses",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.class,
+      fullMethodName = SERVICE_NAME + '/' + "RenameCatalog",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse.class,
       methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse> getListTaskStatusesMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse> getListTaskStatusesMethod;
-    if ((getListTaskStatusesMethod = EvitaServiceGrpc.getListTaskStatusesMethod) == null) {
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> getRenameCatalogMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> getRenameCatalogMethod;
+    if ((getRenameCatalogMethod = EvitaServiceGrpc.getRenameCatalogMethod) == null) {
       synchronized (EvitaServiceGrpc.class) {
-        if ((getListTaskStatusesMethod = EvitaServiceGrpc.getListTaskStatusesMethod) == null) {
-          EvitaServiceGrpc.getListTaskStatusesMethod = getListTaskStatusesMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse>newBuilder()
+        if ((getRenameCatalogMethod = EvitaServiceGrpc.getRenameCatalogMethod) == null) {
+          EvitaServiceGrpc.getRenameCatalogMethod = getRenameCatalogMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse>newBuilder()
               .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ListTaskStatuses"))
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RenameCatalog"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest.getDefaultInstance()))
+                  io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest.getDefaultInstance()))
               .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("ListTaskStatuses"))
+                  io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("RenameCatalog"))
               .build();
         }
       }
     }
-    return getListTaskStatusesMethod;
+    return getRenameCatalogMethod;
   }
 
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse> getGetTaskStatusMethod;
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> getReplaceCatalogMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "GetTaskStatus",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse.class,
+      fullMethodName = SERVICE_NAME + '/' + "ReplaceCatalog",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse.class,
       methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse> getGetTaskStatusMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse> getGetTaskStatusMethod;
-    if ((getGetTaskStatusMethod = EvitaServiceGrpc.getGetTaskStatusMethod) == null) {
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> getReplaceCatalogMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> getReplaceCatalogMethod;
+    if ((getReplaceCatalogMethod = EvitaServiceGrpc.getReplaceCatalogMethod) == null) {
       synchronized (EvitaServiceGrpc.class) {
-        if ((getGetTaskStatusMethod = EvitaServiceGrpc.getGetTaskStatusMethod) == null) {
-          EvitaServiceGrpc.getGetTaskStatusMethod = getGetTaskStatusMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse>newBuilder()
+        if ((getReplaceCatalogMethod = EvitaServiceGrpc.getReplaceCatalogMethod) == null) {
+          EvitaServiceGrpc.getReplaceCatalogMethod = getReplaceCatalogMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse>newBuilder()
               .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetTaskStatus"))
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ReplaceCatalog"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest.getDefaultInstance()))
+                  io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest.getDefaultInstance()))
               .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("GetTaskStatus"))
+                  io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("ReplaceCatalog"))
               .build();
         }
       }
     }
-    return getGetTaskStatusMethod;
-  }
-
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse> getGetTaskStatusesMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "GetTaskStatuses",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse> getGetTaskStatusesMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest, io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse> getGetTaskStatusesMethod;
-    if ((getGetTaskStatusesMethod = EvitaServiceGrpc.getGetTaskStatusesMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getGetTaskStatusesMethod = EvitaServiceGrpc.getGetTaskStatusesMethod) == null) {
-          EvitaServiceGrpc.getGetTaskStatusesMethod = getGetTaskStatusesMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest, io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetTaskStatuses"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("GetTaskStatuses"))
-              .build();
-        }
-      }
-    }
-    return getGetTaskStatusesMethod;
-  }
-
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse> getCancelTaskMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "CancelTask",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse> getCancelTaskMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest, io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse> getCancelTaskMethod;
-    if ((getCancelTaskMethod = EvitaServiceGrpc.getCancelTaskMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getCancelTaskMethod = EvitaServiceGrpc.getCancelTaskMethod) == null) {
-          EvitaServiceGrpc.getCancelTaskMethod = getCancelTaskMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest, io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "CancelTask"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("CancelTask"))
-              .build();
-        }
-      }
-    }
-    return getCancelTaskMethod;
-  }
-
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse> getListFilesToFetchMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "ListFilesToFetch",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse> getListFilesToFetchMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest, io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse> getListFilesToFetchMethod;
-    if ((getListFilesToFetchMethod = EvitaServiceGrpc.getListFilesToFetchMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getListFilesToFetchMethod = EvitaServiceGrpc.getListFilesToFetchMethod) == null) {
-          EvitaServiceGrpc.getListFilesToFetchMethod = getListFilesToFetchMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest, io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ListFilesToFetch"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("ListFilesToFetch"))
-              .build();
-        }
-      }
-    }
-    return getListFilesToFetchMethod;
-  }
-
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse> getGetFileToFetchMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "GetFileToFetch",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse> getGetFileToFetchMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest, io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse> getGetFileToFetchMethod;
-    if ((getGetFileToFetchMethod = EvitaServiceGrpc.getGetFileToFetchMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getGetFileToFetchMethod = EvitaServiceGrpc.getGetFileToFetchMethod) == null) {
-          EvitaServiceGrpc.getGetFileToFetchMethod = getGetFileToFetchMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest, io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetFileToFetch"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("GetFileToFetch"))
-              .build();
-        }
-      }
-    }
-    return getGetFileToFetchMethod;
-  }
-
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse> getFetchFileMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "FetchFile",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse> getFetchFileMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest, io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse> getFetchFileMethod;
-    if ((getFetchFileMethod = EvitaServiceGrpc.getFetchFileMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getFetchFileMethod = EvitaServiceGrpc.getFetchFileMethod) == null) {
-          EvitaServiceGrpc.getFetchFileMethod = getFetchFileMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest, io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "FetchFile"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("FetchFile"))
-              .build();
-        }
-      }
-    }
-    return getFetchFileMethod;
-  }
-
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse> getDeleteFileMethod;
-
-  @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "DeleteFile",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse> getDeleteFileMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest, io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse> getDeleteFileMethod;
-    if ((getDeleteFileMethod = EvitaServiceGrpc.getDeleteFileMethod) == null) {
-      synchronized (EvitaServiceGrpc.class) {
-        if ((getDeleteFileMethod = EvitaServiceGrpc.getDeleteFileMethod) == null) {
-          EvitaServiceGrpc.getDeleteFileMethod = getDeleteFileMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest, io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "DeleteFile"))
-              .setSampledToLocalTracing(true)
-              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest.getDefaultInstance()))
-              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("DeleteFile"))
-              .build();
-        }
-      }
-    }
-    return getDeleteFileMethod;
+    return getReplaceCatalogMethod;
   }
 
   /**
@@ -776,12 +466,12 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain server status.
+     * Procedure used to check readiness of the API
      * </pre>
      */
-    public void serverStatus(com.google.protobuf.Empty request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getServerStatusMethod(), responseObserver);
+    public void isReady(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getIsReadyMethod(), responseObserver);
     }
 
     /**
@@ -856,46 +546,6 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to rename an existing catalog.
-     * </pre>
-     */
-    public void renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRenameCatalogMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to replace an existing catalog.
-     * </pre>
-     */
-    public void replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getReplaceCatalogMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to restore a catalog from backup.
-     * </pre>
-     */
-    public io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest> restoreCatalog(
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> responseObserver) {
-      return io.grpc.stub.ServerCalls.asyncUnimplementedStreamingCall(getRestoreCatalogMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to restore a catalog from backup.
-     * </pre>
-     */
-    public void restoreCatalogFromServerFile(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRestoreCatalogFromServerFileMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
      * Procedure used to delete an existing catalog.
      * </pre>
      */
@@ -916,93 +566,33 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to get listing of task statuses.
+     * Procedure used to rename an existing catalog.
      * </pre>
      */
-    public void listTaskStatuses(io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getListTaskStatusesMethod(), responseObserver);
+    public void renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRenameCatalogMethod(), responseObserver);
     }
 
     /**
      * <pre>
-     * Procedure used to get detail of particular task status.
+     * Procedure used to replace an existing catalog.
      * </pre>
      */
-    public void getTaskStatus(io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetTaskStatusMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get multiple details of particular task statuses.
-     * </pre>
-     */
-    public void getTaskStatuses(io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetTaskStatusesMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to cancel queued or running task.
-     * </pre>
-     */
-    public void cancelTask(io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getCancelTaskMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get listing of files available for fetching.
-     * </pre>
-     */
-    public void listFilesToFetch(io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getListFilesToFetchMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get single file by its id available for fetching.
-     * </pre>
-     */
-    public void getFileToFetch(io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetFileToFetchMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get file contents
-     * </pre>
-     */
-    public void fetchFile(io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getFetchFileMethod(), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to delete file contents
-     * </pre>
-     */
-    public void deleteFile(io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getDeleteFileMethod(), responseObserver);
+    public void replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getReplaceCatalogMethod(), responseObserver);
     }
 
     @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
       return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())
           .addMethod(
-            getServerStatusMethod(),
+            getIsReadyMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
                 com.google.protobuf.Empty,
-                io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse>(
-                  this, METHODID_SERVER_STATUS)))
+                io.evitadb.externalApi.grpc.generated.GrpcReadyResponse>(
+                  this, METHODID_IS_READY)))
           .addMethod(
             getCreateReadOnlySessionMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -1053,34 +643,6 @@ public final class EvitaServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogResponse>(
                   this, METHODID_DEFINE_CATALOG)))
           .addMethod(
-            getRenameCatalogMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse>(
-                  this, METHODID_RENAME_CATALOG)))
-          .addMethod(
-            getReplaceCatalogMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse>(
-                  this, METHODID_REPLACE_CATALOG)))
-          .addMethod(
-            getRestoreCatalogMethod(),
-            io.grpc.stub.ServerCalls.asyncClientStreamingCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>(
-                  this, METHODID_RESTORE_CATALOG)))
-          .addMethod(
-            getRestoreCatalogFromServerFileMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>(
-                  this, METHODID_RESTORE_CATALOG_FROM_SERVER_FILE)))
-          .addMethod(
             getDeleteCatalogIfExistsMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
@@ -1095,61 +657,19 @@ public final class EvitaServiceGrpc {
                 com.google.protobuf.Empty>(
                   this, METHODID_UPDATE)))
           .addMethod(
-            getListTaskStatusesMethod(),
+            getRenameCatalogMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse>(
-                  this, METHODID_LIST_TASK_STATUSES)))
+                io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse>(
+                  this, METHODID_RENAME_CATALOG)))
           .addMethod(
-            getGetTaskStatusMethod(),
+            getReplaceCatalogMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse>(
-                  this, METHODID_GET_TASK_STATUS)))
-          .addMethod(
-            getGetTaskStatusesMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse>(
-                  this, METHODID_GET_TASK_STATUSES)))
-          .addMethod(
-            getCancelTaskMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse>(
-                  this, METHODID_CANCEL_TASK)))
-          .addMethod(
-            getListFilesToFetchMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse>(
-                  this, METHODID_LIST_FILES_TO_FETCH)))
-          .addMethod(
-            getGetFileToFetchMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse>(
-                  this, METHODID_GET_FILE_TO_FETCH)))
-          .addMethod(
-            getFetchFileMethod(),
-            io.grpc.stub.ServerCalls.asyncServerStreamingCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse>(
-                  this, METHODID_FETCH_FILE)))
-          .addMethod(
-            getDeleteFileMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse>(
-                  this, METHODID_DELETE_FILE)))
+                io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse>(
+                  this, METHODID_REPLACE_CATALOG)))
           .build();
     }
   }
@@ -1174,13 +694,13 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain server status.
+     * Procedure used to check readiness of the API
      * </pre>
      */
-    public void serverStatus(com.google.protobuf.Empty request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> responseObserver) {
+    public void isReady(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getServerStatusMethod(), getCallOptions()), request, responseObserver);
+          getChannel().newCall(getIsReadyMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -1262,50 +782,6 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to rename an existing catalog.
-     * </pre>
-     */
-    public void renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getRenameCatalogMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to replace an existing catalog.
-     * </pre>
-     */
-    public void replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getReplaceCatalogMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to restore a catalog from backup.
-     * </pre>
-     */
-    public io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest> restoreCatalog(
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> responseObserver) {
-      return io.grpc.stub.ClientCalls.asyncClientStreamingCall(
-          getChannel().newCall(getRestoreCatalogMethod(), getCallOptions()), responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to restore a catalog from backup.
-     * </pre>
-     */
-    public void restoreCatalogFromServerFile(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getRestoreCatalogFromServerFileMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
      * Procedure used to delete an existing catalog.
      * </pre>
      */
@@ -1328,90 +804,24 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to get listing of task statuses.
+     * Procedure used to rename an existing catalog.
      * </pre>
      */
-    public void listTaskStatuses(io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse> responseObserver) {
+    public void renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getListTaskStatusesMethod(), getCallOptions()), request, responseObserver);
+          getChannel().newCall(getRenameCatalogMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
      * <pre>
-     * Procedure used to get detail of particular task status.
+     * Procedure used to replace an existing catalog.
      * </pre>
      */
-    public void getTaskStatus(io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse> responseObserver) {
+    public void replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getGetTaskStatusMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get multiple details of particular task statuses.
-     * </pre>
-     */
-    public void getTaskStatuses(io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getGetTaskStatusesMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to cancel queued or running task.
-     * </pre>
-     */
-    public void cancelTask(io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getCancelTaskMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get listing of files available for fetching.
-     * </pre>
-     */
-    public void listFilesToFetch(io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getListFilesToFetchMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get single file by its id available for fetching.
-     * </pre>
-     */
-    public void getFileToFetch(io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getGetFileToFetchMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get file contents
-     * </pre>
-     */
-    public void fetchFile(io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
-          getChannel().newCall(getFetchFileMethod(), getCallOptions()), request, responseObserver);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to delete file contents
-     * </pre>
-     */
-    public void deleteFile(io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getDeleteFileMethod(), getCallOptions()), request, responseObserver);
+          getChannel().newCall(getReplaceCatalogMethod(), getCallOptions()), request, responseObserver);
     }
   }
 
@@ -1435,12 +845,12 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain server status.
+     * Procedure used to check readiness of the API
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse serverStatus(com.google.protobuf.Empty request) {
+    public io.evitadb.externalApi.grpc.generated.GrpcReadyResponse isReady(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getServerStatusMethod(), getCallOptions(), request);
+          getChannel(), getIsReadyMethod(), getCallOptions(), request);
     }
 
     /**
@@ -1515,36 +925,6 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to rename an existing catalog.
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getRenameCatalogMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to replace an existing catalog.
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getReplaceCatalogMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to restore a catalog from backup.
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse restoreCatalogFromServerFile(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getRestoreCatalogFromServerFileMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
      * Procedure used to delete an existing catalog.
      * </pre>
      */
@@ -1565,83 +945,22 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to get listing of task statuses.
+     * Procedure used to rename an existing catalog.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse listTaskStatuses(io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest request) {
+    public io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getListTaskStatusesMethod(), getCallOptions(), request);
+          getChannel(), getRenameCatalogMethod(), getCallOptions(), request);
     }
 
     /**
      * <pre>
-     * Procedure used to get detail of particular task status.
+     * Procedure used to replace an existing catalog.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse getTaskStatus(io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest request) {
+    public io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getGetTaskStatusMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get multiple details of particular task statuses.
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse getTaskStatuses(io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getGetTaskStatusesMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to cancel queued or running task.
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse cancelTask(io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getCancelTaskMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get listing of files available for fetching.
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse listFilesToFetch(io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getListFilesToFetchMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get single file by its id available for fetching.
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse getFileToFetch(io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getGetFileToFetchMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get file contents
-     * </pre>
-     */
-    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse> fetchFile(
-        io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest request) {
-      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
-          getChannel(), getFetchFileMethod(), getCallOptions(), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to delete file contents
-     * </pre>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse deleteFile(io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getDeleteFileMethod(), getCallOptions(), request);
+          getChannel(), getReplaceCatalogMethod(), getCallOptions(), request);
     }
   }
 
@@ -1665,13 +984,13 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain server status.
+     * Procedure used to check readiness of the API
      * </pre>
      */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> serverStatus(
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> isReady(
         com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getServerStatusMethod(), getCallOptions()), request);
+          getChannel().newCall(getIsReadyMethod(), getCallOptions()), request);
     }
 
     /**
@@ -1753,39 +1072,6 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to rename an existing catalog.
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> renameCatalog(
-        io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getRenameCatalogMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to replace an existing catalog.
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> replaceCatalog(
-        io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getReplaceCatalogMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to restore a catalog from backup.
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> restoreCatalogFromServerFile(
-        io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getRestoreCatalogFromServerFileMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
      * Procedure used to delete an existing catalog.
      * </pre>
      */
@@ -1808,83 +1094,28 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to get listing of task statuses.
+     * Procedure used to rename an existing catalog.
      * </pre>
      */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse> listTaskStatuses(
-        io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest request) {
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse> renameCatalog(
+        io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getListTaskStatusesMethod(), getCallOptions()), request);
+          getChannel().newCall(getRenameCatalogMethod(), getCallOptions()), request);
     }
 
     /**
      * <pre>
-     * Procedure used to get detail of particular task status.
+     * Procedure used to replace an existing catalog.
      * </pre>
      */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse> getTaskStatus(
-        io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest request) {
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> replaceCatalog(
+        io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getGetTaskStatusMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get multiple details of particular task statuses.
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse> getTaskStatuses(
-        io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getGetTaskStatusesMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to cancel queued or running task.
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse> cancelTask(
-        io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getCancelTaskMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get listing of files available for fetching.
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse> listFilesToFetch(
-        io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getListFilesToFetchMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to get single file by its id available for fetching.
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse> getFileToFetch(
-        io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getGetFileToFetchMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure used to delete file contents
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse> deleteFile(
-        io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getDeleteFileMethod(), getCallOptions()), request);
+          getChannel().newCall(getReplaceCatalogMethod(), getCallOptions()), request);
     }
   }
 
-  private static final int METHODID_SERVER_STATUS = 0;
+  private static final int METHODID_IS_READY = 0;
   private static final int METHODID_CREATE_READ_ONLY_SESSION = 1;
   private static final int METHODID_CREATE_READ_WRITE_SESSION = 2;
   private static final int METHODID_CREATE_BINARY_READ_ONLY_SESSION = 3;
@@ -1892,20 +1123,10 @@ public final class EvitaServiceGrpc {
   private static final int METHODID_TERMINATE_SESSION = 5;
   private static final int METHODID_GET_CATALOG_NAMES = 6;
   private static final int METHODID_DEFINE_CATALOG = 7;
-  private static final int METHODID_RENAME_CATALOG = 8;
-  private static final int METHODID_REPLACE_CATALOG = 9;
-  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 10;
-  private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 11;
-  private static final int METHODID_UPDATE = 12;
-  private static final int METHODID_LIST_TASK_STATUSES = 13;
-  private static final int METHODID_GET_TASK_STATUS = 14;
-  private static final int METHODID_GET_TASK_STATUSES = 15;
-  private static final int METHODID_CANCEL_TASK = 16;
-  private static final int METHODID_LIST_FILES_TO_FETCH = 17;
-  private static final int METHODID_GET_FILE_TO_FETCH = 18;
-  private static final int METHODID_FETCH_FILE = 19;
-  private static final int METHODID_DELETE_FILE = 20;
-  private static final int METHODID_RESTORE_CATALOG = 21;
+  private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 8;
+  private static final int METHODID_UPDATE = 9;
+  private static final int METHODID_RENAME_CATALOG = 10;
+  private static final int METHODID_REPLACE_CATALOG = 11;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1924,9 +1145,9 @@ public final class EvitaServiceGrpc {
     @java.lang.SuppressWarnings("unchecked")
     public void invoke(Req request, io.grpc.stub.StreamObserver<Resp> responseObserver) {
       switch (methodId) {
-        case METHODID_SERVER_STATUS:
-          serviceImpl.serverStatus((com.google.protobuf.Empty) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse>) responseObserver);
+        case METHODID_IS_READY:
+          serviceImpl.isReady((com.google.protobuf.Empty) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReadyResponse>) responseObserver);
           break;
         case METHODID_CREATE_READ_ONLY_SESSION:
           serviceImpl.createReadOnlySession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
@@ -1956,18 +1177,6 @@ public final class EvitaServiceGrpc {
           serviceImpl.defineCatalog((io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogResponse>) responseObserver);
           break;
-        case METHODID_RENAME_CATALOG:
-          serviceImpl.renameCatalog((io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse>) responseObserver);
-          break;
-        case METHODID_REPLACE_CATALOG:
-          serviceImpl.replaceCatalog((io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse>) responseObserver);
-          break;
-        case METHODID_RESTORE_CATALOG_FROM_SERVER_FILE:
-          serviceImpl.restoreCatalogFromServerFile((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>) responseObserver);
-          break;
         case METHODID_DELETE_CATALOG_IF_EXISTS:
           serviceImpl.deleteCatalogIfExists((io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse>) responseObserver);
@@ -1976,37 +1185,13 @@ public final class EvitaServiceGrpc {
           serviceImpl.update((io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest) request,
               (io.grpc.stub.StreamObserver<com.google.protobuf.Empty>) responseObserver);
           break;
-        case METHODID_LIST_TASK_STATUSES:
-          serviceImpl.listTaskStatuses((io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse>) responseObserver);
+        case METHODID_RENAME_CATALOG:
+          serviceImpl.renameCatalog((io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse>) responseObserver);
           break;
-        case METHODID_GET_TASK_STATUS:
-          serviceImpl.getTaskStatus((io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse>) responseObserver);
-          break;
-        case METHODID_GET_TASK_STATUSES:
-          serviceImpl.getTaskStatuses((io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse>) responseObserver);
-          break;
-        case METHODID_CANCEL_TASK:
-          serviceImpl.cancelTask((io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse>) responseObserver);
-          break;
-        case METHODID_LIST_FILES_TO_FETCH:
-          serviceImpl.listFilesToFetch((io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse>) responseObserver);
-          break;
-        case METHODID_GET_FILE_TO_FETCH:
-          serviceImpl.getFileToFetch((io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse>) responseObserver);
-          break;
-        case METHODID_FETCH_FILE:
-          serviceImpl.fetchFile((io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse>) responseObserver);
-          break;
-        case METHODID_DELETE_FILE:
-          serviceImpl.deleteFile((io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse>) responseObserver);
+        case METHODID_REPLACE_CATALOG:
+          serviceImpl.replaceCatalog((io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse>) responseObserver);
           break;
         default:
           throw new AssertionError();
@@ -2018,9 +1203,6 @@ public final class EvitaServiceGrpc {
     public io.grpc.stub.StreamObserver<Req> invoke(
         io.grpc.stub.StreamObserver<Resp> responseObserver) {
       switch (methodId) {
-        case METHODID_RESTORE_CATALOG:
-          return (io.grpc.stub.StreamObserver<Req>) serviceImpl.restoreCatalog(
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>) responseObserver);
         default:
           throw new AssertionError();
       }
@@ -2072,7 +1254,7 @@ public final class EvitaServiceGrpc {
         if (result == null) {
           serviceDescriptor = result = io.grpc.ServiceDescriptor.newBuilder(SERVICE_NAME)
               .setSchemaDescriptor(new EvitaServiceFileDescriptorSupplier())
-              .addMethod(getServerStatusMethod())
+              .addMethod(getIsReadyMethod())
               .addMethod(getCreateReadOnlySessionMethod())
               .addMethod(getCreateReadWriteSessionMethod())
               .addMethod(getCreateBinaryReadOnlySessionMethod())
@@ -2080,20 +1262,10 @@ public final class EvitaServiceGrpc {
               .addMethod(getTerminateSessionMethod())
               .addMethod(getGetCatalogNamesMethod())
               .addMethod(getDefineCatalogMethod())
-              .addMethod(getRenameCatalogMethod())
-              .addMethod(getReplaceCatalogMethod())
-              .addMethod(getRestoreCatalogMethod())
-              .addMethod(getRestoreCatalogFromServerFileMethod())
               .addMethod(getDeleteCatalogIfExistsMethod())
               .addMethod(getUpdateMethod())
-              .addMethod(getListTaskStatusesMethod())
-              .addMethod(getGetTaskStatusMethod())
-              .addMethod(getGetTaskStatusesMethod())
-              .addMethod(getCancelTaskMethod())
-              .addMethod(getListFilesToFetchMethod())
-              .addMethod(getGetFileToFetchMethod())
-              .addMethod(getFetchFileMethod())
-              .addMethod(getDeleteFileMethod())
+              .addMethod(getRenameCatalogMethod())
+              .addMethod(getReplaceCatalogMethod())
               .build();
         }
       }

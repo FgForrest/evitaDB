@@ -25,6 +25,8 @@ package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.CatalogStatistics;
+import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.CollectionNotFoundException;
@@ -128,12 +130,6 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public EntityCollectionContract createCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
-		throw new CatalogCorruptedException(this);
-	}
-
-	@Nonnull
-	@Override
 	public Optional<EntityCollectionContract> getCollectionForEntity(@Nonnull String entityType) {
 		throw new CatalogCorruptedException(this);
 	}
@@ -206,6 +202,12 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
+	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
 	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
 		throw new CatalogCorruptedException(this);
 	}
@@ -224,7 +226,7 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion) {
+	public Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
 		throw new CatalogCorruptedException(this);
 	}
 
@@ -237,6 +239,22 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Override
 	public ServerTask<Void, FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
 		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStatistics getStatistics() {
+		return new CatalogStatistics(
+			null,
+			catalogName,
+			true,
+			null,
+			-1L,
+			-1,
+			-1,
+			FileUtils.getDirectorySize(catalogStoragePath),
+			new EntityCollectionStatistics[0]
+		);
 	}
 
 	@Override

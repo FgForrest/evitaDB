@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,9 +28,10 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import lombok.experimental.Delegate;
 
@@ -52,7 +53,7 @@ public final class AttributeSchemaBuilder
 	extends AbstractAttributeSchemaBuilder<AttributeSchemaEditor.AttributeSchemaBuilder, AttributeSchemaContract>
 	implements AttributeSchemaEditor.AttributeSchemaBuilder {
 	@Serial private static final long serialVersionUID = 3063509427974161687L;
-	private final List<EntitySchemaMutation> mutations = new LinkedList<>();
+	private final List<LocalEntitySchemaMutation> mutations = new LinkedList<>();
 
 	AttributeSchemaBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -93,13 +94,13 @@ public final class AttributeSchemaBuilder
 	@Override
 	protected MutationImpact addMutations(@Nonnull AttributeSchemaMutation mutation) {
 		return addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations, (EntitySchemaMutation) mutation
+			this.catalogSchema, this.entitySchema, this.mutations, (LocalEntitySchemaMutation) mutation
 		);
 	}
 
 	@Override
 	@Nonnull
-	public Collection<EntitySchemaMutation> toMutation() {
+	public Collection<LocalEntitySchemaMutation> toMutation() {
 		return this.mutations;
 	}
 
@@ -121,7 +122,7 @@ public final class AttributeSchemaBuilder
 	public Collection<ReferenceSchemaMutation> toReferenceMutation(@Nonnull String referenceName) {
 		return this.mutations
 			.stream()
-			.map(it -> new ModifyReferenceAttributeSchemaMutation(referenceName, (ReferenceSchemaMutation) it))
+			.map(it -> new ModifyReferenceAttributeSchemaMutation(referenceName, (ReferenceAttributeSchemaMutation) it))
 			.collect(Collectors.toList());
 	}
 

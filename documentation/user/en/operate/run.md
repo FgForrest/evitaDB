@@ -24,13 +24,12 @@ You can do both in one command using `docker run`. This is the easiest way to ru
 
 ```shell
 # Linux variant: run on foreground, destroy container after exit, use host ports without NAT
-docker run --name evitadb -i --rm --net=host \
-index.docker.io/evitadb/evitadb:latest
+docker run --name evitadb -i --rm --net=host \       
+       index.docker.io/evitadb/evitadb:latest
 
 # Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238
 # and you need to open ports manually and propagate host IP address to the container
-docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \
-       -e "api.exposedOn=localhost" \
+docker run --name evitadb -i --rm -p 5555:5555 \       
        index.docker.io/evitadb/evitadb:latest
 ```
 
@@ -49,8 +48,8 @@ Visit us at: https://evitadb.io
 Root CA Certificate fingerprint:        You'll see some fingerprint here
 API `graphQL` listening on              https://your-server:5555/gql/
 API `rest` listening on                 https://your-server:5555/rest/
-API `gRPC` listening on                 https://your-server:5556/
-API `system` listening on               http://your-server:5557/system/
+API `gRPC` listening on                 https://your-server:5555/
+API `system` listening on               http://your-server:5555/system/
 ```
 
 <Note type="info">
@@ -112,45 +111,19 @@ open/re-mapping ports opened inside the Docker container in the following way:
 ```shell
 # run on foreground, destroy container after exit, use exact mapping for host ports
 docker run --name evitadb -i --rm \
-        -p 5555:5555 \
-        -p 5556:5556 \
-        -p 5557:5557 \
-        -e "api.exposedOn=localhost" \
+        -p 5555:5555 \              
         index.docker.io/evitadb/evitadb:latest
 ```
 
 <Note type="info">
 
-The `-e "api.exposedOn=localhost"` argument is necessary when evitaLab and/or Open API schema is generated and used
-from the host system the docker container is running on. This argument is not necessary when container shares
-the network with the host using argument `--net=host`. Argument tells evitaDB running in container to use `localhost`
-as a domain for generated URLs in the schemas and the evitaLab network requests. Otherwise it would use the container
-inner hostname as a domain, which is not accessible from the outer host system.
+The `-e "EVITA_ARGS=api.endpointDefaults.exposeOn=localhost"` argument is should be used when evitaLab and/or Open API 
+schema is generated and used from the host system the docker container is running on. This argument is not necessary 
+when container shares the network with the host using argument `--net=host`. Argument tells evitaDB running in container 
+to use `localhost` as a domain for generated URLs in the schemas and the evitaLab network requests. Otherwise it would 
+use the container inner hostname as a domain, which is not accessible from the outer host system.
 
 </Note>
-
-<Table>
-    <Thead>
-        <Tr>
-            <Th>Default port</Th>
-            <Th>Service</Th>
-        </Tr>
-    </Thead>
-    <Tbody>
-        <Tr>
-            <Td>`5555`</Td>
-            <Td>serves end-user GraphQL / REST APIs on `/gql` and `/rest` sub-paths</Td>
-        </Tr>
-        <Tr>
-            <Td>`5556`</Td>
-            <Td>serves system gRPC API</Td>
-        </Tr>
-        <Tr>
-            <Td>`5557`</Td>
-            <Td>provides access to the TLS/SSL certificate (see [configuring TLS/SSL](../operate/tls.md))</Td>
-        </Tr>
-    </Tbody>
-</Table>
 
 <Note type="info">
 
@@ -410,8 +383,6 @@ services:
     ports:
       - 5000:5000
       - 5555:5555
-      - 5556:5556
-      - 5557:5557
 ```
 
 All previously documented options for using Docker apply to Docker Compose:

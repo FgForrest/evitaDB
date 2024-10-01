@@ -58,17 +58,18 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	/**
 	 * Operation type specified by user in GQL request.
 	 */
-	@Label("Operation type")
-	@Name("operationType")
+	@Label("GraphQL operation type")
+	@Description("The type of operation specified in the GQL request: QUERY, MUTATION, or SUBSCRIPTION.")
 	@ExportMetricLabel
 	@Nullable
-	String operationType;
+	String graphQLOperationType;
 
 	/**
 	 * The name of the catalog the transaction relates to.
 	 */
 	@Label("Catalog")
 	@Name("catalogName")
+	@Description("The name of the catalog to which this event/metric is associated.")
 	@ExportMetricLabel
 	@Nullable
 	String catalogName;
@@ -77,78 +78,119 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	 * Operation name specified by user in GQL request.
 	 */
 	@Label("GraphQL operation")
-	@Name("operationName")
+	@Description("The name of the operation specified in the GQL request.")
 	@ExportMetricLabel
 	@Nullable
 	String operationName;
 
+	/**
+	 * Response status of the request.
+	 */
 	@Label("Response status")
+	@Description("The status of the response: OK or ERROR.")
 	@Name("responseStatus")
 	@ExportMetricLabel
 	@Nonnull
 	String responseStatus = ResponseStatus.OK.name();
 
 	/**
-	 * Process started timestamp.
+	 * Time to deserialize the incoming JSON input GraphQL request to internal structure in milliseconds.
 	 */
-	private final long processStarted;
-
-	@Label("Input deserialization duration in milliseconds")
+	@Label("Input deserialization duration")
+	@Description("Time to deserialize the incoming JSON input GraphQL request to internal structure in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long inputDeserializationDurationMilliseconds;
+	private final long processStarted;
 
-	private long preparationStarted;
-	@Label("Request execution preparation duration in milliseconds")
+	/**
+	 * Time to prepare and initialize the GraphQL server engine for parsing and executing the incoming request in milliseconds.
+	 */
+	@Label("Request preparation duration")
+	@Description("Time to prepare and initialize the GraphQL server engine for parsing and executing the incoming request in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long preparationDurationMilliseconds;
+	private long preparationStarted;
 
-	private long parseStarted;
-	@Label("Request parsing duration in milliseconds")
+	/**
+	 * Time to parse the GraphQL request (query and variables) by the GraphQL server engine from internal structure for validation and execution in milliseconds.
+	 */
+	@Label("Request parsing duration")
+	@Description("Time to parse the GraphQL request (query and variables) by the GraphQL server engine from internal structure for validation and execution in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long parseDurationMilliseconds;
+	private long parseStarted;
 
-	private long validationStarted;
-	@Label("Request validation duration in milliseconds")
+	/**
+	 * Time to validate the parsed request (query and variables) by the GraphQL server engine before execution in milliseconds.
+	 */
+	@Label("Validation duration")
+	@Description("Time to validate the parsed request (query and variables) by the GraphQL server engine before execution in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long validationDurationMilliseconds;
+	private long validationStarted;
 
-	private long operationExecutionStarted;
-	@Label("Request operation execution duration in milliseconds")
+	/**
+	 * Time to execute the entire parsed and validated GraphQL operation by the GraphQL server engine in milliseconds.
+	 * Includes all data fetcher business logic, including evitaDB input reconstruction and evitaDB query execution.
+	 */
+	@Label("Execution duration")
+	@Description("Time to execute the entire parsed and validated GraphQL operation by the GraphQL server engine in milliseconds. " +
+		"Includes all data fetcher business logic, including evitaDB input reconstruction and evitaDB query execution.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long operationExecutionDurationMilliseconds;
+	private long operationExecutionStarted;
 
-	@Label("Duration of all internal evitaDB input (query, mutations, ...) reconstructions in milliseconds")
+	/**
+	 * Time to reconstruct query input into evitaDB engine in milliseconds. Usually converts JSON query into
+	 * internal evitaDB query representation or JSON mutations into internal evitaDB mutation representation.
+	 */
+	@Label("evitaDB input reconstruction duration")
+	@Description("Time to reconstruct query input into evitaDB engine in milliseconds. Usually converts JSON query into" +
+		" internal evitaDB query representation or JSON mutations into internal evitaDB mutation representation.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long internalEvitadbInputReconstructionDurationMilliseconds;
 
+
 	/**
-	 * Duration of all internal evitaDB executions in milliseconds.
+	 * Duration of all internal evitaDB calls/executions (query entities, upsert entities, and so on) in milliseconds.
 	 */
 	private long internalEvitadbExecutionDurationMilliseconds;
 
-	private long resultSerializationStarted;
-	@Label("Request result serialization duration in milliseconds")
+	/**
+	 * Time to serialize the final request result into output JSON in milliseconds.
+	 */
+	@Label("Result serializatio duration")
+	@Description("Time to serialize the final request result into output JSON in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long resultSerializationDurationMilliseconds;
+	private long resultSerializationStarted;
 
 	/**
 	 * Overall request execution duration in milliseconds for calculating API overhead.
 	 */
 	private long executionDurationMilliseconds;
 
-	@Label("Overall request execution API overhead duration in milliseconds")
+	/**
+	 * Time to execute the entire request in milliseconds without internal evitaDB execution.
+	 */
+	@Label("Request execution overhead")
+	@Description("Time to execute the entire request in milliseconds without internal evitaDB execution.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long executionApiOverheadDurationMilliseconds;
 
-	@Label("Number of root fields (queries, mutations) processed within single GraphQL request")
+	/**
+	 * Number of root fields (queries, mutations) processed within a single GraphQL request.
+	 */
+	@Label("Request root fields count")
+	@Description("Number of root fields (queries, mutations) processed within a single GraphQL request.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private int rootFieldsProcessed;
 
@@ -165,10 +207,10 @@ public class ExecutedEvent extends AbstractGraphQLRequestEvent {
 	@Nonnull
 	public ExecutedEvent provideOperationType(@Nonnull Operation operationType) {
 		Assert.isPremiseValid(
-			this.operationType == null,
+			this.graphQLOperationType == null,
 			() -> new GraphQLInternalError("Operation type is already set.")
 		);
-		this.operationType = operationType.toString();
+		this.graphQLOperationType = operationType.toString();
 		return this;
 	}
 

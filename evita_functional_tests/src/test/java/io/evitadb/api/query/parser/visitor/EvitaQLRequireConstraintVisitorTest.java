@@ -1237,7 +1237,7 @@ class EvitaQLRequireConstraintVisitorTest {
 		);
 	}
 
-		@Test
+	@Test
 	void shouldNotParseReferenceContentConstraint() {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(attributeContentAll(),'a')"));
@@ -1421,6 +1421,9 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint6 = parseRequireConstraint("facetSummary(@mode)", Map.of("mode", COUNTS));
 		assertEquals(facetSummary(COUNTS), constraint6);
 
+		final RequireConstraint constraint6_5 = parseRequireConstraintUnsafe("facetSummary(entityFetch(  attributeContentAll() ))");
+		assertEquals(facetSummary(COUNTS, entityFetch(attributeContent())), constraint6_5);
+
 		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("facetSummary(IMPACT, entityFetch(  attributeContentAll() ))");
 		assertEquals(facetSummary(IMPACT, entityFetch(attributeContent())), constraint7);
 
@@ -1564,6 +1567,14 @@ class EvitaQLRequireConstraintVisitorTest {
 			facetSummary(COUNTS, filterGroupBy(attributeEquals("a", "b")), orderBy(attributeNatural("e")), entityFetch(attributeContentAll())),
 			constraint24
 		);
+
+		final RequireConstraint constraint25 = parseRequireConstraint(
+			"facetSummary(entityFetch(attributeContentAll()))"
+		);
+		assertEquals(
+			facetSummary(COUNTS, entityFetch(attributeContentAll())),
+			constraint25
+		);
 	}
 
 	@Test
@@ -1576,7 +1587,7 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummary(NONE)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummary(COUNTS,IMPACT)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummary(COUNTS,attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummary(entityFetch())"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummary(attributeContent())"));
 	}
 
 	@Test
@@ -1602,6 +1613,9 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("facetSummaryOfReference('parameter', IMPACT, entityFetch(  attributeContentAll() ))");
 		assertEquals(facetSummaryOfReference("parameter", IMPACT, entityFetch(attributeContent())), constraint7);
 
+		final RequireConstraint constraint7_1 = parseRequireConstraintUnsafe("facetSummaryOfReference('parameter', entityFetch(  attributeContentAll() ))");
+		assertEquals(facetSummaryOfReference("parameter", COUNTS, entityFetch(attributeContent())), constraint7_1);
+
 		final RequireConstraint constraint8 = parseRequireConstraintUnsafe("facetSummaryOfReference('parameter', IMPACT, entityFetch(  attributeContentAll() ), entityGroupFetch  ( associatedDataContentAll (  ) ) )");
 		assertEquals(facetSummaryOfReference("parameter", IMPACT, entityFetch(attributeContent()), entityGroupFetch(associatedDataContentAll())), constraint8);
 
@@ -1615,6 +1629,15 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertEquals(
 			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
 			constraint10
+		);
+
+		final RequireConstraint constraint10_1 = parseRequireConstraint(
+			"facetSummaryOfReference(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll()))",
+			"parameter", "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			constraint10_1
 		);
 
 		final RequireConstraint constraint11 = parseRequireConstraint(
@@ -1755,7 +1778,7 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,IMPACT)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,attributeContent())"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',entityFetch())"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',attributeContent())"));
 	}
 
 	@Test
@@ -2730,14 +2753,14 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint1
 		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("hierarchyOfReference('a', 'b', LEAVE_EMPTY, fromRoot('megaMenu'))");
 //		assertEquals(
 //			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")),
 //			constraint2
 //		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint3 = parseRequireConstraintUnsafe(
 //			"hierarchyOfReference('a', 'b', LEAVE_EMPTY, orderBy(random()), fromRoot('megaMenu'))"
 //		);
@@ -2764,7 +2787,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint4
 		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint5 = parseRequireConstraint(
 //			"hierarchyOfReference(?, ?, fromRoot(?))",
 //			new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "megaMenu"
@@ -2774,7 +2797,7 @@ class EvitaQLRequireConstraintVisitorTest {
 //			constraint5
 //		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint6 = parseRequireConstraint(
 //			"hierarchyOfReference(?, ?, orderBy(random()), fromRoot(?))",
 //			new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "megaMenu"
@@ -2802,7 +2825,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint7
 		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint8 = parseRequireConstraint(
 //			"hierarchyOfReference(@refs, @beh, fromRoot(@out))",
 //			Map.of("refs", new String[] {"a", "b"}, "beh", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "out", "megaMenu")
@@ -2812,7 +2835,7 @@ class EvitaQLRequireConstraintVisitorTest {
 //			constraint8
 //		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint13 = parseRequireConstraint(
 //			"hierarchyOfReference(@refs, orderBy(random()), fromRoot(@out))",
 //			Map.of("refs", new String[] {"a", "b"}, "out", "megaMenu")
@@ -2822,7 +2845,7 @@ class EvitaQLRequireConstraintVisitorTest {
 //			constraint13
 //		);
 
-		// todo lho support for multiple reference names
+		// TOBEDONE LHO https://github.com/FgForrest/evitaDB/issues/155 support for multiple reference names
 //		final RequireConstraint constraint9 = parseRequireConstraint(
 //			"hierarchyOfReference(@refs, @beh, orderBy(random()), fromRoot(@out))",
 //			Map.of("refs", new String[] {"a", "b"}, "beh", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "out", "megaMenu")
@@ -2914,8 +2937,8 @@ class EvitaQLRequireConstraintVisitorTest {
 		return ParserExecutor.execute(
 			new ParseContext(positionalArguments),
 			() -> ParserFactory.getParser(string).requireConstraint().accept(new EvitaQLRequireConstraintVisitor())
- 		);
-    }
+		);
+	}
 
 	/**
 	 * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"

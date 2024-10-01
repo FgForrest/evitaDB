@@ -23,12 +23,15 @@
 
 package io.evitadb.externalApi.rest.io;
 
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
-import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
@@ -42,16 +45,18 @@ import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent.OperationT
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
-import io.undertow.server.HttpServerExchange;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
+import static io.evitadb.externalApi.http.AdditionalHttpHeaderNames.INTERNAL_HEADER_PREFIX;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -75,25 +80,26 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
         );
     }
 
+    @Nonnull
     @Override
-    public void handleRequest(HttpServerExchange serverExchange) {
-        instrumentRequest(serverExchange);
+    public HttpResponse serve(@Nonnull ServiceRequestContext serviceRequestContext, @Nonnull HttpRequest httpRequest) {
+        return instrumentRequest(serviceRequestContext, httpRequest);
     }
 
     /**
      * Process every request with tracing context, so we can classify it in evitaDB.
      */
-    private void instrumentRequest(@Nonnull HttpServerExchange serverExchange) {
-        restHandlingContext.getTracingContext().executeWithinBlock(
+    private HttpResponse instrumentRequest(@Nonnull ServiceRequestContext serviceRequestContext, @Nonnull HttpRequest httpRequest) {
+        return restHandlingContext.getTracingContext().executeWithinBlock(
             "REST",
-            serverExchange,
-            () -> super.handleRequest(serverExchange)
+            httpRequest,
+            () -> super.serve(serviceRequestContext, httpRequest)
         );
     }
 
     @Nonnull
     @Override
-    protected RestEndpointExecutionContext createExecutionContext(@Nonnull HttpServerExchange serverExchange) {
+    protected RestEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
         final RestInstanceType instanceType;
         if (restHandlingContext instanceof SystemRestHandlingContext) {
             instanceType = RestInstanceType.SYSTEM;
@@ -106,14 +112,15 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
         }
 
         return new RestEndpointExecutionContext(
-            serverExchange,
+            httpRequest,
+            this.restHandlingContext.getEvita(),
             new ExecutedEvent(
                 instanceType,
                 modifiesData() ? OperationType.MUTATION : OperationType.QUERY,
-                restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext ? catalogRestHandlingContext.getCatalogSchema().getName() : null,
-                restHandlingContext instanceof CollectionRestHandlingContext collectionRestHandlingContext ? collectionRestHandlingContext.getEntityType() : null,
-                serverExchange.getRequestMethod().toString(),
-                restHandlingContext.getEndpointOperation().getOperationId()
+                this.restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext ? catalogRestHandlingContext.getCatalogSchema().getName() : null,
+                this.restHandlingContext instanceof CollectionRestHandlingContext collectionRestHandlingContext ? collectionRestHandlingContext.getEntityType() : null,
+                httpRequest.method().name(),
+                this.restHandlingContext.getEndpointOperation().getOperationId()
             )
         );
     }
@@ -178,38 +185,58 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
     }
 
     @Nonnull
-    protected Map<String, Object> getParametersFromRequest(@Nonnull RestEndpointExecutionContext exchange) {
-        //create copy of parameters
-        final Map<String, Deque<String>> parameters = new HashMap<>(exchange.serverExchange().getQueryParameters());
-
+    protected Map<String, Object> getParametersFromRequest(@Nonnull RestEndpointExecutionContext context) {
         final Operation operation = restHandlingContext.getEndpointOperation();
+        //create builder representation of query params
+        final Map<String, Deque<String>> queryParams = context.httpRequest().headers().stream()
+            .filter(header -> header.getKey().startsWith(INTERNAL_HEADER_PREFIX))
+            .collect(Collectors.toMap(
+                key -> {
+                    final String queryParamNameCaseInsensitive = key.getKey().toString().replace(INTERNAL_HEADER_PREFIX, "");
+                    return operation.getParameters().stream()
+                        .filter(parameter -> parameter.getName().equalsIgnoreCase(queryParamNameCaseInsensitive))
+                        .findFirst()
+                        .map(Parameter::getName)
+                        .orElse(queryParamNameCaseInsensitive);
+                },
+                value -> {
+                    Deque<String> deque = new ArrayDeque<>(4);
+                    deque.add(value.getValue());
+                    return deque;
+                },
+                (existingDeque, newDeque) -> {
+                    existingDeque.addAll(newDeque); return existingDeque;
+                }
+            ));
+
         final HashMap<String, Object> parameterData = createHashMap(operation.getParameters().size());
-        if(operation.getParameters() != null) {
+
+        if (operation.getParameters() != null) {
             for (Parameter parameter : operation.getParameters()) {
-                getParameterFromRequest(parameters, parameter).ifPresent(data -> {
+                getParameterFromRequest(queryParams, parameter).ifPresent(data -> {
                     parameterData.put(parameter.getName(), data);
-                    parameters.remove(parameter.getName());
+                    queryParams.remove(parameter.getName());
                 });
             }
         }
 
-        if(!parameters.isEmpty()) {
+        if (!queryParams.isEmpty()) {
             throw new RestInvalidArgumentException("Following parameters are not supported in this particular request, " +
-                "please look into OpenAPI schema for more information. Parameters: " + String.join(", ", parameters.keySet()));
+                "please look into OpenAPI schema for more information. Parameters: " + String.join(", ", queryParams.keySet()));
         }
         return parameterData;
     }
 
     @Nonnull
-    private Optional<Object> getParameterFromRequest(@Nonnull Map<String, Deque<String>> queryParameters,
+    private Optional<Object> getParameterFromRequest(@Nonnull Map<String, Deque<String>> queryParams,
                                                      @Nonnull Parameter parameter) {
-        final Deque<String> queryParam = queryParameters.get(parameter.getName());
-        if (queryParam != null) {
+        final Deque<String> queryParam = queryParams.get(parameter.getName());
+        if (queryParam != null && !queryParam.isEmpty()) {
             return Optional.ofNullable(dataDeserializer.deserializeValue(
                 getParameterSchema(parameter),
                 queryParam.toArray(String[]::new)
             ));
-        } else if(Boolean.TRUE.equals(parameter.getRequired())) {
+        } else if (Boolean.TRUE.equals(parameter.getRequired())) {
             throw new RestRequiredParameterMissingException("Required parameter " + parameter.getName() +
                 " is missing in query data (" + parameter.getIn() + ")");
         }

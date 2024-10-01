@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Contains set of all possible close method behavior types when the session is committed/closed
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior}
  */
 public enum GrpcCommitBehavior

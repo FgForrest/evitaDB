@@ -160,7 +160,10 @@ public class EntityDecorator implements SealedEntity {
 		int end
 	) {
 		if (referenceComparator != null) {
-			int nonSortedReferenceCount = 0;
+			if (referenceComparator instanceof ReferenceComparator.EntityPrimaryKeyAwareComparator epkAware) {
+				epkAware.setEntityPrimaryKey(entityPrimaryKey);
+			}
+			int nonSortedReferenceCount;
 			do {
 				if (referenceFilter == null) {
 					Arrays.sort(references, start, end, referenceComparator);

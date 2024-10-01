@@ -45,7 +45,7 @@ public class GraphQLTestContext implements TestContext {
 
 	public GraphQLTestContext(@Nonnull Environment profile) {
 		this.graphQLClient = profile == Environment.LOCALHOST ?
-			new GraphQLClient("https://localhost:5555", false, false) :
-			new GraphQLClient("https://demo.evitadb.io:5555", true, false);
+			new GraphQLClient("https://localhost:5555", false, false, 2) :
+			new GraphQLClient("https://demo.evitadb.io:5555", true, false, 2);
 	}
 }

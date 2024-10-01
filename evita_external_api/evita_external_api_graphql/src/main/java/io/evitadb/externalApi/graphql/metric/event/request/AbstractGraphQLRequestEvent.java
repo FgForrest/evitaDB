@@ -23,19 +23,15 @@
 
 package io.evitadb.externalApi.graphql.metric.event.request;
 
-import graphql.language.OperationDefinition.Operation;
 import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.io.GraphQLInstanceType;
-import io.evitadb.utils.Assert;
 import jdk.jfr.Category;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
-import jdk.jfr.Name;
 import lombok.Getter;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
@@ -43,23 +39,26 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@EventGroup(AbstractGraphQLRequestEvent.PACKAGE_NAME)
+@EventGroup(
+	value = AbstractGraphQLRequestEvent.PACKAGE_NAME,
+	name = "evitaDB - GraphQL Request",
+	description = "evitaDB events related to GraphQL request processing."
+)
 @Category({"evitaDB", "ExternalAPI", "GraphQL", "Request"})
 @Getter
 public class AbstractGraphQLRequestEvent extends CustomMetricsExecutionEvent {
-
 	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.graphql.request";
 
 	/**
 	 * Type of used GQL instance.
 	 */
-	@Label("Instance type")
-	@Name("instanceType")
+	@Label("GraphQL instance type")
+	@Description("Domain of the GraphQL API used in connection with this event/metric: SYSTEM, SCHEMA, or DATA")
 	@ExportMetricLabel
 	@Nullable
-	final String instanceType;
+	final String graphQLInstanceType;
 
-	protected AbstractGraphQLRequestEvent(@Nullable GraphQLInstanceType instanceType) {
-		this.instanceType = instanceType.toString();
+	protected AbstractGraphQLRequestEvent(@Nullable GraphQLInstanceType graphQLInstanceType) {
+		this.graphQLInstanceType = graphQLInstanceType.toString();
 	}
 }

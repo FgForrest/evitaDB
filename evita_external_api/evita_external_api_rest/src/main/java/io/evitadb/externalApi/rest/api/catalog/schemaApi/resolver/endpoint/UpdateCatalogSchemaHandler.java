@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationAggregateConverter;
@@ -36,7 +37,6 @@ import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntit
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -44,6 +44,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles update request for catalog schema.
@@ -70,36 +71,37 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		return parseRequestBody(executionContext, CreateOrUpdateEntitySchemaRequestData.class)
+			.thenApply(requestData -> {
+				requestExecutedEvent.finishInputDeserialization();
 
-		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(executionContext, CreateOrUpdateEntitySchemaRequestData.class);
-		requestExecutedEvent.finishInputDeserialization();
+				final List<LocalCatalogSchemaMutation> schemaMutations = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+					final List<LocalCatalogSchemaMutation> convertedSchemaMutations = new LinkedList<>();
+					final JsonNode inputMutations = requestData.getMutations()
+						.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
+					for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
+						convertedSchemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
+					}
+					return convertedSchemaMutations;
+				});
 
-		final List<LocalCatalogSchemaMutation> schemaMutations = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
-			final List<LocalCatalogSchemaMutation> convertedSchemaMutations = new LinkedList<>();
-			final JsonNode inputMutations = requestData.getMutations()
-				.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
-			for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
-				convertedSchemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
-			}
-			return convertedSchemaMutations;
-		});
+				final CatalogSchemaContract updatedCatalogSchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					executionContext.session().updateAndFetchCatalogSchema(schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)));
+				requestExecutedEvent.finishOperationExecution();
 
-		final CatalogSchemaContract updatedCatalogSchema = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			executionContext.session().updateAndFetchCatalogSchema(schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)));
-		requestExecutedEvent.finishOperationExecution();
+				final Object result = convertResultIntoSerializableObject(executionContext, updatedCatalogSchema);
+				requestExecutedEvent.finishResultSerialization();
 
-		final Object result = convertResultIntoSerializableObject(executionContext, updatedCatalogSchema);
-		requestExecutedEvent.finishResultSerialization();
-
-		return new SuccessEndpointResponse(result);
+				return new SuccessEndpointResponse(result);
+			});
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.PUT_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.PUT);
 	}
 
 	@Nonnull

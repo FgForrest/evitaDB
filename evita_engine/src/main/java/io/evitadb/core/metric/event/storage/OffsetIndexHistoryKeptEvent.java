@@ -40,13 +40,14 @@ import java.time.OffsetDateTime;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexHistoryKept")
-@Description("Event that is fired when history data kept in memory change.")
+@Description("Event fired when history data stored in memory changes.")
 @Label("OffsetIndex last record kept")
 @Getter
 public class OffsetIndexHistoryKeptEvent extends AbstractDataFileEvent {
 	@Label("Oldest record kept in memory timestamp in seconds")
+	@Description("The timestamp of the oldest catalog version data held in memory, in seconds. Data from previous versions is used to maintain the SNAPSHOT isolation contract for currently open sessions targeting older catalog versions. Zero if no data is retained.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private long oldestRecordTimestampSeconds;
+	private final long oldestRecordTimestampSeconds;
 
 	public OffsetIndexHistoryKeptEvent(
 		@Nonnull String catalogName,

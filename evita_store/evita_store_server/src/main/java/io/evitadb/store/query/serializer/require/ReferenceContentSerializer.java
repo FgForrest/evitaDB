@@ -51,30 +51,40 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 			output.writeString(refEntityType);
 		}
 
-		kryo.writeClassAndObject(output, object.getAttributeContent().orElse(null));
-		kryo.writeClassAndObject(output, object.getEntityRequirement().orElse(null));
-		kryo.writeClassAndObject(output, object.getGroupEntityRequirement().orElse(null));
+		kryo.writeObjectOrNull(output, object.getAttributeContent().orElse(null), AttributeContent.class);
+		kryo.writeObjectOrNull(output, object.getEntityRequirement().orElse(null), EntityFetch.class);
+		kryo.writeObjectOrNull(output, object.getGroupEntityRequirement().orElse(null), EntityGroupFetch.class);
 
-		kryo.writeClassAndObject(output, object.getFilterBy().orElse(null));
-		kryo.writeClassAndObject(output, object.getOrderBy().orElse(null));
+		kryo.writeObjectOrNull(output, object.getFilterBy().orElse(null), FilterBy.class);
+		kryo.writeObjectOrNull(output, object.getOrderBy().orElse(null), OrderBy.class);
 	}
 
 	@Override
 	public ReferenceContent read(Kryo kryo, Input input, Class<? extends ReferenceContent> type) {
 		final int referencedEntityTypeCount = input.readVarInt(true);
-		final String[] referencedEntityTypes = new String[referencedEntityTypeCount];
+		final String[] referencedEntityName = new String[referencedEntityTypeCount];
 		for (int i = 0; i < referencedEntityTypeCount; i++) {
-			referencedEntityTypes[i] = input.readString();
+			referencedEntityName[i] = input.readString();
 		}
 
-		final AttributeContent attributeContent = (AttributeContent) kryo.readClassAndObject(input);
-		final EntityFetch entityFetch = (EntityFetch) kryo.readClassAndObject(input);
-		final EntityGroupFetch groupEntityFetch = (EntityGroupFetch) kryo.readClassAndObject(input);
+		final AttributeContent attributeContent = kryo.readObjectOrNull(input, AttributeContent.class);
+		final EntityFetch entityFetch = kryo.readObjectOrNull(input, EntityFetch.class);
+		final EntityGroupFetch groupEntityFetch = kryo.readObjectOrNull(input, EntityGroupFetch.class);
 
-		final FilterBy filter = (FilterBy) kryo.readClassAndObject(input);
-		final OrderBy orderBy = (OrderBy) kryo.readClassAndObject(input);
+		final FilterBy filter = kryo.readObjectOrNull(input, FilterBy.class);
+		final OrderBy orderBy = kryo.readObjectOrNull(input, OrderBy.class);
 
-		return new ReferenceContent(referencedEntityTypes[0], filter, orderBy, attributeContent, entityFetch, groupEntityFetch);
+		if (referencedEntityTypeCount == 0) {
+			return attributeContent == null ?
+				new ReferenceContent(entityFetch, groupEntityFetch) :
+				new ReferenceContent(attributeContent, entityFetch, groupEntityFetch);
+		} else if (referencedEntityTypeCount == 1) {
+			return attributeContent == null ?
+				new ReferenceContent(referencedEntityName[0], filter, orderBy, entityFetch, groupEntityFetch) :
+				new ReferenceContent(referencedEntityName[0], filter, orderBy, attributeContent, entityFetch, groupEntityFetch);
+		} else {
+			return new ReferenceContent(referencedEntityName, entityFetch, groupEntityFetch);
+		}
 	}
 
 }

@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".OffHeapMemoryAllocationChange")
-@Description("Event that is fired when off-heap memory allocation changes.")
+@Description("Event that is fired when the off-heap memory allocation changes.")
 @Label("Off-heap memory allocation change")
 @Getter
 public class OffHeapMemoryAllocationChangeEvent extends AbstractTransactionEvent {
@@ -47,6 +47,7 @@ public class OffHeapMemoryAllocationChangeEvent extends AbstractTransactionEvent
 	 */
 	@ExportMetric(metricType = MetricType.GAUGE)
 	@Label("Allocated memory bytes")
+	@Description("Amount of memory allocated for off-heap storage in Bytes.")
 	private final long allocatedMemoryBytes;
 
 	/**
@@ -54,6 +55,7 @@ public class OffHeapMemoryAllocationChangeEvent extends AbstractTransactionEvent
 	 */
 	@ExportMetric(metricType = MetricType.GAUGE)
 	@Label("Used memory bytes")
+	@Description("Amount of memory used for off-heap storage in Bytes.")
 	private final long usedMemoryBytes;
 
 

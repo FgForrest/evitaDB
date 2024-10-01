@@ -40,7 +40,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Finds single price (even not sellable) for fetched entity and for specific price list.
+ * Finds single price (even not indexed) for fetched entity and for specific price list.
  * Currency is used from entity. If more prices for used currency and price list are found, validIn datetime is used
  * to select the valid one at the moment. If not specified by user in entity, datetime of query execution start is used.
  * Expects entity to be {@link EntityDecorator} to hold needed price parameters (validIn, currency ...).
@@ -49,7 +49,7 @@ import java.util.Optional;
  *      respect price inner record handling. Use `accompanyingPrice` fields within `priceForSale` field instead.
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-// todo #538: deprecated, remove
+// TOBEDONE #538: deprecated, remove
 @Deprecated
 public class PriceDataFetcher implements DataFetcher<DataFetcherResult<PriceContract>> {
 

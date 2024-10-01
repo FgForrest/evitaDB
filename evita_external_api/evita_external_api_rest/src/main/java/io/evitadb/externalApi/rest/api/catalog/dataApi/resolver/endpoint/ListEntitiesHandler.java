@@ -37,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles queries for list of entities.
@@ -55,20 +56,21 @@ public class ListEntitiesHandler extends QueryOrientedEntitiesHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+		return resolveQuery(executionContext)
+			.thenApply(query -> {
+				log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
-		final Query query = resolveQuery(executionContext);
-		log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
+				final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					executionContext.session().queryList(query, EntityClassifier.class));
+				requestExecutedEvent.finishOperationExecution();
 
-		final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			executionContext.session().queryList(query, EntityClassifier.class));
-		requestExecutedEvent.finishOperationExecution();
+				final Object result = convertResultIntoSerializableObject(executionContext, entities);
+				requestExecutedEvent.finishResultSerialization();
 
-		final Object result = convertResultIntoSerializableObject(executionContext, entities);
-		requestExecutedEvent.finishResultSerialization();
-
-		return new SuccessEndpointResponse(result);
+				return new SuccessEndpointResponse(result);
+			});
 	}
 
 	@Nonnull

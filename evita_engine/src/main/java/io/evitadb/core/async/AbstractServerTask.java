@@ -25,7 +25,8 @@ package io.evitadb.core.async;
 
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.utils.UUIDUtil;
@@ -34,6 +35,8 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -48,21 +51,21 @@ import java.util.function.Function;
 @Slf4j
 abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	/**
-	 * Contains the actual status of the task.
-	 */
-	private final AtomicReference<TaskStatus<S, T>> status;
-	/**
 	 * The exception handler that is called when an exception is thrown during the task execution.
 	 * When the exception handler doesn't throw exception and instead returns a compatible value it's considered as a
 	 * successful handling of the exception and value is returned as a result of the task.
 	 */
-	private final Function<Throwable, T> exceptionHandler;
+	protected final Function<Throwable, T> exceptionHandler;
 	/**
 	 * This future can be returned to a client to join the future in its pipeline.
 	 */
-	private final ServerTaskCompletableFuture<T> future;
+	protected final CompletableFuture<T> future;
+	/**
+	 * Contains the actual status of the task.
+	 */
+	protected final AtomicReference<TaskStatus<S, T>> status;
 
-	public AbstractServerTask(@Nonnull String taskName, @Nullable S settings) {
+	protected AbstractServerTask(@Nonnull String taskName, @Nullable S settings, @Nonnull TaskTrait... traits) {
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -77,13 +80,14 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = null;
 	}
 
-	public AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings) {
+	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull TaskTrait... traits) {
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -98,13 +102,14 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = null;
 	}
 
-	public AbstractServerTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
+	protected AbstractServerTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -119,13 +124,14 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = exceptionHandler;
 	}
 
-	public AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
+	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
@@ -140,7 +146,8 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = exceptionHandler;
@@ -159,12 +166,21 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	}
 
 	@Override
+	public boolean cancel() {
+		if (this.future.isDone() || this.future.isCancelled()) {
+			return false;
+		} else {
+			return this.future.cancel(true);
+		}
+	}
+
+	@Override
 	@Nullable
 	public final T execute() {
 		// emit the start event
 		final TaskStatus<S, T> theStatus = getStatus();
 
-		if (theStatus.state() == State.QUEUED) {
+		if (theStatus.simplifiedState() == TaskSimplifiedState.QUEUED) {
 			new BackgroundTaskStartedEvent(theStatus.catalogName(), theStatus.taskName()).commit();
 
 			this.status.updateAndGet(
@@ -174,16 +190,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 			// prepare the finish event
 			final BackgroundTaskFinishedEvent finishedEvent = new BackgroundTaskFinishedEvent(theStatus.catalogName(), theStatus.taskName());
 			try {
-				final T result = this.executeInternal();
-				if (this.future.isDone()) {
-					return null;
-				} else {
-					this.status.updateAndGet(
-						currentStatus -> currentStatus.transitionToFinished(result)
-					);
-					this.future.complete(result);
-					return result;
-				}
+				return executeAndCompleteFuture();
 			} catch (Throwable e) {
 				log.error("Task failed: {}", theStatus.taskName(), e);
 				this.status.updateAndGet(
@@ -212,15 +219,6 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	}
 
 	@Override
-	public boolean cancel() {
-		if (this.future.isDone() || this.future.isCancelled()) {
-			return false;
-		} else {
-			return this.future.cancel(true);
-		}
-	}
-
-	@Override
 	public void fail(@Nonnull Exception exception) {
 		if (!(this.future.isDone() || this.future.isCancelled())) {
 			this.future.completeExceptionally(exception);
@@ -232,6 +230,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 
 	/**
 	 * Method updates the progress of the task.
+	 *
 	 * @param progress new progress of the task in percents
 	 */
 	public void updateProgress(int progress) {
@@ -243,16 +242,36 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	}
 
 	/**
-	 * Executes the task logic.
+	 * Executes the task and completes the future with the result.
+	 *
 	 * @return the result of the task
 	 */
+	@Nonnull
+	protected T executeAndCompleteFuture() {
+		final T result = this.executeInternal();
+		if (this.future.isDone()) {
+			return null;
+		} else {
+			this.status.updateAndGet(
+				currentStatus -> currentStatus.transitionToFinished(result)
+			);
+			this.future.complete(result);
+			return result;
+		}
+	}
+
+	/**
+	 * Executes the task logic.
+	 *
+	 * @return the result of the task
+	 */
+	@Nonnull
 	protected abstract T executeInternal();
 
 	/**
 	 * This class is used to keep {@link ServerTask} alive as long as someone keeps a reference to the future. Task
 	 * must not be ever garbage collected while the future is still referenced. That's why this inner class is not
 	 * static.
-	 * @param <X>
 	 */
 	@SuppressWarnings("InnerClassMayBeStatic")
 	private class ServerTaskCompletableFuture<X> extends CompletableFuture<X> {

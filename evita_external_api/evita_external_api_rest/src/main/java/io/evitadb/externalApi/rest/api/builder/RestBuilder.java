@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
@@ -136,6 +137,7 @@ public abstract class RestBuilder<C extends RestBuildingContext> {
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(UUID.class));
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(UUID[].class));
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(Predecessor.class));
+		scalarEnumBuilder.item(DataTypeSerializer.serialize(ReferencedEntityPredecessor.class));
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(ComplexDataObject.class));
 
 		return scalarEnumBuilder.build();

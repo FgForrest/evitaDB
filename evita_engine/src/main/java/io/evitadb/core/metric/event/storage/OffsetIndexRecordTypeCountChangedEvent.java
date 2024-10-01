@@ -39,16 +39,18 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexRecordTypeCountChanged")
-@Description("Event that is fired when number of records of a particular type in OffsetIndex file changes.")
+@Description("Event that is raised when the number of records of a certain type in the OffsetIndex file changes.")
 @Label("OffsetIndex record type count changed")
 @Getter
 public class OffsetIndexRecordTypeCountChangedEvent extends AbstractDataFileEvent {
 
 	@Label("Record type")
+	@Description("Type of records that changed in the OffsetIndex.")
 	@ExportMetricLabel
 	private final String recordType;
 
 	@Label("Number of records")
+	@Description("Total number of records of the specified type in the OffsetIndex.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int records;
 

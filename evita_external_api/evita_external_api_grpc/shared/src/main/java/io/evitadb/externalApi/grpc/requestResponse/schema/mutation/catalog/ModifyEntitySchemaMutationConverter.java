@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,15 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog;
 
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import io.evitadb.utils.Assert;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -39,16 +42,18 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ModifyEntitySchemaMutationConverter implements SchemaMutationConverter<ModifyEntitySchemaMutation, GrpcModifyEntitySchemaMutation> {
-
-	private static final DelegatingEntitySchemaMutationConverter ENTITY_SCHEMA_MUTATION_CONVERTER = new DelegatingEntitySchemaMutationConverter();
+	public static final ModifyEntitySchemaMutationConverter INSTANCE = new ModifyEntitySchemaMutationConverter();
 
 	@Nonnull
 	public ModifyEntitySchemaMutation convert(@Nonnull GrpcModifyEntitySchemaMutation mutation) {
-		final EntitySchemaMutation[] entitySchemaMutations = mutation.getEntitySchemaMutationsList()
+		final LocalEntitySchemaMutation[] entitySchemaMutations = mutation.getEntitySchemaMutationsList()
 			.stream()
-			.map(ENTITY_SCHEMA_MUTATION_CONVERTER::convert)
-			.toArray(EntitySchemaMutation[]::new);
+			.map(DelegatingEntitySchemaMutationConverter.INSTANCE::convert)
+			.peek(m -> Assert.isTrue(m instanceof LocalEntitySchemaMutation, "Expected LocalEntitySchemaMutation"))
+			.map(LocalEntitySchemaMutation.class::cast)
+			.toArray(LocalEntitySchemaMutation[]::new);
 
 		return new ModifyEntitySchemaMutation(
 			mutation.getEntityType(),
@@ -59,7 +64,7 @@ public class ModifyEntitySchemaMutationConverter implements SchemaMutationConver
 	@Nonnull
 	public GrpcModifyEntitySchemaMutation convert(@Nonnull ModifyEntitySchemaMutation mutation) {
 		final List<GrpcEntitySchemaMutation> entitySchemaMutations = Arrays.stream(mutation.getSchemaMutations())
-			.map(ENTITY_SCHEMA_MUTATION_CONVERTER::convert)
+			.map(DelegatingEntitySchemaMutationConverter.INSTANCE::convert)
 			.toList();
 
 		return GrpcModifyEntitySchemaMutation.newBuilder()

@@ -104,7 +104,29 @@ Although gRPC provides some mechanisms for backward compatibility, there is no g
 communicate with the server if the protocol is not the same. Unchanged RPCs should work even if the protocol is not
 the same, any changes or additions will not work.
 
+Java client provided by us keeps the same versioning scheme as the server library. The server version can be easily
+retrieved from the server by calling the `ServerStatus` method from the `GrpcEvitaManagementAPI` service. You should
+try to keep the major/minor version of the client and server libraries the same, but the patch version can differ.
+
 </Note>
+
+## Connecting to the server and creating sessions
+
+To connect to the server, you need to create a channel and a stub for the service you want to use. You can use a simple 
+gPRC java client or a more powerful client implementation like [Armeria](https://armeria.dev/), which provides additional 
+features like connection pooling, load balancing, and more. Since we also use Armeria on the server side, we recommend 
+using their client as well.
+
+First, you need to create an evita service from which you can create a session. Second, you need to create a session 
+service, which is a key for all data manipulation operations and sending queries. The session is always bound to 
+a specific catalog and you need to decorate it with <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/interceptor/ClientSessionInterceptor.java</SourceClass> which will propagate the session id to the server with each call through 
+the session service in gRPC metadata.
+
+<SourceCodeTabs>
+
+[Example of creating Armeria gRPC client and connecting the server](/documentation/user/en/use/connectors/examples/grpc-create-session.java)
+
+</SourceCodeTabs>
 
 ## Querying the database
 
@@ -120,9 +142,10 @@ introduced by Spring framework.
 In this form, the user submits the query to the server, which parses the string form and creates an object representing
 the requested query, ready for execution by the database.
 
-<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/channel-and-session-creation.java">
+<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/grpc-create-session.java">
 
 [Example of creating gRPC channel and a service operating upon it and executing a query](/documentation/user/en/use/connectors/examples/grpc-client-query-call.java)
+
 </SourceCodeTabs>
 
 The example uses the `convertQueryParam` method from the <SourceClass>evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/query/QueryConverter.java</SourceClass> class. A similar method must be implemented in the gRPC client language to register
@@ -142,9 +165,10 @@ query validation, and we haven't developed any IDE tools to address this limitat
 Yes, there is, and you will not see this kind of usage in our integration tests. Instead, we work with query in its
 original type-safe form:
 
-<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/channel-and-session-creation.java">
+<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/grpc-create-session.java">
 
 [Example of alternative gRPC query invocation](/documentation/user/en/use/connectors/examples/grpc-optimized-client-query-call.java)
+
 </SourceCodeTabs>
 
 However, this approach requires that the query language model be implemented in the target gRPC language, and this

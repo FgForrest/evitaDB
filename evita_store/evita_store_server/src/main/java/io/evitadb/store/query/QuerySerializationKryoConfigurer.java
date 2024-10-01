@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,20 +28,12 @@ import com.esotericsoftware.kryo.serializers.DefaultSerializers.EnumSerializer;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
-import io.evitadb.api.query.order.AttributeNatural;
-import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.order.PriceNatural;
-import io.evitadb.api.query.order.Random;
-import io.evitadb.api.query.order.ReferenceProperty;
+import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
 import io.evitadb.store.query.serializer.CollectionSerializer;
 import io.evitadb.store.query.serializer.QuerySerializer;
 import io.evitadb.store.query.serializer.filter.*;
-import io.evitadb.store.query.serializer.orderBy.AttributeNaturalSerializer;
-import io.evitadb.store.query.serializer.orderBy.OrderBySerializer;
-import io.evitadb.store.query.serializer.orderBy.PriceNaturalSerializer;
-import io.evitadb.store.query.serializer.orderBy.RandomSerializer;
-import io.evitadb.store.query.serializer.orderBy.ReferencePropertySerializer;
+import io.evitadb.store.query.serializer.orderBy.*;
 import io.evitadb.store.query.serializer.require.*;
 import io.evitadb.utils.Assert;
 
@@ -60,10 +52,16 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		int index = QUERY_BASE;
 		kryo.register(Query.class, new QuerySerializer(), index++);
 
+		kryo.register(AttributeSpecialValue.class, new EnumSerializer(AttributeSpecialValue.class), index++);
+		kryo.register(DebugMode.class, new EnumSerializer(DebugMode.class), index++);
+		kryo.register(EmptyHierarchicalEntityBehaviour.class, new EnumSerializer(EmptyHierarchicalEntityBehaviour.class), index++);
+		kryo.register(FacetStatisticsDepth.class, new EnumSerializer(FacetStatisticsDepth.class), index++);
+		kryo.register(HistogramBehavior.class, new EnumSerializer(HistogramBehavior.class), index++);
+		kryo.register(OrderDirection.class, new EnumSerializer(OrderDirection.class), index++);
 		kryo.register(PriceContentMode.class, new EnumSerializer(PriceContentMode.class), index++);
 		kryo.register(QueryPriceMode.class, new EnumSerializer(QueryPriceMode.class), index++);
-		kryo.register(FacetStatisticsDepth.class, new EnumSerializer(FacetStatisticsDepth.class), index++);
-		kryo.register(DebugMode.class, new EnumSerializer(DebugMode.class), index++);
+		kryo.register(StatisticsBase.class, new EnumSerializer(StatisticsBase.class), index++);
+		kryo.register(StatisticsType.class, new EnumSerializer(StatisticsType.class), index++);
 
 		kryo.register(Collection.class, new CollectionSerializer(), index++);
 
@@ -73,10 +71,12 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(HierarchyDirectRelation.class, new HierarchyDirectRelationSerializer(), index++);
 		kryo.register(AttributeEndsWith.class, new AttributeEndsWithSerializer(), index++);
 		kryo.register(AttributeEquals.class, new AttributeEqualsSerializer<>(), index++);
+		kryo.register(HierarchyHaving.class, new HierarchyHavingSerializer(), index++);
 		kryo.register(HierarchyExcluding.class, new HierarchyExcludingSerializer(), index++);
 		kryo.register(HierarchyExcludingRoot.class, new HierarchyExcludingRootSerializer(), index++);
 		kryo.register(FacetHaving.class, new FacetHavingSerializer(), index++);
 		kryo.register(FilterBy.class, new FilterBySerializer(), index++);
+		kryo.register(FilterGroupBy.class, new FilterGroupBySerializer(), index++);
 		kryo.register(AttributeGreaterThan.class, new AttributeGreaterThanSerializer<>(), index++);
 		kryo.register(AttributeGreaterThanEquals.class, new AttributeGreaterThanEqualsSerializer<>(), index++);
 		kryo.register(AttributeInRange.class, new AttributeInRangeSerializer(), index++);
@@ -100,8 +100,15 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(HierarchyWithinRoot.class, new HierarchyWithinRootSerializer(), index++);
 
 		kryo.register(AttributeNatural.class, new AttributeNaturalSerializer(), index++);
+		kryo.register(AttributeSetInFilter.class, new AttributeSetInFilterSerializer(), index++);
+		kryo.register(AttributeSetExact.class, new AttributeSetExactSerializer(), index++);
+		kryo.register(EntityPrimaryKeyInFilter.class, new EntityPrimaryKeyInFilterSerializer(), index++);
+		kryo.register(EntityPrimaryKeyExact.class, new EntityPrimaryKeyExactSerializer(), index++);
+		kryo.register(EntityPrimaryKeyNatural.class, new EntityPrimaryKeyNaturalSerializer(), index++);
 		kryo.register(OrderBy.class, new OrderBySerializer(), index++);
+		kryo.register(OrderGroupBy.class, new io.evitadb.store.query.serializer.OrderGroupBy.OrderGroupBySerializer(), index++);
 		kryo.register(PriceNatural.class, new PriceNaturalSerializer(), index++);
+		kryo.register(PriceDiscount.class, new PriceDiscountSerializer(), index++);
 		kryo.register(Random.class, new RandomSerializer(), index++);
 		kryo.register(ReferenceProperty.class, new ReferencePropertySerializer(), index++);
 
@@ -131,7 +138,7 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(HierarchyStopAt.class, new HierarchyStopAtSerializer(), index++);
 		kryo.register(HierarchyStatistics.class, new HierarchyStatisticsSerializer(), index++);
 		kryo.register(PriceHistogram.class, new PriceHistogramSerializer(), index++);
-		kryo.register(io.evitadb.api.requestResponse.data.structure.Prices.class, new PriceContentSerializer(), index++);
+		kryo.register(PriceContent.class, new PriceContentSerializer(), index++);
 		kryo.register(ReferenceContent.class, new ReferenceContentSerializer(), index++);
 		kryo.register(HierarchyContent.class, new HierarchyContentSerializer(), index++);
 		kryo.register(Require.class, new RequireSerializer(), index++);

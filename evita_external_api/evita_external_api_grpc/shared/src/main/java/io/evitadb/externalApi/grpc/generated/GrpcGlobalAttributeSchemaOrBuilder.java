@@ -43,31 +43,55 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
       getNameBytes();
 
   /**
+   * <pre>
+   * optional description of the attribute
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return Whether the description field is set.
    */
   boolean hasDescription();
   /**
+   * <pre>
+   * optional description of the attribute
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return The description.
    */
   com.google.protobuf.StringValue getDescription();
   /**
+   * <pre>
+   * optional description of the attribute
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder();
 
   /**
+   * <pre>
+   * optional deprecation notice
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return Whether the deprecationNotice field is set.
    */
   boolean hasDeprecationNotice();
   /**
+   * <pre>
+   * optional deprecation notice
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    * @return The deprecationNotice.
    */
   com.google.protobuf.StringValue getDeprecationNotice();
   /**
+   * <pre>
+   * optional deprecation notice
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
    */
   com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder();
@@ -246,4 +270,48 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * @return The uniqueGlobally.
    */
   io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally();
+
+  /**
+   * <pre>
+   * Contains attribute name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 14;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+      getNameVariantList();
+  /**
+   * <pre>
+   * Contains attribute name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 14;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariant(int index);
+  /**
+   * <pre>
+   * Contains attribute name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 14;</code>
+   */
+  int getNameVariantCount();
+  /**
+   * <pre>
+   * Contains attribute name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 14;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+      getNameVariantOrBuilderList();
+  /**
+   * <pre>
+   * Contains attribute name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 14;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
+      int index);
 }

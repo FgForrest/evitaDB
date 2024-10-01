@@ -33,8 +33,10 @@ import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -42,41 +44,34 @@ import static java.util.Optional.ofNullable;
 /**
  * This DTO record encapsulates common settings shared among all the API endpoints.
  *
- * @param exposedOn              the name of the host the APIs will be exposed on when evitaDB is running inside a container
- * @param ioThreads              defines the number of IO thread will be used by Undertow for accept and send HTTP payload
- * @param idleTimeoutInMillis    The amount of time a connection can be idle for before it is timed out. An idle connection is a
- *                               connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
- *                               grained approach, and small values will cause problems for requests with a long processing time.
- * @param parseTimeoutInMillis   How long a request can spend in the parsing phase before it is timed out. This timer is started when
- *                               the first bytes of a request are read, and finishes once all the headers have been parsed.
- * @param requestTimeoutInMillis The amount of time a connection can sit idle without processing a request, before it is closed by
- *                               the server.
- * @param keepAlive              If this is true then a Connection: keep-alive header will be added to responses, even when it is not strictly required by
- *                               the specification.
- * @param maxEntitySizeInBytes   The default maximum size of a request entity. If entity body is larger than this limit then a
- *                               java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
- *                               length requests, when too much data has been read for chunked requests).
- * @param accessLog              defines whether the access logs will be enabled or not
- * @param endpoints              contains specific configuration for all the API endpoints
- * @param certificate            defines the certificate settings that will be used to secure connections to the web servers providing APIs
+ * @param accessLog                 defines whether the access logs will be enabled or not
+ * @param endpoints                 contains specific configuration for all the API endpoints
+ * @param certificate               defines the certificate settings that will be used to secure connections to the web servers providing APIs
+ * @param workerGroupThreads        defines the number of IO threads
+ * @param idleTimeoutInMillis       The amount of time a connection can be idle for before it is timed out. An idle connection is a
+ *                                  connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
+ *                                  grained approach, and small values will cause problems for requests with a long processing time.
+ * @param requestTimeoutInMillis    The amount of time a connection can sit idle without processing a request, before it is closed by
+ *                                  the server.
+ * @param keepAlive                 If this is true then a Connection: keep-alive header will be added to responses, even when it is not strictly required by
+ *                                  the specification.
+ * @param maxEntitySizeInBytes      The default maximum size of a request entity. If entity body is larger than this limit then a
+ *                                  java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
+ *                                  length requests, when too much data has been read for chunked requests).
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ApiOptions(
-	@Nonnull String exposedOn,
-	int ioThreads,
+	@Nullable Integer workerGroupThreads,
 	int idleTimeoutInMillis,
 	int requestTimeoutInMillis,
-	int parseTimeoutInMillis,
 	boolean keepAlive,
 	long maxEntitySizeInBytes,
 	boolean accessLog,
 	@Nonnull CertificateSettings certificate,
 	@Nonnull Map<String, AbstractApiConfiguration> endpoints
 ) {
-	// double the value of available processors (recommended by Undertow configuration)
-	public static final int DEFAULT_IO_THREADS = Runtime.getRuntime().availableProcessors() << 1;
+	public static final int DEFAULT_WORKER_GROUP_THREADS = Runtime.getRuntime().availableProcessors();
 	public static final int DEFAULT_IDLE_TIMEOUT = 20 * 1000;
-	public static final int DEFAULT_PARSE_TIMEOUT = 1000;
 	public static final int DEFAULT_REQUEST_TIMEOUT = 1000;
 	public static final boolean DEFAULT_KEEP_ALIVE = true;
 	public static final long DEFAULT_MAX_ENTITY_SIZE = 2_097_152L;
@@ -89,27 +84,26 @@ public record ApiOptions(
 	}
 
 	public ApiOptions(
-		@Nonnull String exposedOn,
-		int ioThreads, int idleTimeoutInMillis, int requestTimeoutInMillis, int parseTimeoutInMillis,
+		@Nullable Integer workerGroupThreads,
+		int idleTimeoutInMillis, int requestTimeoutInMillis,
 		boolean keepAlive, long maxEntitySizeInBytes, boolean accessLog,
 		@Nonnull CertificateSettings certificate,
 		@Nonnull Map<String, AbstractApiConfiguration> endpoints
 	) {
-		this.exposedOn = exposedOn;
-		this.ioThreads = ioThreads <= 0 ? DEFAULT_IO_THREADS : ioThreads;
+		this.workerGroupThreads = ofNullable(workerGroupThreads).orElse(DEFAULT_WORKER_GROUP_THREADS);
 		this.idleTimeoutInMillis = idleTimeoutInMillis <= 0 ? DEFAULT_IDLE_TIMEOUT : idleTimeoutInMillis;
 		this.requestTimeoutInMillis = requestTimeoutInMillis <= 0 ? DEFAULT_REQUEST_TIMEOUT : requestTimeoutInMillis;
-		this.parseTimeoutInMillis = parseTimeoutInMillis <= 0 ? DEFAULT_PARSE_TIMEOUT : parseTimeoutInMillis;
 		this.keepAlive = keepAlive;
 		this.maxEntitySizeInBytes = maxEntitySizeInBytes <= 0 ? DEFAULT_MAX_ENTITY_SIZE : maxEntitySizeInBytes;
 		this.accessLog = accessLog;
 		this.certificate = certificate;
 		this.endpoints = endpoints;
+
 	}
 
 	public ApiOptions() {
 		this(
-			null, DEFAULT_IO_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PARSE_TIMEOUT,
+			DEFAULT_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT,
 			DEFAULT_KEEP_ALIVE, DEFAULT_MAX_ENTITY_SIZE, false,
 			new CertificateSettings(), new HashMap<>(8)
 		);
@@ -125,20 +119,86 @@ public record ApiOptions(
 	}
 
 	/**
+	 * Returns set {@link #workerGroupThreads} or returns a default value.
+	 */
+	public int workerGroupThreadsAsInt() {
+		return ofNullable(workerGroupThreads)
+			// double the value of available processors (recommended by Netty configuration)
+			.orElse(DEFAULT_WORKER_GROUP_THREADS);
+	}
+
+	/**
+	 * Returns true if at least one endpoint requires TLS.
+	 * @return true if at least one endpoint requires TLS
+	 */
+	public boolean atLeastOneEndpointRequiresTls() {
+		return this.endpoints
+			.values()
+			.stream()
+			.anyMatch(it -> it.isEnabled() && it.getTlsMode() != TlsMode.FORCE_NO_TLS);
+	}
+
+	/**
+	 * Returns true if at least one endpoint requires TLS.
+	 * @return true if at least one endpoint requires TLS
+	 */
+	public boolean atLeastOneEndpointRequiresTls(@Nonnull HostDefinition host) {
+		return this.endpoints
+			.values()
+			.stream()
+			.filter(it -> Arrays.asList(it.getHost()).contains(host))
+			.anyMatch(it -> it.isEnabled() && it.getTlsMode() != TlsMode.FORCE_NO_TLS);
+	}
+
+	/**
+	 * Returns true if at least one endpoint requires mutual TLS.
+	 * @return true if at least one endpoint requires mutual TLS
+	 */
+	public boolean atLeastOnEndpointRequiresMtls() {
+		return this.endpoints
+			.values()
+			.stream()
+			.anyMatch(it -> {
+				if (it.isMtlsEnabled()) {
+					Assert.isPremiseValid(
+						it.getTlsMode() != TlsMode.FORCE_NO_TLS, "mTLS cannot be enabled without enabled TLS!"
+					);
+					return true;
+				} else {
+					return false;
+				}
+			});
+	}
+
+	/**
+	 * Returns the enabled API endpoints.
+	 *
+	 * @return array of codes of the enabled API endpoints
+	 */
+	@Nonnull
+	public String[] getEnabledApiEndpoints() {
+		return endpoints()
+			.entrySet()
+			.stream()
+			.filter(entry -> entry.getValue() != null)
+			.filter(entry -> entry.getValue().isEnabled())
+			.map(Entry::getKey)
+			.toArray(String[]::new);
+	}
+
+	/**
 	 * Standard builder pattern implementation.
 	 */
 	@ToString
 	public static class Builder {
 		private final Map<String, Class<?>> apiProviders;
 		private final Map<String, AbstractApiConfiguration> enabledProviders;
-		private int ioThreads = DEFAULT_IO_THREADS;
 		private int idleTimeoutInMillis = DEFAULT_IDLE_TIMEOUT;
 		private int requestTimeoutInMillis = DEFAULT_REQUEST_TIMEOUT;
-		private int parseTimeoutInMillis = DEFAULT_PARSE_TIMEOUT;
 		private boolean keepAlive = DEFAULT_KEEP_ALIVE;
 		private long maxEntitySizeInBytes = DEFAULT_MAX_ENTITY_SIZE;
 		private CertificateSettings certificate;
-		@Nullable private String exposedOn;
+		private int workerGroupThreads = DEFAULT_WORKER_GROUP_THREADS;
 		private boolean accessLog;
 
 		Builder() {
@@ -156,14 +216,8 @@ public record ApiOptions(
 		}
 
 		@Nonnull
-		public ApiOptions.Builder exposedOn(@Nonnull String exposedOn) {
-			this.exposedOn = exposedOn;
-			return this;
-		}
-
-		@Nonnull
-		public ApiOptions.Builder ioThreads(@Nullable Integer ioThreads) {
-			this.ioThreads = ofNullable(ioThreads).orElse(DEFAULT_IO_THREADS);
+		public ApiOptions.Builder workerGroupThreads(int workerGroupThreads) {
+			this.workerGroupThreads = workerGroupThreads;
 			return this;
 		}
 
@@ -176,12 +230,6 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions.Builder requestTimeoutInMillis(int requestTimeoutInMillis) {
 			this.requestTimeoutInMillis = requestTimeoutInMillis;
-			return this;
-		}
-
-		@Nonnull
-		public ApiOptions.Builder parseTimeoutInMillis(int parseTimeoutInMillis) {
-			this.parseTimeoutInMillis = parseTimeoutInMillis;
 			return this;
 		}
 
@@ -243,7 +291,8 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions build() {
 			return new ApiOptions(
-				exposedOn, ioThreads, idleTimeoutInMillis, requestTimeoutInMillis, parseTimeoutInMillis,
+				workerGroupThreads,
+				idleTimeoutInMillis, requestTimeoutInMillis,
 				keepAlive, maxEntitySizeInBytes, accessLog, certificate, enabledProviders
 			);
 		}

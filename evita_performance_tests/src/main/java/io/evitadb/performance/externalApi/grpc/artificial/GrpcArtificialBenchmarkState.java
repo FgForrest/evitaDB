@@ -23,7 +23,10 @@
 
 package io.evitadb.performance.externalApi.grpc.artificial;
 
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
+import com.linecorp.armeria.client.grpc.GrpcClients;
+import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
@@ -33,11 +36,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
-import io.grpc.ManagedChannel;
-import io.grpc.netty.NettyChannelBuilder;
-import io.netty.handler.ssl.SslContext;
 
-import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 /**
@@ -47,17 +46,15 @@ import java.util.function.Supplier;
  */
 public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBenchmarkState<EvitaSessionServiceBlockingStub> {
 
-	private static final String HOST = AbstractApiConfiguration.LOCALHOST;
+	private static final String HOST = "localhost";
 	private static final int PORT = GrpcConfig.DEFAULT_GRPC_PORT;
 
 	private ClientCertificateManager clientCertificateManager;
-	private SslContext sslContext;
 
 	public void setUp() {
 		clientCertificateManager = new ClientCertificateManager.Builder()
 			.useGeneratedCertificate(true, HOST, SystemConfig.DEFAULT_SYSTEM_PORT)
 			.build();
-		sslContext = clientCertificateManager.buildClientSslContext(null);
 	}
 
 	/**
@@ -66,24 +63,31 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	@Override
 	public EvitaSessionServiceBlockingStub getSession() {
 		return getSession(() -> {
-			final ManagedChannel grpcEvitaChannel = NettyChannelBuilder.forAddress(HOST, PORT)
-				.sslContext(sslContext)
+			final ClientFactory clientFactory = ClientFactory.builder()
+				.useHttp1Pipelining(true)
+				.idleTimeoutMillis(10000, true)
+				.maxNumRequestsPerConnection(1000)
+				.maxNumEventLoopsPerEndpoint(10)
+				.tlsCustomizer(tlsCustomizer -> clientCertificateManager.buildClientSslContext(null, tlsCustomizer))
 				.build();
 
-			final EvitaServiceGrpc.EvitaServiceBlockingStub evitaClient = EvitaServiceGrpc.newBlockingStub(grpcEvitaChannel);
+			final GrpcClientBuilder clientBuilder = GrpcClients.builder("https://" + HOST + ":" + PORT + "/")
+				.factory(clientFactory)
+				.serializationFormat(GrpcSerializationFormats.PROTO)
+				.responseTimeoutMillis(10000);
+
+			final EvitaServiceGrpc.EvitaServiceBlockingStub evitaClient = clientBuilder.build(EvitaServiceGrpc.EvitaServiceBlockingStub.class);
 			final GrpcEvitaSessionResponse response = evitaClient.createReadOnlySession(GrpcEvitaSessionRequest.newBuilder()
 				.setCatalogName(TEST_CATALOG)
 				.build());
-			grpcEvitaChannel.shutdownNow();
 
-			final ManagedChannel channel = NettyChannelBuilder.forAddress(HOST, PORT)
-				.sslContext(sslContext)
-				.intercept(new JmhClientSessionInterceptor(response.getSessionId()))
-				.executor(Executors.newCachedThreadPool())
-				.defaultLoadBalancingPolicy("round_robin")
-				.build();
+			final GrpcClientBuilder clientBuilderWithJmhInterceptor = GrpcClients.builder("https://" + HOST + ":" + PORT + "/")
+				.factory(clientFactory)
+				.serializationFormat(GrpcSerializationFormats.PROTO)
+				.responseTimeoutMillis(10000)
+				.intercept(new JmhClientSessionInterceptor(response.getSessionId()));
 
-			return EvitaSessionServiceGrpc.newBlockingStub(channel);
+			return clientBuilderWithJmhInterceptor.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
 		});
 	}
 

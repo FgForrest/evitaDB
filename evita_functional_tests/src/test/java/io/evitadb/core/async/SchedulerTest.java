@@ -26,7 +26,7 @@ package io.evitadb.core.async;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.PaginatedList;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -61,39 +61,77 @@ class SchedulerTest {
 
 	@Test
 	void shouldRegisterTask() {
-		assertEquals(0, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(0, scheduler.listTaskStatuses(1, 20, null).getTotalRecordCount());
 
 		scheduler.submit(
 			(ServerTask<?, ?>) new ClientRunnableTask<>("Test task", null, () -> {
 			})
 		);
 
-		assertEquals(1, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(1, scheduler.listTaskStatuses(1, 20, null).getTotalRecordCount());
+	}
+
+	@Test
+	void shouldListTasks() {
+		assertEquals(0, scheduler.listTaskStatuses(1, 20, null).getTotalRecordCount());
+
+		for (int i = 0; i < 10; i++) {
+			scheduler.submit(
+				(ServerTask<?, ?>) new ClientRunnableTask<>("Test task", null, () -> {
+				})
+			);
+		}
+
+		final PaginatedList<TaskStatus<?, ?>> taskStatuses = scheduler.listTaskStatuses(1, 5, null);
+		assertEquals(10, taskStatuses.getTotalRecordCount());
+		assertEquals(5, taskStatuses.getData().size());
 	}
 
 	@Test
 	void shouldGetStatusOfTheTask() throws ExecutionException, InterruptedException {
-		assertEquals(0, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(0, scheduler.listTaskStatuses(1, 20, null).getTotalRecordCount());
 
 		final CompletableFuture<Integer> result = scheduler.submit(
 			(ServerTask<?, Integer>) new ClientCallableTask<>("Test task", null, () -> 5)
 		);
 
-		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listJobStatuses(1, 20);
+		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listTaskStatuses(1, 20, null);
 		assertEquals(1, jobStatuses.getTotalRecordCount());
 
+		final PaginatedList<TaskStatus<?, ?>> typeFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, new String[] { ClientCallableTask.class.getSimpleName() });
+		assertEquals(1, typeFilteredJobStatuses.getTotalRecordCount());
+
+		while (scheduler.listTaskStatuses(1, 20, null).getData().get(0).simplifiedState() != TaskSimplifiedState.FINISHED) {
+			synchronized (this) {
+				wait(100);
+			}
+		}
+
+		final PaginatedList<TaskStatus<?, ?>> statusFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, null, TaskSimplifiedState.QUEUED);
+		assertEquals(0, statusFilteredJobStatuses.getTotalRecordCount());
+
+		final PaginatedList<TaskStatus<?, ?>> typeFilteredOutJobStatuses = scheduler.listTaskStatuses(1, 20, new String[] { "Non-existing task" });
+		assertEquals(0, typeFilteredOutJobStatuses.getTotalRecordCount());
+
 		assertEquals(5, result.get());
-		final Optional<TaskStatus<?, ?>> jobStatus = scheduler.getJobStatus(jobStatuses.getData().get(0).taskId());
+
+		final PaginatedList<TaskStatus<?, ?>> statusFilteredJobStatusesWhenDone = scheduler.listTaskStatuses(1, 20, null, TaskSimplifiedState.FINISHED);
+		assertEquals(1, statusFilteredJobStatusesWhenDone.getTotalRecordCount());
+
+		final PaginatedList<TaskStatus<?, ?>> nonMatchingFilteredJobStatusesWhenDone = scheduler.listTaskStatuses(1, 20, new String[] { "Non-existing task" }, TaskSimplifiedState.FINISHED);
+		assertEquals(0, nonMatchingFilteredJobStatusesWhenDone.getTotalRecordCount());
+
+		final Optional<TaskStatus<?, ?>> jobStatus = scheduler.getTaskStatus(typeFilteredJobStatuses.getData().get(0).taskId());
 
 		assertTrue(jobStatus.isPresent());
 		assertEquals("Test task", jobStatus.get().taskName());
 		assertEquals(5, jobStatus.get().result());
-		assertEquals(State.FINISHED, jobStatus.get().state());
+		assertEquals(TaskSimplifiedState.FINISHED, jobStatus.get().simplifiedState());
 	}
 
 	@Test
 	void shouldCancelTheTask() throws InterruptedException {
-		assertEquals(0, scheduler.listJobStatuses(1, 20).getTotalRecordCount());
+		assertEquals(0, scheduler.listTaskStatuses(1, 20, null).getTotalRecordCount());
 
 		final AtomicBoolean started = new AtomicBoolean(false);
 		final AtomicBoolean interrupted = new AtomicBoolean(false);
@@ -111,15 +149,15 @@ class SchedulerTest {
 			})
 		);
 
-		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listJobStatuses(1, 20);
+		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listTaskStatuses(1, 20, null);
 		assertEquals(1, jobStatuses.getTotalRecordCount());
 
-		final Optional<TaskStatus<?, ?>> jobStatus = scheduler.getJobStatus(jobStatuses.getData().get(0).taskId());
+		final Optional<TaskStatus<?, ?>> jobStatus = scheduler.getTaskStatus(jobStatuses.getData().get(0).taskId());
 
 		assertTrue(jobStatus.isPresent());
 		assertEquals("Test task", jobStatus.get().taskName());
 
-		scheduler.cancelJob(jobStatus.get().taskId());
+		scheduler.cancelTask(jobStatus.get().taskId());
 
 		try {
 			result.get();
@@ -134,11 +172,11 @@ class SchedulerTest {
 			Thread.onSpinWait();
 		} while (started.get() && !interrupted.get() && System.currentTimeMillis() - start < 100_000);
 
-		final Optional<TaskStatus<?, ?>> jobStatusAgain = scheduler.getJobStatus(jobStatuses.getData().get(0).taskId());
+		final Optional<TaskStatus<?, ?>> jobStatusAgain = scheduler.getTaskStatus(jobStatuses.getData().get(0).taskId());
 		final Optional<TaskStatus<?, ?>> taskStatusRef = jobStatusAgain;
 		taskStatusRef.ifPresent(taskStatus -> {
 			assertNull(taskStatus.result());
-			assertEquals(State.FAILED, taskStatus.state());
+			assertEquals(TaskSimplifiedState.FAILED, taskStatus.simplifiedState());
 		});
 		assertTrue(interrupted.get() || !started.get());
 	}

@@ -24,6 +24,8 @@
 package io.evitadb.core.metric.event.system;
 
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
+import jdk.jfr.Description;
+import jdk.jfr.Label;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -35,6 +37,11 @@ import javax.annotation.Nullable;
 @Getter
 abstract class AbstractBackgroundTaskEvent extends AbstractSystemCatalogEvent {
 
+	/**
+	 * The name of the background task.
+	 */
+	@Label("Task name")
+	@Description("Name of the background task.")
 	@ExportMetricLabel
 	final String taskName;
 

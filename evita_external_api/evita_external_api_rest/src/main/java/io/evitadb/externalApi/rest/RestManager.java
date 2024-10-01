@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
@@ -42,7 +43,6 @@ import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent.BuildType;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.undertow.server.HttpHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -72,9 +72,7 @@ public class RestManager {
 	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Nonnull private final Evita evita;
-	@Nullable private final String exposedOn;
 	@Nonnull private final RestConfig restConfig;
-
 
 	/**
 	 * REST specific endpoint router.
@@ -85,12 +83,11 @@ public class RestManager {
 	 */
 	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
 
-	@Nonnull private SystemBuildStatistics systemBuildStatistics;
+	@Nullable private SystemBuildStatistics systemBuildStatistics;
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
-	public RestManager(@Nonnull Evita evita, @Nullable String exposedOn, @Nonnull RestConfig restConfig) {
+	public RestManager(@Nonnull Evita evita, @Nonnull RestConfig restConfig) {
 		this.evita = evita;
-		this.exposedOn = exposedOn;
 		this.restConfig = restConfig;
 		this.restRouter = new RestRouter(objectMapper, restConfig);
 
@@ -104,10 +101,9 @@ public class RestManager {
 	}
 
 	@Nonnull
-	public HttpHandler getRestRouter() {
-		return new PathNormalizingHandler(restRouter);
+	public HttpService getRestRouter() {
+		return new PathNormalizingHandler(this.restRouter);
 	}
-
 
 	/**
 	 * Builds and registers system API to manage evitaDB
@@ -115,7 +111,7 @@ public class RestManager {
 	private void registerSystemApi() {
 		final long instanceBuildStartTime = System.currentTimeMillis();
 
-		final SystemRestBuilder systemRestBuilder = new SystemRestBuilder(exposedOn, restConfig, evita);
+		final SystemRestBuilder systemRestBuilder = new SystemRestBuilder(restConfig.getExposeOn(), restConfig, evita);
 		final long schemaBuildStartTime = System.currentTimeMillis();
 		final Rest api = systemRestBuilder.build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
@@ -149,7 +145,7 @@ public class RestManager {
 		try {
 			final long instanceBuildStartTime = System.currentTimeMillis();
 
-			final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
+			final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig.getExposeOn(), restConfig, evita, catalog);
 			final long schemaBuildStartTime = System.currentTimeMillis();
 			final Rest api = catalogRestBuilder.build();
 			final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
@@ -206,7 +202,7 @@ public class RestManager {
 		final long instanceBuildStartTime = System.currentTimeMillis();
 
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
-		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
+		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig.getExposeOn(), restConfig, evita, catalog);
 		final long schemaBuildStartTime = System.currentTimeMillis();
 		final Rest newApi = catalogRestBuilder.build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
@@ -279,7 +275,7 @@ public class RestManager {
 	/**
 	 * Counts lines of printed OpenAPI schema in DSL.
 	 */
-	private long countOpenApiSchemaLines(@Nonnull OpenAPI schema) {
+	private static long countOpenApiSchemaLines(@Nonnull OpenAPI schema) {
 		final ByteArrayOutputStream out = new ByteArrayOutputStream();
 		try {
 			OpenApiWriter.toYaml(schema, out);

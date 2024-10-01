@@ -34,11 +34,15 @@ import lombok.RequiredArgsConstructor;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@EventGroup(AbstractRestInstanceEvent.PACKAGE_NAME)
+@EventGroup(
+	value = AbstractRestInstanceEvent.PACKAGE_NAME,
+	name = "evitaDB - REST API",
+	description = "evitaDB events related to REST API."
+)
 @Category({"evitaDB", "ExternalAPI", "REST", "Instance", "Schema"})
 @RequiredArgsConstructor
 @Getter
 public abstract class AbstractRestInstanceEvent extends CustomMetricsExecutionEvent {
-
 	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.rest.instance";
+
 }

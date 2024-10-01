@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -37,7 +39,9 @@ import javax.annotation.Nonnull;
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertPriceMutation, GrpcUpsertPriceMutation> {
+	public static final UpsertPriceMutationConverter INSTANCE = new UpsertPriceMutationConverter();
 
 	@Override
 	@Nonnull
@@ -52,7 +56,7 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 			EvitaDataTypesConverter.toBigDecimal(mutation.getTaxRate()),
 			EvitaDataTypesConverter.toBigDecimal(mutation.getPriceWithTax()),
 			mutation.hasValidity() ? EvitaDataTypesConverter.toDateTimeRange(mutation.getValidity()) : null,
-			mutation.getSellable()
+			mutation.getIndexed() || mutation.getSellable()
 		);
 	}
 
@@ -66,7 +70,8 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 			.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getPriceWithoutTax()))
 			.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getTaxRate()))
 			.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(mutation.getPriceWithTax()))
-			.setSellable(mutation.isSellable());
+			.setSellable(mutation.isIndexed())
+			.setIndexed(mutation.isIndexed());
 
 		if (mutation.getInnerRecordId() != null) {
 			builder.setInnerRecordId(Int32Value.of(mutation.getInnerRecordId()));

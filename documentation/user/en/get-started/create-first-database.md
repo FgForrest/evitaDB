@@ -16,6 +16,7 @@ We assume you already have the following snippet of the code from the [previous 
 <SourceCodeTabs local>
 
 [Example of starting the evitaDB server](/documentation/user/en/get-started/example/complete-startup.java)
+
 </SourceCodeTabs>
 
 So the evitaDB instance is now up and running and ready to communicate.
@@ -28,13 +29,12 @@ We assume that you already have the following Docker image up and running from t
 
 ```shell
 # Linux variant: run on foreground, destroy container after exit, use host ports without NAT
-docker run --name evitadb -i --rm --net=host \
-index.docker.io/evitadb/evitadb:latest
+docker run --name evitadb -i --rm --net=host \       
+       index.docker.io/evitadb/evitadb:latest
 
 # Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238
 # and you need to open ports manually
-docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \
-       -e "api.exposedOn=localhost" \
+docker run --name evitadb -i --rm -p 5555:5555 \       
        index.docker.io/evitadb/evitadb:latest
 ```
 
@@ -52,7 +52,7 @@ to define a new catalog and create predefined schemas for multiple collections: 
 Each collection contains some attributes (either localized or non-localized), category is marked as a hierarchical entity
 that forms a tree, product is enabled to have prices:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java" langSpecificTabOnly local>
 
 [Example of defining catalog and schema for entity collections](/documentation/user/en/get-started/example/define-catalog-with-schema.java)
 </SourceCodeTabs>
@@ -66,7 +66,7 @@ that forms a tree, product is enabled to have prices:
 Now you can use the [system API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) via the URL
 `https://your-server:5555/gql/system` to create a new empty catalog:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java" langSpecificTabOnly local>
 
 [Example of creating empty catalog](/documentation/user/en/get-started/example/define-catalog.graphql)
 </SourceCodeTabs>
@@ -77,7 +77,7 @@ modifying its schema via the [catalog schema API](/documentation/user/en/use/con
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms
 a tree, product is enabled to have prices:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Example of creating empty catalog](/documentation/user/en/get-started/example/define-schema-for-catalog.graphql)
 </SourceCodeTabs>
@@ -91,7 +91,7 @@ a tree, product is enabled to have prices:
 Now you can use the [system API](/documentation/user/en/use/connectors/rest.md#rest-api-instances) via the URL
 `https://your-server:5555/rest/system/catalogs` to create a new empty catalog:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java" langSpecificTabOnly local>
 
 [Example of creating empty catalog](/documentation/user/en/get-started/example/define-catalog.rest)
 </SourceCodeTabs>
@@ -102,7 +102,7 @@ modifying its schema via the [catalog schema API](/documentation/user/en/use/con
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms
 a tree, product is enabled to have prices:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Example of creating empty catalog](/documentation/user/en/get-started/example/define-schema-for-catalog.rest)
 </SourceCodeTabs>
@@ -115,7 +115,7 @@ a tree, product is enabled to have prices:
 
 Once the catalog is created and the schema is known, you can insert a first entity to the catalog:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Example of inserting an entity](/documentation/user/en/get-started/example/create-first-entity.java)
 </SourceCodeTabs>
@@ -128,7 +128,7 @@ the load in the cluster.
 
 Let's see how you can retrieve the entity you just created in another read-only session.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-first-entity.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-first-entity.java" langSpecificTabOnly local>
 
 [Example of reading an entity by primary key](/documentation/user/en/get-started/example/read-entity-by-pk.java)
 </SourceCodeTabs>
@@ -142,7 +142,7 @@ Once the catalog is created and the schema is known, you can insert a first enti
 [catalog data API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) at the
 `https://your-server:5555/gql/evita` URL:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Example of inserting an entity](/documentation/user/en/get-started/example/create-first-entity.graphql)
 </SourceCodeTabs>
@@ -156,7 +156,7 @@ the load in the cluster.
 Let's see how you can retrieve the entity you just created in another read-only session via the same catalog data API
 as mentioned above.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-first-entity.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-first-entity.java" langSpecificTabOnly local>
 
 [Example of reading an entity by primary key](/documentation/user/en/get-started/example/read-entity-by-pk.graphql)
 </SourceCodeTabs>
@@ -170,7 +170,7 @@ Once the catalog is created and the schema is known, you can insert a first enti
 [catalog data API](/documentation/user/en/use/connectors/rest.md#rest-api-instances) at the URL
 `https://your-server:5555/rest/evita/brand`:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Example of inserting an entity](/documentation/user/en/get-started/example/create-first-entity.rest)
 </SourceCodeTabs>
@@ -184,7 +184,7 @@ the load in the cluster.
 Let's see how you can retrieve the entity you just created in another read-only session via the same catalog data API
 as mentioned above.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-first-entity.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-first-entity.java" langSpecificTabOnly local>
 
 [Example of reading an entity by primary key](/documentation/user/en/get-started/example/read-entity-by-pk.rest)
 </SourceCodeTabs>
@@ -197,7 +197,7 @@ as mentioned above.
 
 Once you learn the basics, you can create a small dataset to work with:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Example of creating a small dataset](/documentation/user/en/get-started/example/create-small-dataset.java)
 </SourceCodeTabs>
@@ -213,21 +213,21 @@ have in the relational database. The example shows how to define attributes, ass
 
 To get a better idea of the data, let's list the existing entities from the database.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of listing entities](/documentation/user/en/get-started/example/list-entities.java)
 </SourceCodeTabs>
 
 You can also filter and sort the data:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of filtering and ordering entities](/documentation/user/en/get-started/example/filter-order-entities.java)
 </SourceCodeTabs>
 
 Or you can filter all products by price in EUR greater than €300 and order by price with the cheapest products first:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of filtering and ordering products by price](/documentation/user/en/get-started/example/filter-order-products-by-price.java)
 </SourceCodeTabs>
@@ -240,7 +240,7 @@ Or you can filter all products by price in EUR greater than €300 and order by 
 
 Updating an entity is similar to creating a new entity:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of listing entities](/documentation/user/en/get-started/example/update-entity.java)
 </SourceCodeTabs>
@@ -260,7 +260,7 @@ For more information, see the [write API description](../use/api/write-data.md#u
 
 Updating an entity is similar to creating a new entity:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of listing entities](/documentation/user/en/get-started/example/update-entity.graphql)
 </SourceCodeTabs>
@@ -277,7 +277,7 @@ For more information, see the [write API description](../use/api/write-data.md#u
 
 Updating an entity is similar to creating a new entity:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of listing entities](/documentation/user/en/get-started/example/update-entity.rest)
 </SourceCodeTabs>
@@ -296,13 +296,13 @@ For more information, see the [write API description](../use/api/write-data.md#u
 You can delete entity by is primary key:
 
 <LS to="j">
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by PK](/documentation/user/en/get-started/example/delete-entity-by-pk.java)
 </SourceCodeTabs>
 </LS>
 <LS to="c">
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by PK](/documentation/user/en/get-started/example/delete-entity-by-pk.cs)
 </SourceCodeTabs>
@@ -311,13 +311,13 @@ You can delete entity by is primary key:
 Or, you can issue a query that removes all the entities that match the query:
 
 <LS to="j">
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by query](/documentation/user/en/get-started/example/delete-entity-by-query.java)
 </SourceCodeTabs>
 </LS>
 <LS to="c">
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by query](/documentation/user/en/get-started/example/delete-entity-by-query.cs)
 </SourceCodeTabs>
@@ -326,13 +326,13 @@ Or, you can issue a query that removes all the entities that match the query:
 When you delete a hierarchical entity, you can choose whether or not to delete it with all of its child entities:
 
 <LS to="j">
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" local>
 
 [Example of deleting hierarchical entity](/documentation/user/en/get-started/example/delete-hierarchical-entity.java)
 </SourceCodeTabs>
 </LS>
 <LS to="c">
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" local>
 
 [Example of deleting hierarchical entity](/documentation/user/en/get-started/example/delete-hierarchical-entity.cs)
 </SourceCodeTabs>
@@ -349,7 +349,7 @@ For more complex examples and explanations, see the [write API chapter](../use/a
 You can issue a query that removes all the entities that match the query using the same catalog data API that you
 would use to insert, update or retrieve entities:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by query](/documentation/user/en/get-started/example/delete-entity-by-query.graphql)
 </SourceCodeTabs>
@@ -363,7 +363,7 @@ For more complex examples and explanations, see the [write API chapter](../use/a
 
 You can delete entity by is primary key:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by PK](/documentation/user/en/get-started/example/delete-entity-by-pk.rest)
 </SourceCodeTabs>
@@ -371,7 +371,7 @@ You can delete entity by is primary key:
 Or, you can issue a query that removes all the entities that match the query using the same catalog data API that you
 would use to insert, update or retrieve entities:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by query](/documentation/user/en/get-started/example/delete-entity-by-query.rest)
 </SourceCodeTabs>

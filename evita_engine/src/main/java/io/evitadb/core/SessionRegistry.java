@@ -24,6 +24,7 @@
 package io.evitadb.core;
 
 import com.esotericsoftware.kryo.util.Null;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.api.exception.TransactionException;
@@ -56,9 +57,13 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.Proxy;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -86,9 +91,13 @@ final class SessionRegistry {
 	 */
 	private final Supplier<Catalog> catalog;
 	/**
+	 * Keeps information about currently active sessions in one big data store that contains index across all catalogs.
+	 */
+	private final SessionRegistryDataStore sharedDataStore;
+	/**
 	 * Keeps information about currently active sessions.
 	 */
-	private final Map<UUID, EvitaSessionTuple> activeSessions = new ConcurrentHashMap<>(64);
+	private final Map<UUID, EvitaSessionTuple> activeSessions = CollectionUtils.createConcurrentHashMap(512);
 	/**
 	 * Keeps information about sessions sorted according to date of creation.
 	 */
@@ -105,20 +114,12 @@ final class SessionRegistry {
 	private final ConcurrentHashMap<String, VersionConsumingSessions> catalogConsumedVersions = CollectionUtils.createConcurrentHashMap(32);
 
 	/**
-	 * Returns set of all active (currently open) sessions.
+	 * Created data store to be shared among all SessionRegistry instances.
+	 * @return the data store
 	 */
-	public Stream<EvitaInternalSessionContract> getActiveSessions() {
-		return activeSessions.values().stream().map(EvitaSessionTuple::proxySession);
-	}
-
-	/**
-	 * Method returns active session by its unique id or NULL if such session is not found.
-	 */
-	@Nullable
-	public EvitaInternalSessionContract getActiveSessionById(@Nonnull UUID sessionId) {
-		return ofNullable(activeSessions.get(sessionId))
-			.map(EvitaSessionTuple::proxySession)
-			.orElse(null);
+	@Nonnull
+	public static SessionRegistryDataStore createDataStore() {
+		return new SessionRegistryDataStore();
 	}
 
 	/**
@@ -126,16 +127,22 @@ final class SessionRegistry {
 	 * All changes are rolled back.
 	 */
 	public void closeAllActiveSessions() {
+		final List<CompletableFuture<Long>> futures = new LinkedList<>();
 		for (EvitaSessionTuple sessionTuple : activeSessions.values()) {
 			final EvitaSession activeSession = sessionTuple.plainSession();
 			if (activeSession.isActive()) {
 				if (activeSession.isTransactionOpen()) {
 					activeSession.setRollbackOnly();
 				}
-				activeSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE);
+				futures.add(activeSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE));
 				log.info("There is still active session {} - terminating.", activeSession.getId());
 			}
 		}
+		// wait for all futures to complete
+		CompletableFuture
+			.allOf(futures.toArray(new CompletableFuture[0]))
+			.join();
+		// check that all sessions were closed
 		Assert.isPremiseValid(
 			activeSessionsCounter.get() == 0,
 			"Some of the sessions didn't decrement the session counter!"
@@ -168,6 +175,7 @@ final class SessionRegistry {
 		this.sessionsFifoQueue.add(sessionTuple);
 		this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions())
 			.registerSessionConsumingCatalogInVersion(catalogVersion);
+		this.sharedDataStore.addSession(sessionTuple);
 
 		return newSessionProxy;
 	}
@@ -176,8 +184,12 @@ final class SessionRegistry {
 	 * Removes session from the registry.
 	 */
 	public void removeSession(@Nonnull EvitaSession session) {
-		final EvitaSessionTuple activeSession = this.activeSessions.remove(session.getId());
+		final EvitaSessionTuple activeSession = this.sharedDataStore.removeSession(session.getId());
 		if (activeSession != null) {
+			Assert.isPremiseValid(
+				this.activeSessions.remove(session.getId()) == activeSession,
+				"Session instance doesn't match the information found in the registry."
+			);
 			this.activeSessionsCounter.decrementAndGet();
 			Assert.isPremiseValid(this.sessionsFifoQueue.remove(activeSession), "Session not found in the queue.");
 
@@ -199,9 +211,16 @@ final class SessionRegistry {
 			if (finalizationResult.lastReader()) {
 				// notify listeners that the catalog version is no longer used
 				final Catalog theCatalog = this.catalog.get();
-				theCatalog.catalogVersionBeyondTheHorizon(
-					finalizationResult.minimalActiveCatalogVersion()
-				);
+				if (theCatalog != null) {
+					theCatalog.catalogVersionBeyondTheHorizon(
+						finalizationResult.minimalActiveCatalogVersion()
+					);
+				} else {
+					log.error(
+						"Catalog is not available for the session finalization.",
+						new GenericEvitaInternalError("Catalog is not available for the session finalization.")
+					);
+				}
 			}
 
 			// emit event
@@ -463,6 +482,50 @@ final class SessionRegistry {
 		@Nullable Long minimalActiveCatalogVersion,
 		boolean lastReader
 	) {
+	}
+
+	public static class SessionRegistryDataStore {
+		/**
+		 * Keeps information about currently active sessions.
+		 */
+		private final Map<UUID, EvitaSessionTuple> activeSessions = CollectionUtils.createConcurrentHashMap(512);
+
+		/**
+		 * Method returns active session by its unique id or empty value if such session is not found.
+		 */
+		@Nonnull
+		public Optional<EvitaSessionContract> getActiveSessionById(@Nonnull UUID sessionId) {
+			return ofNullable(this.activeSessions.get(sessionId))
+				.map(EvitaSessionTuple::proxySession);
+		}
+
+		/**
+		 * Method adds an active session to the internal index.
+		 * @param activeSession the active session to be added
+		 */
+		void addSession(@Nonnull EvitaSessionTuple activeSession) {
+			this.activeSessions.put(activeSession.plainSession.getId(), activeSession);
+		}
+
+		/**
+		 * Method removes an active session from the internal index and returns it.
+		 * @param sessionId the unique id of the session
+		 * @return the session that was removed or NULL if such session is not found
+		 */
+		@Nullable
+		EvitaSessionTuple removeSession(@Nonnull UUID sessionId) {
+			return this.activeSessions.remove(sessionId);
+		}
+
+		/**
+		 * Returns set of all active (currently open) sessions.
+		 */
+		@Nonnull
+		public Stream<EvitaSessionContract> getActiveSessions() {
+			return this.activeSessions.values()
+				.stream()
+				.map(EvitaSessionTuple::proxySession);
+		}
 	}
 
 }

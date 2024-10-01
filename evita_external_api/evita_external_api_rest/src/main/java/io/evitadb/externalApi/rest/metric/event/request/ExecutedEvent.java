@@ -55,19 +55,19 @@ import java.util.function.Supplier;
 public class ExecutedEvent extends AbstractRestRequestEvent {
 
 	/**
-	 * Operation type specified by user in GQL request.
+	 * Operation type specified by user in REST request.
 	 */
-	@Label("Operation type")
-	@Name("operationType")
+	@Label("REST operation type")
+	@Description("The type of operation that was executed. One of: QUERY, MUTATION.")
 	@ExportMetricLabel
 	@Nullable
-	final String operationType;
+	final String restOperationType;
 
 	/**
 	 * The name of the catalog the transaction relates to.
 	 */
 	@Label("Catalog")
-	@Name("catalogName")
+	@Description("The name of the catalog to which this event/metric is associated.")
 	@ExportMetricLabel
 	@Nullable
 	final String catalogName;
@@ -75,81 +75,109 @@ public class ExecutedEvent extends AbstractRestRequestEvent {
 	/**
 	 * The name of the entity collection the transaction relates to.
 	 */
-	@Label("Collection")
-	@Name("entityType")
+	@Label("Entity type")
+	@Description("The name of the related entity type (collection).")
 	@ExportMetricLabel
 	@Nullable
 	final String entityType;
 
+	/**
+	 * HTTP method of the request.
+	 */
 	@Label("HTTP method")
-	@Name("httpMethod")
+	@Description("The HTTP method of the request.")
 	@ExportMetricLabel
 	@Nonnull
 	final String httpMethod;
 
+	/**
+	 * Operation ID specified by user in GQL request.
+	 */
 	@Label("Operation ID")
-	@Name("operationId")
+	@Description("The ID of the operation that was executed.")
 	@ExportMetricLabel
 	@Nonnull
 	final String operationId;
 
+	/**
+	 * Response status of the request.
+	 */
 	@Label("Response status")
-	@Name("responseStatus")
+	@Description("The status of the response: OK or ERROR.")
 	@ExportMetricLabel
 	@Nonnull
 	String responseStatus = ResponseStatus.OK.name();
 
-
 	/**
-	 * Process started timestamp.
+	 * Time to deserialize the incoming JSON input REST request to internal structure in milliseconds.
 	 */
-	private final long processStarted;
-
-	@Label("Input deserialization duration in milliseconds")
+	@Label("Input deserialization duration")
+	@Description("Time to deserialize the incoming JSON input REST request to internal structure in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long inputDeserializationDurationMilliseconds;
+	private final long processStarted;
 
-	private long operationExecutionStarted;
-	@Label("Request operation execution duration in milliseconds")
+	/**
+	 * Time to execute the entire parsed and validated REST operation by the server engine in milliseconds.
+	 * Includes all handler business logic, including evitaDB input reconstruction and evitaDB query execution.
+	 */
+	@Label("Execution duration")
+	@Description("Time to execute the entire parsed and validated REST operation by the server engine in milliseconds. " +
+		"Includes all handler business logic, including evitaDB input reconstruction and evitaDB query execution.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long operationExecutionDurationMilliseconds;
+	private long operationExecutionStarted;
 
-	@Label("Duration of all internal evitaDB input (query, mutations, ...) reconstructions in milliseconds")
+	/**
+	 * Time to reconstruct query input into evitaDB engine in milliseconds. Usually converts JSON query into
+	 * internal evitaDB query representation or JSON mutations into internal evitaDB mutation representation.
+	 */
+	@Label("evitaDB input reconstruction duration")
+	@Description("Time to reconstruct query input into evitaDB engine in milliseconds. Usually converts JSON query into" +
+		" internal evitaDB query representation or JSON mutations into internal evitaDB mutation representation.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long internalEvitadbInputReconstructionDurationMilliseconds;
 
 	/**
-	 * Duration of all internal evitaDB executions in milliseconds.
+	 * Duration of all internal evitaDB calls/executions (query entities, upsert entities, and so on) in milliseconds.
 	 */
 	private long internalEvitadbExecutionDurationMilliseconds;
 
-	private long resultSerializationStarted;
-	@Label("Request result serialization duration in milliseconds")
+	/**
+	 * Time to serialize the final request result into output JSON in milliseconds.
+	 */
+	@Label("Result serializatio duration")
+	@Description("Time to serialize the final request result into output JSON in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long resultSerializationDurationMilliseconds;
+	private long resultSerializationStarted;
 
 	/**
 	 * Overall request execution duration in milliseconds for calculating API overhead.
 	 */
 	private long executionDurationMilliseconds;
 
-	@Label("Overall request execution API overhead duration in milliseconds")
+	/**
+	 * Request execution overhead in milliseconds.
+	 */
+	@Label("Request execution overhead")
+	@Description("Time to execute the request in milliseconds without internal evitaDB execution.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 1.9)
 	private long executionApiOverheadDurationMilliseconds;
 
 	public ExecutedEvent(@Nonnull RestInstanceType instanceType,
-						 @Nonnull OperationType operationType,
+						 @Nonnull OperationType restOperationType,
 						 @Nullable String catalogName,
 						 @Nullable String entityType,
 	                     @Nonnull String httpMethod,
 	                     @Nonnull String operationId) {
 		super(instanceType);
-		this.operationType = operationType.name();
+		this.restOperationType = restOperationType.name();
 		this.catalogName = catalogName;
 		this.entityType = entityType;
 		this.httpMethod = httpMethod;

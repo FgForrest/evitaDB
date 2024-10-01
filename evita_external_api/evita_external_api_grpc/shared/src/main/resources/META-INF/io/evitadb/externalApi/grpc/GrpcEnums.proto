@@ -21,6 +21,8 @@ enum GrpcCatalogState {
   // All operations are executed transactionally and leave the date in consistent state even if any error occurs.
   // Multiple readers and writers can work with the catalog simultaneously.
   ALIVE = 1;
+  // Unknown state of the catalog. Used when catalog is corrupted.
+  UNKNOWN_CATALOG_STATE = 2;
 }
 
 // This enum represents the uniqueness type of an {@link AttributeSchema}. It is used to determine whether the attribute
@@ -291,6 +293,8 @@ enum GrpcEvitaDataType {
   UUID = 20;
   // Represents Predecessor data type.
   PREDECESSOR = 21;
+  // Represents ReferencedEntityPredecessor data type.
+  REFERENCED_ENTITY_PREDECESSOR = 22;
 
   // Represents string array data type.
   STRING_ARRAY = 50;
@@ -485,6 +489,7 @@ enum GrpcEntityExistence {
   MUST_EXIST = 2;
 }
 
+// Contains set of all possible close method behavior types when the session is committed/closed
 enum GrpcCommitBehavior {
 
   // Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
@@ -510,5 +515,163 @@ enum GrpcCommitBehavior {
   // slowest but guarantees that the changes are persisted on disk and durable and that they are visible
   // immediately after the commit is marked as completed.
   WAIT_FOR_INDEX_PROPAGATION = 2;
+
+}
+
+// Contains set of all supported/used naming conventions in evitaDB APIs.
+enum GrpcNamingConvention {
+
+  // Camel case: https://en.wikipedia.org/wiki/Camel_case
+  CAMEL_CASE = 0;
+  // Pascal case: https://www.theserverside.com/definition/Pascal-case
+  PASCAL_CASE = 1;
+  // Snake case: https://en.wikipedia.org/wiki/Snake_case
+  SNAKE_CASE = 2;
+  // Capitalized snake case: https://en.wikipedia.org/wiki/Snake_case
+  UPPER_SNAKE_CASE = 3;
+  // Kebab case: https://en.wikipedia.org/wiki/Letter_case#Kebab_case
+  KEBAB_CASE = 4;
+
+}
+
+// This enum represents the possible health problems that can be signaled by the server.
+enum GrpcHealthProblem {
+
+  /**
+	 * Signalized when the consumed memory never goes below 85% of the maximum heap size and the GC tries to free
+	 * old generation at least once (this situation usually leads to repeated attempts of expensive old generation GC
+	 * and pressure on system CPUs).
+	 */
+  MEMORY_SHORTAGE = 0;
+  /**
+   * Signalized when the readiness probe signals that at least one external API, that is configured to be enabled
+   * doesn't respond to internal HTTP check call.
+   */
+  EXTERNAL_API_UNAVAILABLE = 1;
+  /**
+   * Signalized when the input queues are full and the server is not able to process incoming requests. The problem
+   * is reported when there is ration of rejected tasks to accepted tasks >= 2. This flag is cleared when the rejection
+   * ratio decreases below the specified threshold, which signalizes that server is able to process incoming requests
+   * again.
+   */
+  INPUT_QUEUES_OVERLOADED = 2;
+  /**
+   * Signaled when there are occurrences of Java internal errors. These errors are usually caused by the server
+   * itself and are not related to the client's requests. Java errors signal fatal problems inside the JVM.
+   */
+  JAVA_INTERNAL_ERRORS = 3;
+
+}
+
+// Enum representing overall readiness state of the server API.
+enum GrpcReadiness {
+
+  /**
+   * At least one API is not ready.
+   */
+  API_STARTING = 0;
+  /**
+   * All APIs are ready.
+   */
+  API_READY = 1;
+  /**
+   * At least one API that was ready is not ready anymore.
+   */
+  API_STALLING = 2;
+  /**
+   * Server is shutting down. None of the APIs are ready.
+   */
+  API_SHUTDOWN = 3;
+  /**
+   * Unknown state - cannot determine the state of the APIs (should not happen).
+   */
+  API_UNKNOWN = 4;
+
+}
+
+// State aggregates the possible states of a task into a simple enumeration.
+enum GrpcTaskSimplifiedState {
+
+  /**
+		 * Task is waiting in the queue to be executed.
+		 */
+  TASK_QUEUED = 0;
+  /**
+   * Task is currently running.
+   */
+  TASK_RUNNING = 1;
+  /**
+   * Task has finished successfully.
+   */
+  TASK_FINISHED = 2;
+  /**
+   * Task has failed.
+   */
+  TASK_FAILED = 3;
+
+}
+
+// Enum specifies different modes for reference attributes inheritance in reflected schema.
+enum GrpcAttributeInheritanceBehavior {
+  /**
+   * Inherit all attributes by default except those listed in the {@link #getAttributeInheritanceFilter()} array.
+   */
+  INHERIT_ALL_EXCEPT = 0;
+
+  /**
+   * Do not inherit any attributes by default except those listed in the {@link #getAttributeInheritanceFilter()} array.
+   */
+  INHERIT_ONLY_SPECIFIED = 1;
+}
+
+// Enum describes traits of a GrpcTask task.
+enum GrpcTaskTrait {
+
+  /**
+   * Task can be manually started by the user.
+   */
+  TASK_CAN_BE_STARTED = 0;
+  /**
+   * Task can be manually cancelled by the user.
+   */
+  TASK_CAN_BE_CANCELLED = 1;
+  /**
+   * Task needs to be manually stopped by the user (otherwise it will run indefinitely).
+   */
+  TASK_NEEDS_TO_BE_STOPPED = 2;
+
+}
+
+// Enum describes possible classifier types used in reserved keywords listing
+enum GrpcClassifierType {
+
+  /**
+	 * Identification of the server instance.
+	 */
+  CLASSIFIER_TYPE_SERVER_NAME = 0;
+  /**
+   * Identification of the catalog.
+   */
+  CLASSIFIER_TYPE_CATALOG = 1;
+  /**
+   * Identification of the entity type.
+   */
+  CLASSIFIER_TYPE_ENTITY = 2;
+  /**
+   * Identification of the attribute.
+   */
+  CLASSIFIER_TYPE_ATTRIBUTE = 3;
+  /**
+   * Identification of the associated data (rich content).
+   */
+  CLASSIFIER_TYPE_ASSOCIATED_DATA = 4;
+  /**
+   * Identification of the reference.
+   */
+  CLASSIFIER_TYPE_REFERENCE = 5;
+  /**
+   * Identification of the reference attribute.
+   */
+  CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE = 6;
 
 }

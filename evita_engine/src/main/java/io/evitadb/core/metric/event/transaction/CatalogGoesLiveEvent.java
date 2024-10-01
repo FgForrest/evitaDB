@@ -38,9 +38,9 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".CatalogGoesLive")
-@Description("Event that is fired when a catalog goes live (transactional).")
+@Description("Event that is fired when a catalog goes live (becomes transactional).")
 @Label("Catalog goes live")
-@ExportDurationMetric(label = "Catalog transition to live state duration")
+@ExportDurationMetric(label = "Catalog transition to alive state duration")
 @ExportInvocationMetric(label = "Catalog goes live invocation count")
 @Getter
 public class CatalogGoesLiveEvent extends AbstractTransactionEvent {

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.core.Evita;
@@ -36,12 +37,12 @@ import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
-import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Updates and returns single evitaDB catalog by its name.
@@ -61,42 +62,43 @@ public class UpdateCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-
 		final Map<String, Object> parameters = getParametersFromRequest(executionContext);
-		final UpdateCatalogRequestDto requestBody = parseRequestBody(executionContext, UpdateCatalogRequestDto.class);
-		requestExecutedEvent.finishInputDeserialization();
+		return parseRequestBody(executionContext, UpdateCatalogRequestDto.class)
+			.thenApply(requestBody -> {
+				requestExecutedEvent.finishInputDeserialization();
 
-		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			restHandlingContext.getEvita().getCatalogInstance(catalogName));
-		if (catalog.isEmpty()) {
-			requestExecutedEvent.finishOperationExecution();
-			requestExecutedEvent.finishResultSerialization();
-			return new NotFoundEndpointResponse();
-		}
+				final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
+				final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					restHandlingContext.getEvita().getCatalogInstance(catalogName));
+				if (catalog.isEmpty()) {
+					requestExecutedEvent.finishOperationExecution();
+					requestExecutedEvent.finishResultSerialization();
+					return new NotFoundEndpointResponse();
+				}
 
-		final CatalogContract updatedCatalog = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
-			final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
-			switchCatalogToAliveState(catalog.get(), requestBody);
+				final CatalogContract updatedCatalog = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
+					final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
+					switchCatalogToAliveState(catalog.get(), requestBody);
 
-			final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
-			return restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
-				.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
-		});
-		requestExecutedEvent.finishOperationExecution();
+					final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
+					return restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
+						.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
+				});
+				requestExecutedEvent.finishOperationExecution();
 
-		final Object result = convertResultIntoSerializableObject(executionContext, updatedCatalog);
-		requestExecutedEvent.finishResultSerialization();
+				final Object result = convertResultIntoSerializableObject(executionContext, updatedCatalog);
+				requestExecutedEvent.finishResultSerialization();
 
-		return new SuccessEndpointResponse(result);
+				return new SuccessEndpointResponse(result);
+			});
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.PATCH_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.PATCH);
 	}
 
 	@Nonnull
@@ -125,8 +127,8 @@ public class UpdateCatalogHandler extends CatalogHandler {
 		return newCatalogName;
 	}
 
-	private void switchCatalogToAliveState(@Nonnull CatalogContract catalog,
-	                                       @Nonnull UpdateCatalogRequestDto requestBody) {
+	private static void switchCatalogToAliveState(@Nonnull CatalogContract catalog,
+	                                              @Nonnull UpdateCatalogRequestDto requestBody) {
 		final Optional<CatalogState> newCatalogState = Optional.ofNullable(requestBody.catalogState());
 		if (newCatalogState.isEmpty()) {
 			return;

@@ -23,26 +23,29 @@
 
 package io.evitadb.externalApi.graphql.io;
 
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponseWriter;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
-import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.Methods;
+import io.netty.channel.EventLoop;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.io.OutputStream;
-import java.io.PrintWriter;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
@@ -57,22 +60,30 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 public class GraphQLSchemaHandler extends EndpointHandler<GraphQLSchemaEndpointExecutionContext> {
 
     @Nonnull
+    private final Evita evita;
+    @Nonnull
     private final AtomicReference<GraphQL> graphQL;
 
-    public GraphQLSchemaHandler(@Nonnull AtomicReference<GraphQL> graphQL) {
+    public GraphQLSchemaHandler(
+        @Nonnull Evita evita,
+        @Nonnull AtomicReference<GraphQL> graphQL
+    ) {
+        this.evita = evita;
         this.graphQL = graphQL;
     }
 
     @Nonnull
     @Override
-    protected GraphQLSchemaEndpointExecutionContext createExecutionContext(@Nonnull HttpServerExchange serverExchange) {
-        return new GraphQLSchemaEndpointExecutionContext(serverExchange);
+    protected GraphQLSchemaEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
+        return new GraphQLSchemaEndpointExecutionContext(httpRequest, this.evita);
     }
 
     @Override
     @Nonnull
-    protected EndpointResponse doHandleRequest(@Nonnull GraphQLSchemaEndpointExecutionContext executionContext) {
-        return new SuccessEndpointResponse(graphQL.get().getGraphQLSchema());
+    protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLSchemaEndpointExecutionContext executionContext) {
+        return executionContext.executeAsyncInRequestThreadPool(
+            () -> new SuccessEndpointResponse(graphQL.get().getGraphQLSchema())
+        );
     }
 
     @Nonnull
@@ -98,8 +109,8 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLSchemaEndpointE
 
     @Nonnull
     @Override
-    public Set<String> getSupportedHttpMethods() {
-        return Set.of(Methods.GET_STRING);
+    public Set<HttpMethod> getSupportedHttpMethods() {
+        return Set.of(HttpMethod.GET);
     }
 
     @Nonnull
@@ -110,17 +121,13 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLSchemaEndpointE
         return mediaTypes;
     }
 
-
     @Override
-    protected void writeResult(@Nonnull GraphQLSchemaEndpointExecutionContext executionContext, @Nonnull OutputStream outputStream, @Nonnull Object response) {
+    protected void writeResponse(@Nonnull GraphQLSchemaEndpointExecutionContext executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object response, @Nonnull EventLoop eventExecutors) {
         Assert.isPremiseValid(
             response instanceof GraphQLSchema,
             () -> new GraphQLInternalError("Expected response to be instance of GraphQLSchema, but was `" + response.getClass().getName() + "`.")
         );
         final String printedSchema = GraphQLSchemaPrinter.print((GraphQLSchema) response);
-        try (PrintWriter writer = new PrintWriter(outputStream)) {
-            writer.write(printedSchema);
-        }
+	    responseWriter.write(HttpData.ofUtf8(printedSchema));
     }
-
 }

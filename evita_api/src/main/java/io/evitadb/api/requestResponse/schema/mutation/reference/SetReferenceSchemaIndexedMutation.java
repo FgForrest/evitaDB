@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,8 +30,9 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -48,7 +49,7 @@ import java.util.Optional;
  * Mutation is responsible for setting value to a {@link ReferenceSchemaContract#isIndexed()}
  * in {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link ReferenceSchemaContract} alone.
- * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -57,18 +58,22 @@ import java.util.Optional;
 @Immutable
 @EqualsAndHashCode(callSuper = true)
 public class SetReferenceSchemaIndexedMutation
-	extends AbstractModifyReferenceDataSchemaMutation implements CombinableEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = 6302709513348603359L;
-	@Getter private final boolean indexed;
+	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
+	@Serial private static final long serialVersionUID = -4329391051963284444L;
+	@Getter private final Boolean indexed;
 
-	public SetReferenceSchemaIndexedMutation(@Nonnull String name, boolean indexed) {
+	public SetReferenceSchemaIndexedMutation(@Nonnull String name, @Nullable Boolean indexed) {
 		super(name);
 		this.indexed = indexed;
 	}
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<EntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull EntitySchemaMutation existingMutation) {
+	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull LocalEntitySchemaMutation existingMutation
+	) {
 		if (existingMutation instanceof SetReferenceSchemaIndexedMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
@@ -78,33 +83,37 @@ public class SetReferenceSchemaIndexedMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		if (referenceSchema.isIndexed() == indexed) {
-			// schema is already indexed
-			return referenceSchema;
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+			return reflectedReferenceSchema;
 		} else {
-			if (!indexed) {
-				verifyNoAttributeRequiresIndex(entitySchema, referenceSchema);
-			}
+			if (referenceSchema.isIndexed() == this.indexed) {
+				// schema is already indexed
+				return referenceSchema;
+			} else {
+				if (!this.indexed) {
+					verifyNoAttributeRequiresIndex(entitySchema, referenceSchema);
+				}
 
-			return ReferenceSchema._internalBuild(
-				name,
-				referenceSchema.getNameVariants(),
-				referenceSchema.getDescription(),
-				referenceSchema.getDeprecationNotice(),
-				referenceSchema.getReferencedEntityType(),
-				referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-				referenceSchema.isReferencedEntityTypeManaged(),
-				referenceSchema.getCardinality(),
-				referenceSchema.getReferencedGroupType(),
-				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-				referenceSchema.isReferencedGroupTypeManaged(),
-				indexed,
-				referenceSchema.isFaceted(),
-				referenceSchema.getAttributes(),
-				referenceSchema.getSortableAttributeCompounds()
-			);
+				return ReferenceSchema._internalBuild(
+					this.name,
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					this.indexed,
+					referenceSchema.isFaceted(),
+					referenceSchema.getAttributes(),
+					referenceSchema.getSortableAttributeCompounds()
+				);
+			}
 		}
 	}
 
@@ -132,11 +141,11 @@ public class SetReferenceSchemaIndexedMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
+		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
@@ -149,7 +158,7 @@ public class SetReferenceSchemaIndexedMutation
 
 	@Override
 	public String toString() {
-		return "Set entity reference `" + name + "` schema: " +
-			"indexed=" + indexed;
+		return "Set entity reference `" + this.name + "` schema: " +
+			"indexed=" + this.indexed;
 	}
 }

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.http.EndpointResponse;
@@ -34,13 +35,13 @@ import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles single entity delete request.
@@ -61,38 +62,42 @@ public class DeleteEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		return executionContext.executeAsyncInTransactionThreadPool(
+			() -> {
+				final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
-		Assert.isTrue(
-			parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
-			() -> new RestInvalidArgumentException("Primary key wasn't found in URL.")
+				final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
+				Assert.isTrue(
+					parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
+					() -> new RestInvalidArgumentException("Primary key wasn't found in URL.")
+				);
+				requestExecutedEvent.finishInputDeserialization();
+
+				final EntityContentRequire[] entityContentRequires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
+					RequireConstraintFromRequestQueryBuilder.getEntityContentRequires(parametersFromRequest));
+
+				final Optional<SealedEntity> deletedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					executionContext.session().deleteEntity(
+						restHandlingContext.getEntityType(),
+						(Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
+						entityContentRequires
+					));
+				requestExecutedEvent.finishOperationExecution();
+
+				final Optional<Object> result = deletedEntity.map(it -> convertResultIntoSerializableObject(executionContext, it));
+				requestExecutedEvent.finishResultSerialization();
+
+				return result
+					.map(it -> (EndpointResponse) new SuccessEndpointResponse(result))
+					.orElse(new NotFoundEndpointResponse());
+			}
 		);
-		requestExecutedEvent.finishInputDeserialization();
-
-		final EntityContentRequire[] entityContentRequires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
-			RequireConstraintFromRequestQueryBuilder.getEntityContentRequires(parametersFromRequest));
-
-		final Optional<SealedEntity> deletedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			executionContext.session().deleteEntity(
-				restHandlingContext.getEntityType(),
-				(Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
-				entityContentRequires
-			));
-		requestExecutedEvent.finishOperationExecution();
-
-		final Optional<Object> result = deletedEntity.map(it -> convertResultIntoSerializableObject(executionContext, it));
-		requestExecutedEvent.finishResultSerialization();
-
-		return result
-			.map(it -> (EndpointResponse) new SuccessEndpointResponse(result))
-			.orElse(new NotFoundEndpointResponse());
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.DELETE_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.DELETE);
 	}
 }

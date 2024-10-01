@@ -23,11 +23,14 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
-import io.undertow.server.HttpHandler;
+import io.evitadb.externalApi.utils.path.PathHandlingService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * Descriptor of single external API provider. External API provider is system that is responsible for serving
@@ -54,16 +57,17 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	/**
 	 * @return HTTP handler that is responsible for processing all requests addressed to this API
 	 */
-	@Nullable
-	default HttpHandler getApiHandler() {
-		return null;
-	}
+	@Nonnull
+	HttpServiceDefinition[] getHttpServiceDefinitions();
 
 	/**
-	 * Method should return true if the API is managed by the Undertow server.
+	 * Returns map of key endpoints and their absolute URLs that could be published to the user via.
+	 * console or administration GUI
+	 * @return index of symbolic name of the endpoint and the absolute URL as a value
 	 */
-	default boolean isManagedByUndertow() {
-		return true;
+	@Nonnull
+	default Map<String, String[]> getKeyEndPoints() {
+		return Collections.emptyMap();
 	}
 
 	/**
@@ -94,5 +98,34 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	 * @return TRUE if the API is ready to accept requests
 	 */
 	boolean isReady();
+
+	/**
+	 * Represents HTTP service that is responsible for processing all requests addressed to this API on given sub-path.
+	 *
+	 * @param path sub-path of the API
+	 * @param service HTTP service that is responsible for processing all requests addressed to path
+	 */
+	record HttpServiceDefinition(
+		@Nullable String path,
+		@Nonnull HttpService service,
+		@Nonnull PathHandlingMode pathHandlingMode
+	) {
+
+		public HttpServiceDefinition(@Nonnull HttpService service, @Nonnull PathHandlingMode routing) {
+			this("", service, routing);
+		}
+	}
+
+	enum PathHandlingMode {
+		/**
+		 * Needs to be used for services on root path that execute their own path handling.
+		 */
+		FIXED_PATH_HANDLING,
+		/**
+		 * Might be used for services on sub-paths that can be handled by {@link PathHandlingService}, that can
+		 * be dynamically updated during runtime.
+		 */
+		DYNAMIC_PATH_HANDLING
+	}
 
 }

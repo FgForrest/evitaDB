@@ -23,6 +23,14 @@
 
 package io.evitadb.externalApi.system;
 
+import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpResponseBuilder;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.file.HttpFile;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -33,35 +41,30 @@ import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
-import io.evitadb.utils.Assert;
+import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.StringUtils;
-import io.undertow.Handlers;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.server.handlers.PathHandler;
-import io.undertow.server.handlers.resource.FileResourceManager;
-import io.undertow.server.handlers.resource.ResourceHandler;
-import io.undertow.server.handlers.resource.ResourceManager;
-import io.undertow.util.Headers;
-import io.undertow.util.StatusCodes;
 
 import javax.annotation.Nonnull;
 import java.io.File;
-import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -70,58 +73,36 @@ import java.util.stream.Collectors;
  * @author Tomáš Pozler, 2023
  */
 public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<SystemConfig> {
-	private static final String ENDPOINT_SERVER_NAME = "server-name";
-	private static final String ENDPOINT_SYSTEM_STATUS = "status";
-	private static final String ENDPOINT_SYSTEM_LIVENESS = "liveness";
-	private static final String ENDPOINT_SYSTEM_READINESS = "readiness";
+	public static final String ENDPOINT_SERVER_NAME = "server-name";
+	public static final String ENDPOINT_SYSTEM_STATUS = "status";
+	public static final String ENDPOINT_SYSTEM_LIVENESS = "liveness";
+	public static final String ENDPOINT_SYSTEM_READINESS = "readiness";
 
 	/**
 	 * Prints the status of the APIs as a JSON string.
 	 *
-	 * @param exchange  the HTTP server exchange
+	 * @param builder   http response builder
 	 * @param readiness the readiness of the APIs
 	 */
-	private static void printApiStatus(
-		@Nonnull HttpServerExchange exchange,
+	private static HttpResponse printApiStatus(
+		@Nonnull HttpResponseBuilder builder,
 		@Nonnull Readiness readiness
 	) {
-		exchange.getResponseSender().send("{\n" +
+		return builder.content(MediaType.JSON, "{\n" +
 			"\t\"status\": \"" + readiness.state().name() + "\",\n" +
 			"\t\"apis\": {\n" +
 			Arrays.stream(readiness.apiStates())
 				.map(entry -> "\t\t\"" + entry.apiCode() + "\": \"" + (entry.isReady() ? "ready" : "not ready") + "\"")
 				.collect(Collectors.joining(",\n")) + "\n" +
 			"\t}\n" +
-			"}"
-		);
-	}
-
-	/**
-	 * Returns the enabled API endpoints.
-	 *
-	 * @param apiOptions the common settings shared among all the API endpoints
-	 * @return array of codes of the enabled API endpoints
-	 */
-	@Nonnull
-	private static String[] getEnabledApiEndpoints(@Nonnull ApiOptions apiOptions) {
-		return apiOptions.endpoints()
-			.entrySet()
-			.stream()
-			.filter(entry -> entry.getValue() != null)
-			.filter(entry -> entry.getValue().isEnabled())
-			.map(Entry::getKey)
-			.toArray(String[]::new);
+			"}").build();
 	}
 
 	/**
 	 * Renders the unavailable response (should not happen).
-	 *
-	 * @param exchange the HTTP server exchange
 	 */
-	private static void renderUnavailable(@Nonnull HttpServerExchange exchange) {
-		exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
-		exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-		exchange.getResponseSender().send("{\"status\": \"" + ReadinessState.SHUTDOWN.name() + "\"}");
+	private static HttpResponse renderUnavailable() {
+		return HttpResponse.of(HttpStatus.SERVICE_UNAVAILABLE, MediaType.JSON, "{\"status\": \"" + ReadinessState.SHUTDOWN.name() + "\"}");
 	}
 
 	/**
@@ -129,70 +110,72 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	 *
 	 * @param evita             the evitaDB server
 	 * @param externalApiServer the external API server
-	 * @param exchange          the HTTP server exchange
 	 * @param apiOptions        the common settings shared among all the API endpoints
 	 * @param probes            the probes providers
 	 * @param enabledEndPoints  the enabled API endpoints
 	 */
-	private static void renderStatus(
+	private static CompletableFuture<HttpResponse> renderStatus(
 		@Nonnull Evita evita,
 		@Nonnull ExternalApiServer externalApiServer,
-		@Nonnull HttpServerExchange exchange,
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull List<ProbesProvider> probes,
 		@Nonnull String[] enabledEndPoints) {
-		if (evita.isActive()) {
-			exchange.setStatusCode(StatusCodes.OK);
-			exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-			final Set<HealthProblem> healthProblems = probes
-				.stream()
-				.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
-				.collect(Collectors.toSet());
-			final SystemStatus systemStatus = evita.getSystemStatus();
-			exchange.getResponseSender().send(
-				String.format("""
-						{
-						   "serverName": "%s",
-						   "version": "%s",
-						   "startedAt": "%s",
-						   "uptime": %d,
-						   "uptimeForHuman": "%s",
-						   "catalogsCorrupted": %d,
-						   "catalogsOk": %d,
-						   "healthProblems": [%s],
-						   "apis": [
-						%s
-						   ]
-						}""",
-					evita.getConfiguration().name(),
-					systemStatus.version(),
-					DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(systemStatus.startedAt()),
-					systemStatus.uptime().toSeconds(),
-					StringUtils.formatDuration(systemStatus.uptime()),
-					systemStatus.catalogsCorrupted(),
-					systemStatus.catalogsOk(),
-					healthProblems.stream()
-						.sorted()
-						.map(it -> "\"" + it.name() + "\"")
-						.collect(Collectors.joining(", ")),
-					apiOptions.endpoints()
-						.entrySet()
+		return evita.executeAsyncInRequestThreadPool(
+			() -> {
+				if (evita.isActive()) {
+					final HttpResponseBuilder builder = HttpResponse.builder();
+					builder.status(HttpStatus.OK);
+					final Set<HealthProblem> healthProblems = probes
 						.stream()
-						.filter(entry -> Arrays.stream(enabledEndPoints).anyMatch(it -> it.equals(entry.getKey())))
-						.map(
-							entry -> "      {\n         \"" + entry.getKey() + "\": " +
-								"[\n" + Arrays.stream(entry.getValue().getBaseUrls(apiOptions.exposedOn()))
-								.map(it -> "            \"" + it + "\"")
-								.collect(Collectors.joining(",\n")) +
-								"\n         ]" +
-								"\n      }"
+						.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
+						.collect(Collectors.toSet());
+					final SystemStatus systemStatus = evita.management().getSystemStatus();
+					return builder.content(
+						MediaType.JSON,
+						String.format("""
+								{
+								   "serverName": "%s",
+								   "version": "%s",
+								   "startedAt": "%s",
+								   "uptime": %d,
+								   "uptimeForHuman": "%s",
+								   "catalogsCorrupted": %d,
+								   "catalogsOk": %d,
+								   "healthProblems": [%s],
+								   "apis": [
+								%s
+								   ]
+								}""",
+							evita.getConfiguration().name(),
+							systemStatus.version(),
+							DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(systemStatus.startedAt()),
+							systemStatus.uptime().toSeconds(),
+							StringUtils.formatDuration(systemStatus.uptime()),
+							systemStatus.catalogsCorrupted(),
+							systemStatus.catalogsOk(),
+							healthProblems.stream()
+								.sorted()
+								.map(it -> "\"" + it.name() + "\"")
+								.collect(Collectors.joining(", ")),
+							apiOptions.endpoints()
+								.entrySet()
+								.stream()
+								.filter(entry -> Arrays.stream(enabledEndPoints).anyMatch(it -> it.equals(entry.getKey())))
+								.map(
+									entry -> "      {\n         \"" + entry.getKey() + "\": " +
+										"[\n" + Arrays.stream(entry.getValue().getBaseUrls())
+										.map(it -> "            \"" + it + "\"")
+										.collect(Collectors.joining(",\n")) +
+										"\n         ]" +
+										"\n      }"
+								)
+								.collect(Collectors.joining(",\n"))
 						)
-						.collect(Collectors.joining(",\n"))
-				)
-			);
-		} else {
-			renderUnavailable(exchange);
-		}
+					).build();
+				} else {
+					return renderUnavailable();
+				}
+			});
 	}
 
 	/**
@@ -200,37 +183,38 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	 *
 	 * @param evita             the evitaDB server
 	 * @param externalApiServer the external API server
-	 * @param exchange          the HTTP server exchange
 	 * @param probes            the probes providers
 	 * @param enabledEndPoints  the enabled API endpoints
 	 */
-	private static void renderReadinessResponse(
+	private static CompletableFuture<HttpResponse> renderReadinessResponse(
 		@Nonnull Evita evita,
 		@Nonnull ExternalApiServer externalApiServer,
-		@Nonnull HttpServerExchange exchange,
 		@Nonnull List<ProbesProvider> probes,
 		@Nonnull String[] enabledEndPoints
 	) {
-		exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-		if (evita.isActive()) {
-			final Optional<Readiness> readiness = probes
-				.stream()
-				.map(it -> it.getReadiness(evita, externalApiServer, enabledEndPoints))
-				.findFirst();
+		return evita.executeAsyncInRequestThreadPool(
+			() -> {
+				final HttpResponseBuilder builder = HttpResponse.builder();
+				if (evita.isActive()) {
+					final Optional<Readiness> readiness = probes
+						.stream()
+						.map(it -> it.getReadiness(evita, externalApiServer, enabledEndPoints))
+						.findFirst();
 
-			if (readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
-				exchange.setStatusCode(StatusCodes.OK);
-				printApiStatus(exchange, readiness.get());
-			} else if (readiness.isPresent()) {
-				exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
-				printApiStatus(exchange, readiness.get());
-			} else {
-				exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
-				exchange.getResponseSender().send("{\"status\": \"" + ReadinessState.UNKNOWN.name() + "\"}");
-			}
-		} else {
-			renderUnavailable(exchange);
-		}
+					if (readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
+						builder.status(HttpStatus.OK);
+						return printApiStatus(builder, readiness.get());
+					} else if (readiness.isPresent()) {
+						builder.status(HttpStatus.SERVICE_UNAVAILABLE);
+						return printApiStatus(builder, readiness.get());
+					} else {
+						builder.status(HttpStatus.SERVICE_UNAVAILABLE);
+						return builder.content(MediaType.JSON, "{\"status\": \"" + ReadinessState.UNKNOWN.name() + "\"}").build();
+					}
+				} else {
+					return renderUnavailable();
+				}
+			});
 	}
 
 	/**
@@ -238,41 +222,41 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	 *
 	 * @param evita             the evitaDB server
 	 * @param externalApiServer the external API server
-	 * @param exchange          the HTTP server exchange
 	 * @param probes            the probes providers
 	 * @param enabledEndPoints  the enabled API endpoints
 	 */
-	private static void renderLivenessResponse(
+	private static CompletableFuture<HttpResponse> renderLivenessResponse(
 		@Nonnull Evita evita,
 		@Nonnull ExternalApiServer externalApiServer,
-		@Nonnull HttpServerExchange exchange,
 		@Nonnull List<ProbesProvider> probes,
 		@Nonnull String[] enabledEndPoints
 	) {
-		if (evita.isActive()) {
-			exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-			final Set<HealthProblem> healthProblems = probes
-				.stream()
-				.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
-				.collect(Collectors.toSet());
+		return evita.executeAsyncInRequestThreadPool(
+			() -> {
+				if (evita.isActive()) {
+					final Set<HealthProblem> healthProblems = probes
+						.stream()
+						.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
+						.collect(Collectors.toSet());
 
-			if (healthProblems.isEmpty()) {
-				exchange.setStatusCode(StatusCodes.OK);
-				exchange.getResponseSender().send("{\"status\": \"healthy\"}");
-			} else {
-				exchange.setStatusCode(StatusCodes.SERVICE_UNAVAILABLE);
-				exchange.getResponseSender().send(
-					"{\"status\": \"unhealthy\", \"problems\": [" +
-						healthProblems.stream()
-							.sorted()
-							.map(it -> "\"" + it.name() + "\"")
-							.collect(Collectors.joining(", ")) +
-						"]}"
-				);
-			}
-		} else {
-			renderUnavailable(exchange);
-		}
+					if (healthProblems.isEmpty()) {
+						return HttpResponse.of(HttpStatus.OK, MediaType.JSON, "{\"status\": \"healthy\"}");
+					} else {
+						return HttpResponse.of(
+							HttpStatus.SERVICE_UNAVAILABLE,
+							MediaType.JSON,
+							"{\"status\": \"unhealthy\", \"problems\": [" +
+								healthProblems.stream()
+									.sorted()
+									.map(it -> "\"" + it.name() + "\"")
+									.collect(Collectors.joining(", ")) +
+								"]}"
+						);
+					}
+				} else {
+					return renderUnavailable();
+				}
+			});
 	}
 
 	@Nonnull
@@ -295,64 +279,64 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull SystemConfig systemConfig
 	) {
-		final PathHandler router = Handlers.path();
-		router.addExactPath(
+		final RoutingHandlerService router = new RoutingHandlerService();
+		router.add(
+			HttpMethod.GET,
 			"/" + ENDPOINT_SERVER_NAME,
-			exchange -> {
-				exchange.setStatusCode(StatusCodes.OK);
-				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "text/plain");
-				exchange.getResponseSender().send(evita.getConfiguration().name());
-			}
+			createCorsWrapper(
+				systemConfig,
+				(ctx, req) -> {
+					new ReadinessEvent(SystemProvider.CODE, Prospective.SERVER).finish(Result.READY);
+					return HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT, evita.getConfiguration().name());
+				}
+			)
 		);
 
-		final String[] enabledEndPoints = getEnabledApiEndpoints(apiOptions);
+		final String[] enabledEndPoints = apiOptions.getEnabledApiEndpoints();
 		final List<ProbesProvider> probes = ServiceLoader.load(ProbesProvider.class)
 			.stream()
 			.map(Provider::get)
 			.toList();
 
-		router.addExactPath(
+		router.add(
+			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_STATUS,
-			exchange -> renderStatus(
-				evita,
-				externalApiServer,
-				exchange,
-				apiOptions,
-				probes,
-				enabledEndPoints
+			createCorsWrapper(
+				systemConfig,
+				(ctx, req) -> HttpResponse.of(
+					renderStatus(
+						evita,
+						externalApiServer,
+						apiOptions,
+						probes,
+						enabledEndPoints
+					)
+				)
 			)
 		);
 
-		router.addExactPath(
+		router.add(
+			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_LIVENESS,
-			exchange -> renderLivenessResponse(evita, externalApiServer, exchange, probes, enabledEndPoints)
+			createCorsWrapper(
+				systemConfig,
+				(ctx, req) -> HttpResponse.of(renderLivenessResponse(evita, externalApiServer, probes, enabledEndPoints))
+			)
 		);
 
-		router.addExactPath(
+		router.add(
+			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_READINESS,
-			exchange -> renderReadinessResponse(evita, externalApiServer, exchange, probes, enabledEndPoints)
+			createCorsWrapper(
+				systemConfig,
+				(ctx, req) -> HttpResponse.of(renderReadinessResponse(evita, externalApiServer, probes, enabledEndPoints))
+			)
 		);
 
 		final String fileName;
 		final CertificateSettings certificateSettings = apiOptions.certificate();
-		final boolean atLeastOnEndpointRequiresTls = apiOptions.endpoints()
-			.values()
-			.stream()
-			.anyMatch(it -> it.isEnabled() && it.isTlsEnabled());
-		final boolean atLeastOnEndpointRequiresMtls = apiOptions.endpoints()
-			.values()
-			.stream()
-			.anyMatch(it -> {
-				if (it.isMtlsEnabled()) {
-					Assert.isPremiseValid(
-						it.isTlsEnabled(), "mTLS cannot be enabled without enabled TLS!"
-					);
-					return true;
-				} else {
-					return false;
-				}
-			});
 
+		final boolean atLeastOnEndpointRequiresTls = apiOptions.atLeastOneEndpointRequiresTls();
 		if (atLeastOnEndpointRequiresTls) {
 			final File file;
 			if (certificateSettings.generateAndUseSelfSigned()) {
@@ -372,62 +356,108 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				file = new File(certificate.substring(0, lastSeparatorIndex));
 				fileName = certificate.substring(lastSeparatorIndex);
 			}
-
-			try (ResourceManager resourceManager = new FileResourceManager(file, 100)) {
-				final ResourceHandler fileSystemHandler = new ResourceHandler(
-					(exchange, path) -> {
-						if (("/" + fileName).equals(path)) {
-							return resourceManager.getResource(fileName);
-						} else if (("/" + CertificateUtils.getGeneratedServerCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
-							return resourceManager.getResource(CertificateUtils.getGeneratedServerCertificateFileName());
-						} else if (("/" + CertificateUtils.getGeneratedClientCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
-							return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificateFileName());
-						} else if (("/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
-							return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
-						} else {
-							return null;
-						}
+			router.add(
+				HttpMethod.GET,
+				"/" + fileName,
+				createCorsWrapper(
+					systemConfig,
+					(ctx, req) -> {
+						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
+						return HttpFile.of(new File(file, fileName)).asService().serve(ctx, req);
 					}
-				);
-				router.addPrefixPath("/", fileSystemHandler);
-			} catch (IOException e) {
-				throw new GenericEvitaInternalError(e.getMessage(), e);
-			}
+				)
+			);
+
+			router.add(
+				HttpMethod.GET,
+				"/" + CertificateUtils.getGeneratedServerCertificateFileName(),
+				createCorsWrapper(
+					systemConfig,
+					(ctx, req) -> {
+						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedServerCertificateFileName() + "\"");
+						return HttpFile.of(new File(file, CertificateUtils.getGeneratedServerCertificateFileName())).asService().serve(ctx, req);
+					}
+				)
+			);
+
+			router.add(
+				HttpMethod.GET,
+				"/" + CertificateUtils.getGeneratedClientCertificateFileName(),
+				createCorsWrapper(
+					systemConfig,
+					(ctx, req) -> {
+						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificateFileName() + "\"");
+						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificateFileName())).asService().serve(ctx, req);
+					}
+				)
+			);
+
+			router.add(
+				HttpMethod.GET,
+				"/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName(),
+				createCorsWrapper(
+					systemConfig,
+					(ctx, req) -> {
+						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName() + "\"");
+						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())).asService().serve(ctx, req);
+					}
+				)
+			);
 		} else {
 			fileName = null;
 		}
 
-		return new SystemProvider(
-			systemConfig,
-			new BlockingHandler(
-				new CorsFilter(
-					router,
-					systemConfig.getAllowedOrigins()
-				)
-			),
-			Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
+		final boolean atLeastOnEndpointRequiresMtls = apiOptions.atLeastOnEndpointRequiresMtls();
+		final LinkedHashMap<String, String[]> endpoints = new LinkedHashMap<>(16);
+		endpoints.put(
+			SystemProvider.SERVER_NAME_URL,
+			Arrays.stream(systemConfig.getBaseUrls())
 				.map(it -> it + ENDPOINT_SERVER_NAME)
-				.toArray(String[]::new),
-			fileName == null ?
-				new String[0] : Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-				.map(it -> it + fileName)
-				.toArray(String[]::new),
-			certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresTls ?
-				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-					.map(it -> it + CertificateUtils.getGeneratedServerCertificateFileName())
-					.toArray(String[]::new) :
-				new String[0],
-			certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresMtls ?
-				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-					.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
-					.toArray(String[]::new) :
-				new String[0],
-			certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresMtls ?
-				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
-					.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
-					.toArray(String[]::new) :
-				new String[0]
+				.toArray(String[]::new)
 		);
+		if (fileName != null) {
+			endpoints.put(
+				SystemProvider.ROOT_CERTIFICATE_URL,
+				Arrays.stream(systemConfig.getBaseUrls())
+					.map(it -> it + fileName)
+					.toArray(String[]::new)
+			);
+		}
+		if (certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresTls) {
+			endpoints.put(
+				SystemProvider.SERVER_CERTIFICATE_URL,
+				Arrays.stream(systemConfig.getBaseUrls())
+					.map(it -> it + CertificateUtils.getGeneratedServerCertificateFileName())
+					.toArray(String[]::new)
+			);
+		}
+		if (certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresMtls) {
+			endpoints.put(
+				SystemProvider.CLIENT_CERTIFICATE_URL,
+				Arrays.stream(systemConfig.getBaseUrls())
+					.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
+					.toArray(String[]::new)
+			);
+			endpoints.put(
+				SystemProvider.CLIENT_PRIVATE_KEY_URL,
+				Arrays.stream(systemConfig.getBaseUrls())
+					.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
+					.toArray(String[]::new)
+			);
+		}
+		return new SystemProvider(systemConfig, router, endpoints);
 	}
 
+	@Nonnull
+	private static HttpService createCorsWrapper(@Nonnull SystemConfig config, @Nonnull HttpService delegate) {
+		return new CorsFilter(
+			new CorsPreflightHandler(
+				delegate,
+				config.getAllowedOrigins(),
+				Set.of(HttpMethod.GET),
+				Set.of()
+			),
+			config.getAllowedOrigins()
+		);
+	}
 }

@@ -28,8 +28,8 @@ import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.requestResponse.data.structure.CumulatedPrice;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -102,13 +102,13 @@ public interface PricesContract extends Versioned, Serializable {
 		final Stream<PriceContract> pricesStream = entityPrices
 			.stream()
 			.filter(PriceContract::exists)
+			.filter(PriceContract::indexed)
 			.filter(it -> currency.equals(it.currency()))
 			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true));
 
 		switch (innerRecordHandling) {
 			case NONE -> {
 				final Optional<PriceContract> priceForSale = pricesStream
-					.filter(PriceContract::sellable)
 					.filter(it -> priorityIndex.containsKey(it.priceList()))
 					.min(Comparator.comparing(o -> priorityIndex.get(o.priceList())))
 					.filter(filterPredicate);
@@ -129,7 +129,6 @@ public interface PricesContract extends Versioned, Serializable {
 					.values()
 					.stream()
 					.map(prices -> prices.stream()
-						.filter(PriceContract::sellable)
 						.filter(it -> priorityIndex.containsKey(it.priceList()))
 						.min(Comparator.comparing(o -> priorityIndex.get(o.priceList())))
 						.orElse(null))
@@ -152,7 +151,6 @@ public interface PricesContract extends Versioned, Serializable {
 					.values()
 					.stream()
 					.map(prices -> prices.stream()
-						.filter(PriceContract::sellable)
 						.filter(it -> priorityIndex.containsKey(it.priceList()))
 						.min(Comparator.comparing(o -> priorityIndex.get(o.priceList())))
 						.orElse(null))
@@ -167,7 +165,7 @@ public interface PricesContract extends Versioned, Serializable {
 							new PriceForSaleWithAccompanyingPrices(
 								priceForSale,
 								calculateAccompanyingPricesForSumInnerRecordHandling(
-									entityPrices, priorityIndex.keySet(), currency, atTheMoment, accompanyingPrices
+									priceForSale,  entityPrices, currency, atTheMoment, accompanyingPrices
 								)
 							)
 						) : empty();
@@ -275,6 +273,7 @@ public interface PricesContract extends Versioned, Serializable {
 	 * Method will calculate all required accompanying prices for the entity. The method is used when the entity
 	 * has no inner record handling.
 	 *
+	 * @param priceForSale       price for sale
 	 * @param entityPrices       source collection of all entity prices
 	 * @param currency           currency used for price for sale calculation
 	 * @param atTheMoment        moment used for price for sale calculation
@@ -283,8 +282,8 @@ public interface PricesContract extends Versioned, Serializable {
 	 */
 	@Nonnull
 	private static Map<String, Optional<PriceContract>> calculateAccompanyingPricesForSumInnerRecordHandling(
+		@Nonnull PriceContract priceForSale,
 		@Nonnull Collection<PriceContract> entityPrices,
-		@Nonnull Set<String> priceForSalePriceLists,
 		@Nonnull Currency currency,
 		@Nullable OffsetDateTime atTheMoment,
 		@Nonnull AccompanyingPrice[] accompanyingPrices
@@ -295,6 +294,7 @@ public interface PricesContract extends Versioned, Serializable {
 				.filter(PriceContract::exists)
 				.filter(it -> currency.equals(it.currency()))
 				.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+				.filter(it -> it.innerRecordId() == null || priceForSale.relatesTo(it))
 				.collect(
 					Collectors.groupingBy(
 						it -> ofNullable(it.innerRecordId()).orElse(0),
@@ -310,19 +310,31 @@ public interface PricesContract extends Versioned, Serializable {
 							final Map<String, Integer> accompanyingPriorityIndex = getPriceListPriorityIndex(
 								accompanyingPrice.priceListPriority()
 							);
-
 							final List<PriceContract> pricesToSum = accompanyingPriceBaseCollection
 								.stream()
-								.filter(it -> priceForSalePriceLists.stream().anyMatch(it::containsKey))
-								.map(it -> it.values().stream().filter(prices -> accompanyingPriorityIndex.containsKey(prices.priceList()))
-									.min(Comparator.comparing(o -> accompanyingPriorityIndex.get(o.priceList()))))
+								.map(
+									it -> it.values().stream().filter(prices -> accompanyingPriorityIndex.containsKey(prices.priceList()))
+									.min(Comparator.comparing(o -> accompanyingPriorityIndex.get(o.priceList())))
+								)
 								.filter(Optional::isPresent)
 								.map(Optional::get)
-								.toList();
+								.collect(Collectors.toCollection(ArrayList::new));
 
 							if (pricesToSum.isEmpty()) {
 								return empty();
 							} else {
+								if (priceForSale instanceof CumulatedPrice cumulatedPrice && pricesToSum.size() < cumulatedPrice.innerRecordPrices().size()) {
+									// the reference prices are not complete,
+									// we cannot calculate the sum price without adding prices of missing components
+									final Set<Integer> componentsWithReferencePrice = pricesToSum
+										.stream()
+										.map(PriceContract::innerRecordId)
+										.collect(Collectors.toSet());
+									cumulatedPrice.innerRecordPrices().entrySet().stream()
+										.filter(it -> !componentsWithReferencePrice.contains(it.getKey()))
+										.map(Map.Entry::getValue)
+										.forEach(pricesToSum::add);
+								}
 								return of(calculateSumPrice(pricesToSum));
 							}
 						}
@@ -343,17 +355,15 @@ public interface PricesContract extends Versioned, Serializable {
 	private static PriceContract calculateSumPrice(@Nonnull List<PriceContract> pricesToSum) {
 		final PriceContract firstPrice = pricesToSum.get(0);
 		// create virtual sum price
-		return new Price(
-			1, firstPrice.priceKey(), null,
+		return new CumulatedPrice(
+			1, firstPrice.priceKey(),
+			pricesToSum.stream().collect(Collectors.toMap(PriceContract::innerRecordId, Function.identity())),
 			pricesToSum.stream().map(PriceContract::priceWithoutTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
 			pricesToSum.stream().map(PriceContract::taxRate).reduce((tax, tax2) -> {
 				Assert.isTrue(tax.compareTo(tax2) == 0, "Prices have to have same tax rate in order to compute selling price!");
 				return tax;
 			}).orElse(BigDecimal.ZERO),
-			pricesToSum.stream().map(PriceContract::priceWithTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO),
-			// computed virtual price has always no validity
-			null,
-			true
+			pricesToSum.stream().map(PriceContract::priceWithTax).reduce(BigDecimal::add).orElse(BigDecimal.ZERO)
 		);
 	}
 
@@ -501,6 +511,30 @@ public interface PricesContract extends Versioned, Serializable {
 	) throws ContextMissingException {
 		return computePriceForSale(
 			getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull,
+			accompanyingPricesRequest
+		);
+	}
+
+	/**
+	 * Returns a price for which the entity should be sold. This method can be used only in context of a {@link Query}
+	 * with price related constraints so that `currency` and `priceList` priority can be extracted from the query.
+	 * The moment is either extracted from the query as well (if present) or current date and time is used.
+	 *
+	 * This method allows to calculate also additional accompanying prices that relate to the selected price for sale
+	 * and adhere to particular price inner record handling logic.
+	 *
+	 * @param accompanyingPricesRequest - array of requirements for calculation of accompanying prices
+	 * @throws ContextMissingException when entity is not related to any {@link Query} or the query
+	 *                                 lacks price related constraints
+	 */
+	@Nonnull
+	default Optional<PriceForSaleWithAccompanyingPrices> getPriceForSaleWithAccompanyingPrices(
+		@Nonnull AccompanyingPrice[] accompanyingPricesRequest
+	) throws ContextMissingException {
+		final PriceForSaleContext context = getPriceForSaleContext().orElseThrow(ContextMissingException::new);
+		return computePriceForSale(
+			getPrices(), getPriceInnerRecordHandling(),
+			context.currency(), context.atTheMoment(), context.priceListPriority(), Objects::nonNull,
 			accompanyingPricesRequest
 		);
 	}
@@ -666,7 +700,7 @@ public interface PricesContract extends Versioned, Serializable {
 				final Map<Integer, List<PriceContract>> pricesByInnerRecordId = entityPrices
 					.stream()
 					.filter(PriceContract::exists)
-					.filter(PriceContract::sellable)
+					.filter(PriceContract::indexed)
 					.filter(it -> currency.equals(it.currency()))
 					.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
 					.filter(it -> pLists.containsKey(it.priceList()))
@@ -674,11 +708,14 @@ public interface PricesContract extends Versioned, Serializable {
 				return pricesByInnerRecordId
 					.values()
 					.stream()
-					.anyMatch(prices -> prices.stream()
-						.min(Comparator.comparing(o -> pLists.get(o.priceList())))
-						.map(it -> queryPriceMode == QueryPriceMode.WITHOUT_TAX ? it.priceWithoutTax() : it.priceWithTax())
-						.map(it -> from.compareTo(it) <= 0 && to.compareTo(it) >= 0)
-						.orElse(null));
+					.anyMatch(prices -> {
+						final Optional<PriceContract> minPrice = prices.stream()
+							.min(Comparator.comparing(o -> pLists.get(o.priceList())));
+						return minPrice
+							.map(it -> queryPriceMode == QueryPriceMode.WITHOUT_TAX ? it.priceWithoutTax() : it.priceWithTax())
+							.map(it -> from.compareTo(it) <= 0 && to.compareTo(it) >= 0)
+							.orElse(null);
+					});
 			}
 			default ->
 				throw new GenericEvitaInternalError("Unknown price inner record handling mode: " + getPriceInnerRecordHandling());
@@ -749,7 +786,7 @@ public interface PricesContract extends Versioned, Serializable {
 			.values()
 			.stream()
 			.map(prices -> prices.stream()
-				.filter(PriceContract::sellable)
+				.filter(PriceContract::indexed)
 				.filter(it -> priorityIndex.containsKey(it.priceList()))
 				.min(Comparator.comparing(o -> priorityIndex.get(o.priceList())))
 				.orElse(null))

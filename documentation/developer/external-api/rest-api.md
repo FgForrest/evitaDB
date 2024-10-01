@@ -6,24 +6,24 @@ API specific to their domains. This helps with intuitiveness and fewer errors.
 
 For general overview of REST API principles, read the [user documentation](../../user/en/use/connectors/rest.md).
 
-todo lho docs (based on graphql-api.md?)
+TOBEDONE LHO docs (based on graphql-api.md?)
 
 ## Initialization
 
-todo lho docs
+TOBEDONE LHO docs
 
 ## Extending a Open API schema
 
-todo lho docs
+TOBEDONE LHO docs
 
 ### Query constraint schema
 
-todo lho docs
+TOBEDONE LHO docs
 
 ## Data types support
 
-todo lho docs
+TOBEDONE LHO docs
 
 ## Exceptions
 
-todo lho docs
+TOBEDONE LHO docs

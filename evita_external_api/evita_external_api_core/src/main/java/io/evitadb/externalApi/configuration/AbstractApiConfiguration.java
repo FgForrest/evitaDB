@@ -23,14 +23,12 @@
 
 package io.evitadb.externalApi.configuration;
 
-import io.evitadb.externalApi.exception.InvalidHostDefinitionException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,11 +47,9 @@ public abstract class AbstractApiConfiguration {
 	 */
 	public static final int DEFAULT_PORT = 5555;
 	/**
-	 * Localhost constant represents a loop-back host (self) that will enable endpoints on all hosts that are discovered
-	 * by Java as localhost addresses.
+	 * Pattern for host / port parsing.
 	 */
-	public static final String LOCALHOST = "localhost";
-	private static final Pattern HOST_PATTERN = Pattern.compile("([\\w.:]+):(\\d+)");
+	private static final Pattern HOST_PATTERN = Pattern.compile("([\\w.:]*):(\\d+)");
 	/**
 	 * Defines the port API endpoint will listen on.
 	 */
@@ -65,25 +61,13 @@ public abstract class AbstractApiConfiguration {
 	/**
 	 * Defines external host the API will be exposed on when database is running in a container.
 	 */
-	@Getter private final String exposedHost;
+	@Getter private final String exposeOn;
 	/**
 	 * By enabling this internal flag, the API will be forced to use unencrypted HTTP protocol. The only purpose of this
 	 * flag is to allow accessing the system API, from where the client obtains to access all of evita's APIs. All of
 	 * evita's APIs are always secured at least by TLS encryption, in gRPC is also an option to use mTLS.
 	 */
-	@Getter private final boolean tlsEnabled;
-
-	private static InetAddress getByName(@Nonnull String host) {
-		try {
-			return InetAddress.getByName(host);
-		} catch (UnknownHostException e) {
-			throw new InvalidHostDefinitionException(
-				"Invalid host definition in evita server configuration!",
-				"Invalid host definition `" + host + "` in evita server configuration!",
-				e
-			);
-		}
-	}
+	@Getter private final TlsMode tlsMode;
 
 	/**
 	 * Parses host definition into {@link HostDefinition} object.
@@ -92,71 +76,75 @@ public abstract class AbstractApiConfiguration {
 	 * @return parsed host definition
 	 */
 	@Nonnull
-	private static HostDefinition parseHost(@Nonnull String host) {
+	private static HostDefinition[] parseHost(@Nonnull String host) {
 		final Matcher matcher = HOST_PATTERN.matcher(host);
 		Assert.isTrue(matcher.matches(), "Invalid host definition: " + host);
 		final String parsedHost = matcher.group(1);
 		final int port = Integer.parseInt(matcher.group(2));
-		if (LOCALHOST.equalsIgnoreCase(parsedHost)) {
-			return new HostDefinition(getByName("0.0.0.0"), port);
+		if (parsedHost.isEmpty()) {
+			return new HostDefinition[] {
+				new HostDefinition(NetworkUtils.getByName("0.0.0.0"), true, port)
+			};
 		} else {
-			return new HostDefinition(getByName(parsedHost), port);
+			return new HostDefinition[] {
+				new HostDefinition(NetworkUtils.getByName(parsedHost), false, port)
+			};
 		}
 	}
 
 	protected AbstractApiConfiguration() {
 		this.enabled = true;
-		this.tlsEnabled = true;
-		this.exposedHost = null;
+		this.tlsMode = TlsMode.RELAXED;
+		this.exposeOn = null;
 		this.host = new HostDefinition[]{
-			new HostDefinition(getByName("0.0.0.0"), DEFAULT_PORT)
+			new HostDefinition(NetworkUtils.getByName("0.0.0.0"), true, DEFAULT_PORT)
 		};
 	}
 
 	/**
 	 * @param enabled enables the particular API
 	 * @param host    defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
-	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
+	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
 	 */
 	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host) {
-		this(enabled, host, null, true);
+		this(enabled, host, null, null);
 	}
 
 	/**
 	 * @param enabled    enables the particular API
 	 * @param host       defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
-	 *                   (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
-	 * @param tlsEnabled allows the API to run with TLS encryption
+	 *                   (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
+	 * @param tlsMode    allows the API to run with TLS encryption
 	 */
-	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nonnull String exposedHost, @Nullable Boolean tlsEnabled) {
+	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nonnull String exposeOn, @Nullable String tlsMode) {
 		this.enabled = ofNullable(enabled).orElse(true);
-		this.tlsEnabled = ofNullable(tlsEnabled).orElse(true);
+		this.tlsMode = TlsMode.getByName(tlsMode);
 		this.host = Arrays.stream(host.split(","))
 			.map(AbstractApiConfiguration::parseHost)
+			.flatMap(Arrays::stream)
 			.toArray(HostDefinition[]::new);
-		this.exposedHost = exposedHost;
+		this.exposeOn = exposeOn;
 	}
 
 	/**
 	 * Returns base url for the API.
 	 */
 	@Nonnull
-	public String[] getBaseUrls(@Nullable String exposedOn) {
+	public String[] getBaseUrls() {
 		return Stream.concat(
 				Arrays.stream(getHost())
 					.map(HostDefinition::port)
 					.distinct()
 					.flatMap(
-						port -> ofNullable(getExposedHost())
-							.or(() -> ofNullable(exposedOn)
-								.map(it -> it + ":" + port))
+						port -> ofNullable(getExposeOn())
+							.map(it -> it.contains(":") ? it : it + ":" + port)
 							.stream()
 					),
 				Arrays.stream(getHost())
-					.map(it -> it.hostName() + ":" + it.port())
+					.map(HostDefinition::hostAddressWithPort)
 			)
-			.map(it -> (isTlsEnabled() ? "https://" : "http://") + it +
-				(this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))
+			.map(it -> it.contains("://") ? it : (getTlsMode() == TlsMode.FORCE_NO_TLS ? "http://" : "https://") + it)
+			.map(it -> it + (this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))
 			.toArray(String[]::new);
 	}
 

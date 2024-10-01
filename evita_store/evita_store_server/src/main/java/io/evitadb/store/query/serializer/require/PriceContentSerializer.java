@@ -42,11 +42,23 @@ public class PriceContentSerializer extends Serializer<PriceContent> {
 	@Override
 	public void write(Kryo kryo, Output output, PriceContent object) {
 		kryo.writeObject(output, object.getFetchMode());
+
+		final String[] additionalPriceListsToFetch = object.getAdditionalPriceListsToFetch();
+		output.writeVarInt(additionalPriceListsToFetch.length, true);
+		for (String priceList : additionalPriceListsToFetch) {
+			output.writeString(priceList);
+		}
 	}
 
 	@Override
 	public PriceContent read(Kryo kryo, Input input, Class<? extends PriceContent> type) {
-		return new PriceContent(kryo.readObject(input, PriceContentMode.class));
+		final PriceContentMode contentMode = kryo.readObject(input, PriceContentMode.class);
+		final int additionalPriceListCount = input.readVarInt(true);
+		final String[] additionalPriceListsToFetch = new String[additionalPriceListCount];
+		for (int i = 0; i < additionalPriceListCount; i++) {
+			additionalPriceListsToFetch[i] = input.readString();
+		}
+		return new PriceContent(contentMode, additionalPriceListsToFetch);
 	}
 
 }

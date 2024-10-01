@@ -51,7 +51,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreIndexChanges;
-import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
@@ -86,7 +86,6 @@ import io.evitadb.store.entity.model.entity.AttributesStoragePart.EntityAttribut
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
-import io.evitadb.store.entity.serializer.EntitySchemaContext;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
@@ -118,6 +117,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -129,12 +129,16 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.store.spi.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
 import static io.evitadb.store.spi.model.storageParts.index.PriceListAndCurrencySuperIndexStoragePart.computeUniquePartId;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.notNull;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -157,6 +161,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			.andThen(new IndexStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
 			.andThen(new EntityStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
 	);
+	/**
+	 * The pre-initialized empty storage parts array.
+	 */
+	private static final EntityStoragePart[] EMPTY_STORAGE_PARTS = new EntityStoragePart[0];
 
 	/**
 	 * Contains reference to the target file where the entity collection is stored.
@@ -200,60 +208,107 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	private long lastReportTimestamp;
 
 	@Nonnull
-	private static EntityWithFetchCount toEntity(
+	private static Optional<EntityWithFetchCount> toEntity(
 		long catalogVersion,
-		@Nonnull EntityBodyStoragePart entityStorageContainer,
+		int entityPrimaryKey,
+		@Nonnull EntityStoragePart[] storageParts,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	) {
-		// the initial value is 1 because we've already fetched the `entityStorageContainer`
-		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
-		ioFetchStatistics.record(entityStorageContainer);
+		// fetch the main entity container
+		final EntityBodyStoragePart entityStorageContainer = Arrays.stream(storageParts)
+			.filter(EntityBodyStoragePart.class::isInstance)
+			.map(EntityBodyStoragePart.class::cast)
+			.findFirst()
+			.orElseGet(() -> dataStoreReader.fetch(
+				catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class
+			));
+		if (entityStorageContainer == null || entityStorageContainer.isMarkedForRemoval()) {
+			// return null if not found
+			return empty();
+		} else {
+			// the initial value is 1 because we've already fetched the `entityStorageContainer`
+			final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
+			ioFetchStatistics.record(entityStorageContainer);
 
-		final int entityPrimaryKey = entityStorageContainer.getPrimaryKey();
-		// load additional containers only when requested
-		final ReferencesStoragePart referencesStorageContainer = fetchReferences(
-			null, new ReferenceContractSerializablePredicate(evitaRequest),
-			() -> ioFetchStatistics.record(
-				storageContainerBuffer.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class)
-			)
-		);
-		final PricesStoragePart priceStorageContainer = fetchPrices(
-			null, new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
-			() -> ioFetchStatistics.record(
-				storageContainerBuffer.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class)
-			)
-		);
+			// load additional containers only when requested
+			final ReferencesStoragePart referencesStorageContainer = fetchReferences(
+				null, new ReferenceContractSerializablePredicate(evitaRequest),
+				() -> Arrays.stream(storageParts)
+					.filter(ReferencesStoragePart.class::isInstance)
+					.map(ReferencesStoragePart.class::cast)
+					.findFirst()
+					.orElseGet(
+						() -> ioFetchStatistics.record(
+							dataStoreReader.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class)
+						)
+					)
+			);
+			final PricesStoragePart priceStorageContainer = fetchPrices(
+				null, new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
+				() -> Arrays.stream(storageParts)
+					.filter(PricesStoragePart.class::isInstance)
+					.map(PricesStoragePart.class::cast)
+					.findFirst()
+					.orElseGet(
+						() -> ioFetchStatistics.record(
+							dataStoreReader.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class)
+						)
+					)
+			);
 
-		final List<AttributesStoragePart> attributesStorageContainers = fetchAttributes(
-			entityPrimaryKey, null, new AttributeValueSerializablePredicate(evitaRequest),
-			entityStorageContainer.getAttributeLocales(),
-			key -> ioFetchStatistics.record(
-				storageContainerBuffer.fetch(catalogVersion, key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId)
-			)
-		);
-		final List<AssociatedDataStoragePart> associatedDataStorageContainers = fetchAssociatedData(
-			entityPrimaryKey, null, new AssociatedDataValueSerializablePredicate(evitaRequest),
-			entityStorageContainer.getAssociatedDataKeys(),
-			key -> ioFetchStatistics.record(
-				storageContainerBuffer.fetch(catalogVersion, key, AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId)
-			)
-		);
+			final List<AttributesStoragePart> attributesStorageContainers = fetchAttributes(
+				entityPrimaryKey, null, new AttributeValueSerializablePredicate(evitaRequest),
+				entityStorageContainer.getAttributeLocales(),
+				key -> Arrays.stream(storageParts)
+					.filter(AttributesStoragePart.class::isInstance)
+					.map(AttributesStoragePart.class::cast)
+					.filter(it -> it.getAttributeSetKey().equals(key))
+					.findFirst()
+					.orElseGet(
+						() -> ioFetchStatistics.record(
+							dataStoreReader.fetch(
+								catalogVersion, key, AttributesStoragePart.class,
+								AttributesStoragePart::computeUniquePartId
+							)
+						)
+					)
+			);
+			final List<AssociatedDataStoragePart> associatedDataStorageContainers = fetchAssociatedData(
+				entityPrimaryKey, null, new AssociatedDataValueSerializablePredicate(evitaRequest),
+				entityStorageContainer.getAssociatedDataKeys(),
+				key -> Arrays.stream(storageParts)
+					.filter(AssociatedDataStoragePart.class::isInstance)
+					.map(AssociatedDataStoragePart.class::cast)
+					.filter(it -> it.getAssociatedDataKey().equals(key))
+					.findFirst()
+					.orElseGet(
+						() -> ioFetchStatistics.record(
+							dataStoreReader.fetch(
+								catalogVersion, key,
+								AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId
+							)
+						)
+					)
+			);
 
-		// and build the entity
-		return new EntityWithFetchCount(
-			EntityFactory.createEntityFrom(
-				entitySchema,
-				entityStorageContainer,
-				attributesStorageContainers,
-				associatedDataStorageContainers,
-				referencesStorageContainer,
-				priceStorageContainer
-			),
-			ioFetchStatistics.getIoFetchCount(),
-			ioFetchStatistics.getIoFetchedBytes()
-		);
+			// and build the entity
+			return of(
+				new EntityWithFetchCount(
+					EntityFactory.createEntityFrom(
+						entitySchema,
+						entityStorageContainer,
+						attributesStorageContainers,
+						associatedDataStorageContainers,
+						referencesStorageContainer,
+						priceStorageContainer
+					),
+					ioFetchStatistics.getIoFetchCount(),
+					ioFetchStatistics.getIoFetchedBytes()
+				)
+			);
+		}
 	}
 
 	/**
@@ -785,7 +840,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges<EntityIndexKey, EntityIndex> dataStoreIndexChanges) {
+	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges dataStoreIndexChanges) {
 		// now store all entity trapped updates
 		dataStoreIndexChanges.popTrappedUpdates()
 			.forEach(it -> this.storagePartPersistenceService.putStoragePart(catalogVersion, it));
@@ -808,21 +863,32 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	) {
-		// provide passed schema during deserialization from binary form
-		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
-			// fetch the main entity container
-			final EntityBodyStoragePart entityStorageContainer = storageContainerBuffer.fetch(
-				catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class
-			);
-			if (entityStorageContainer == null || entityStorageContainer.isMarkedForRemoval()) {
-				// return null if not found
-				return null;
-			} else {
-				return toEntity(catalogVersion, entityStorageContainer, evitaRequest, entitySchema, storageContainerBuffer);
-			}
-		});
+		return toEntity(
+			catalogVersion, entityPrimaryKey, EMPTY_STORAGE_PARTS,
+			evitaRequest, entitySchema, dataStoreReader
+		).orElse(null);
+	}
+
+	@Nonnull
+	@Override
+	public EntityWithFetchCount toEntity(
+		long catalogVersion,
+		int entityPrimaryKey,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull DataStoreReader dataStoreReader,
+		@Nonnull EntityStoragePart... storageParts
+	) {
+		return toEntity(
+			catalogVersion,
+			entityPrimaryKey,
+			storageParts,
+			evitaRequest,
+			entitySchema,
+			dataStoreReader
+		).orElse(null);
 	}
 
 	@Nullable
@@ -831,144 +897,138 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EntitySchema entitySchema,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	) {
-		// provide passed schema during deserialization from binary form
-		final EntitySchema entitySchema = entityCollectionFetcher.apply(evitaRequest.getEntityType()).getInternalSchema();
-		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
-			// fetch the main entity container
-			final byte[] entityStorageContainer = storageContainerBuffer.fetchBinary(
-				catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class
+		// fetch the main entity container
+		final byte[] entityStorageContainer = dataStoreReader.fetchBinary(
+			catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class
+		);
+		if (entityStorageContainer == null) {
+			// return null if not found
+			return null;
+		} else {
+			return toBinaryEntity(
+				catalogVersion, entityStorageContainer, evitaRequest, entitySchema,
+				session, entityCollectionFetcher, dataStoreReader
 			);
-			if (entityStorageContainer == null) {
-				// return null if not found
-				return null;
-			} else {
-				return toBinaryEntity(
-					catalogVersion, entityStorageContainer, evitaRequest, session, entityCollectionFetcher, storageContainerBuffer
-				);
-			}
-		});
+		}
 	}
 
 	@Nonnull
 	@Override
 	public EntityWithFetchCount enrichEntity(
 		long catalogVersion,
-		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityDecorator entityDecorator,
 		@Nonnull HierarchySerializablePredicate newHierarchyPredicate,
 		@Nonnull AttributeValueSerializablePredicate newAttributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	) {
-		// provide passed schema during deserialization from binary form
-		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
-			final int entityPrimaryKey = Objects.requireNonNull(entityDecorator.getPrimaryKey());
-			final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
+		final int entityPrimaryKey = Objects.requireNonNull(entityDecorator.getPrimaryKey());
+		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
 
-			// body part is fetched everytime - we need to at least test the version
-			final EntityBodyStoragePart bodyPart = ioFetchStatistics.record(
-				storageContainerBuffer.fetch(
-					catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class
-				)
+		// body part is fetched everytime - we need to at least test the version
+		final EntityBodyStoragePart bodyPart = ioFetchStatistics.record(
+			dataStoreReader.fetch(
+				catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class
+			)
+		);
+
+		if (bodyPart == null || bodyPart.isMarkedForRemoval()) {
+			throw new EntityAlreadyRemovedException(
+				entityDecorator.getType(), entityPrimaryKey
 			);
+		}
 
-			if (bodyPart == null || bodyPart.isMarkedForRemoval()) {
-				throw new EntityAlreadyRemovedException(
-					entityDecorator.getType(), entityPrimaryKey
-				);
-			}
+		final boolean versionDiffers = bodyPart.getVersion() != entityDecorator.version();
 
-			final boolean versionDiffers = bodyPart.getVersion() != entityDecorator.version();
+		// fetch additional data if requested and not already present
+		final ReferencesStoragePart referencesStorageContainer = fetchReferences(
+			versionDiffers ? null : entityDecorator.getReferencePredicate(),
+			newReferenceContractPredicate,
+			() -> ioFetchStatistics.record(
+				dataStoreReader.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class)
+			)
+		);
+		final PricesStoragePart priceStorageContainer = fetchPrices(
+			versionDiffers ? null : entityDecorator.getPricePredicate(),
+			newPricePredicate,
+			() -> ioFetchStatistics.record(
+				dataStoreReader.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class)
+			)
+		);
 
-			// fetch additional data if requested and not already present
-			final ReferencesStoragePart referencesStorageContainer = fetchReferences(
-				versionDiffers ? null : entityDecorator.getReferencePredicate(),
-				newReferenceContractPredicate,
-				() -> ioFetchStatistics.record(
-					storageContainerBuffer.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class)
-				)
+		final List<AttributesStoragePart> attributesStorageContainers = fetchAttributes(
+			entityPrimaryKey,
+			versionDiffers ? null : entityDecorator.getAttributePredicate(),
+			newAttributePredicate,
+			bodyPart.getAttributeLocales(),
+			key -> ioFetchStatistics.record(
+				dataStoreReader.fetch(catalogVersion, key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId)
+			)
+		);
+		final List<AssociatedDataStoragePart> associatedDataStorageContainers = fetchAssociatedData(
+			entityPrimaryKey,
+			versionDiffers ? null : entityDecorator.getAssociatedDataPredicate(),
+			newAssociatedDataPredicate,
+			bodyPart.getAssociatedDataKeys(),
+			key -> ioFetchStatistics.record(
+				dataStoreReader.fetch(catalogVersion, key, AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId)
+			)
+		);
+
+		// if anything was fetched from the persistent storage
+		if (versionDiffers) {
+			// build the enriched entity from scratch
+			return new EntityWithFetchCount(
+				EntityFactory.createEntityFrom(
+					entityDecorator.getDelegate().getSchema(),
+					bodyPart,
+					attributesStorageContainers,
+					associatedDataStorageContainers,
+					referencesStorageContainer,
+					priceStorageContainer
+				),
+				ioFetchStatistics.getIoFetchCount(),
+				ioFetchStatistics.getIoFetchedBytes()
 			);
-			final PricesStoragePart priceStorageContainer = fetchPrices(
-				versionDiffers ? null : entityDecorator.getPricePredicate(),
-				newPricePredicate,
-				() -> ioFetchStatistics.record(
-					storageContainerBuffer.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class)
-				)
-			);
-
-			final List<AttributesStoragePart> attributesStorageContainers = fetchAttributes(
-				entityPrimaryKey,
-				versionDiffers ? null : entityDecorator.getAttributePredicate(),
-				newAttributePredicate,
-				bodyPart.getAttributeLocales(),
-				key -> ioFetchStatistics.record(
-					storageContainerBuffer.fetch(catalogVersion, key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId)
-				)
-			);
-			final List<AssociatedDataStoragePart> associatedDataStorageContainers = fetchAssociatedData(
-				entityPrimaryKey,
-				versionDiffers ? null : entityDecorator.getAssociatedDataPredicate(),
-				newAssociatedDataPredicate,
-				bodyPart.getAssociatedDataKeys(),
-				key -> ioFetchStatistics.record(
-					storageContainerBuffer.fetch(catalogVersion, key, AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId)
-				)
-			);
-
-			// if anything was fetched from the persistent storage
-			if (versionDiffers) {
-				// build the enriched entity from scratch
-				return new EntityWithFetchCount(
-					EntityFactory.createEntityFrom(
-						entityDecorator.getDelegate().getSchema(),
-						bodyPart,
-						attributesStorageContainers,
-						associatedDataStorageContainers,
-						referencesStorageContainer,
-						priceStorageContainer
-					),
-					ioFetchStatistics.getIoFetchCount(),
-					ioFetchStatistics.getIoFetchedBytes()
-				);
-			} else if (referencesStorageContainer != null || priceStorageContainer != null ||
-				!attributesStorageContainers.isEmpty() || !associatedDataStorageContainers.isEmpty()) {
-				// and build the enriched entity as a new instance
-				return new EntityWithFetchCount(
-					EntityFactory.createEntityFrom(
-						entityDecorator.getDelegate().getSchema(),
-						entityDecorator.getDelegate(),
-						bodyPart,
-						attributesStorageContainers,
-						associatedDataStorageContainers,
-						referencesStorageContainer,
-						priceStorageContainer
-					),
-					ioFetchStatistics.getIoFetchCount(),
-					ioFetchStatistics.getIoFetchedBytes()
-				);
-			} else {
-				// return original entity - nothing has been fetched
-				return new EntityWithFetchCount(
+		} else if (referencesStorageContainer != null || priceStorageContainer != null ||
+			!attributesStorageContainers.isEmpty() || !associatedDataStorageContainers.isEmpty()) {
+			// and build the enriched entity as a new instance
+			return new EntityWithFetchCount(
+				EntityFactory.createEntityFrom(
+					entityDecorator.getDelegate().getSchema(),
 					entityDecorator.getDelegate(),
-					ioFetchStatistics.getIoFetchCount(),
-					ioFetchStatistics.getIoFetchedBytes()
-				);
-			}
-		});
+					bodyPart,
+					attributesStorageContainers,
+					associatedDataStorageContainers,
+					referencesStorageContainer,
+					priceStorageContainer
+				),
+				ioFetchStatistics.getIoFetchCount(),
+				ioFetchStatistics.getIoFetchedBytes()
+			);
+		} else {
+			// return original entity - nothing has been fetched
+			return new EntityWithFetchCount(
+				entityDecorator.getDelegate(),
+				ioFetchStatistics.getIoFetchCount(),
+				ioFetchStatistics.getIoFetchedBytes()
+			);
+		}
 	}
 
 	@Override
 	public int countEntities(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	) {
-		return storageContainerBuffer.countStorageParts(
+		return dataStoreReader.countStorageParts(
 			catalogVersion, EntityBodyStoragePart.class
 		);
 	}
@@ -976,16 +1036,22 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Override
 	public boolean isEmpty(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	) {
-		return storageContainerBuffer.countStorageParts(
+		return dataStoreReader.countStorageParts(
 			catalogVersion, EntityBodyStoragePart.class
 		) == 0;
 	}
 
 	@Nonnull
 	@Override
-	public BinaryEntityWithFetchCount enrichEntity(long catalogVersion, @Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer) throws EntityAlreadyRemovedException {
+	public BinaryEntityWithFetchCount enrichEntity(
+		long catalogVersion,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull BinaryEntity entity,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull DataStoreReader dataStoreReader
+	) throws EntityAlreadyRemovedException {
 		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		return new BinaryEntityWithFetchCount(
 			entity, 0, 0
@@ -1106,6 +1172,25 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		}
 	}
 
+	@Override
+	public long getSizeOnDiskInBytes() {
+		final Pattern pattern = getEntityCollectionDataStoreFileNamePattern(
+			this.entityCollectionFileReference.entityType(),
+			this.entityCollectionFileReference.entityTypePrimaryKey()
+		);
+		return Arrays.stream(
+			this.entityCollectionFile.getParent().toFile().listFiles(
+				(dir, name) -> pattern.matcher(name).matches()
+			)
+		).mapToLong(File::length).sum();
+
+	}
+
+	@Override
+	public void close() {
+		this.storagePartPersistenceService.close();
+	}
+
 	@Nonnull
 	public OffsetIndexDescriptor flush(long newCatalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
 		final long previousVersion = this.storagePartPersistenceService.getVersion();
@@ -1156,7 +1241,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Flushes entire living data set to the target output stream. If the output stream represents a file, the file must
 	 * exist and must be prepared for re-writing. File must not be used by any other process.
 	 *
-	 * @param outputStream output stream to write the data to
+	 * @param outputStream   output stream to write the data to
 	 * @param catalogVersion new catalog version
 	 */
 	@Nonnull
@@ -1181,11 +1266,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				offsetIndexDescriptor.fileLocation()
 			)
 		);
-	}
-
-	@Override
-	public void close() {
-		this.storagePartPersistenceService.close();
 	}
 
 	/*
@@ -1215,7 +1295,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	/**
 	 * Reports changes in historical records kept.
 	 *
-	 * @param catalogName     name of the catalog
+	 * @param catalogName            name of the catalog
 	 * @param oldestHistoricalRecord oldest historical record
 	 */
 	private void reportOldestHistoricalRecord(@Nonnull String catalogName, @Nullable OffsetDateTime oldestHistoricalRecord) {
@@ -1262,7 +1342,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * @param evitaRequest            The Evita request.
 	 * @param session                 The Evita session.
 	 * @param entityCollectionFetcher The function used to fetch entity collections.
-	 * @param storageContainerBuffer  The buffer for storing the storage containers.
+	 * @param dataStoreReader         The buffer for storing the storage containers.
 	 * @return The BinaryEntity object representing the converted entity.
 	 */
 	@Nonnull
@@ -1270,12 +1350,12 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		long catalogVersion,
 		@Nonnull byte[] entityStorageContainer,
 		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EntitySchema entitySchema,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	) {
 		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
-		final EntitySchema entitySchema = EntitySchemaContext.getEntitySchema();
 		final EntityBodyStoragePart deserializedEntityBody = this.storagePartPersistenceService.deserializeStoragePart(
 			entityStorageContainer, EntityBodyStoragePart.class
 		);
@@ -1285,7 +1365,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final byte[] priceStorageContainer = fetchPrices(
 			null, new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
 			() -> ioFetchStatistics.record(
-				storageContainerBuffer.fetchBinary(
+				dataStoreReader.fetchBinary(
 					catalogVersion, entityPrimaryKey, PricesStoragePart.class
 				)
 			)
@@ -1295,7 +1375,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			entityPrimaryKey, null, new AttributeValueSerializablePredicate(evitaRequest),
 			deserializedEntityBody.getAttributeLocales(),
 			attributesSetKey -> ioFetchStatistics.record(
-				storageContainerBuffer.fetchBinary(
+				dataStoreReader.fetchBinary(
 					catalogVersion,
 					attributesSetKey,
 					AttributesStoragePart.class,
@@ -1306,7 +1386,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final List<byte[]> associatedDataStorageContainers = fetchAssociatedData(
 			entityPrimaryKey, null, new AssociatedDataValueSerializablePredicate(evitaRequest),
 			deserializedEntityBody.getAssociatedDataKeys(),
-			associatedDataKey -> ioFetchStatistics.record(storageContainerBuffer.fetchBinary(
+			associatedDataKey -> ioFetchStatistics.record(dataStoreReader.fetchBinary(
 					catalogVersion,
 					associatedDataKey,
 					AssociatedDataStoragePart.class,
@@ -1322,13 +1402,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			() -> {
 				if (referenceEntityFetch.isEmpty()) {
 					return ioFetchStatistics.record(
-						storageContainerBuffer.fetchBinary(
+						dataStoreReader.fetchBinary(
 							catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
 						)
 					);
 				} else {
 					final ReferencesStoragePart fetchedPart = ioFetchStatistics.record(
-						storageContainerBuffer.fetch(
+						dataStoreReader.fetch(
 							catalogVersion, entityPrimaryKey, ReferencesStoragePart.class
 						)
 					);

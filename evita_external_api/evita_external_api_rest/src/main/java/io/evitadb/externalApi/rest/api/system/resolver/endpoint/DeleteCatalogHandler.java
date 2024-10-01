@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
@@ -33,19 +34,19 @@ import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
-import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Deletes single evitaDB catalog by its name.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingContext>  {
+public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingContext> {
 
 	public DeleteCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
@@ -58,36 +59,40 @@ public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingCont
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
 		final Map<String, Object> parameters = getParametersFromRequest(executionContext);
 		requestExecutedEvent.finishInputDeserialization();
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			restHandlingContext.getEvita().getCatalogInstance(catalogName));
-		if (catalog.isEmpty()) {
-			requestExecutedEvent.finishOperationExecution();
-			requestExecutedEvent.finishResultSerialization();
-			return new NotFoundEndpointResponse();
-		}
+		return executionContext.executeAsyncInTransactionThreadPool(
+			() -> {
+				final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					restHandlingContext.getEvita().getCatalogInstance(catalogName));
+				if (catalog.isEmpty()) {
+					requestExecutedEvent.finishOperationExecution();
+					requestExecutedEvent.finishResultSerialization();
+					return new NotFoundEndpointResponse();
+				}
 
-		final boolean deleted = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			restHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName()));
-		Assert.isPremiseValid(
-			deleted,
-			() -> new RestInternalError("Could not delete catalog `" + catalog.get().getName() + "`, even though it should exist.")
+				final boolean deleted = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					restHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName()));
+				Assert.isPremiseValid(
+					deleted,
+					() -> new RestInternalError("Could not delete catalog `" + catalog.get().getName() + "`, even though it should exist.")
+				);
+
+				requestExecutedEvent.finishOperationExecution();
+				requestExecutedEvent.finishResultSerialization();
+				return SuccessEndpointResponse.NO_CONTENT;
+			}
 		);
-
-		requestExecutedEvent.finishOperationExecution();
-		requestExecutedEvent.finishResultSerialization();
-		return new SuccessEndpointResponse();
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.DELETE_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.DELETE);
 	}
 }

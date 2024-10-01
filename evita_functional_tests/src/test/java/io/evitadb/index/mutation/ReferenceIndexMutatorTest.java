@@ -38,14 +38,15 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.mutation.index.ReferenceIndexMutator;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static io.evitadb.index.mutation.ReferenceIndexMutator.attributeUpdate;
-import static io.evitadb.index.mutation.ReferenceIndexMutator.referenceInsert;
+import static io.evitadb.index.mutation.index.ReferenceIndexMutator.attributeUpdate;
+import static io.evitadb.index.mutation.index.ReferenceIndexMutator.referenceInsert;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

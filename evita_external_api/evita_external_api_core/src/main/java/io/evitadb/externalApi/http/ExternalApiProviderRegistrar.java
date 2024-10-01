@@ -78,4 +78,5 @@ public interface ExternalApiProviderRegistrar<T extends AbstractApiConfiguration
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull T externalApiConfiguration
 	);
+
 }

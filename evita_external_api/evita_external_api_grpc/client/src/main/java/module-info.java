@@ -18,9 +18,10 @@ module evita.java.driver {
 	requires evita.query;
 	requires evita.external.api.grpc.shared;
 	requires io.netty.handler;
-	requires io.grpc.netty;
 	requires io.grpc;
 	requires com.google.common;
 	requires io.grpc.stub;
+	requires com.linecorp.armeria.grpc;
+	requires com.linecorp.armeria;
 
 }

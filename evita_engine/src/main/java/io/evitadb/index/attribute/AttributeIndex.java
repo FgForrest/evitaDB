@@ -34,6 +34,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.attribute.AttributeIndex.AttributeIndexChanges;
@@ -87,8 +88,7 @@ import static java.util.Optional.ofNullable;
 public class AttributeIndex implements AttributeIndexContract,
 	TransactionalLayerProducer<AttributeIndexChanges, AttributeIndex>,
 	IndexDataStructure,
-	Serializable
-{
+	Serializable {
 	@Serial private static final long serialVersionUID = 479979988960202298L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -142,9 +142,9 @@ public class AttributeIndex implements AttributeIndexContract,
 	 * it returns a new AttributeKey object with only the attribute name.
 	 *
 	 * @param attributeSchema The attribute schema contract.
-	 * @param allowedLocales The set of allowed locales for the entity.
-	 * @param locale The locale to be checked against the allowed locales.
-	 * @param value The value of the attribute.
+	 * @param allowedLocales  The set of allowed locales for the entity.
+	 * @param locale          The locale to be checked against the allowed locales.
+	 * @param value           The value of the attribute.
 	 * @return An AttributeKey object with the attribute name and optional locale.
 	 */
 	@Nonnull
@@ -168,9 +168,9 @@ public class AttributeIndex implements AttributeIndexContract,
 	 * in the sense that it creates locale specific key only if {@link AttributeSchemaContract#isUniqueWithinLocale()} is true.
 	 *
 	 * @param attributeSchema The attribute schema contract.
-	 * @param allowedLocales The set of allowed locales.
-	 * @param locale The locale (can be null).
-	 * @param value The attribute value.
+	 * @param allowedLocales  The set of allowed locales.
+	 * @param locale          The locale (can be null).
+	 * @param value           The attribute value.
 	 * @return An AttributeKey object with the attribute name and optional locale.
 	 */
 	@Nonnull
@@ -340,16 +340,11 @@ public class AttributeIndex implements AttributeIndexContract,
 	) {
 		final AttributeKey attributeKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
 		if (value instanceof Predecessor predecessor) {
-			final ChainIndex theSortIndex = this.chainIndex.computeIfAbsent(
-				attributeKey,
-				lookupKey -> {
-					final ChainIndex newSortIndex = new ChainIndex(lookupKey);
-					ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
-						.ifPresent(it -> it.addCreatedItem(newSortIndex));
-					return newSortIndex;
-				}
-			);
+			final ChainIndex theSortIndex = getOrCreateChainIndex(attributeKey);
 			theSortIndex.upsertPredecessor(predecessor, recordId);
+		} else if (value instanceof ReferencedEntityPredecessor referencedEntityPredecessor) {
+			final ChainIndex theSortIndex = getOrCreateChainIndex(attributeKey);
+			theSortIndex.upsertPredecessor(referencedEntityPredecessor, recordId);
 		} else {
 			final SortIndex theSortIndex = this.sortIndex.computeIfAbsent(
 				attributeKey,
@@ -368,7 +363,7 @@ public class AttributeIndex implements AttributeIndexContract,
 	public void removeSortAttribute(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale, @Nonnull Object value, int recordId) {
 		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
 
-		if (Predecessor.class.equals(attributeSchema.getType())) {
+		if (Predecessor.class.equals(attributeSchema.getType()) || ReferencedEntityPredecessor.class.equals(attributeSchema.getType())) {
 			final ChainIndex theChainIndex = this.chainIndex.get(lookupKey);
 			notNull(theChainIndex, "Chain index for attribute `" + attributeSchema.getName() + "` not found!");
 			theChainIndex.removePredecessor(recordId);
@@ -571,14 +566,24 @@ public class AttributeIndex implements AttributeIndexContract,
 		}
 	}
 
-	/*
-		TransactionalLayerCreator implementation
-	 */
-
 	@Nullable
 	@Override
 	public AttributeIndexChanges createLayer() {
 		return isTransactionAvailable() ? new AttributeIndexChanges() : null;
+	}
+
+	/*
+		TransactionalLayerCreator implementation
+	 */
+
+	@Override
+	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		this.uniqueIndex.removeLayer(transactionalLayer);
+		this.filterIndex.removeLayer(transactionalLayer);
+		this.sortIndex.removeLayer(transactionalLayer);
+		this.chainIndex.removeLayer(transactionalLayer);
+		final AttributeIndexChanges changes = transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
 	}
 
 	@Nonnull
@@ -593,16 +598,6 @@ public class AttributeIndex implements AttributeIndexContract,
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return attributeIndex;
-	}
-
-	@Override
-	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		this.uniqueIndex.removeLayer(transactionalLayer);
-		this.filterIndex.removeLayer(transactionalLayer);
-		this.sortIndex.removeLayer(transactionalLayer);
-		this.chainIndex.removeLayer(transactionalLayer);
-		final AttributeIndexChanges changes = transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
-		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
 	}
 
 	/**
@@ -634,6 +629,26 @@ public class AttributeIndex implements AttributeIndexContract,
 		} else {
 			throw new GenericEvitaInternalError("Cannot handle attribute storage part key of type `" + indexType + "`");
 		}
+	}
+
+	/**
+	 * Method retrieves or creates a ChainIndex based on the provided AttributeKey.
+	 * If it does not exist in the chainIndex map, it creates and adds a new one.
+	 *
+	 * @param attributeKey The attribute key used for lookup or creation of the ChainIndex.
+	 * @return The existing or newly created ChainIndex.
+	 */
+	@Nonnull
+	private ChainIndex getOrCreateChainIndex(@Nonnull AttributeKey attributeKey) {
+		return this.chainIndex.computeIfAbsent(
+			attributeKey,
+			lookupKey -> {
+				final ChainIndex newSortIndex = new ChainIndex(lookupKey);
+				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
+					.ifPresent(it -> it.addCreatedItem(newSortIndex));
+				return newSortIndex;
+			}
+		);
 	}
 
 	/**

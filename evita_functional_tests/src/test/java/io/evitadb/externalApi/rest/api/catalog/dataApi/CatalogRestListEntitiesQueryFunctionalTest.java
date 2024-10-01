@@ -708,7 +708,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			it -> !it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
 				it.getPrices(CURRENCY_CZK)
 					.stream()
-					.filter(PriceContract::sellable)
+					.filter(PriceContract::indexed)
 					.map(PriceContract::innerRecordId)
 					.distinct()
 					.count() > 1

@@ -83,7 +83,7 @@ import java.util.Optional;
 		"attribute contains the passed value within its limits (both ends are inclusive). " +
 		"The constraint can be used only for Range data type values.",
 	userDocsLink = "/documentation/query/filtering/range#attribute-in-range",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
+	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE},
 	supportedValues = @ConstraintSupportedValues(
 		supportedTypes = {
 			DateTimeRange.class,
@@ -104,8 +104,10 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 	}
 
 	@Creator
-	private <T extends Serializable & Comparable<?>> AttributeInRange(@Nonnull @Classifier String attributeName,
-	                                                                  @Nonnull @Value(requiresPlainType = true) T value) {
+	private <T extends Serializable & Comparable<?>> AttributeInRange(
+		@Nonnull @Classifier String attributeName,
+		@Nonnull @Value(requiresPlainType = true) T value
+	) {
 		super(attributeName, value);
 		Assert.isTrue(
 			value instanceof Number || value instanceof OffsetDateTime,

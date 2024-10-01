@@ -32,7 +32,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-// todo #538: deprecated, remove
+// TOBEDONE #538: deprecated, remove
 @Deprecated
 public interface PriceFieldHeaderDescriptor {
 

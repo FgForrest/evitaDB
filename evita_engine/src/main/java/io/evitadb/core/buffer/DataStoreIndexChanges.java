@@ -42,11 +42,9 @@ import java.util.stream.Stream;
  * This mechanism allows to buffer frequent changes in indexes whose persistence is costly and flush the changes once in
  * a while to the persistent storage.
  *
- * @param <IK> the type of the index key
- * @param <I>  the type of the index
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface DataStoreIndexChanges<IK extends IndexKey, I extends Index<IK>> {
+public interface DataStoreIndexChanges {
 
 	/**
 	 * Returns set containing {@link StoragePartKey keys} that lead to the data structures in memory that were modified
@@ -62,20 +60,20 @@ public interface DataStoreIndexChanges<IK extends IndexKey, I extends Index<IK>>
 	 * using `accessorWhenMissing` lambda and stores into the "dirty" memory before returning.
 	 */
 	@Nonnull
-	I getOrCreateIndexForModification(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing);
+	<IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing);
 
 	/**
 	 * Method checks and returns the requested index from the local "dirty" memory. If it isn't there, it's fetched
 	 * using `accessorWhenMissing` and returned without adding to "dirty" memory.
 	 */
 	@Nullable
-	I getIndexIfExists(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing);
+	<IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing);
 
 	/**
 	 * Removes {@link EntityIndex} from the change set. After removal (either successfully or unsuccessful)
 	 * `removalPropagation` function is called to propagate deletion to the origin collection.
 	 */
 	@Nonnull
-	I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation);
+	<IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation);
 
 }

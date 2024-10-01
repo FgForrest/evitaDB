@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
@@ -39,12 +40,12 @@ import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
@@ -71,43 +72,45 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 
-		final Query query = resolveQuery(executionContext);
-		final Query finalQuery = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
-			if (QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class) == null) {
-				return Query.query(
-					query.getCollection(),
-					query.getFilterBy(),
-					query.getOrderBy(),
-					require(
-						ArrayUtils.mergeArrays(
-							Optional.ofNullable(query.getRequire()).map(ConstraintContainer::getChildren).orElse(new RequireConstraint[0]),
-							new RequireConstraint[] { entityFetch() }
-						)
-					)
-				);
-			} else {
-				return query;
-			}
-		});
-		log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), finalQuery);
+		return resolveQuery(executionContext)
+			.thenApply(query -> {
+				final Query finalQuery = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
+					if (QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class) == null) {
+						return Query.query(
+							query.getCollection(),
+							query.getFilterBy(),
+							query.getOrderBy(),
+							require(
+								ArrayUtils.mergeArrays(
+									Optional.ofNullable(query.getRequire()).map(ConstraintContainer::getChildren).orElse(new RequireConstraint[0]),
+									new RequireConstraint[] { entityFetch() }
+								)
+							)
+						);
+					} else {
+						return query;
+					}
+				});
+				log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), finalQuery);
 
-		final SealedEntity[] deletedEntities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-			executionContext.session().deleteSealedEntitiesAndReturnBodies(finalQuery));
-		requestExecutedEvent.finishOperationExecution();
+				final SealedEntity[] deletedEntities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
+					executionContext.session().deleteSealedEntitiesAndReturnBodies(finalQuery));
+				requestExecutedEvent.finishOperationExecution();
 
-		final Object result = convertResultIntoSerializableObject(executionContext, deletedEntities);
-		requestExecutedEvent.finishResultSerialization();
+				final Object result = convertResultIntoSerializableObject(executionContext, deletedEntities);
+				requestExecutedEvent.finishResultSerialization();
 
-		return new SuccessEndpointResponse(result);
+				return new SuccessEndpointResponse(result);
+			});
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.DELETE_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.DELETE);
 	}
 
 	@Nonnull

@@ -761,7 +761,7 @@ public interface RandomQueryGenerator {
 		 * Indexes new price.
 		 */
 		public void updateValue(@Nonnull PriceContract value, @Nonnull Random random) {
-			if (value.sellable()) {
+			if (value.indexed()) {
 				final CompressiblePriceKey key = new CompressiblePriceKey(value.priceKey());
 				final PriceStatistics priceStatistics = priceAndCurrencyStats.computeIfAbsent(key, PriceStatistics::new);
 				priceStatistics.updateValue(value, random);

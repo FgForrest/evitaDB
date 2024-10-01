@@ -23,13 +23,14 @@
 
 package io.evitadb.externalApi.rest.io;
 
+import com.linecorp.armeria.common.HttpRequest;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.EndpointExecutionContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent.ResponseStatus;
 import io.evitadb.utils.Assert;
-import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -48,9 +49,12 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 	@Nullable private String requestBodyContentType;
 	@Nullable private String preferredResponseContentType;
 
-	public RestEndpointExecutionContext(@Nonnull HttpServerExchange serverExchange,
-	                                    @Nonnull ExecutedEvent requestExecutedEvent) {
-		super(serverExchange);
+	public RestEndpointExecutionContext(
+		@Nonnull HttpRequest httpRequest,
+		@Nonnull Evita evita,
+		@Nonnull ExecutedEvent requestExecutedEvent
+	) {
+		super(httpRequest, evita);
 		this.requestExecutedEvent = requestExecutedEvent;
 	}
 

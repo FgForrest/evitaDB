@@ -689,6 +689,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitPriceNaturalConstraint(EvitaQLParser.PriceNaturalConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code priceDiscountConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterPriceDiscountConstraint(EvitaQLParser.PriceDiscountConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code priceDiscountConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitPriceDiscountConstraint(EvitaQLParser.PriceDiscountConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code randomConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
@@ -1288,6 +1300,66 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFacetSummary2Constraint(EvitaQLParser.FacetSummary2ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code facetSummary3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummary3Constraint(EvitaQLParser.FacetSummary3ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetSummary3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummary3Constraint(EvitaQLParser.FacetSummary3ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code facetSummary4Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummary4Constraint(EvitaQLParser.FacetSummary4ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetSummary4Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummary4Constraint(EvitaQLParser.FacetSummary4ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code facetSummary5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummary5Constraint(EvitaQLParser.FacetSummary5ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetSummary5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummary5Constraint(EvitaQLParser.FacetSummary5ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code facetSummary6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummary6Constraint(EvitaQLParser.FacetSummary6ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetSummary6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummary6Constraint(EvitaQLParser.FacetSummary6ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code facetSummary7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummary7Constraint(EvitaQLParser.FacetSummary7ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetSummary7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummary7Constraint(EvitaQLParser.FacetSummary7ConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code facetSummaryOfReference1Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
@@ -2200,6 +2272,56 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFacetSummary2Args(EvitaQLParser.FacetSummary2ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummary3Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummary3Args(EvitaQLParser.FacetSummary3ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummary3Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummary3Args(EvitaQLParser.FacetSummary3ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummary4Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummary4Args(EvitaQLParser.FacetSummary4ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummary4Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummary4Args(EvitaQLParser.FacetSummary4ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummary5Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummary5Args(EvitaQLParser.FacetSummary5ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummary5Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummary5Args(EvitaQLParser.FacetSummary5ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummary6Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummary6Args(EvitaQLParser.FacetSummary6ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummary6Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummary6Args(EvitaQLParser.FacetSummary6ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummary7Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetSummary7Args(EvitaQLParser.FacetSummary7ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetSummary7Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetSummary7Args(EvitaQLParser.FacetSummary7ArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#facetSummaryOfReference2Args}.
 	 * @param ctx the parse tree

@@ -177,6 +177,11 @@ private static final long serialVersionUID = 0L;
             version_ = input.readInt32();
             break;
           }
+          case 88: {
+
+            indexed_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -247,7 +252,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       priceList_ = s;
@@ -272,7 +277,7 @@ private static final long serialVersionUID = 0L;
       getPriceListBytes() {
     java.lang.Object ref = priceList_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       priceList_ = b;
@@ -527,13 +532,15 @@ private static final long serialVersionUID = 0L;
    * entity but won't be considered when evaluating search. These prices may be
    * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
    * as "usual price") but are not considered as the "selling" price.
+   * RENAMED TO "indexed"
    * </pre>
    *
-   * <code>bool sellable = 9;</code>
+   * <code>bool sellable = 9 [deprecated = true];</code>
+   * @deprecated
    * @return The sellable.
    */
   @java.lang.Override
-  public boolean getSellable() {
+  @java.lang.Deprecated public boolean getSellable() {
     return sellable_;
   }
 
@@ -551,6 +558,24 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public int getVersion() {
     return version_;
+  }
+
+  public static final int INDEXED_FIELD_NUMBER = 11;
+  private boolean indexed_;
+  /**
+   * <pre>
+   * Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+   * entity but won't be considered when evaluating search. These prices may be
+   * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+   * as "usual price") but are not considered as the "selling" price.
+   * </pre>
+   *
+   * <code>bool indexed = 11;</code>
+   * @return The indexed.
+   */
+  @java.lang.Override
+  public boolean getIndexed() {
+    return indexed_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -596,6 +621,9 @@ private static final long serialVersionUID = 0L;
     }
     if (version_ != 0) {
       output.writeInt32(10, version_);
+    }
+    if (indexed_ != false) {
+      output.writeBool(11, indexed_);
     }
     unknownFields.writeTo(output);
   }
@@ -644,6 +672,10 @@ private static final long serialVersionUID = 0L;
     if (version_ != 0) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(10, version_);
+    }
+    if (indexed_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(11, indexed_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -698,6 +730,8 @@ private static final long serialVersionUID = 0L;
         != other.getSellable()) return false;
     if (getVersion()
         != other.getVersion()) return false;
+    if (getIndexed()
+        != other.getIndexed()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -742,6 +776,9 @@ private static final long serialVersionUID = 0L;
         getSellable());
     hash = (37 * hash) + VERSION_FIELD_NUMBER;
     hash = (53 * hash) + getVersion();
+    hash = (37 * hash) + INDEXED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getIndexed());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -925,6 +962,8 @@ private static final long serialVersionUID = 0L;
 
       version_ = 0;
 
+      indexed_ = false;
+
       return this;
     }
 
@@ -985,6 +1024,7 @@ private static final long serialVersionUID = 0L;
       }
       result.sellable_ = sellable_;
       result.version_ = version_;
+      result.indexed_ = indexed_;
       onBuilt();
       return result;
     }
@@ -1064,6 +1104,9 @@ private static final long serialVersionUID = 0L;
       if (other.getVersion() != 0) {
         setVersion(other.getVersion());
       }
+      if (other.getIndexed() != false) {
+        setIndexed(other.getIndexed());
+      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -1120,7 +1163,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPriceId(int value) {
-      
+
       priceId_ = value;
       onChanged();
       return this;
@@ -1136,7 +1179,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPriceId() {
-      
+
       priceId_ = 0;
       onChanged();
       return this;
@@ -1185,7 +1228,7 @@ private static final long serialVersionUID = 0L;
         getPriceListBytes() {
       java.lang.Object ref = priceList_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         priceList_ = b;
@@ -1213,7 +1256,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       priceList_ = value;
       onChanged();
       return this;
@@ -1232,7 +1275,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPriceList() {
-      
+
       priceList_ = getDefaultInstance().getPriceList();
       onChanged();
       return this;
@@ -1257,7 +1300,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       priceList_ = value;
       onChanged();
       return this;
@@ -1378,7 +1421,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder getCurrencyBuilder() {
-      
+
       onChanged();
       return getCurrencyFieldBuilder().getBuilder();
     }
@@ -1405,7 +1448,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
         getCurrencyFieldBuilder() {
       if (currencyBuilder_ == null) {
         currencyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1554,7 +1597,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public com.google.protobuf.Int32Value.Builder getInnerRecordIdBuilder() {
-      
+
       onChanged();
       return getInnerRecordIdFieldBuilder().getBuilder();
     }
@@ -1587,7 +1630,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getInnerRecordIdFieldBuilder() {
       if (innerRecordIdBuilder_ == null) {
         innerRecordIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1715,7 +1758,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getPriceWithoutTaxBuilder() {
-      
+
       onChanged();
       return getPriceWithoutTaxFieldBuilder().getBuilder();
     }
@@ -1742,7 +1785,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getPriceWithoutTaxFieldBuilder() {
       if (priceWithoutTaxBuilder_ == null) {
         priceWithoutTaxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1870,7 +1913,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getTaxRateBuilder() {
-      
+
       onChanged();
       return getTaxRateFieldBuilder().getBuilder();
     }
@@ -1897,7 +1940,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getTaxRateFieldBuilder() {
       if (taxRateBuilder_ == null) {
         taxRateBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2025,7 +2068,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getPriceWithTaxBuilder() {
-      
+
       onChanged();
       return getPriceWithTaxFieldBuilder().getBuilder();
     }
@@ -2052,7 +2095,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getPriceWithTaxFieldBuilder() {
       if (priceWithTaxBuilder_ == null) {
         priceWithTaxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2180,7 +2223,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder getValidityBuilder() {
-      
+
       onChanged();
       return getValidityFieldBuilder().getBuilder();
     }
@@ -2207,7 +2250,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder>
         getValidityFieldBuilder() {
       if (validityBuilder_ == null) {
         validityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2227,13 +2270,15 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
+     * RENAMED TO "indexed"
      * </pre>
      *
-     * <code>bool sellable = 9;</code>
+     * <code>bool sellable = 9 [deprecated = true];</code>
+     * @deprecated
      * @return The sellable.
      */
     @java.lang.Override
-    public boolean getSellable() {
+    @java.lang.Deprecated public boolean getSellable() {
       return sellable_;
     }
     /**
@@ -2242,14 +2287,16 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
+     * RENAMED TO "indexed"
      * </pre>
      *
-     * <code>bool sellable = 9;</code>
+     * <code>bool sellable = 9 [deprecated = true];</code>
+     * @deprecated
      * @param value The sellable to set.
      * @return This builder for chaining.
      */
-    public Builder setSellable(boolean value) {
-      
+    @java.lang.Deprecated public Builder setSellable(boolean value) {
+
       sellable_ = value;
       onChanged();
       return this;
@@ -2260,13 +2307,15 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
+     * RENAMED TO "indexed"
      * </pre>
      *
-     * <code>bool sellable = 9;</code>
+     * <code>bool sellable = 9 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearSellable() {
-      
+    @java.lang.Deprecated public Builder clearSellable() {
+
       sellable_ = false;
       onChanged();
       return this;
@@ -2297,7 +2346,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(int value) {
-      
+
       version_ = value;
       onChanged();
       return this;
@@ -2312,8 +2361,60 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-      
+
       version_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private boolean indexed_ ;
+    /**
+     * <pre>
+     * Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+     * entity but won't be considered when evaluating search. These prices may be
+     * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+     * as "usual price") but are not considered as the "selling" price.
+     * </pre>
+     *
+     * <code>bool indexed = 11;</code>
+     * @return The indexed.
+     */
+    @java.lang.Override
+    public boolean getIndexed() {
+      return indexed_;
+    }
+    /**
+     * <pre>
+     * Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+     * entity but won't be considered when evaluating search. These prices may be
+     * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+     * as "usual price") but are not considered as the "selling" price.
+     * </pre>
+     *
+     * <code>bool indexed = 11;</code>
+     * @param value The indexed to set.
+     * @return This builder for chaining.
+     */
+    public Builder setIndexed(boolean value) {
+
+      indexed_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+     * entity but won't be considered when evaluating search. These prices may be
+     * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
+     * as "usual price") but are not considered as the "selling" price.
+     * </pre>
+     *
+     * <code>bool indexed = 11;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearIndexed() {
+
+      indexed_ = false;
       onChanged();
       return this;
     }

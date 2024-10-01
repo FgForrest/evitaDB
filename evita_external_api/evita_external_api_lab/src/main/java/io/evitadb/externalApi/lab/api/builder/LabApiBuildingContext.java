@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
 import io.swagger.v3.oas.models.servers.Server;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
 
@@ -44,14 +43,14 @@ public class LabApiBuildingContext extends RestBuildingContext {
 
 	private static final String OPEN_API_TITLE = "Web services for managing evitaDB.";
 
-	public LabApiBuildingContext(@Nullable String exposedOn, @Nonnull LabConfig labConfig, @Nonnull Evita evita) {
-		super(exposedOn, labConfig, evita);
+	public LabApiBuildingContext(@Nonnull LabConfig labConfig, @Nonnull Evita evita) {
+		super(labConfig, evita);
 	}
 
 	@Nonnull
 	@Override
 	protected List<Server> buildOpenApiServers() {
-		return Arrays.stream(restConfig.getBaseUrls(getExposedOn()))
+		return Arrays.stream(restConfig.getBaseUrls())
 			.map(baseUrl -> new Server()
 				.url(baseUrl + LAB_API_URL_PREFIX))
 			.toList();

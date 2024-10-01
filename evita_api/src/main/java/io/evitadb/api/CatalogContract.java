@@ -140,15 +140,6 @@ public interface CatalogContract {
 	void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException;
 
 	/**
-	 * Creates and returns collection maintaining all entities of same type. If collection for the entity type exists
-	 * existing collection is returned.
-	 *
-	 * @param entityType type (name) of the entity
-	 */
-	@Nonnull
-	EntityCollectionContract createCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session);
-
-	/**
 	 * Returns collection maintaining all entities of same type.
 	 *
 	 * @param entityType type (name) of the entity
@@ -265,6 +256,18 @@ public interface CatalogContract {
 	void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalog);
 
 	/**
+	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
+	 * specified method returns first version known to the catalog mutation history.
+	 *
+	 * @param moment the moment in time for which the catalog version should be returned
+	 * @return catalog version that was valid at the specified moment in time, or first version known to the catalog
+	 * mutation history if no moment was specified
+	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 */
+	@Nonnull
+	CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+
+	/**
 	 * Returns a paginated list of catalog versions based on the provided time flow, page number, and page size.
 	 * It returns only versions that are known in history - there may be a lot of other versions for which we don't have
 	 * information anymore, because the data were purged to save space.
@@ -309,11 +312,12 @@ public interface CatalogContract {
 	 *
 	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
 	 *
-	 * @param catalogVersion version of the catalog to start the stream with
+	 * @param catalogVersion version of the catalog to start the stream with, if null is provided the stream will start
+	 *                       with the last committed transaction
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getReversedCommittedMutationStream(long catalogVersion);
+	Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
 
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
@@ -329,11 +333,17 @@ public interface CatalogContract {
 	ServerTask<?, FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
 
 	/**
+	 * Returns catalog statistics aggregating basic information about the catalog and the data stored in it.
+	 * @return catalog statistics
+	 */
+	@Nonnull
+	CatalogStatistics getStatistics();
+
+	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.
 	 *
 	 * This method is idempotent and may be called multiple times. Only first call is really processed and others are
 	 * ignored.
 	 */
 	void terminate();
-
 }

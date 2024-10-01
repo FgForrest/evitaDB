@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -30,9 +31,9 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.response.ServerEntityDecorator;
-import io.evitadb.core.query.sort.attribute.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.attribute.translator.AttributeComparator;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
+import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.index.bitmap.BaseBitmap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,11 +64,11 @@ class PrefetchedRecordsSorterTest {
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private final EntityComparator TEST_COMPARATOR_FIRST = new AttributeComparator(
-		ATTRIBUTE_NAME_FIRST, null, EntityAttributeExtractor.INSTANCE, (o1, o2) -> ((Comparable) o1).compareTo(o2)
+		ATTRIBUTE_NAME_FIRST, Integer.class, null, EntityAttributeExtractor.INSTANCE, OrderDirection.ASC
 	);
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private final EntityComparator TEST_COMPARATOR_SECOND = new AttributeComparator(
-		ATTRIBUTE_NAME_SECOND, null, EntityAttributeExtractor.INSTANCE, (o1, o2) -> ((Comparable) o1).compareTo(o2)
+		ATTRIBUTE_NAME_SECOND, Integer.class, null, EntityAttributeExtractor.INSTANCE, OrderDirection.ASC
 	);
 	private PrefetchedRecordsSorterWithContext entitySorter;
 

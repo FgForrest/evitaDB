@@ -25,7 +25,6 @@ package io.evitadb.externalApi.observability.trace;
 
 import io.evitadb.api.observability.trace.TracingContextReference;
 import io.opentelemetry.context.Context;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -39,7 +38,6 @@ import javax.annotation.Nonnull;
 public class ObservabilityTracingContextReference implements TracingContextReference<Context> {
 
 	@Nonnull
-	@Getter
 	private final Context context;
 
 	@Nonnull
@@ -47,4 +45,11 @@ public class ObservabilityTracingContextReference implements TracingContextRefer
 	public Class<Context> getType() {
 		return Context.class;
 	}
+
+	@Nonnull
+	@Override
+	public Context getContext() {
+		return context;
+	}
+
 }

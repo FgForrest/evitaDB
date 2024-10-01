@@ -167,12 +167,14 @@ public interface GrpcReferenceSchemaOrBuilder extends
   /**
    * <pre>
    * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+   * DEPRECATED!!! use referencedEntityTypeManaged instead
    * </pre>
    *
-   * <code>bool entityTypeRelatesToEntity = 6;</code>
+   * <code>bool entityTypeRelatesToEntity = 6 [deprecated = true];</code>
+   * @deprecated
    * @return The entityTypeRelatesToEntity.
    */
-  boolean getEntityTypeRelatesToEntity();
+  @java.lang.Deprecated boolean getEntityTypeRelatesToEntity();
 
   /**
    * <pre>
@@ -207,12 +209,14 @@ public interface GrpcReferenceSchemaOrBuilder extends
   /**
    * <pre>
    * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+   * DEPRECATED!!! use referencedGroupTypeManaged instead
    * </pre>
    *
-   * <code>bool groupTypeRelatesToEntity = 8;</code>
+   * <code>bool groupTypeRelatesToEntity = 8 [deprecated = true];</code>
+   * @deprecated
    * @return The groupTypeRelatesToEntity.
    */
-  boolean getGroupTypeRelatesToEntity();
+  @java.lang.Deprecated boolean getGroupTypeRelatesToEntity();
 
   /**
    * <pre>
@@ -387,4 +391,293 @@ public interface GrpcReferenceSchemaOrBuilder extends
 
   io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema getSortableAttributeCompoundsOrThrow(
       java.lang.String key);
+
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+      getNameVariantList();
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariant(int index);
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  int getNameVariantCount();
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getNameVariantOrBuilderList();
+  /**
+   * <pre>
+   * Contains reference name converted to different naming conventions.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+      getEntityTypeNameVariantList();
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getEntityTypeNameVariant(int index);
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  int getEntityTypeNameVariantCount();
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getEntityTypeNameVariantOrBuilderList();
+  /**
+   * <pre>
+   * Contains referenced entity name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getEntityTypeNameVariantOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+      getGroupTypeNameVariantList();
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getGroupTypeNameVariant(int index);
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  int getGroupTypeNameVariantCount();
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+      getGroupTypeNameVariantOrBuilderList();
+  /**
+   * <pre>
+   * Contains referenced group name converted to different naming conventions (only for non-managed entities).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getGroupTypeNameVariantOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
+   * </pre>
+   *
+   * <code>bool referencedEntityTypeManaged = 16;</code>
+   * @return The referencedEntityTypeManaged.
+   */
+  boolean getReferencedEntityTypeManaged();
+
+  /**
+   * <pre>
+   * Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
+   * </pre>
+   *
+   * <code>bool referencedGroupTypeManaged = 17;</code>
+   * @return The referencedGroupTypeManaged.
+   */
+  boolean getReferencedGroupTypeManaged();
+
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   * @return Whether the reflectedReferenceName field is set.
+   */
+  boolean hasReflectedReferenceName();
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   * @return The reflectedReferenceName.
+   */
+  com.google.protobuf.StringValue getReflectedReferenceName();
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getReflectedReferenceNameOrBuilder();
+
+  /**
+   * <pre>
+   * Contains true if the description of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool descriptionInherited = 19;</code>
+   * @return The descriptionInherited.
+   */
+  boolean getDescriptionInherited();
+
+  /**
+   * <pre>
+   * Contains true if the deprecated flag of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool deprecationNoticeInherited = 20;</code>
+   * @return The deprecationNoticeInherited.
+   */
+  boolean getDeprecationNoticeInherited();
+
+  /**
+   * <pre>
+   * Contains true if the cardinality of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool cardinalityInherited = 21;</code>
+   * @return The cardinalityInherited.
+   */
+  boolean getCardinalityInherited();
+
+  /**
+   * <pre>
+   * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool facetedInherited = 22;</code>
+   * @return The facetedInherited.
+   */
+  boolean getFacetedInherited();
+
+  /**
+   * <pre>
+   * Contains true if the attributes of the reflected reference are inherited from the target reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
+   * @return The enum numeric value on the wire for attributeInheritanceBehavior.
+   */
+  int getAttributeInheritanceBehaviorValue();
+  /**
+   * <pre>
+   * Contains true if the attributes of the reflected reference are inherited from the target reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
+   * @return The attributeInheritanceBehavior.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior getAttributeInheritanceBehavior();
+
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @return A list containing the attributeInheritanceFilter.
+   */
+  java.util.List<java.lang.String>
+      getAttributeInheritanceFilterList();
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @return The count of attributeInheritanceFilter.
+   */
+  int getAttributeInheritanceFilterCount();
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @param index The index of the element to return.
+   * @return The attributeInheritanceFilter at the given index.
+   */
+  java.lang.String getAttributeInheritanceFilter(int index);
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @param index The index of the value to return.
+   * @return The bytes of the attributeInheritanceFilter at the given index.
+   */
+  com.google.protobuf.ByteString
+      getAttributeInheritanceFilterBytes(int index);
 }

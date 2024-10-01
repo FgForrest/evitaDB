@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema;
 
+import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.order.ReferenceProperty;
@@ -32,6 +33,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
@@ -199,5 +201,14 @@ public interface ReferenceSchemaContract extends
 	 * Reference that was marked as faceted is called Facet.
 	 */
 	boolean isFaceted();
+
+	/**
+	 * Validates current reference schema for invalid settings using the information from current catalog schema.
+	 *
+	 * @param catalogSchema current catalog schema providing access to other entity schemas in it
+	 * @param entitySchema current entity schema where the reference schema is defined
+	 * @throws SchemaAlteringException if there is an error in current schema
+	 */
+	void validate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchema entitySchema) throws SchemaAlteringException;
 
 }

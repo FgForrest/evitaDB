@@ -174,7 +174,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * according to `entityPrimaryKeys` argument. The method is reused both for fetching the referenced entities and
 	 * their groups.
 	 *
-	 * @param executionContext            query context that will be used for fetching
+	 * @param executionContext        query context that will be used for fetching
 	 * @param referenceSchema         the schema of the reference ({@link ReferenceSchemaContract#getName()})
 	 * @param entityType              represents the entity type ({@link EntitySchemaContract#getName()}) that should be loaded
 	 * @param existingEntityRetriever lambda allowing to reuse already fetched entities from previous decorator instance
@@ -213,7 +213,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param referenceName           just for logging purposes
 	 * @param referencedRecordIds     the ids of referenced entities to fetch
 	 * @param fetchRequest            request that describes the requested richness of the fetched entities
-	 * @param executionContext            current query context
+	 * @param executionContext        current query context
 	 * @param referencedCollection    the reference collection that will be used for fetching the entities
 	 * @param existingEntityRetriever lambda providing access to potentially already prefetched entities (when only enrichment occurs)
 	 * @return fetched entities indexed by their {@link EntityContract#getPrimaryKey()}
@@ -255,7 +255,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 *
 	 * @param parentIds               the ids of parent entities to fetch
 	 * @param fetchRequest            request that describes the requested richness of the fetched entities
-	 * @param executionContext            current query context
+	 * @param executionContext        current query context
 	 * @param hierarchyCollection     the hierarchy collection that will be used for fetching the entities
 	 * @param existingEntityRetriever lambda providing access to potentially already prefetched entities (when only enrichment occurs)
 	 * @return fetched entities indexed by their {@link EntityContract#getPrimaryKey()}
@@ -712,33 +712,40 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * relationship. The method is invoked recursively on each parent.
 	 */
 	@Nonnull
-	private static SealedEntity replaceWithSealedEntities(
+	private static Optional<SealedEntity> replaceWithSealedEntities(
 		@Nonnull EntityReferenceWithParent entityReference,
 		@Nonnull Map<Integer, ServerEntityDecorator> parentBodies
 	) {
 		final ServerEntityDecorator entityDecorator = parentBodies.get(entityReference.getPrimaryKey());
+		if (entityDecorator == null) {
+			return Optional.empty();
+		}
+
 		final EntityClassifierWithParent enrichedParentEntity = entityReference.getParentEntity()
-			.map(parentEntity -> (EntityClassifierWithParent) replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
+			.flatMap(parentEntity -> replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
+			.map(EntityClassifierWithParent.class::cast)
 			.orElse(EntityClassifierWithParent.CONCEALED_ENTITY);
 
-		return ServerEntityDecorator.decorate(
-			entityDecorator,
-			enrichedParentEntity,
-			entityDecorator.getLocalePredicate(),
-			new HierarchySerializablePredicate(true),
-			entityDecorator.getAttributePredicate(),
-			entityDecorator.getAssociatedDataPredicate(),
-			entityDecorator.getReferencePredicate(),
-			entityDecorator.getPricePredicate(),
-			entityDecorator.getAlignedNow(),
-			entityDecorator.getIoFetchCount() +
-				(enrichedParentEntity instanceof ServerEntityDecorator parentDecorator ?
-					parentDecorator.getIoFetchCount() :
-					0),
-			entityDecorator.getIoFetchedBytes() +
-				(enrichedParentEntity instanceof ServerEntityDecorator parentDecorator ?
-					parentDecorator.getIoFetchedBytes() :
-					0)
+		return Optional.of(
+			ServerEntityDecorator.decorate(
+				entityDecorator,
+				enrichedParentEntity,
+				entityDecorator.getLocalePredicate(),
+				new HierarchySerializablePredicate(true),
+				entityDecorator.getAttributePredicate(),
+				entityDecorator.getAssociatedDataPredicate(),
+				entityDecorator.getReferencePredicate(),
+				entityDecorator.getPricePredicate(),
+				entityDecorator.getAlignedNow(),
+				entityDecorator.getIoFetchCount() +
+					(enrichedParentEntity instanceof ServerEntityDecorator parentDecorator ?
+						parentDecorator.getIoFetchCount() :
+						0),
+				entityDecorator.getIoFetchedBytes() +
+					(enrichedParentEntity instanceof ServerEntityDecorator parentDecorator ?
+						parentDecorator.getIoFetchedBytes() :
+						0)
+			)
 		);
 	}
 
@@ -1029,7 +1036,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 
 						final Optional<OrderingDescriptor> orderingDescriptor = ofNullable(requirements.orderBy())
-							.map(ob -> ReferenceOrderByVisitor.getComparator(executionContext.getQueryContext(), ob));
+							.map(ob -> ReferenceOrderByVisitor.getComparator(executionContext.getQueryContext(), ob, entitySchema, referenceSchema));
 
 						final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(entityPrimaryKey.length);
 
@@ -1219,7 +1226,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						parentRef.key,
 						ofNullable(parentRef.value)
 							.map(EntityReferenceWithParent.class::cast)
-							.map(it -> replaceWithSealedEntities(it, parentBodies))
+							.flatMap(it -> replaceWithSealedEntities(it, parentBodies))
 							.orElse(null)
 					);
 				}

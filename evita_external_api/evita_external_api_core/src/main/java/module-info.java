@@ -13,7 +13,6 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.configuration;
 	exports io.evitadb.externalApi.exception;
 	exports io.evitadb.externalApi.http;
-	exports io.evitadb.externalApi.log;
 	exports io.evitadb.externalApi.utils;
 	exports io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 	exports io.evitadb.externalApi.api.catalog.dataApi.constraint;
@@ -55,19 +54,19 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 	exports io.evitadb.externalApi.trace;
+	exports io.evitadb.externalApi.utils.path;
+	exports io.evitadb.externalApi.utils.path.routing;
+	exports io.evitadb.externalApi.utils.path.routing.cache;
 	exports io.evitadb.externalApi.certificate;
+	exports io.evitadb.externalApi.serialization;
+	exports io.evitadb.externalApi.event;
 
 	requires com.fasterxml.jackson.core;
 	requires com.fasterxml.jackson.annotation;
 	requires static lombok;
 	requires static jsr305;
 	requires org.slf4j;
-	requires jboss.threads;
-	requires undertow.core;
-	requires undertow.servlet;
-	requires jakarta.servlet;
 	requires com.fasterxml.jackson.databind;
-	requires xnio.api;
 	requires zero.allocation.hashing;
 
 	requires evita.api;
@@ -76,4 +75,10 @@ module evita.external.api.core {
 	requires evita.query;
 	requires org.bouncycastle.provider;
 	requires org.bouncycastle.pkix;
+	requires com.linecorp.armeria;
+	requires io.netty.codec.http2;
+	requires io.netty.transport;
+	requires io.netty.handler;
+	requires io.netty.common;
+	requires jdk.jfr;
 }

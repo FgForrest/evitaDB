@@ -23,17 +23,22 @@
 
 package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
+import com.linecorp.armeria.common.HttpMethod;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.dto.LivenessDto;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
-import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Returns information about liveness of REST API.
@@ -48,23 +53,29 @@ public class LivenessHandler extends JsonRestHandler<LabApiHandlingContext> {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-		requestExecutedEvent.finishInputDeserialization();
+	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ReadinessEvent readinessEvent = new ReadinessEvent(GraphQLProvider.CODE, Prospective.SERVER);
+		return executionContext.executeAsyncInRequestThreadPool(
+			() -> {
+				final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
+				requestExecutedEvent.finishInputDeserialization();
 
-		final LivenessDto liveness = new LivenessDto(true);
-		requestExecutedEvent.finishOperationExecution();
+				final LivenessDto liveness = new LivenessDto(true);
+				requestExecutedEvent.finishOperationExecution();
 
-		final Object result = convertResultIntoSerializableObject(executionContext, liveness);
-		requestExecutedEvent.finishResultSerialization();
+				final Object result = convertResultIntoSerializableObject(executionContext, liveness);
+				requestExecutedEvent.finishResultSerialization();
 
-		return new SuccessEndpointResponse(result);
+				readinessEvent.finish(Result.READY);
+				return new SuccessEndpointResponse(result);
+			}
+		);
 	}
 
 	@Nonnull
 	@Override
-	public Set<String> getSupportedHttpMethods() {
-		return Set.of(Methods.GET_STRING);
+	public Set<HttpMethod> getSupportedHttpMethods() {
+		return Set.of(HttpMethod.GET);
 	}
 
 	@Nonnull

@@ -24,9 +24,9 @@
 package io.evitadb.externalApi.rest.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.server.HttpService;
 import io.evitadb.externalApi.http.JsonApiExceptionHandler;
 import io.evitadb.externalApi.rest.RestProvider;
-import io.undertow.server.HttpHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
 @Slf4j
 public class RestExceptionHandler extends JsonApiExceptionHandler {
 
-    public RestExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpHandler next) {
+    public RestExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpService next) {
         super(objectMapper, next);
     }
 

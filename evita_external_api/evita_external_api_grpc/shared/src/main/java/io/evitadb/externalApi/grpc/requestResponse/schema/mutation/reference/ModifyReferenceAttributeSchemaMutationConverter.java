@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,13 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingAttributeSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -37,15 +38,15 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ModifyReferenceAttributeSchemaMutationConverter implements SchemaMutationConverter<ModifyReferenceAttributeSchemaMutation, GrpcModifyReferenceAttributeSchemaMutation> {
-
-	private static final DelegatingAttributeSchemaMutationConverter ATTRIBUTE_SCHEMA_MUTATION_CONVERTER = new DelegatingAttributeSchemaMutationConverter();
+	public static final ModifyReferenceAttributeSchemaMutationConverter INSTANCE = new ModifyReferenceAttributeSchemaMutationConverter();
 
 	@Nonnull
 	public ModifyReferenceAttributeSchemaMutation convert(@Nonnull GrpcModifyReferenceAttributeSchemaMutation mutation) {
 		return new ModifyReferenceAttributeSchemaMutation(
 			mutation.getName(),
-			(ReferenceSchemaMutation) ATTRIBUTE_SCHEMA_MUTATION_CONVERTER.convert(mutation.getAttributeSchemaMutation())
+			(ReferenceAttributeSchemaMutation) DelegatingAttributeSchemaMutationConverter.INSTANCE.convert(mutation.getAttributeSchemaMutation())
 		);
 	}
 
@@ -53,7 +54,7 @@ public class ModifyReferenceAttributeSchemaMutationConverter implements SchemaMu
 	public GrpcModifyReferenceAttributeSchemaMutation convert(@Nonnull ModifyReferenceAttributeSchemaMutation mutation) {
 		return GrpcModifyReferenceAttributeSchemaMutation.newBuilder()
 			.setName(mutation.getName())
-			.setAttributeSchemaMutation(ATTRIBUTE_SCHEMA_MUTATION_CONVERTER.convert((AttributeSchemaMutation) mutation.getAttributeSchemaMutation()))
+			.setAttributeSchemaMutation(DelegatingAttributeSchemaMutationConverter.INSTANCE.convert(mutation.getAttributeSchemaMutation()))
 			.build();
 	}
 }

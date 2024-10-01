@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -93,6 +93,7 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		SCALAR_SCHEMA_MAPPINGS.put(Currency.class, OpenApiScalar::createCurrencySchema);
 		SCALAR_SCHEMA_MAPPINGS.put(UUID.class, OpenApiScalar::createUuidSchema);
 		SCALAR_SCHEMA_MAPPINGS.put(Predecessor.class, OpenApiScalar::createPredecessorSchema);
+		SCALAR_SCHEMA_MAPPINGS.put(ReferencedEntityPredecessor.class, OpenApiScalar::createReferencedEntityPredecessorSchema);
 		SCALAR_SCHEMA_MAPPINGS.put(Any.class, OpenApiScalar::createAnySchema);
 		SCALAR_SCHEMA_MAPPINGS.put(GenericObject.class, OpenApiScalar::createGenericObjectSchema);
 	}
@@ -307,6 +308,18 @@ public class OpenApiScalar implements OpenApiSimpleType {
 	 */
 	@Nonnull
 	private static Schema<?> createPredecessorSchema() {
+		final Schema<?> predecessorSchema = new IntegerSchema();
+		predecessorSchema
+			.format(FORMAT_INT_32)
+			.example("44872");
+		return predecessorSchema;
+	}
+
+	/**
+	 * Creates schema for {@link ReferencedEntityPredecessor}
+	 */
+	@Nonnull
+	private static Schema<?> createReferencedEntityPredecessorSchema() {
 		final Schema<?> predecessorSchema = new IntegerSchema();
 		predecessorSchema
 			.format(FORMAT_INT_32)

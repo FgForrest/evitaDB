@@ -41,15 +41,18 @@ import lombok.Getter;
 @EventGroup(AbstractStorageEvent.PACKAGE_NAME)
 @Category({"evitaDB", "Storage"})
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".EvitaDBCompositionChanged")
-@Description("Event that is fired when evitaDB composition changes.")
+@Description("Event that is fired when the evitaDB composition changes.")
 @Label("Evita composition changed")
 @Getter
 public class EvitaDBCompositionChangedEvent extends CustomMetricsExecutionEvent {
+
 	@Label("Catalog count")
+	@Description("Number of accessible catalogs managed by this instance of evitaDB.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int catalogs;
 
 	@Label("Corrupted catalog count")
+	@Description("Number of corrupted catalogs that evitaDB could not load.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int corruptedCatalogs;
 

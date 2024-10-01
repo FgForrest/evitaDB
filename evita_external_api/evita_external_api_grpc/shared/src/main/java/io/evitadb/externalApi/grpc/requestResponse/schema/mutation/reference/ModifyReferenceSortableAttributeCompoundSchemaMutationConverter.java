@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,14 +23,15 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceAttributeSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingSortableAttributeCompoundSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
@@ -39,16 +40,16 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter
 	implements SchemaMutationConverter<ModifyReferenceSortableAttributeCompoundSchemaMutation, GrpcModifyReferenceSortableAttributeCompoundSchemaMutation> {
-
-	private static final DelegatingSortableAttributeCompoundSchemaMutationConverter SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION_CONVERTER = new DelegatingSortableAttributeCompoundSchemaMutationConverter();
+	public static final ModifyReferenceSortableAttributeCompoundSchemaMutationConverter INSTANCE = new ModifyReferenceSortableAttributeCompoundSchemaMutationConverter();
 
 	@Nonnull
 	public ModifyReferenceSortableAttributeCompoundSchemaMutation convert(@Nonnull GrpcModifyReferenceSortableAttributeCompoundSchemaMutation mutation) {
 		return new ModifyReferenceSortableAttributeCompoundSchemaMutation(
 			mutation.getName(),
-			(ReferenceSchemaMutation) SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION_CONVERTER.convert(mutation.getSortableAttributeCompoundSchemaMutation())
+			(ReferenceSortableAttributeCompoundSchemaMutation) DelegatingSortableAttributeCompoundSchemaMutationConverter.INSTANCE.convert(mutation.getSortableAttributeCompoundSchemaMutation())
 		);
 	}
 
@@ -56,7 +57,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter
 	public GrpcModifyReferenceSortableAttributeCompoundSchemaMutation convert(@Nonnull ModifyReferenceSortableAttributeCompoundSchemaMutation mutation) {
 		return GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.newBuilder()
 			.setName(mutation.getName())
-			.setSortableAttributeCompoundSchemaMutation(SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION_CONVERTER.convert((SortableAttributeCompoundSchemaMutation) mutation.getSortableAttributeCompoundSchemaMutation()))
+			.setSortableAttributeCompoundSchemaMutation(DelegatingSortableAttributeCompoundSchemaMutationConverter.INSTANCE.convert(mutation.getSortableAttributeCompoundSchemaMutation()))
 			.build();
 	}
 }
