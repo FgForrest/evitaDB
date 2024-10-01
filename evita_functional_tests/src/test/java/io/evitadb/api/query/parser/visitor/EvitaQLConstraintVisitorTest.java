@@ -32,7 +32,7 @@ import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -73,7 +73,7 @@ class EvitaQLConstraintVisitorTest {
 
     @Test
     void shouldNotDelegateToAnyVisitor() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseConstraintUnsafe("nonExistingConstraint()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseConstraintUnsafe("nonExistingConstraint()"));
     }
 
 

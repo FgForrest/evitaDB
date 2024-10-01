@@ -28,7 +28,7 @@ import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -74,8 +74,8 @@ class EvitaQLRequireConstraintListVisitorTest {
 
     @Test
     void shouldNotParseRequireConstraintList() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintList("collection('product')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintList("attributeContent('code'),collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintList("collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintList("attributeContent('code'),collection('product')"));
     }
 
 

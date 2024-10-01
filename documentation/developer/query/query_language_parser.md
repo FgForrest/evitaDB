@@ -204,23 +204,23 @@ to instantiate parser for a string to parse.
 
 #### Error handling
 
-There are currently only two exceptions that should come out of `QueryParser` to client: `io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError` 
+There are currently only two exceptions that should come out of `QueryParser` to client: `io.evitadb.api.query.parser.exception.EvitaSyntaxException` 
 and `io.evitadb.api.exception.EvitaInternalError`.
 
-If during parsing occur any error that is caused by client (syntax error, invalid arguments, ...) the `EvitaQLInvalidQueryError` 
+If during parsing occur any error that is caused by client (syntax error, invalid arguments, ...) the `EvitaSyntaxException` 
 must be thrown or underlying similar exception must be wrapped into this one. This ensure that client receives at least 
 information about position of error, even if error message is not very helpful. If there is an unexpected error on the 
 parser side that client cannot fix the generic `EvitaInternalError` should be thrown.
 
 There are several places that handles this logic. At highest level there is `io.evitadb.api.query.parser.ParserExecutor` 
-which catches any exception that occurred during parsing and either re-throws the `EvitaQLInvalidQueryError` or throws `EvitaInternalError` 
-on any unknown exceptions. Each parser should then use the `io.evitadb.api.query.parser.error.EvitaQLBailErrorStrategy` 
-which doesn't try to fix any syntax errors and instead throws a `EvitaQLInvalidQueryError` which somewhat helpful message 
-about expected syntax. Any other syntax errors are caught by the `io.evitadb.api.query.parser.error.EvitaQLErrorReporter`
-that should be added to both lexel and parser and also throws descriptive `EvitaQLInvalidQueryError`. 
+which catches any exception that occurred during parsing and either re-throws the `EvitaSyntaxException` or throws `EvitaInternalError` 
+on any unknown exceptions. Each parser should then use the `io.evitadb.api.query.parser.exception.BailErrorStrategy` 
+which doesn't try to fix any syntax errors and instead throws a `EvitaSyntaxException` which somewhat helpful message 
+about expected syntax. Any other syntax errors are caught by the `io.evitadb.api.query.parser.exception.SyntaxErrorReporter`
+that should be added to both lexel and parser and also throws descriptive `EvitaSyntaxException`. 
 Finally, the `io.evitadb.api.query.parser.visitor.EvitaQLBaseVisitor` comes with `parse()` method that should be used 
 by every `visit*` method in concrete visitors to ensure that any invalid usage errors from underlying parser functions 
-are wrapped into the `EvitaQLInvalidQueryError`.
+are wrapped into the `EvitaSyntaxException`.
 
 #### Classifiers
 

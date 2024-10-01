@@ -21,27 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.parser.error;
+package io.evitadb.api.query.parser.exception;
 
+import lombok.NoArgsConstructor;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 
 /**
- * Error listener which throws {@link EvitaQLInvalidQueryError} on each syntax error.
+ * Error listener which throws {@link EvitaSyntaxException} on each syntax error.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class EvitaQLErrorReporter extends BaseErrorListener {
+@NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
+public class SyntaxErrorReporter extends BaseErrorListener {
+	/**
+	 * Singleton instance of {@link SyntaxErrorReporter}
+	 */
+	private static final SyntaxErrorReporter INSTANCE = new SyntaxErrorReporter();
 
-	private static final EvitaQLErrorReporter INSTANCE = new EvitaQLErrorReporter();
-
-	public static EvitaQLErrorReporter getInstance() {
+	public static SyntaxErrorReporter getInstance() {
 		return INSTANCE;
 	}
 
 	@Override
 	public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
-		throw new EvitaQLInvalidQueryError(line, charPositionInLine, "Syntax error: " + msg);
+		throw new EvitaSyntaxException(line, charPositionInLine, "Syntax error: " + msg);
 	}
 }

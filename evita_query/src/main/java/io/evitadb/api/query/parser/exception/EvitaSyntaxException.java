@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.parser.error;
+package io.evitadb.api.query.parser.exception;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
@@ -32,11 +32,11 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception to notify about any EvitaQL query parsing error (syntax or logical).
+ * Exception to notify about any query or expression parsing error (syntax or logical).
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class EvitaQLInvalidQueryError extends EvitaInvalidUsageException {
+public class EvitaSyntaxException extends EvitaInvalidUsageException {
 
 	@Serial private static final long serialVersionUID = -4647520133884807181L;
 
@@ -50,21 +50,21 @@ public class EvitaQLInvalidQueryError extends EvitaInvalidUsageException {
 	@Nonnull
 	private final String reason;
 
-	public EvitaQLInvalidQueryError(@Nonnull ParserRuleContext ctx, @Nonnull String publicMessage) {
+	public EvitaSyntaxException(@Nonnull ParserRuleContext ctx, @Nonnull String publicMessage) {
 		super(String.format(DEFAULT_ERROR_MSG, ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine() + 1, publicMessage));
 		this.line = ctx.getStart().getLine();
 		this.charPositionInLine = ctx.getStart().getCharPositionInLine() + 1;
 		this.reason = publicMessage;
 	}
 
-	public EvitaQLInvalidQueryError(@Nonnull Token offendingToken, @Nonnull String publicMessage) {
+	public EvitaSyntaxException(@Nonnull Token offendingToken, @Nonnull String publicMessage) {
 		super(String.format(DEFAULT_ERROR_MSG, offendingToken.getLine(), offendingToken.getCharPositionInLine() + 1, publicMessage));
 		this.line = offendingToken.getLine();
 		this.charPositionInLine = offendingToken.getCharPositionInLine() + 1;
 		this.reason = publicMessage;
 	}
 
-	public EvitaQLInvalidQueryError(int line, int charPositionInLine, @Nonnull String publicMessage) {
+	public EvitaSyntaxException(int line, int charPositionInLine, @Nonnull String publicMessage) {
 		super(String.format(DEFAULT_ERROR_MSG, line, charPositionInLine + 1, publicMessage));
 		this.line = line;
 		this.charPositionInLine = charPositionInLine + 1;
