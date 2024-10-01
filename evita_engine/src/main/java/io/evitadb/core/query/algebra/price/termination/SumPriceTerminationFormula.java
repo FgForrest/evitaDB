@@ -76,7 +76,7 @@ import java.util.function.ToIntFunction;
  * out entity ids which don't pass {@link #pricePredicate} predicate test.
  *
  * This formula consumes and produces {@link Formula} of {@link PriceRecord#entityPrimaryKey() entity ids}. It uses
- * information from underlying formulas that implement {@link FilteredPriceRecordAccessor#getFilteredPriceRecords()}
+ * information from underlying formulas that implement {@link FilteredPriceRecordAccessor#getFilteredPriceRecords(QueryExecutionContext)}
  * to compute virtual (sum of) prices of entity ids across all of their inner records.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -231,9 +231,12 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.notNull(filteredPriceRecords, "Call #compute() method first!");
-		return filteredPriceRecords;
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
+		if (this.filteredPriceRecords == null) {
+			// init the records first
+			compute();
+		}
+		return this.filteredPriceRecords;
 	}
 
 	@Override
@@ -251,7 +254,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 				.sorted()
 				.toArray(),
 			compute(),
-			getFilteredPriceRecords(),
+			getFilteredPriceRecords(this.executionContext),
 			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
 			getPriceEvaluationContext(),
 			pricePredicate.getQueryPriceMode(),
@@ -288,7 +291,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			// collect price iterators ordered by price list importance
 			final PriceRecordLookup[] priceRecordIterators = filteredPriceRecordAccessors
 				.stream()
-				.map(FilteredPriceRecordAccessor::getFilteredPriceRecords)
+				.map(it -> it.getFilteredPriceRecords(this.executionContext))
 				.map(FilteredPriceRecords::getPriceRecordsLookup)
 				.toArray(PriceRecordLookup[]::new);
 			// create helper associative index for looking up index of the appropriate price by entity id in the priceRecordsFunnel

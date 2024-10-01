@@ -27,6 +27,7 @@ import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -90,11 +91,10 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
-		Assert.isTrue(this.executionContext.getPrefetchedEntities() != null, () -> new EntityCollectionRequiredException("matching entities"));
-		return alternative instanceof FilteredPriceRecordAccessor ?
-			((FilteredPriceRecordAccessor) alternative).getFilteredPriceRecords() :
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
+		Assert.isTrue(context.getPrefetchedEntities() != null, () -> new EntityCollectionRequiredException("matching entities"));
+		return this.alternative instanceof FilteredPriceRecordAccessor fpra ?
+			fpra.getFilteredPriceRecords(context) :
 			new ResolvedFilteredPriceRecords();
 	}
 

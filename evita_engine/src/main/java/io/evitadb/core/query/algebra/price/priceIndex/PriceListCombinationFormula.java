@@ -103,7 +103,7 @@ public class PriceListCombinationFormula extends NotFormula implements Cacheable
 				.sorted()
 				.toArray(),
 			computationalResult,
-			FilteredPriceRecords.createFromFormulas(this, computationalResult),
+			FilteredPriceRecords.createFromFormulas(this, computationalResult, this.executionContext),
 			priceEvaluationContext
 		);
 	}

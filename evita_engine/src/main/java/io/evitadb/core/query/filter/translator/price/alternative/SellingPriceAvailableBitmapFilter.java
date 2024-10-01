@@ -95,6 +95,10 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	 * Contains result containing all entities that were filtered out by {@link #filter} predicate.
 	 */
 	private Formula filteredOutRecords;
+	/**
+	 * Memoized result of the filter.
+	 */
+	private Bitmap memoizedResult;
 
 	public SellingPriceAvailableBitmapFilter(
 		@Nullable String[] additionalPriceLists,
@@ -136,63 +140,69 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.isPremiseValid(filteredOutRecords != null, "Filter was not yet called on selling price bitmap filter, this is not expected!");
-		return filteredPriceRecords;
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
+		if (this.filteredPriceRecords == null) {
+			// init the records first
+			filter(context);
+		}
+		return this.filteredPriceRecords;
 	}
 
 	@Nonnull
 	@Override
 	public Bitmap filter(@Nonnull QueryExecutionContext context) {
-		final CompositeObjectArray<PriceRecordContract> theFilteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
-		final QueryPriceMode queryPriceMode = context.getQueryPriceMode();
-		final BaseBitmap result = new BaseBitmap();
-		final BaseBitmap filterOutResult = new BaseBitmap();
-		final AtomicInteger indexedPricePlaces = new AtomicInteger();
-		String entityType = null;
-		final List<ServerEntityDecorator> entities = context.getPrefetchedEntities();
-		if (entities == null) {
-			return EmptyBitmap.INSTANCE;
-		} else {
-			// iterate over all entities
-			for (EntityDecorator entity : entities) {
+		if (this.memoizedResult == null) {
+			final CompositeObjectArray<PriceRecordContract> theFilteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
+			final QueryPriceMode queryPriceMode = context.getQueryPriceMode();
+			final BaseBitmap result = new BaseBitmap();
+			final BaseBitmap filterOutResult = new BaseBitmap();
+			final AtomicInteger indexedPricePlaces = new AtomicInteger();
+			String entityType = null;
+			final List<ServerEntityDecorator> entities = context.getPrefetchedEntities();
+			if (entities == null) {
+				this.memoizedResult = EmptyBitmap.INSTANCE;
+			} else {
+				// iterate over all entities
+				for (EntityDecorator entity : entities) {
 				/* we can be sure entities are sorted by type because:
 				   1. all entities share the same type
 				   2. or entities are fetched via {@link QueryPlanningContext#prefetchEntities(EntityReference[], EntityContentRequire[])}
 				      that fetches them by entity type in bulk
 				*/
-				final EntitySchemaContract entitySchema = entity.getSchema();
-				if (!Objects.equals(entityType, entitySchema.getName())) {
-					entityType = entitySchema.getName();
-					indexedPricePlaces.set(entitySchema.getIndexedPricePlaces());
-				}
-				final int primaryKey = context.translateEntity(entity);
-				if (entity.isPriceForSaleContextAvailable()) {
-					// check whether they have valid selling price (applying filter on price lists and currency)
-					entity.getPriceForSale(filter)
-						// and if there is still selling price add it to the output result
-						.ifPresentOrElse(
-							it -> {
-								theFilteredPriceRecords.add(converter.apply(primaryKey, indexedPricePlaces.get(), queryPriceMode, it));
-								result.add(primaryKey);
-							},
-							() -> filterOutResult.add(primaryKey)
-						);
-				} else {
-					if (entity.getPrices().stream().filter(PriceContract::sellable).anyMatch(filter)) {
-						result.add(primaryKey);
-					} else {
-						filterOutResult.add(primaryKey);
+					final EntitySchemaContract entitySchema = entity.getSchema();
+					if (!Objects.equals(entityType, entitySchema.getName())) {
+						entityType = entitySchema.getName();
+						indexedPricePlaces.set(entitySchema.getIndexedPricePlaces());
 					}
-				}
+					final int primaryKey = context.translateEntity(entity);
+					if (entity.isPriceForSaleContextAvailable()) {
+						// check whether they have valid selling price (applying filter on price lists and currency)
+						entity.getPriceForSale(filter)
+							// and if there is still selling price add it to the output result
+							.ifPresentOrElse(
+								it -> {
+									theFilteredPriceRecords.add(converter.apply(primaryKey, indexedPricePlaces.get(), queryPriceMode, it));
+									result.add(primaryKey);
+								},
+								() -> filterOutResult.add(primaryKey)
+							);
+					} else {
+						if (entity.getPrices().stream().filter(PriceContract::sellable).anyMatch(filter)) {
+							result.add(primaryKey);
+						} else {
+							filterOutResult.add(primaryKey);
+						}
+					}
 
+				}
+				// memoize valid selling prices for sorting purposes
+				this.filteredPriceRecords = new ResolvedFilteredPriceRecords(theFilteredPriceRecords.toArray(), SortingForm.NOT_SORTED);
+				this.filteredOutRecords = filterOutResult.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(filterOutResult);
+				// return entity ids having selling prices
+				this.memoizedResult = result;
 			}
-			// memoize valid selling prices for sorting purposes
-			this.filteredPriceRecords = new ResolvedFilteredPriceRecords(theFilteredPriceRecords.toArray(), SortingForm.NOT_SORTED);
-			this.filteredOutRecords = filterOutResult.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(filterOutResult);
-			// return entity ids having selling prices
-			return result;
 		}
+		return this.memoizedResult;
 	}
 
 }
