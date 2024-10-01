@@ -72,10 +72,14 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 			restApiHandlingContext.getObjectMapper(),
 			restApiHandlingContext.getEntitySchema()
 		);
+		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext);
 		this.requireConstraintResolver = new RequireConstraintResolver(
 			restApiHandlingContext,
-			new AtomicReference<>(new FilterConstraintResolver(restApiHandlingContext)),
-			new AtomicReference<>(new OrderConstraintResolver(restApiHandlingContext))
+			new AtomicReference<>(filterConstraintResolver),
+			new AtomicReference<>(new OrderConstraintResolver(
+				restApiHandlingContext,
+				new AtomicReference<>(filterConstraintResolver)
+			))
 		);
 		this.withPrimaryKeyInPath = withPrimaryKeyInPath;
 	}

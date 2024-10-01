@@ -88,7 +88,10 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 		this.entitySchema = entitySchema;
 
 		this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
-		this.orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+		this.orderConstraintResolver = new OrderConstraintResolver(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintResolver)
+		);
 		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
 			catalogSchema,
 			new AtomicReference<>(filterConstraintResolver)

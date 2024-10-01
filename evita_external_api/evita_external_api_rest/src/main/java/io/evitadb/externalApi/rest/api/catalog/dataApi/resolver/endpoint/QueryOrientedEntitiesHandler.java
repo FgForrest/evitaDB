@@ -78,7 +78,10 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 		super(restApiHandlingContext);
 
 		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext);
-		this.orderConstraintResolver = new OrderConstraintResolver(restApiHandlingContext);
+		this.orderConstraintResolver = new OrderConstraintResolver(
+			restApiHandlingContext,
+			new AtomicReference<>(filterConstraintResolver)
+		);
 		this.requireConstraintResolver = new RequireConstraintResolver(
 			restApiHandlingContext,
 			new AtomicReference<>(filterConstraintResolver),

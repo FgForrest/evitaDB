@@ -35,7 +35,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.Constraint
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -51,10 +53,11 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class OrderConstraintResolver extends GraphQLConstraintResolver<OrderConstraint> {
 
-	public OrderConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema) {
+	public OrderConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
+	                               @Nonnull AtomicReference<FilterConstraintResolver> filterConstraintResolver) {
 		super(
 			catalogSchema,
-			createHashMap(0) // currently, we don't support any order constraint with additional children
+			Map.of(ConstraintType.FILTER, filterConstraintResolver)
 		);
 	}
 

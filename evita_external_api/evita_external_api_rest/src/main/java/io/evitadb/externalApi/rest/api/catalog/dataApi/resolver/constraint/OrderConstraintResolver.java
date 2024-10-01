@@ -35,7 +35,9 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.Collect
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -51,10 +53,11 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class OrderConstraintResolver extends RestConstraintResolver<OrderConstraint> {
 
-	public OrderConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext) {
+	public OrderConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext,
+	                               @Nonnull AtomicReference<FilterConstraintResolver> filterConstraintResolver) {
 		super(
 			restHandlingContext,
-			createHashMap(0) // currently, we don't support any order constraints with additional children
+			Map.of(ConstraintType.FILTER, filterConstraintResolver)
 		);
 	}
 
