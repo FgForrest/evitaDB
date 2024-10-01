@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -109,7 +110,7 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 
 	@Nonnull
 	public GraphQLInputType build(@Nonnull String rootEntityType) {
-		return build(new GenericDataLocator(rootEntityType));
+		return build(new GenericDataLocator(new ManagedEntityTypePointer(rootEntityType)));
 	}
 
 	@Nonnull

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -224,7 +224,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 					final String key = keyBuilder.build(buildContext, childConstraintDescriptor, null);
 
 					// we need switch child domain again manually based on property type of the child constraint because there
-					// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
+					// is no intermediate wrapper container that would do it for us (while generating all possible constraints for that container)
 					final Optional<DataLocator> childConstraintDataLocator = resolveChildDataLocator(
 						buildContext,
 						ConstraintProcessingUtils.getDomainForPropertyType(childConstraintDescriptor.propertyType())

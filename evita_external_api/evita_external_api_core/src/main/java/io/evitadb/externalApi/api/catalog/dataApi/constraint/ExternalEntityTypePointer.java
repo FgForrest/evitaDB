@@ -23,11 +23,12 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.constraint;
 
+import javax.annotation.Nonnull;
 
 /**
- * Ancestor for different types of reference data locators.
+ * Pointer to an external entity collection, i.e. not managed by evitaDB
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public interface AbstractReferenceDataLocator extends DataLocatorWithReference {
+public record ExternalEntityTypePointer(@Nonnull String entityType) implements EntityTypePointer {
 }

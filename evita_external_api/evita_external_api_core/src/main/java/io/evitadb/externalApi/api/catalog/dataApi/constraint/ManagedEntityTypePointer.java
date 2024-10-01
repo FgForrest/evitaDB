@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,20 +23,12 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.constraint;
 
-import io.evitadb.api.query.descriptor.ConstraintDomain;
-
 import javax.annotation.Nonnull;
 
 /**
- * Specifies how to get data from entity that is not managed by evitaDB.
+ * Pointer to an entity collection managed by evitaDB.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public record ExternalEntityDataLocator(@Nonnull String entityType) implements DataLocator {
-
-	@Nonnull
-	@Override
-	public ConstraintDomain targetDomain() {
-		return ConstraintDomain.ENTITY;
-	}
+public record ManagedEntityTypePointer(@Nonnull String entityType) implements EntityTypePointer {
 }

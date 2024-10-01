@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.constraint;
 
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
 
 import javax.annotation.Nonnull;
 
@@ -32,7 +33,13 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public record ReferenceDataLocator(@Nonnull String entityType, @Nonnull String referenceName) implements AbstractReferenceDataLocator {
+public record ReferenceDataLocator(@Nonnull EntityTypePointer entityTypePointer, @Nonnull String referenceName) implements AbstractReferenceDataLocator {
+
+	public ReferenceDataLocator {
+		if (!(entityTypePointer instanceof ManagedEntityTypePointer)) {
+			throw new ExternalApiInternalError("Facets can be accessed only on managed entity type.");
+		}
+	}
 
 	@Nonnull
 	@Override

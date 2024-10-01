@@ -3,6 +3,8 @@
 <UsedTerms>
   <h4>Labels used in metrics</h4>
   <dl>
+    <dt>api</dt>
+    <dd><strong>API type</strong>: The identification of the API being probed.</dd>
     <dt>buildType</dt>
     <dd><strong>Build type</strong>: Type of the instance build: NEW or REFRESH</dd>
     <dt>catalogName</dt>
@@ -31,6 +33,10 @@
     <dd><strong>Prefetched vs. non-prefetched query</strong>: Whether or not the query used a prefetch plan. Prefetch plan optimistically fetches queried entities in advance and executes directly on them (without accessing the indexes).</dd>
     <dt>procedureName</dt>
     <dd><strong>Procedure name</strong>: Name of the gRPC procedure that was called (the method name).</dd>
+    <dt>prospective</dt>
+    <dd><strong>Prospective (client/server)</strong>: Identifies whether the event represents whether event represents server or client view of readiness.
+Client view is the duration viewed from the HTTP client side affected by timeouts, server view is the real
+duration of the probe.</dd>
     <dt>recordType</dt>
     <dd><strong>Record type</strong>: Type of records that changed in the OffsetIndex.</dd>
     <dt>resolution</dt>
@@ -41,6 +47,8 @@
     <dd><strong>REST instance type</strong>: Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG</dd>
     <dt>restOperationType</dt>
     <dd><strong>REST operation type</strong>: The type of operation that was executed. One of: QUERY, MUTATION.</dd>
+    <dt>result</dt>
+    <dd><strong>Result</strong>: The result of the readiness probe (ok, timeout, error).</dd>
     <dt>serviceName</dt>
     <dd><strong>Service name</strong>: Name of the gRPC service that was called (the name of the Java class).</dd>
     <dt>stage</dt>
@@ -49,6 +57,15 @@
     <dd><strong>Task name</strong>: Name of the background task.</dd>
   </dl>
 </UsedTerms>
+
+#### API
+
+<dl>
+  <dt><code>io_evitadb_external_api_readiness_duration_milliseconds</code> (HISTOGRAM)</dt>
+  <dd>Readiness probe duration<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>prospective</Term>, <Term>result</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_readiness_total</code> (COUNTER)</dt>
+  <dd>Readiness probe invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>prospective</Term>, <Term>result</Term><br/></dd>
+</dl>
 
 #### API / GraphQL / Instance / Schema
 

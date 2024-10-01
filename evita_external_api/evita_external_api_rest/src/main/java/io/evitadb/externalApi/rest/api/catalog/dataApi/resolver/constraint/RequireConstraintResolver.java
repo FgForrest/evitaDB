@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 
@@ -64,7 +65,7 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 	@Nullable
 	public RequireConstraint resolve(@Nonnull String key, @Nullable Object value) {
 		return resolve(
-			new GenericDataLocator(restHandlingContext.getEntityType()),
+			new GenericDataLocator(new ManagedEntityTypePointer(restHandlingContext.getEntityType())),
 			key,
 			value
 		);

@@ -27,6 +27,9 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.EntityHaving;
@@ -101,7 +104,8 @@ import java.util.OptionalInt;
 @ConstraintDefinition(
 	name = "segment",
 	shortDescription = "The constraint specifies the order and scope of a single segment in the output.",
-	userDocsLink = "/documentation/query/ordering/segment"
+	userDocsLink = "/documentation/query/ordering/segment",
+	supportedIn = ConstraintDomain.SEGMENT
 )
 public class Segment extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = -4576848889850648026L;
@@ -120,7 +124,6 @@ public class Segment extends AbstractOrderConstraintContainer implements Generic
 		super(children, additionalChildren);
 	}
 
-	@Creator
 	public Segment(
 		@Nullable EntityHaving entityHaving,
 		@Nonnull OrderBy orderBy,
@@ -130,6 +133,15 @@ public class Segment extends AbstractOrderConstraintContainer implements Generic
 			limit == null ? new OrderConstraint[] { orderBy } : new OrderConstraint[] { orderBy, limit },
 			entityHaving == null ? new FilterConstraint[0] : new FilterConstraint[] { entityHaving }
 		);
+	}
+
+	@Creator
+	public static Segment _internalBuild(
+		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) EntityHaving entityHaving,
+		@Nonnull @Child(domain = ConstraintDomain.ENTITY) OrderConstraint[] orderBy,
+		@Nullable @Child(domain = ConstraintDomain.SEGMENT) SegmentLimit limit
+	) {
+		return new Segment(entityHaving, new OrderBy(orderBy), limit);
 	}
 
 	public Segment(

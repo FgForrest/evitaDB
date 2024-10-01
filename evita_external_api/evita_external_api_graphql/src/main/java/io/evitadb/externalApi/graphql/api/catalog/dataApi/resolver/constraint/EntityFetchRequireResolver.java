@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
@@ -241,7 +242,7 @@ public class EntityFetchRequireResolver {
 		return parentsFields.stream()
 			.findFirst()
 			.map(parentsField -> {
-				final DataLocator hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName());
+				final DataLocator hierarchyDataLocator = new HierarchyDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()));
 				final HierarchyStopAt stopAt = Optional.ofNullable(parentsField.getArguments().get(ParentsFieldHeaderDescriptor.STOP_AT.name()))
 					.map(it -> (HierarchyStopAt) requireConstraintResolver.resolve(
 						hierarchyDataLocator,
@@ -408,7 +409,7 @@ public class EntityFetchRequireResolver {
 
 		return Optional.ofNullable(
 			(FilterBy) filterConstraintResolver.resolve(
-				new InlineReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
+				new InlineReferenceDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()), fieldsForReferenceHolder.referenceSchema().getName()),
 				ReferenceFieldHeaderDescriptor.FILTER_BY.name(),
 				fields.get(0).getArguments().get(ReferenceFieldHeaderDescriptor.FILTER_BY.name())
 			)
@@ -431,7 +432,7 @@ public class EntityFetchRequireResolver {
 
 		return Optional.ofNullable(
 			(OrderBy) orderConstraintResolver.resolve(
-				new InlineReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
+				new InlineReferenceDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()), fieldsForReferenceHolder.referenceSchema().getName()),
 				ReferenceFieldHeaderDescriptor.ORDER_BY.name(),
 				fieldsForReferenceHolder.fields().get(0).getArguments().get(ReferenceFieldHeaderDescriptor.ORDER_BY.name())
 			)

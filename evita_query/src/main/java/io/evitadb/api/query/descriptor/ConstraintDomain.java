@@ -84,7 +84,7 @@ public enum ConstraintDomain {
 	 */
 	FACET,
 	/**
-	 * TODO LHO - Implement?!
+	 * Domain for segmentation of containers where a segment contains part of the main container.
 	 */
 	SEGMENT;
 

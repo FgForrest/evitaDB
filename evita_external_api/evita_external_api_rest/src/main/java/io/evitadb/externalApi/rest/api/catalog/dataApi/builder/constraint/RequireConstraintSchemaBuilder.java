@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 
 import javax.annotation.Nonnull;
@@ -109,7 +110,7 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 
 	@Nonnull
 	public OpenApiSimpleType build(@Nonnull String rootEntityType) {
-		return build(new GenericDataLocator(rootEntityType));
+		return build(new GenericDataLocator(new ManagedEntityTypePointer(rootEntityType)));
 	}
 
 	public RequireConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,

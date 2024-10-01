@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -296,7 +297,9 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityParentsField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
-		final DataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(entitySchema.getName());
+		final DataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(
+			new ManagedEntityTypePointer(entitySchema.getName())
+		);
 		final GraphQLInputType stopAtConstraint = hierarchyRequireConstraintSchemaBuilder.build(
 			selfHierarchyConstraintDataLocator,
 			HierarchyStopAt.class
@@ -614,7 +617,7 @@ public class EntityObjectBuilder {
 				};
 
 				final InlineReferenceDataLocator referenceDataLocator = new InlineReferenceDataLocator(
-					collectionBuildingContext.getSchema().getName(),
+					new ManagedEntityTypePointer(collectionBuildingContext.getSchema().getName()),
 					referenceSchema.getName()
 				);
 				final GraphQLInputType referenceFilter = filterConstraintSchemaBuilder.build(referenceDataLocator);

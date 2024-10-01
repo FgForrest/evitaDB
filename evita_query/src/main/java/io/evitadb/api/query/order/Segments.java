@@ -26,6 +26,7 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -98,14 +99,15 @@ import java.util.Arrays;
 @ConstraintDefinition(
 	name = "segments",
 	shortDescription = "The container encapsulates inner segments into one main prioritized constraint container that controls the output of the query.",
-	userDocsLink = "/documentation/query/ordering/segment"
+	userDocsLink = "/documentation/query/ordering/segment",
+	supportedIn = ConstraintDomain.ENTITY
 )
 public class Segments extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 6352220342769661652L;
 
 	@Creator
-	public Segments(@Nonnull @Child Segment... children) {
-		super(children);
+	public Segments(@Nonnull @Child(domain = ConstraintDomain.SEGMENT) Segment... segments) {
+		super(segments);
 	}
 
 	/**

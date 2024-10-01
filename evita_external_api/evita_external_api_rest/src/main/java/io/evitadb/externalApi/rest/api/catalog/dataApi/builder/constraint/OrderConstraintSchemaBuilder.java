@@ -31,10 +31,13 @@ import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -47,10 +50,11 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class OrderConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder {
 
-	public OrderConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx) {
+	public OrderConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
+	                                    @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
 		super(
 			constraintSchemaBuildingCtx,
-			createHashMap(0), // currently, we don't support any filter constraint with additional children
+			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
 			Set.of(),
 			Set.of(OrderGroupBy.class)
 		);
@@ -58,7 +62,7 @@ public class OrderConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	public OpenApiSimpleType build(@Nonnull String rootEntityType) {
-		return build(new EntityDataLocator(rootEntityType));
+		return build(new EntityDataLocator(new ManagedEntityTypePointer(rootEntityType)));
 	}
 
 	@Nonnull

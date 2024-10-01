@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.order;
 
+import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -67,7 +68,7 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/ordering/segment#limit",
 	supportedIn = ConstraintDomain.SEGMENT
 )
-public class SegmentLimit extends AbstractOrderConstraintLeaf {
+public class SegmentLimit extends AbstractOrderConstraintLeaf implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 3540225030475545553L;
 	private static final String CONSTRAINT_NAME = "limit";
 

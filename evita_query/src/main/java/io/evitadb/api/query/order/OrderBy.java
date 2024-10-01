@@ -26,7 +26,7 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
-import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 
@@ -70,13 +70,14 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "orderBy",
 	shortDescription = "The container encapsulates inner order constraints into one main constraint that is required by the query.",
-	userDocsLink = "/documentation/query/basics#order-by"
+	userDocsLink = "/documentation/query/basics#order-by",
+	supportedIn = { ConstraintDomain.GENERIC, ConstraintDomain.ENTITY, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.SEGMENT }
 )
 public class OrderBy extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 6352220342769661652L;
 
 	@Creator
-	public OrderBy(@Nonnull @Child OrderConstraint... children) {
+	public OrderBy(@Nonnull OrderConstraint... children) {
 		super(children);
 	}
 
