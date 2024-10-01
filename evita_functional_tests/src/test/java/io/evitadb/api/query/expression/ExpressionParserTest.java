@@ -24,6 +24,7 @@
 package io.evitadb.api.query.expression;
 
 import io.evitadb.api.query.expression.parser.evaluate.MultiVariableEvaluationContext;
+import io.evitadb.api.query.expression.parser.grammar.ExpressionParser;
 import io.evitadb.api.query.expression.parser.visitor.operators.ExpressionNode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -37,7 +38,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Test class for the {@link ExpressionParserFactory}.
+ * Test class for the {@link ExpressionParser}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
