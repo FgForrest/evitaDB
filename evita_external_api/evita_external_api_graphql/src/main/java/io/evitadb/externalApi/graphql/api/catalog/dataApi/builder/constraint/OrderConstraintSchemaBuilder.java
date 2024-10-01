@@ -54,7 +54,7 @@ public class OrderConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilder
 			sharedContext,
 			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
 			Set.of(),
-			Set.of(OrderGroupBy.class)
+			Set.of(OrderBy.class, OrderGroupBy.class)
 		);
 	}
 

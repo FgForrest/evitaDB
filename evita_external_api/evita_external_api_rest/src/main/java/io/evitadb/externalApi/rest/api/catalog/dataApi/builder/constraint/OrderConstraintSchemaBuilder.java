@@ -56,7 +56,7 @@ public class OrderConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder
 			constraintSchemaBuildingCtx,
 			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
 			Set.of(),
-			Set.of(OrderGroupBy.class)
+			Set.of(OrderBy.class, OrderGroupBy.class)
 		);
 	}
 
