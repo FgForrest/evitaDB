@@ -711,7 +711,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					reflectedReferenceSchema = of(rrs.getReflectedReferenceName());
 				} else {
 					final Optional<ReflectedReferenceSchema> rrs = catalogSchema.getEntitySchema(referencedEntityType)
-						.flatMap(it -> ((EntitySchemaDecorator) it).getDelegate().getReflectedReferenceFor(referenceSchema.getName()));
+						.flatMap(it -> ((EntitySchemaDecorator) it).getDelegate().getReflectedReferenceFor(entitySchema.getName(), referenceSchema.getName()));
 					reflectedReferenceSchema = rrs.map(ReferenceSchema::getName);
 				}
 
@@ -726,6 +726,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 								final ReferenceBlock referenceBlock = new ReferenceBlock(
 									catalogSchema,
 									this.entityContainer.getLocales(),
+									entitySchema,
 									(ReferenceSchema) referenceSchema,
 									// create a new attribute value provider for the reflected reference
 									new ReferencedEntityAttributeValueProvider(
@@ -775,6 +776,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						() -> new ReferenceBlock(
 							catalogSchema,
 							this.entityContainer.getLocales(),
+							entitySchema,
 							entitySchema.getReferenceOrThrowException(thisReferenceName),
 							new MutationAttributeValueProvider(
 								this.entityPrimaryKey,
@@ -796,6 +798,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						() -> new ReferenceBlock(
 							catalogSchema,
 							this.entityContainer.getLocales(),
+							entitySchema,
 							entitySchema.getReferenceOrThrowException(thisReferenceName),
 							new MutationAttributeValueProvider(
 								this.entityPrimaryKey,
@@ -872,18 +875,18 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							for (int j = currentIndex + 1; j < references.length; j++) {
 								if (!thisReferenceName.equals(references[j].getReferenceName())) {
 									return new ReferenceBlock(
-										catalogSchema, this.entityContainer.getLocales(), referenceSchema,
+										catalogSchema, this.entityContainer.getLocales(), entitySchema, referenceSchema,
 										new ReferenceAttributeValueProvider(this.entityPrimaryKey, Arrays.copyOfRange(references, currentIndex, j))
 									);
 								}
 							}
 							return new ReferenceBlock(
-								catalogSchema, this.entityContainer.getLocales(), referenceSchema,
+								catalogSchema, this.entityContainer.getLocales(), entitySchema, referenceSchema,
 								new ReferenceAttributeValueProvider(this.entityPrimaryKey, Arrays.copyOfRange(references, currentIndex, references.length))
 							);
 						} else {
 							return new ReferenceBlock(
-								catalogSchema, this.entityContainer.getLocales(), referenceSchema,
+								catalogSchema, this.entityContainer.getLocales(), entitySchema, referenceSchema,
 								new ReferenceAttributeValueProvider(this.entityPrimaryKey, reference)
 							);
 						}
@@ -965,7 +968,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				.flatMap(
 					it -> referenceSchema instanceof ReflectedReferenceSchema rrs ?
 						of(rrs.getReflectedReferenceName()) :
-						it.getReflectedReferenceFor(referenceName).map(ReferenceSchema::getName)
+						it.getReflectedReferenceFor(entitySchema.getName(), referenceName).map(ReferenceSchema::getName)
 				);
 			// if there is any reflected reference schemas
 			if (reflectedReferenceSchema.isPresent()) {
@@ -1143,7 +1146,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 									// that relates to our standard reference
 									catalogSchema.getEntitySchema(referenceSchema.getReferencedEntityType())
 										.map(it -> ((EntitySchemaDecorator) it).getDelegate())
-										.flatMap(it -> it.getReflectedReferenceFor(referenceName))
+										.flatMap(it -> it.getReflectedReferenceFor(entitySchema.getName(), referenceName))
 										.ifPresent(
 											// if such is found, create a mutation to counterpart reflected reference
 											// in the referenced entity

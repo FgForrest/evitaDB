@@ -585,7 +585,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		result = 31 * result + nameVariants.hashCode();
 		result = 31 * result + Objects.hashCode(description);
 		result = 31 * result + Objects.hashCode(deprecationNotice);
-		result = 31 * result + cardinality.hashCode();
+		result = 31 * result + Objects.hashCode(cardinality);
 		result = 31 * result + referencedEntityType.hashCode();
 		result = 31 * result + entityTypeNameVariants.hashCode();
 		result = 31 * result + Boolean.hashCode(referencedEntityTypeManaged);
