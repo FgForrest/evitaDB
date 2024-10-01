@@ -59,6 +59,7 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.utils.path.routing.cache;
 	exports io.evitadb.externalApi.certificate;
 	exports io.evitadb.externalApi.serialization;
+	exports io.evitadb.externalApi.event;
 
 	requires com.fasterxml.jackson.core;
 	requires com.fasterxml.jackson.annotation;
@@ -79,4 +80,5 @@ module evita.external.api.core {
 	requires io.netty.transport;
 	requires io.netty.handler;
 	requires io.netty.common;
+	requires jdk.jfr;
 }

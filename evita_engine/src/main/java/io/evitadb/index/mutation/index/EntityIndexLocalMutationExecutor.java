@@ -216,8 +216,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		} else if (localMutation instanceof PriceMutation priceMutation) {
 			final Consumer<EntityIndex> priceUpdateApplicator = theIndex -> updatePriceIndex(priceMutation, theIndex);
 			if (priceMutation instanceof RemovePriceMutation ||
-				// when new upserted price is not sellable, it is removed from indexes, so we need to behave like removal
-				(priceMutation instanceof UpsertPriceMutation upsertPriceMutation && !upsertPriceMutation.isSellable())) {
+				// when new upserted price is not indexed, it is removed from indexes, so we need to behave like removal
+				(priceMutation instanceof UpsertPriceMutation upsertPriceMutation && !upsertPriceMutation.isIndexed())) {
 				// removal must first occur on the reduced indexes, because they consult the super index
 				ReferenceIndexMutator.executeWithReferenceIndexes(entityType, this, priceUpdateApplicator);
 				priceUpdateApplicator.accept(globalIndex);
@@ -274,12 +274,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	public void commit() {
 		final Set<Locale> addedLocales = this.containerAccessor.getAddedLocales();
 		final Set<Locale> removedLocales = this.containerAccessor.getRemovedLocales();
+
+		final int primaryKeyToIndex = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
+		final EntityBodyStoragePart entityStoragePart = this.containerAccessor.getEntityStoragePart(
+			this.entityType,
+			primaryKeyToIndex,
+			EntityExistence.MUST_EXIST
+		);
+
 		if (!(addedLocales.isEmpty() && removedLocales.isEmpty())) {
-			final EntityBodyStoragePart entityStoragePart = this.containerAccessor.getEntityStoragePart(
-				this.entityType,
-				getPrimaryKeyToIndex(IndexType.ENTITY_INDEX),
-				EntityExistence.MUST_EXIST
-			);
 			final EntitySchema entitySchema = getEntitySchema();
 			for (Locale locale : addedLocales) {
 				upsertEntityLanguage(entityStoragePart, locale, entitySchema);
@@ -287,6 +290,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			for (Locale locale : removedLocales) {
 				removeEntityLanguage(entityStoragePart, locale, entitySchema);
 			}
+		}
+
+		if (entityStoragePart.isMarkedForRemoval()) {
+			// remove the entity itself from the indexes
+			removeEntity(primaryKeyToIndex);
 		}
 	}
 
@@ -746,7 +754,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						price.validity(),
 						price.priceWithoutTax(),
 						price.priceWithTax(),
-						price.sellable(),
+						price.indexed(),
 						null,
 						newPriceInnerRecordHandling,
 						PriceIndexMutator.createPriceProvider(price),
@@ -783,7 +791,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				upsertPriceMutation.getValidity(),
 				upsertPriceMutation.getPriceWithoutTax(),
 				upsertPriceMutation.getPriceWithTax(),
-				upsertPriceMutation.isSellable(),
+				upsertPriceMutation.isIndexed(),
 				(thePriceKey, theInnerRecordId) -> containerAccessor.findExistingInternalIds(
 					entityType, theEntityPrimaryKey, thePriceKey, theInnerRecordId
 				),

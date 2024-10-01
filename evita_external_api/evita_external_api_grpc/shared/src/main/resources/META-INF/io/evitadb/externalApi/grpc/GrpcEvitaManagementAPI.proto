@@ -29,6 +29,8 @@ message GrpcEvitaServerStatusResponse {
   GrpcReadiness readiness = 8;
   // Information about all available APIs
   map<string, GrpcApiStatus> api = 9;
+  // Flag indicating that the server is in read-only mode
+  bool readOnly = 10;
 }
 
 // Status of the external API
@@ -111,7 +113,7 @@ message GrpcTaskStatusesRequest {
   int32 pageSize = 2;
   // Optional taskType of the listed task, passing non-null value
   // in this argument filters the returned status to only those that are related to the tasks of specified type
-  google.protobuf.StringValue taskType = 3;
+  repeated google.protobuf.StringValue taskType = 3;
   // Optional set of simplified task states, passing list of enums in this argument
   // filters the returned statuses to only those that match this simplified status
   repeated GrpcTaskSimplifiedState simplifiedState = 4;
@@ -226,6 +228,22 @@ message GrpcDeleteFileToFetchResponse {
   bool success = 1;
 }
 
+// Single reserved keyword
+message GrpcReservedKeyword {
+  // Type of the keyword
+  GrpcClassifierType classifierType = 1;
+  // Reserved keyword
+  string classifier = 2;
+  // List of words that are part of the keyword
+  repeated string words = 3;
+}
+
+// Response that returns information about reserved keywords.
+message GrpcReservedKeywordsResponse {
+  // List of reserved keywords
+  repeated GrpcReservedKeyword keywords = 1;
+}
+
 // This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
 // a way to create sessions and catalogs, and to update the catalog.
 service EvitaManagementService {
@@ -257,5 +275,7 @@ service EvitaManagementService {
   rpc FetchFile(GrpcFetchFileRequest) returns (stream GrpcFetchFileResponse);
   // Procedure used to delete file contents
   rpc DeleteFile(GrpcDeleteFileToFetchRequest) returns (GrpcDeleteFileToFetchResponse);
+  // List reserved keywords
+  rpc ListReservedKeywords(google.protobuf.Empty) returns (GrpcReservedKeywordsResponse);
 
 }

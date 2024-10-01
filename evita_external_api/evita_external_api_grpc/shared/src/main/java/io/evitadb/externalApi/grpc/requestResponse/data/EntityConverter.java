@@ -464,7 +464,8 @@ public class EntityConverter {
 			.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(price.priceWithoutTax()))
 			.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(price.priceWithTax()))
 			.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(price.taxRate()))
-			.setSellable(price.sellable())
+			.setSellable(price.indexed())
+			.setIndexed(price.indexed())
 			.setVersion(price.version());
 		if (price.innerRecordId() != null) {
 			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(price.innerRecordId()).build());
@@ -704,7 +705,7 @@ public class EntityConverter {
 			EvitaDataTypesConverter.toBigDecimal(grpcPrice.getTaxRate()),
 			EvitaDataTypesConverter.toBigDecimal(grpcPrice.getPriceWithTax()),
 			grpcPrice.hasValidity() ? EvitaDataTypesConverter.toDateTimeRange(grpcPrice.getValidity()) : null,
-			grpcPrice.getSellable()
+			grpcPrice.getIndexed() || grpcPrice.getSellable()
 		);
 	}
 

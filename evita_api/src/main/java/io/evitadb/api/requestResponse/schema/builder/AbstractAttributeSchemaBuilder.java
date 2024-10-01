@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSche
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -434,8 +435,9 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			!currentSchema.isSortable() ||
 				plainType.isPrimitive() ||
 				Comparable.class.isAssignableFrom(plainType) ||
-				Predecessor.class.isAssignableFrom(plainType),
-			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable (or must be Predecessor) in order to be usable for sort index!")
+				Predecessor.class.isAssignableFrom(plainType) ||
+				ReferencedEntityPredecessor.class.isAssignableFrom(plainType),
+			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable (or must be Predecessor/ReferencedEntityPredecessor) in order to be usable for sort index!")
 		);
 		Assert.isTrue(
 			!(currentSchema.isSortable() && currentSchema.getType().isArray()),

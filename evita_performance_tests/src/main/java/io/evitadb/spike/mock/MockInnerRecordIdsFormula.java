@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.spike.mock;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -72,7 +73,7 @@ public class MockInnerRecordIdsFormula extends AbstractFormula implements PriceI
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
 		return allPriceRecords;
 	}
 

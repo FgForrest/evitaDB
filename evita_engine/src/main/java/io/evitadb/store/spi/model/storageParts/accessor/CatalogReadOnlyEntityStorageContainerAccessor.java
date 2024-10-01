@@ -107,8 +107,7 @@ public class CatalogReadOnlyEntityStorageContainerAccessor implements EntityStor
 				final EntityCollection entityCollection = catalog.getCollectionForEntityOrThrowException(entityType);
 				return new ReadOnlyEntityStorageContainerAccessor(
 					catalog.getVersion(),
-					entityCollection.getDataStoreReader(),
-					entityCollection::getInternalSchema
+					entityCollection.getDataStoreReader()
 				);
 			}
 		);

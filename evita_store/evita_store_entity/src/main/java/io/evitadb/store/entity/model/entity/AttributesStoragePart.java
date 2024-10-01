@@ -83,7 +83,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	/**
 	 * Contains key for attribute set lookup.
 	 */
-	private final EntityAttributesSetKey attributeSetKey;
+	@Getter private final EntityAttributesSetKey attributeSetKey;
 	/**
 	 * Contains information about size of this container in bytes.
 	 */

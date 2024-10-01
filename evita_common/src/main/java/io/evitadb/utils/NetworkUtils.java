@@ -42,6 +42,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
@@ -66,7 +67,7 @@ public class NetworkUtils {
 	 * This shouldn't be changed - only in tests which needs to extend this timeout for slower machines runnning
 	 * parallel tests and squeezing the resources.
 	 */
-	public static int DEFAULT_CLIENT_TIMEOUT = 500;
+	public static int DEFAULT_CLIENT_TIMEOUT = 1000;
 	private static OkHttpClient HTTP_CLIENT;
 
 	/**
@@ -106,7 +107,8 @@ public class NetworkUtils {
 	 */
 	public static boolean isReachable(
 		@Nonnull String url,
-		@Nullable Consumer<String> errorConsumer
+		@Nullable Consumer<String> errorConsumer,
+		@Nullable Consumer<String> timeoutConsumer
 	) {
 		try {
 			try (
@@ -119,11 +121,15 @@ public class NetworkUtils {
 			) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
-						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code()  + " - " + response.message()));
+						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code() + " - " + response.message()));
 					return false;
 				}
 				return response.code() == 200;
 			}
+		} catch (SocketTimeoutException e) {
+			ofNullable(timeoutConsumer)
+				.ifPresent(it -> it.accept("Fetching content from URL timed out: " + url + " - " + e.getMessage()));
+			return false;
 		} catch (IOException e) {
 			ofNullable(errorConsumer)
 				.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " - " + e.getMessage()));
@@ -134,7 +140,7 @@ public class NetworkUtils {
 	/**
 	 * Returns content of the URL if it is reachable and returns some content.
 	 *
-	 * @param url URL to check
+	 * @param url         URL to check
 	 * @param method      HTTP method to use
 	 * @param contentType content type to use
 	 * @param body        body to send
@@ -147,8 +153,9 @@ public class NetworkUtils {
 		@Nullable String method,
 		@Nonnull String contentType,
 		@Nullable String body,
-		@Nullable Consumer<String> errorConsumer
-		) {
+		@Nullable Consumer<String> errorConsumer,
+		@Nullable Consumer<String> timeoutConsumer
+	) {
 		try {
 			final RequestBody requestBody = ofNullable(body)
 				.map(theBody -> RequestBody.create(theBody, MediaType.parse(contentType)))
@@ -165,12 +172,18 @@ public class NetworkUtils {
 			) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
-						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code()  + " - " + response.message()));
+						.ifPresent(it -> it.accept(
+							"Error fetching content from URL: " + url + " HTTP status " + response.code() + (response.message().isBlank() ? "" : " - " + response.message()) + (response.body().contentLength() > 0 ? ": " + readBodyString(response) : ""))
+						);
 					return empty();
 				} else {
 					return of(response.body().string());
 				}
 			}
+		} catch (SocketTimeoutException e) {
+			ofNullable(timeoutConsumer)
+				.ifPresent(it -> it.accept("Fetching content from URL timed out: " + url + " - " + e.getMessage()));
+			return empty();
 		} catch (IOException e) {
 			ofNullable(errorConsumer)
 				.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " - " + e.getMessage()));
@@ -180,6 +193,7 @@ public class NetworkUtils {
 
 	/**
 	 * Returns the IP address of the given host.
+	 *
 	 * @param host host to get the IP address for
 	 * @return the IP address of the given host
 	 */
@@ -193,6 +207,20 @@ public class NetworkUtils {
 				"Invalid host definition `" + host + "` in evita server configuration!",
 				e
 			);
+		}
+	}
+
+	/**
+	 * Reads the body string from the given response.
+	 *
+	 * @param response the HTTP response, must not be null
+	 * @return the body of the response as a string, or an error message if an exception occurs, never null
+	 */
+	private static String readBodyString(@Nonnull Response response) {
+		try {
+			return response.body().string();
+		} catch (IOException e) {
+			return "Error reading response body: " + e.getMessage();
 		}
 	}
 

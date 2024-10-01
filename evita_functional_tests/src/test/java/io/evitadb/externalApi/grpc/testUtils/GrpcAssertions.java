@@ -575,7 +575,8 @@ public class GrpcAssertions {
 		final Integer priceInnerRecordId = actualPrice.hasInnerRecordId() ? actualPrice.getInnerRecordId().getValue() : null;
 
 		assertEquals(expectedPrice.innerRecordId(), priceInnerRecordId);
-		assertEquals(expectedPrice.sellable(), actualPrice.getSellable());
+		assertEquals(expectedPrice.indexed(), actualPrice.getSellable());
+		assertEquals(expectedPrice.indexed(), actualPrice.getIndexed());
 
 		final DateTimeRange expectedDateTimeRange = expectedPrice.validity();
 

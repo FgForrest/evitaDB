@@ -24,6 +24,9 @@
 package io.evitadb.externalApi.system;
 
 import com.linecorp.armeria.server.HttpService;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.ExternalApiProviderWithConsoleOutput;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
@@ -40,6 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SERVER_NAME;
 
@@ -94,26 +98,36 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 
 	@Override
 	public boolean isReady() {
+		final Predicate<String> isReady = url -> {
+			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+			final boolean reachable = NetworkUtils.isReachable(
+				url,
+				error -> {
+					log.error("Error while checking readiness of System API: {}", error);
+					readinessEvent.finish(Result.ERROR);
+				},
+				timeouted -> {
+					log.error("{}", timeouted);
+					readinessEvent.finish(Result.TIMEOUT);
+				}
+			);
+			if (reachable) {
+				readinessEvent.finish(Result.READY);
+			}
+			return reachable;
+		};
 		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
 				final String nameUrl = baseUrl + ENDPOINT_SERVER_NAME;
-				if (
-					NetworkUtils.isReachable(
-						nameUrl,
-						error -> log.error("Error while checking readiness of System API: {}", error)
-					)
-				) {
+				if (isReady.test(nameUrl)) {
 					this.reachableUrl = nameUrl;
 					return true;
 				}
 			}
 			return false;
 		} else {
-			return NetworkUtils.isReachable(
-				this.reachableUrl,
-				error -> log.error("Error while checking readiness of System API: {}", error)
-			);
+			return isReady.test(this.reachableUrl);
 		}
 	}
 

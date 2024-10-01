@@ -253,7 +253,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	@Override
 	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(
 		int page, int pageSize,
-		@Nullable String taskType,
+		@Nullable String[] taskType,
 		@Nonnull TaskSimplifiedState... states
 	) {
 		this.evitaClient.assertActive();
@@ -266,7 +266,9 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 					.setPageNumber(page)
 					.setPageSize(pageSize);
 				if (taskType != null) {
-					builder.setTaskType(StringValue.of(taskType));
+					for (String theTaskType : taskType) {
+						builder.addTaskType(StringValue.of(theTaskType));
+					}
 				}
 				for (TaskSimplifiedState state : states) {
 					builder.addSimplifiedState(EvitaEnumConverter.toGrpcSimplifiedStatus(state));

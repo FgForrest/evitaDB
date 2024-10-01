@@ -1947,10 +1947,8 @@ class EvitaSessionServiceFunctionalTest {
 		final GrpcCurrency insertCurrency = EvitaDataTypesConverter.toGrpcCurrency(CURRENCY_CZK);
 		final int insertPriceId = 1000000;
 
-		final PriceContract toRemove = existingEntity.getPrices().stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable price not found!"));
-		final String removedPriceList = toRemove.priceList();
-		final GrpcCurrency removedCurrency = EvitaDataTypesConverter.toGrpcCurrency(toRemove.currency());
-		final int removedPriceId = toRemove.priceId();
+		final PriceContract priceToRemove = existingEntity.getPrices().stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable price not found!"));
+		final GrpcCurrency removedPriceCurrency = EvitaDataTypesConverter.toGrpcCurrency(priceToRemove.currency());
 
 		final PriceContract toUpdate = existingEntity.getPrices().stream().skip(existingEntity.getPrices().size() - 1).findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable price not found!"));
 		final String updatedPriceList = toUpdate.priceList();
@@ -1988,7 +1986,7 @@ class EvitaSessionServiceFunctionalTest {
 														.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(100)))
 														.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(10.55)))
 														.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(110.55)))
-														.setSellable(true)
+														.setIndexed(true)
 														.build()
 												)
 												.build()
@@ -2003,7 +2001,7 @@ class EvitaSessionServiceFunctionalTest {
 														.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(10)))
 														.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(50)))
 														.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(15)))
-														.setSellable(false)
+														.setIndexed(false)
 														.build()
 												)
 												.build()
@@ -2018,7 +2016,7 @@ class EvitaSessionServiceFunctionalTest {
 														.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(10)))
 														.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(50)))
 														.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(15)))
-														.setSellable(false)
+														.setIndexed(false)
 														.build()
 												)
 												.build()
@@ -2027,9 +2025,9 @@ class EvitaSessionServiceFunctionalTest {
 											GrpcLocalMutation.newBuilder()
 												.setRemovePriceMutation(
 													GrpcRemovePriceMutation.newBuilder()
-														.setPriceId(removedPriceId)
-														.setPriceList(removedPriceList)
-														.setCurrency(removedCurrency)
+														.setPriceId(priceToRemove.priceId())
+														.setPriceList(priceToRemove.priceList())
+														.setCurrency(removedPriceCurrency)
 														.build()
 												)
 												.build()
@@ -2060,22 +2058,25 @@ class EvitaSessionServiceFunctionalTest {
 		final Map<String, List<GrpcPrice>> originalEntityPricesByPriceList = originalEntity.getEntity().getPricesList().stream().collect(Collectors.groupingBy(GrpcPrice::getPriceList));
 		final Map<String, List<GrpcPrice>> upsertedEntityPricesByPriceList = upsertEntityResponse.get().getEntity().getPricesList().stream().collect(Collectors.groupingBy(GrpcPrice::getPriceList));
 
-		assertTrue(originalEntityPricesByPriceList.get(removedPriceList).stream().anyMatch(p -> p.getPriceId() == removedPriceId));
-		assertFalse(upsertedEntityPricesByPriceList.get(removedPriceList).stream().anyMatch(p -> p.getPriceId() == removedPriceId));
+		assertTrue(originalEntityPricesByPriceList.get(priceToRemove.priceList()).stream().anyMatch(p -> p.getPriceId() == priceToRemove.priceId() && p.getCurrency().equals(removedPriceCurrency)));
+		assertFalse(upsertedEntityPricesByPriceList.get(priceToRemove.priceList()).stream().anyMatch(p -> p.getPriceId() == priceToRemove.priceId() && p.getCurrency().equals(removedPriceCurrency)));
 
 		assertNotNull(originalEntityPricesByPriceList.get(insertNewPriceIntoExistingPriceList));
-		assertTrue(upsertedEntityPricesByPriceList.get(insertNewPriceIntoExistingPriceList).stream().anyMatch(p -> p.getPriceId() == insertPriceId));
+		assertTrue(upsertedEntityPricesByPriceList.get(insertNewPriceIntoExistingPriceList).stream().anyMatch(p -> p.getPriceId() == insertPriceId && p.getCurrency().equals(insertCurrency)));
 
 		assertFalse(originalEntityPricesByPriceList.containsKey(insertNewPriceIntoNonExistingPriceList));
 		assertTrue(upsertedEntityPricesByPriceList.containsKey(insertNewPriceIntoNonExistingPriceList));
 
-		final Optional<GrpcPrice> preUpdatePrice = originalEntityPricesByPriceList.get(updatedPriceList).stream().filter(p -> p.getPriceId() == updatedPriceId).findFirst();
-		final Optional<GrpcPrice> postUpdatePrice = upsertedEntityPricesByPriceList.get(updatedPriceList).stream().filter(p -> p.getPriceId() == updatedPriceId).findFirst();
+		final Optional<GrpcPrice> preUpdatePrice = originalEntityPricesByPriceList.get(updatedPriceList).stream().filter(p -> p.getPriceId() == updatedPriceId && p.getCurrency().equals(updatedCurrency)).findFirst();
+		final Optional<GrpcPrice> postUpdatePrice = upsertedEntityPricesByPriceList.get(updatedPriceList).stream().filter(p -> p.getPriceId() == updatedPriceId && p.getCurrency().equals(updatedCurrency)).findFirst();
 
 		assertTrue(preUpdatePrice.isPresent());
 		assertTrue(postUpdatePrice.isPresent());
 
-		assertNotEquals(EvitaDataTypesConverter.toBigDecimal(preUpdatePrice.get().getPriceWithoutTax()), EvitaDataTypesConverter.toBigDecimal(postUpdatePrice.get().getPriceWithoutTax()));
+		assertNotEquals(
+			EvitaDataTypesConverter.toBigDecimal(preUpdatePrice.get().getPriceWithoutTax()),
+			EvitaDataTypesConverter.toBigDecimal(postUpdatePrice.get().getPriceWithoutTax())
+		);
 	}
 
 	@Test

@@ -85,7 +85,6 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			// if there was no producer ready, create new one
 			if (attributeHistogramProducer == null) {
 				attributeHistogramProducer = new AttributeHistogramProducer(
-					schema.getName(),
 					bucketCount,
 					behavior,
 					extraResultPlanner.getFilteringFormula()

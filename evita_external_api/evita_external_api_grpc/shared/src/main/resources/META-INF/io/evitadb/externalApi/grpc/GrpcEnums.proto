@@ -21,6 +21,8 @@ enum GrpcCatalogState {
   // All operations are executed transactionally and leave the date in consistent state even if any error occurs.
   // Multiple readers and writers can work with the catalog simultaneously.
   ALIVE = 1;
+  // Unknown state of the catalog. Used when catalog is corrupted.
+  UNKNOWN_CATALOG_STATE = 2;
 }
 
 // This enum represents the uniqueness type of an {@link AttributeSchema}. It is used to determine whether the attribute
@@ -291,6 +293,8 @@ enum GrpcEvitaDataType {
   UUID = 20;
   // Represents Predecessor data type.
   PREDECESSOR = 21;
+  // Represents ReferencedEntityPredecessor data type.
+  REFERENCED_ENTITY_PREDECESSOR = 22;
 
   // Represents string array data type.
   STRING_ARRAY = 50;
@@ -635,5 +639,39 @@ enum GrpcTaskTrait {
    * Task needs to be manually stopped by the user (otherwise it will run indefinitely).
    */
   TASK_NEEDS_TO_BE_STOPPED = 2;
+
+}
+
+// Enum describes possible classifier types used in reserved keywords listing
+enum GrpcClassifierType {
+
+  /**
+	 * Identification of the server instance.
+	 */
+  CLASSIFIER_TYPE_SERVER_NAME = 0;
+  /**
+   * Identification of the catalog.
+   */
+  CLASSIFIER_TYPE_CATALOG = 1;
+  /**
+   * Identification of the entity type.
+   */
+  CLASSIFIER_TYPE_ENTITY = 2;
+  /**
+   * Identification of the attribute.
+   */
+  CLASSIFIER_TYPE_ATTRIBUTE = 3;
+  /**
+   * Identification of the associated data (rich content).
+   */
+  CLASSIFIER_TYPE_ASSOCIATED_DATA = 4;
+  /**
+   * Identification of the reference.
+   */
+  CLASSIFIER_TYPE_REFERENCE = 5;
+  /**
+   * Identification of the reference attribute.
+   */
+  CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE = 6;
 
 }

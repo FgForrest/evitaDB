@@ -42,6 +42,7 @@ import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.attribute.translator.AttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
@@ -49,6 +50,7 @@ import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslat
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetInFilterTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.ReferencePropertyTranslator;
+import io.evitadb.core.query.sort.price.translator.PriceDiscountTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceNaturalTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyInFilterTranslator;
@@ -96,6 +98,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		TRANSLATORS.put(ReferenceProperty.class, new ReferencePropertyTranslator());
 		TRANSLATORS.put(Random.class, new RandomTranslator());
 		TRANSLATORS.put(PriceNatural.class, new PriceNaturalTranslator());
+		TRANSLATORS.put(PriceDiscount.class, new PriceDiscountTranslator());
 		TRANSLATORS.put(EntityPrimaryKeyInFilter.class, new EntityPrimaryKeyInFilterTranslator());
 		TRANSLATORS.put(EntityPrimaryKeyNatural.class, new EntityPrimaryKeyNaturalTranslator());
 		TRANSLATORS.put(EntityPrimaryKeyExact.class, new EntityPrimaryKeyExactTranslator());
@@ -121,6 +124,10 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	@Delegate
 	private final PrefetchRequirementCollector prefetchRequirementCollector;
 	/**
+	 * Filter by visitor used for creating filtering formula.
+	 */
+	@Getter private final FilterByVisitor filterByVisitor;
+	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
 	 */
@@ -138,10 +145,11 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
+		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Formula filteringFormula
 	) {
 		this(
-			queryContext, targetIndexes, prefetchRequirementCollector, filteringFormula,
+			queryContext, targetIndexes, prefetchRequirementCollector, filterByVisitor, filteringFormula,
 			new AttributeSchemaAccessor(queryContext)
 		);
 	}
@@ -150,11 +158,13 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
+		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Formula filteringFormula,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor) {
 		this.queryContext = queryContext;
 		this.targetIndexes = targetIndexes;
 		this.prefetchRequirementCollector = prefetchRequirementCollector;
+		this.filterByVisitor = filterByVisitor;
 		this.filteringFormula = filteringFormula;
 		this.scope.push(
 			new ProcessingScope(
@@ -271,6 +281,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	/**
 	 * Returns index which is best suited for supplying {@link SortIndex}.
 	 */
+	@Nonnull
 	public EntityIndex[] getIndexesForSort() {
 		final ProcessingScope theScope = this.scope.peek();
 		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");

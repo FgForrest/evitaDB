@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort.price;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
@@ -57,13 +58,27 @@ public class FilteredPriceRecordsCollector {
 	 * formula result.
 	 */
 	@Nonnull @Getter private final FilteredPriceRecordsLookupResult result;
+	/**
+	 * The execution context for running query operations in the {@link FilteredPriceRecordsCollector} class.
+	 */
+	@Nonnull private final QueryExecutionContext context;
 
-	public FilteredPriceRecordsCollector(@Nonnull RoaringBitmap filteredResults, @Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors) {
+	public FilteredPriceRecordsCollector(
+		@Nonnull RoaringBitmap filteredResults,
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
+		@Nonnull QueryExecutionContext context
+	) {
+		this.context = context;
 		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
-		this.result = computeResult(filteredResults, filteredPriceRecordAccessors);
+		this.result = computeResult(filteredResults, filteredPriceRecordAccessors, context);
 	}
 
-	public FilteredPriceRecordsCollector(@Nonnull FilteredPriceRecordsLookupResult result, @Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors) {
+	public FilteredPriceRecordsCollector(
+		@Nonnull FilteredPriceRecordsLookupResult result,
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
+		@Nonnull QueryExecutionContext context
+	) {
+		this.context = context;
 		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
 		this.result = result;
 	}
@@ -74,9 +89,10 @@ public class FilteredPriceRecordsCollector {
 	 * computed for entity primary keys passed in the `filteredResults` parameter. Duplicated {@link PriceRecord} are
 	 * collapsed and only distinct {@link PriceRecord} are returned to the output of this method.
 	 */
+	@Nonnull
 	public PriceRecordContract[] combineResultWithAndReturnPriceRecords(@Nonnull RoaringBitmap filteredResults) {
 		// compute new lookup result for passed entity primary keys
-		final FilteredPriceRecordsLookupResult subResult = computeResult(filteredResults, filteredPriceRecordAccessors);
+		final FilteredPriceRecordsLookupResult subResult = computeResult(filteredResults, this.filteredPriceRecordAccessors, this.context);
 		// these two arrays will be merged together
 		final PriceRecordContract[] originalRecords = this.result.getPriceRecords();
 		final PriceRecordContract[] addedRecords = subResult.getPriceRecords();
@@ -115,10 +131,15 @@ public class FilteredPriceRecordsCollector {
 	 * array of entity ids for which the price records were not found.
 	 */
 	@Nonnull
-	protected FilteredPriceRecordsLookupResult computeResult(@Nonnull RoaringBitmap filteredResults, @Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors) {
+	protected FilteredPriceRecordsLookupResult computeResult(
+		@Nonnull RoaringBitmap filteredResults,
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
+		@Nonnull QueryExecutionContext context
+	) {
 		return FilteredPriceRecords.collectFilteredPriceRecordsFromPriceRecordAccessors(
 			filteredPriceRecordAccessors,
-			filteredResults
+			filteredResults,
+			context
 		);
 	}
 

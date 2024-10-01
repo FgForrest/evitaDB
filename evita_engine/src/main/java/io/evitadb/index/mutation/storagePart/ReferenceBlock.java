@@ -33,6 +33,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import org.roaringbitmap.RoaringBitmap;
@@ -74,6 +76,27 @@ class ReferenceBlock {
 	 * The set of missing mandated attributes.
 	 */
 	private Set<Object> missingMandatedAttributes;
+
+	/**
+	 * Converts the provided Serializable value to a specific subtype if necessary.
+	 *
+	 * If the value is an instance of Predecessor, it will be converted to a ReferencedEntityPredecessor.
+	 * If the value is an instance of ReferencedEntityPredecessor, it will be converted to a Predecessor.
+	 * Otherwise, the original value will be returned.
+	 *
+	 * @param value the Serializable value that may need conversion
+	 * @return the converted Serializable value, or the original value if no conversion was necessary
+	 */
+	@Nonnull
+	private static Serializable convertIfNecessary(@Nonnull Serializable value) {
+		if (value instanceof Predecessor predecessor) {
+			return new ReferencedEntityPredecessor(predecessor.predecessorPk());
+		} else if (value instanceof ReferencedEntityPredecessor predecessor) {
+			return new Predecessor(predecessor.predecessorPk());
+		} else {
+			return value;
+		}
+	}
 
 	/**
 	 * Constructs an instance of {@code ReferenceBlock} by initializing the reference primary keys and
@@ -152,13 +175,12 @@ class ReferenceBlock {
 	 * Generates a stream of reference attribute mutations based on the provided locales, attribute value provider,
 	 * referenced entity schema, reference, attribute schema, and inherited attributes.
 	 *
-	 * @param locales the set of all locales known to be used by created entity
+	 * @param locales                the set of all locales known to be used by created entity
 	 * @param attributeValueProvider the provider for fetching reference attribute values
 	 * @param referencedEntitySchema the schema defining the particular reference of the referenced entity
-	 * @param reference the reference object for which attributes should be resolved
-	 * @param attributeSchema the schema defining the attribute to be mutated
-	 * @param inheritedAttributes the set of attribute names that are inherited
-	 *
+	 * @param reference              the reference object for which attributes should be resolved
+	 * @param attributeSchema        the schema defining the attribute to be mutated
+	 * @param inheritedAttributes    the set of attribute names that are inherited
 	 * @return a stream of reference attribute mutations
 	 */
 	@Nonnull
@@ -202,7 +224,7 @@ class ReferenceBlock {
 							attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
 							new UpsertAttributeMutation(
 								attributeKey,
-								valueLookup.apply(attributeKey)
+								convertIfNecessary(valueLookup.apply(attributeKey))
 							)
 						);
 					});
@@ -214,7 +236,7 @@ class ReferenceBlock {
 						attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
 						new UpsertAttributeMutation(
 							attributeKey,
-							valueLookup.apply(attributeKey)
+							convertIfNecessary(valueLookup.apply(attributeKey))
 						)
 					)
 				);
@@ -238,12 +260,14 @@ class ReferenceBlock {
 							// if the value is missing and the attribute is not nullable, add it to the missing set
 							getMissingMandatedAttributesForAdding().add(attributeKey);
 							return null;
-						} else {
+						} else if (value != null) {
 							// otherwise, return a single reference attribute mutation
 							return new ReferenceAttributeMutation(
 								attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
-								new UpsertAttributeMutation(attributeKey, value)
+								new UpsertAttributeMutation(attributeKey, convertIfNecessary(value))
 							);
+						} else {
+							return null;
 						}
 					})
 					.filter(Objects::nonNull);
@@ -255,14 +279,16 @@ class ReferenceBlock {
 					// if the value is missing and the attribute is not nullable, add it to the missing set
 					getMissingMandatedAttributesForAdding().add(attributeKey);
 					return Stream.empty();
-				} else {
+				} else if (value != null) {
 					// otherwise, return a single reference attribute mutation
 					return Stream.of(
 						new ReferenceAttributeMutation(
 							attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
-							new UpsertAttributeMutation(attributeKey, value)
+							new UpsertAttributeMutation(attributeKey, convertIfNecessary(value))
 						)
 					);
+				} else {
+					return Stream.empty();
 				}
 			}
 		}

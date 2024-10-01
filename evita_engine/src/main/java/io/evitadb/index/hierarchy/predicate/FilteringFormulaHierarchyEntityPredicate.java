@@ -44,8 +44,8 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -60,7 +60,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	/**
 	 * Identification of the root node this predicate relates to.
 	 */
-	@Nullable private final Integer parent;
+	@Nullable private final int[] parent;
 	/**
 	 * The result that should be returned for parent node (constant).
 	 */
@@ -100,7 +100,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 * @param referenceSchema the optional reference schema if the entity targets itself hierarchy tree
 	 */
 	public FilteringFormulaHierarchyEntityPredicate(
-		@Nullable Integer parent,
+		@Nullable int[] parent,
 		boolean parentResult,
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull FilterBy filterBy,
@@ -287,7 +287,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 
 	@Override
 	public void traverse(int hierarchyNodeId, int level, int distance, @Nonnull Runnable traverser) {
-		if (Objects.equals(hierarchyNodeId, parent)) {
+		if (parent != null && Arrays.stream(parent).anyMatch(it -> it == hierarchyNodeId)) {
 			traverser.run();
 		} else if (filteringFormula.compute().contains(hierarchyNodeId)) {
 			try {
@@ -303,16 +303,34 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 
 	@Override
 	public boolean test(int hierarchyNodeId) {
-		if (Objects.equals(hierarchyNodeId, parent)) {
+		if (parent != null && Arrays.stream(parent).anyMatch(it -> it == hierarchyNodeId)) {
 			return parentResult;
 		}
 		return filteringFormula.compute().contains(hierarchyNodeId);
 	}
 
 	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		FilteringFormulaHierarchyEntityPredicate that = (FilteringFormulaHierarchyEntityPredicate) o;
+		return parentResult == that.parentResult && Arrays.equals(parent, that.parent) && filterBy.equals(that.filterBy) && filteringFormula.equals(that.filteringFormula);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = Arrays.hashCode(parent);
+		result = 31 * result + Boolean.hashCode(parentResult);
+		result = 31 * result + filterBy.hashCode();
+		result = 31 * result + filteringFormula.hashCode();
+		return result;
+	}
+
+	@Override
 	public String toString() {
 		return "HIERARCHY (" +
-			"parent=" + parent +
+			"parent=" + Arrays.toString(parent) +
 			", filterBy=" + filterBy +
 			", filteringFormula=" + filteringFormula +
 			')';

@@ -53,6 +53,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
+import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -89,6 +90,7 @@ public class EvitaEnumConverter {
 		return switch (grpcCatalogState.getNumber()) {
 			case 0 -> CatalogState.WARMING_UP;
 			case 1 -> CatalogState.ALIVE;
+			case 2 -> throw new GenericEvitaInternalError("Catalog probably corrupted. Unknown state of the catalog.");
 			default -> throw new GenericEvitaInternalError("Unrecognized remote catalog state: " + grpcCatalogState);
 		};
 	}
@@ -97,7 +99,10 @@ public class EvitaEnumConverter {
 	 * Converts {@link CatalogState} to {@link GrpcCatalogState}.
 	 */
 	@Nonnull
-	public static GrpcCatalogState toGrpcCatalogState(@Nonnull CatalogState catalogState) {
+	public static GrpcCatalogState toGrpcCatalogState(@Nullable CatalogState catalogState) {
+		if (catalogState == null) {
+			return GrpcCatalogState.UNKNOWN_CATALOG_STATE;
+		}
 		return switch (catalogState) {
 			case WARMING_UP -> GrpcCatalogState.WARMING_UP;
 			case ALIVE -> GrpcCatalogState.ALIVE;
@@ -1098,6 +1103,26 @@ public class EvitaEnumConverter {
 			case TASK_CAN_BE_CANCELLED -> TaskTrait.CAN_BE_CANCELLED;
 			case TASK_NEEDS_TO_BE_STOPPED -> TaskTrait.NEEDS_TO_BE_STOPPED;
 			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized grpc task trait: " + grpcTaskTrait);
+		};
+	}
+
+	/**
+	 * Converts a {@link ClassifierType} to a {@link GrpcClassifierType}.
+	 *
+	 * @param key The ClassifierType to convert.
+	 * @return The converted GrpcClassifierType.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static GrpcClassifierType toGrpcClassifierType(@Nonnull ClassifierType key) {
+		return switch (key) {
+			case SERVER_NAME -> GrpcClassifierType.CLASSIFIER_TYPE_SERVER_NAME;
+			case CATALOG -> GrpcClassifierType.CLASSIFIER_TYPE_CATALOG;
+			case ENTITY -> GrpcClassifierType.CLASSIFIER_TYPE_ENTITY;
+			case ATTRIBUTE -> GrpcClassifierType.CLASSIFIER_TYPE_ATTRIBUTE;
+			case ASSOCIATED_DATA -> GrpcClassifierType.CLASSIFIER_TYPE_ASSOCIATED_DATA;
+			case REFERENCE -> GrpcClassifierType.CLASSIFIER_TYPE_REFERENCE;
+			case REFERENCE_ATTRIBUTE -> GrpcClassifierType.CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE;
 		};
 	}
 

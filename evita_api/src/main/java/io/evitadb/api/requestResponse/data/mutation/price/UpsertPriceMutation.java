@@ -76,9 +76,9 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 	 */
 	@Getter private final DateTimeRange validity;
 	/**
-	 * Relates to {@link PriceContract#sellable()}.
+	 * Relates to {@link PriceContract#indexed()}.
 	 */
-	@Getter private final boolean sellable;
+	@Getter private final boolean indexed;
 
 	public UpsertPriceMutation(
 		int priceId,
@@ -89,7 +89,7 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 		@Nonnull BigDecimal taxRate,
 		@Nonnull BigDecimal priceWithTax,
 		@Nullable DateTimeRange validity,
-		boolean sellable
+		boolean indexed
 	) {
 		super(new PriceKey(priceId, priceList, currency));
 		this.innerRecordId = innerRecordId;
@@ -97,7 +97,7 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 		this.taxRate = taxRate;
 		this.priceWithTax = priceWithTax;
 		this.validity = validity;
-		this.sellable = sellable;
+		this.indexed = indexed;
 	}
 
 	public UpsertPriceMutation(
@@ -107,7 +107,7 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 		@Nonnull BigDecimal taxRate,
 		@Nonnull BigDecimal priceWithTax,
 		@Nullable DateTimeRange validity,
-		boolean sellable
+		boolean indexed
 	) {
 		super(priceKey);
 		this.innerRecordId = innerRecordId;
@@ -115,7 +115,7 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 		this.taxRate = taxRate;
 		this.priceWithTax = priceWithTax;
 		this.validity = validity;
-		this.sellable = sellable;
+		this.indexed = indexed;
 	}
 
 	public UpsertPriceMutation(
@@ -128,7 +128,7 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 		this.taxRate = price.taxRate();
 		this.priceWithTax = price.priceWithTax();
 		this.validity = price.validity();
-		this.sellable = price.sellable();
+		this.indexed = price.indexed();
 	}
 
 	@Nonnull
@@ -178,7 +178,7 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 				taxRate,
 				priceWithTax,
 				validity,
-				sellable
+				indexed
 			);
 		} else if (
 			!Objects.equals(existingValue.innerRecordId(), innerRecordId) ||
@@ -186,7 +186,7 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 			!Objects.equals(existingValue.taxRate(), taxRate) ||
 			!Objects.equals(existingValue.priceWithTax(), priceWithTax) ||
 			!Objects.equals(existingValue.validity(), validity) ||
-				existingValue.sellable() != sellable  ||
+				existingValue.indexed() != indexed ||
 				existingValue.dropped()
 		) {
 			return new Price(
@@ -197,7 +197,7 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 				taxRate,
 				priceWithTax,
 				validity,
-				sellable
+				indexed
 			);
 		} else {
 			return existingValue;

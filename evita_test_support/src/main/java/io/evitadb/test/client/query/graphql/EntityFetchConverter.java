@@ -414,7 +414,7 @@ public class EntityFetchConverter extends RequireConverter {
 						pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_LIST);
 						pricesBuilder.addPrimitiveField(PriceDescriptor.CURRENCY);
 						pricesBuilder.addPrimitiveField(PriceDescriptor.INNER_RECORD_ID);
-						pricesBuilder.addPrimitiveField(PriceDescriptor.SELLABLE);
+						pricesBuilder.addPrimitiveField(PriceDescriptor.INDEXED);
 						pricesBuilder.addPrimitiveField(PriceDescriptor.VALIDITY);
 						pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX, getPriceValueFieldArguments(locale));
 						pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX, getPriceValueFieldArguments(locale));

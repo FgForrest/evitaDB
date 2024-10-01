@@ -24,7 +24,10 @@
 package io.evitadb.externalApi.lab;
 
 import com.linecorp.armeria.server.HttpService;
-import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
+import io.evitadb.externalApi.http.ProxyingEndpointProvider;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
@@ -41,7 +44,7 @@ import java.util.function.Predicate;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class LabProvider implements ExternalApiProvider<LabConfig> {
+public class LabProvider implements ProxyingEndpointProvider<LabConfig> {
 
 	public static final String CODE = "lab";
 
@@ -74,12 +77,28 @@ public class LabProvider implements ExternalApiProvider<LabConfig> {
 
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(
-				url, null, "text/html", null,
-				error -> log.error("Error while checking readiness of Lab API: {}", error)
-			)
-			.map(content -> content.contains("evitaLab app"))
-			.orElse(false);
+		final Predicate<String> isReady = url -> {
+			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+			return NetworkUtils.fetchContent(
+					url, null, "text/html", null,
+					error -> {
+						log.error("Error while checking readiness of Lab API: {}", error);
+						readinessEvent.finish(Result.ERROR);
+					},
+					timeouted -> {
+						log.error("{}", timeouted);
+						readinessEvent.finish(Result.TIMEOUT);
+					}
+				)
+				.map(content -> {
+					final boolean result = content.contains("evitaLab app");
+					if (result) {
+						readinessEvent.finish(Result.READY);
+					}
+					return result;
+				})
+				.orElse(false);
+		};
 		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
-import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.DataInLocales;
@@ -45,6 +44,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -66,6 +66,7 @@ import io.evitadb.documentation.markdown.Table;
 import io.evitadb.documentation.markdown.Table.Builder;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.PrettyPrintable;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.RequiredArgsConstructor;
@@ -134,6 +135,7 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 	);
 	private static final String PRICE_FOR_SALE = PRICE_LINK + "Price for sale";
 	private static final String PRICES = PRICE_LINK + "Prices found";
+	private static final String ALTERNATIVE_PRICES = PRICE_LINK + "Other prices: ";
 
 	/**
 	 * Mandatory header column with entity primary key.
@@ -322,9 +324,6 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 			.isPresent() &&
 			ofNullable(query.getFilterBy())
 				.map(filterBy -> QueryUtils.findConstraint(filterBy, PriceInCurrency.class))
-				.isPresent() &&
-			ofNullable(query.getFilterBy())
-				.map(filterBy -> QueryUtils.findConstraint(filterBy, PriceValidIn.class))
 				.isPresent();
 
 		// collect headers for the MarkDown table
@@ -389,8 +388,14 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 							.stream()
 							.flatMap(priceCnt -> {
 								if (priceCnt.getFetchMode() == PriceContentMode.RESPECTING_FILTER) {
-									return allPriceForSaleConstraintsSet ?
-										Stream.of(PRICE_FOR_SALE) : Stream.of(PRICE_FOR_SALE, PRICES);
+									if (ArrayUtils.isEmpty(priceCnt.getAdditionalPriceListsToFetch())) {
+										return allPriceForSaleConstraintsSet ?
+											Stream.of(PRICE_FOR_SALE) : Stream.of(PRICES);
+									} else {
+										final String additionalPrices = ALTERNATIVE_PRICES + String.join(", ", priceCnt.getAdditionalPriceListsToFetch());
+										return allPriceForSaleConstraintsSet ?
+											Stream.of(PRICE_FOR_SALE, additionalPrices) : Stream.of(additionalPrices);
+									}
 								} else {
 									return Stream.empty();
 								}
@@ -512,6 +517,36 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 										.collect(Collectors.joining(", ")) +
 										(prices.size() > 3 ? " ... and " + (prices.size() - 3) + " other prices" : "");
 								}
+							}),
+						Arrays.stream(headers)
+							.filter(it -> it.startsWith(ALTERNATIVE_PRICES))
+							.filter(it -> sealedEntity.getSchema().isWithPrice())
+							.map(it -> {
+								final Collection<PriceContract> prices = Arrays.stream(it.substring(ALTERNATIVE_PRICES.length()).split(","))
+									.map(String::trim)
+									.map(priceList -> {
+										if (sealedEntity.isPriceForSaleContextAvailable()) {
+											return sealedEntity.getPriceForSaleWithAccompanyingPrices(
+												new AccompanyingPrice[]{new AccompanyingPrice("alternativePrice", priceList)}
+											)
+												.flatMap(result -> result.accompanyingPrices().get("alternativePrice"))
+												.orElse(null);
+										} else {
+											return sealedEntity.getPrice(priceList, currency).orElse(null);
+										}
+									})
+									.filter(Objects::nonNull)
+									.toList();
+								if (prices.isEmpty()) {
+									return "N/A";
+								} else {
+									return prices
+										.stream()
+										.limit(3)
+										.map(price -> PRICE_LINK + priceFormatter.format(price.priceWithTax()))
+										.collect(Collectors.joining(", ")) +
+										(prices.size() > 3 ? " ... and " + (prices.size() - 3) + " other prices" : "");
+								}
 							})
 					)
 					.flatMap(Function.identity())
@@ -612,7 +647,7 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 	@Nonnull
 	private static String formatValue(@Nonnull Serializable value) {
 		if (value instanceof Predecessor predecessor) {
-			return predecessor.isHead() ? PREDECESSOR_HEAD_SYMBOL : PREDECESSOR_SYMBOL + predecessor.predecessorId();
+			return predecessor.isHead() ? PREDECESSOR_HEAD_SYMBOL : PREDECESSOR_SYMBOL + predecessor.predecessorPk();
 		} else {
 			return EvitaDataTypes.formatValue(value);
 		}

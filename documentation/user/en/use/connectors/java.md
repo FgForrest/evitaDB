@@ -172,6 +172,17 @@ on the client side:
         <p>**Default: `TimeUnit.SECONDS`**</p>
         <p>It specifies the time unit for `timeout` property.</p>
     </dd>
+    <dt>trackedTaskLimit</dt>
+    <dd> 
+        <p>**Default: `100`**</p>
+        <p>Number of asynchronous server tasks that can be actively tracked by the client. If the limit is reached, 
+         the client will stop tracking the oldest tasks.</p>
+    </dd>
+    <dt>openTelemetryInstance</dt>
+    <dd>
+        <p>**Default: `null`**</p>
+        <p>OpenTelemetry instance that should be used for tracing. If set to `null`, no tracing will be performed.</p>
+    </dd>
 </dl>
 
 <Note type="warning">

@@ -170,7 +170,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 								nestedQueryFormula,
 								it -> {
 									// leave the return here, so that we can easily debug it
-									return ofNullable(filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it))
+									return filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it)
 										.map(EntityIndex::getAllPrimaryKeys)
 										.orElse(EmptyBitmap.INSTANCE);
 								}

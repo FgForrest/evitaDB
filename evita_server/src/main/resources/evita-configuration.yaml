@@ -1,4 +1,4 @@
-name: ${server.name:evitaDB}
+name: ${name:evitaDB}
 
 server:
   requestThreadPool:

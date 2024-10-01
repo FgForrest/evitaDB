@@ -29,7 +29,6 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.http.HttpServiceTlsCheckingDecorator;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
 
 import javax.annotation.Nonnull;
@@ -57,8 +56,8 @@ public class LabProviderRegistrar implements ExternalApiProviderRegistrar<LabCon
 	@Nonnull
 	@Override
 	public ExternalApiProvider<LabConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull LabConfig labConfig) {
-		final LabManager labManager = new LabManager(evita, apiOptions, labConfig);
+		final LabManager labManager = new LabManager(evita, labConfig);
 		final HttpService apiHandler = labManager.getLabRouter();
-		return new LabProvider(labConfig, new HttpServiceTlsCheckingDecorator(apiHandler, getApiHandlerPortTlsValidatingFunction(labConfig)));
+		return new LabProvider(labConfig, apiHandler);
 	}
 }

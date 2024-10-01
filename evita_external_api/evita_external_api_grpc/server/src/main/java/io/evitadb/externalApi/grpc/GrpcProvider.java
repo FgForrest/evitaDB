@@ -25,16 +25,20 @@ package io.evitadb.externalApi.grpc;
 
 import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
-import com.linecorp.armeria.client.ClientFactoryBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.docs.DocService;
 import com.linecorp.armeria.server.docs.DocServiceFilter;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.TlsMode;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -67,11 +71,19 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	/**
 	 * Builder for gRPC client factory.
 	 */
-	private final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
+	private final ClientFactory clientFactory = ClientFactory.builder()
 		.useHttp1Pipelining(true)
-		.idleTimeoutMillis(100)
-		.tlsNoVerify();
+		// 1 second timeout for connection establishment
+		.connectTimeoutMillis(1000)
+		// 1 second timeout for idle connections
+		.idleTimeoutMillis(1000)
+		.tlsNoVerify()
+		.build();
 
+	@Override
+	public void beforeStop() {
+		this.clientFactory.close();
+	}
 
 	@Nonnull
 	@Override
@@ -123,21 +135,35 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	 * @return true if the URI is reachable, false otherwise
 	 */
 	public boolean checkReachable(@Nonnull String uri) {
+		final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
 		try {
 			final EvitaServiceBlockingStub evitaService = GrpcClients.builder(uri)
-				.factory(clientFactoryBuilder.build())
+				.factory(this.clientFactory)
 				.responseTimeoutMillis(100)
 				.build(EvitaServiceBlockingStub.class);
 			if (evitaService.isReady(Empty.newBuilder().build()).getReady()) {
-				reachableUrl = uri;
+				this.reachableUrl = uri;
+				readinessEvent.finish(Result.READY);
 				return true;
 			} else {
+				readinessEvent.finish(Result.ERROR);
 				log.error("gRPC API is not ready at: {}", uri);
 				return false;
 			}
+		} catch (StatusRuntimeException e) {
+			if (e.getStatus().getCode() == Status.Code.DEADLINE_EXCEEDED) {
+				readinessEvent.finish(Result.TIMEOUT);
+				log.error("Timeout while checking readiness of gRPC API at: {}", uri);
+			} else {
+				readinessEvent.finish(Result.ERROR);
+				log.error("Error while checking readiness of gRPC API: {}", e.getMessage());
+			}
+			return false;
 		} catch (Exception e) {
+			readinessEvent.finish(Result.ERROR);
 			log.error("Error while checking readiness of gRPC API: {}", e.getMessage());
 			return false;
 		}
 	}
+
 }

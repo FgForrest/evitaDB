@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -40,11 +41,11 @@ class AttributeComparatorTest {
 	public static final String ATTRIBUTE_NAME = "test";
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private final AttributeComparator comparator = new AttributeComparator(
-		ATTRIBUTE_NAME, null, EntityAttributeExtractor.INSTANCE, (o1, o2) -> ((Comparable) o1).compareTo(o2)
+		ATTRIBUTE_NAME, Integer.class, null, EntityAttributeExtractor.INSTANCE, OrderDirection.ASC
 	);
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private final AttributeComparator reverseComparator = new AttributeComparator(
-		ATTRIBUTE_NAME, null, EntityAttributeExtractor.INSTANCE, (o1, o2) -> ((Comparable) o2).compareTo(o1)
+		ATTRIBUTE_NAME, Integer.class, null, EntityAttributeExtractor.INSTANCE, OrderDirection.DESC
 	);
 
 	@Test

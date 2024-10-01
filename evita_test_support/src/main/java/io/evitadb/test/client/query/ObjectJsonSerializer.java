@@ -200,7 +200,7 @@ public class ObjectJsonSerializer {
 	}
 
 	private int serialize(@Nonnull Predecessor predecessor) {
-		return predecessor.predecessorId();
+		return predecessor.predecessorPk();
 	}
 
 	private JsonNode serialize(@Nonnull PriceContract price) {
@@ -209,7 +209,7 @@ public class ObjectJsonSerializer {
 		priceNode.putIfAbsent(PriceDescriptor.PRICE_LIST.name(),serializeObject(price.priceList()));
 		priceNode.putIfAbsent(PriceDescriptor.CURRENCY.name(),serializeObject(price.currency()));
 		priceNode.putIfAbsent(PriceDescriptor.INNER_RECORD_ID.name(),price.innerRecordId() != null?serializeObject(price.innerRecordId()):null);
-		priceNode.putIfAbsent(PriceDescriptor.SELLABLE.name(),serializeObject(price.sellable()));
+		priceNode.putIfAbsent(PriceDescriptor.INDEXED.name(),serializeObject(price.indexed()));
 		priceNode.putIfAbsent(PriceDescriptor.PRICE_WITHOUT_TAX.name(), serializeObject(price.priceWithoutTax()));
 		priceNode.putIfAbsent(PriceDescriptor.PRICE_WITH_TAX.name(),serializeObject(price.priceWithTax()));
 		priceNode.putIfAbsent(PriceDescriptor.TAX_RATE.name(),serializeObject(price.taxRate()));

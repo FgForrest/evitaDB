@@ -168,7 +168,7 @@ public class ExportFileService {
 	) {
 		final UUID fileId = UUIDUtil.randomUUID();
 		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
-		final Path finalFilePath = storageOptions.exportDirectory().resolve(finalFileName);
+		final Path finalFilePath = this.storageOptions.exportDirectory().resolve(finalFileName);
 		try {
 			if (!storageOptions.exportDirectory().toFile().exists()) {
 				Assert.isPremiseValid(
@@ -363,42 +363,25 @@ public class ExportFileService {
 	}
 
 	/**
-	 * Returns absolute path of the file in the export directory.
+	 * Creates a temporary file with the given file name in the specified storage directory.
 	 *
-	 * @param file file to get the path for
-	 * @return absolute path of the file in the export directory
+	 * @param fileName the name of the file to be created
+	 * @return the Path of the created temporary file
+	 * @throws RuntimeException if an I/O error occurs when creating the file
 	 */
 	@Nonnull
-	public Path getFilePath(@Nonnull FileForFetch file) {
-		return file.path(this.storageOptions.exportDirectory());
-	}
-
-	/**
-	 * Checks whether a file has still the same size on the disk and if not, it updates the metadata file and the file
-	 * contents in the memory.
-	 *
-	 * @param theFile file to check
-	 * @return updated file
-	 */
-	@Nonnull
-	public FileForFetch updateFileData(@Nonnull FileForFetch theFile) {
-		this.lock.lock();
+	public Path createTempFile(@Nonnull String fileName) {
 		try {
-			final long actualSize = Files.size(theFile.path(this.storageOptions.exportDirectory()));
-			if (actualSize != theFile.totalSizeInBytes()) {
-				final FileForFetch updatedFile = theFile.withTotalSizeInBytes(actualSize);
-				writeFileMetadata(updatedFile, StandardOpenOption.TRUNCATE_EXISTING);
-				this.files = this.files.stream()
-					.map(it -> it.fileId().equals(theFile.fileId()) ? updatedFile : it)
-					.collect(Collectors.toList());
-				return updatedFile;
-			}
+			return Files.createFile(
+				this.storageOptions.exportDirectory().resolve(fileName)
+			);
 		} catch (IOException e) {
-			log.error("Failed to read file size: {}", theFile.name(), e);
-		} finally {
-			this.lock.unlock();
+			throw new UnexpectedIOException(
+				"Failed to create temporary file: " + e.getMessage(),
+				"Failed to create temporary the file.",
+				e
+			);
 		}
-		return theFile;
 	}
 
 	/**

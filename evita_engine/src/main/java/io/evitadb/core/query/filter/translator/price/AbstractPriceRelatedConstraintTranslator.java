@@ -45,6 +45,7 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Currency;
 import java.util.List;
@@ -63,7 +64,12 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 	 * result where for each record only its price from most prioritized price list is taken into an account.
 	 */
 	@Nonnull
-	protected List<Formula> createPriceListFormula(@Nullable String[] priceLists, @Nullable Currency currency, @Nonnull TriFunction<String, Currency, PriceInnerRecordHandling, Formula> priceListFormulaComputer) {
+	protected static List<Formula> createPriceListFormula(
+		@Nullable String[] priceLists,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime validIn,
+		@Nonnull TriFunction<String, Currency, PriceInnerRecordHandling, Formula> priceListFormulaComputer
+	) {
 		final List<Formula> formulas = new ArrayList<>(PriceInnerRecordHandling.values().length);
 		for (PriceInnerRecordHandling innerRecordHandling : PriceInnerRecordHandling.values()) {
 			final CompositeObjectArray<Formula> priceListFormulas = new CompositeObjectArray<>(Formula.class);
@@ -85,6 +91,7 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 							lastFormula = translatedFormula;
 						} else {
 							final PriceEvaluationContext priceContext = new PriceEvaluationContext(
+								validIn,
 								FormulaFinder.find(
 									translatedFormula, PriceIndexProvidingFormula.class, LookUp.SHALLOW
 								)
@@ -116,8 +123,17 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 		return formulas;
 	}
 
+	/**
+	 * Translates an initial formula into a new formula if it contains a {@link PriceIdContainerFormula}.
+	 * If the initial formula contains a {@link PriceIdContainerFormula}, it wraps the initial formula
+	 * in a {@link PriceIdToEntityIdTranslateFormula} to translate price IDs to entity IDs.
+	 * Otherwise, it returns the initial formula unchanged.
+	 *
+	 * @param initialFormula the formula to be translated
+	 * @return the translated formula or the initial formula if no translation is needed
+	 */
 	@Nonnull
-	private Formula translateFormula(Formula initialFormula) {
+	private static Formula translateFormula(@Nonnull Formula initialFormula) {
 		final Formula translatedFormula;
 		if (FormulaLocator.contains(initialFormula, PriceIdContainerFormula.class)) {
 			translatedFormula = new PriceIdToEntityIdTranslateFormula(initialFormula);

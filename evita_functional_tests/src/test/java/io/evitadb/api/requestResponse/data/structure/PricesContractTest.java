@@ -178,7 +178,7 @@ class PricesContractTest extends AbstractBuilderTest {
 
 		// reference price is not indexed, vip price has not fulfilled validity, logged only is the first
 		assertPriceForSaleWithAccompanyingPrices(
-			1, new int[] {7, 7, 3, -1}, 3, prices, CZK, MOMENT_2020, new String[] { BASIC },
+			1, new int[] {-1, -1, 3, -1}, 3, prices, CZK, MOMENT_2020, new String[] { BASIC },
 			new AccompanyingPrice[] {
 				new AccompanyingPrice("p1", REFERENCE),
 				new AccompanyingPrice("p2", REFERENCE, VIP),
@@ -240,14 +240,14 @@ class PricesContractTest extends AbstractBuilderTest {
 			Arrays.asList(
 				new Price(new PriceKey(combineIntoId(1, 1), BASIC, CZK), 1, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), null, true),
 				new Price(new PriceKey(combineIntoId(1, 2), LOGGED_ONLY, CZK), 1, new BigDecimal("80"), new BigDecimal("21"), new BigDecimal("96.8"), null, true),
-				new Price(new PriceKey(combineIntoId(1, 3), VIP, CZK), 1, new BigDecimal("140"), new BigDecimal("21"), new BigDecimal("169.4"), null, false),
+				new Price(new PriceKey(combineIntoId(1, 3), VIP, CZK), 1, new BigDecimal("140"), new BigDecimal("21"), new BigDecimal("169.4"), null, true),
 				new Price(new PriceKey(combineIntoId(2, 4), BASIC, CZK), 2, new BigDecimal("60"), new BigDecimal("21"), new BigDecimal("72.6"), null, true),
 				new Price(new PriceKey(combineIntoId(2, 5), LOGGED_ONLY, CZK), 2, new BigDecimal("50"), new BigDecimal("21"), new BigDecimal("60.5"), null, true),
 				new Price(new PriceKey(combineIntoId(3, 6), BASIC, CZK), 3, new BigDecimal("90"), new BigDecimal("21"), new BigDecimal("108.9"), null, true),
 				new Price(new PriceKey(combineIntoId(3, 7), LOGGED_ONLY, CZK), 3, new BigDecimal("70"), new BigDecimal("21"), new BigDecimal("84.7"), null, true),
-				new Price(new PriceKey(combineIntoId(1, 8), REFERENCE, CZK), 1, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), null, false),
-				new Price(new PriceKey(combineIntoId(2, 9), REFERENCE, CZK), 2, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), null, false),
-				new Price(new PriceKey(combineIntoId(3, 10), REFERENCE, CZK), 3, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), null, false)
+				new Price(new PriceKey(combineIntoId(1, 8), REFERENCE, CZK), 1, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), null, true),
+				new Price(new PriceKey(combineIntoId(2, 9), REFERENCE, CZK), 2, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), null, true),
+				new Price(new PriceKey(combineIntoId(3, 10), REFERENCE, CZK), 3, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), null, true)
 			),
 			PriceInnerRecordHandling.LOWEST_PRICE,
 			true
@@ -537,14 +537,15 @@ class PricesContractTest extends AbstractBuilderTest {
 		for (int i = 0; i < expectedAccompaniedPriceIds.length; i++) {
 			int expectedAccompaniedPriceId = expectedAccompaniedPriceIds[i];
 			final AccompanyingPrice accompanyingPrice = accompanyingPrices[i];
+			final Optional<PriceContract> thePrice = priceForSaleWithAccompanyingPrices.accompanyingPrices().get(accompanyingPrice.priceName());
 			if (expectedAccompaniedPriceId == -1) {
 				assertTrue(
-					priceForSaleWithAccompanyingPrices.accompanyingPrices().get(accompanyingPrice.priceName()).isEmpty()
+					thePrice.isEmpty()
 				);
 			} else {
 				assertEquals(
 					combineIntoId(innerRecordId, expectedAccompaniedPriceId),
-					priceForSaleWithAccompanyingPrices.accompanyingPrices().get(accompanyingPrice.priceName()).orElseThrow().priceId()
+					thePrice.orElseThrow().priceId()
 				);
 			}
 		}

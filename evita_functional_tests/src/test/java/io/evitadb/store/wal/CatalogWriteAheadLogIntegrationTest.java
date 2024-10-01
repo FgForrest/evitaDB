@@ -316,7 +316,10 @@ class CatalogWriteAheadLogIntegrationTest {
 	 */
 	@Nonnull
 	private Map<Long, List<Mutation>> writeWal(@Nonnull OffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes, @Nullable OffsetDateTime initialTimestamp) {
-		final DataGenerator dataGenerator = new DataGenerator();
+		final DataGenerator dataGenerator = new DataGenerator.Builder()
+			.withPriceLists(DataGenerator.PRICE_LIST_BASIC)
+			.withCurrencies(DataGenerator.CURRENCY_CZK)
+			.build();
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),

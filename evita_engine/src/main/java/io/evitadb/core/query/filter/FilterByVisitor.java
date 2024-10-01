@@ -557,7 +557,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		final Bitmap referencedRecordIds = referencedRecordIdFormula.compute();
 		final List<ReducedEntityIndex> result = new ArrayList<>(referencedRecordIds.size());
 		for (Integer referencedRecordId : referencedRecordIds) {
-			ofNullable(getReferencedEntityIndex(entitySchema, referenceName, referencesHierarchicalEntity, referencedRecordId))
+			getReferencedEntityIndex(entitySchema, referenceName, referencesHierarchicalEntity, referencedRecordId)
 				.ifPresent(result::add);
 		}
 		return result;
@@ -581,18 +581,18 @@ public class FilterByVisitor implements ConstraintVisitor {
 		final String referenceName = referenceSchema.getName();
 		isTrue(referenceSchema.isIndexed(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
 
-		final ReferencedTypeEntityIndex entityIndex = getIndex(
+		final Optional<ReferencedTypeEntityIndex> entityIndex = getIndex(
 			entitySchema.getName(),
 			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName),
 			ReferencedTypeEntityIndex.class
 		);
-		if (entityIndex == null) {
+		if (entityIndex.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		}
 
 		final Formula resultFormula = executeInContext(
 			ReferencedTypeEntityIndex.class,
-			Collections.singletonList(entityIndex),
+			Collections.singletonList(entityIndex.get()),
 			ReferenceContent.ALL_REFERENCES,
 			entitySchema,
 			referenceSchema,
@@ -639,8 +639,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Returns {@link EntityIndex} that contains indexed entities that reference `referenceName` and `referencedEntityId`.
 	 * Argument `referencesHierarchicalEntity` should be evaluated first by {@link #isReferencingHierarchicalEntity(ReferenceSchemaContract)} method.
 	 */
-	@Nullable
-	public ReducedEntityIndex getReferencedEntityIndex(
+	@Nonnull
+	public Optional<ReducedEntityIndex> getReferencedEntityIndex(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int referencedEntityId
@@ -657,8 +657,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Returns {@link EntityIndex} that contains indexed entities that reference `referenceName` and `referencedEntityId`.
 	 * Argument `referencesHierarchicalEntity` should be evaluated first by {@link #isReferencingHierarchicalEntity(ReferenceSchemaContract)} method.
 	 */
-	@Nullable
-	public ReducedEntityIndex getReferencedEntityIndex(
+	@Nonnull
+	public Optional<ReducedEntityIndex> getReferencedEntityIndex(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String referenceName,
 		boolean referencesHierarchicalEntity,

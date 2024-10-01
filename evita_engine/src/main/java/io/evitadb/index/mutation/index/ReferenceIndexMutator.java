@@ -364,7 +364,7 @@ public interface ReferenceIndexMutator {
 					price.validity(),
 					price.priceWithoutTax(),
 					price.priceWithTax(),
-					price.sellable(),
+					price.indexed(),
 					null,
 					priceContainer.getPriceInnerRecordHandling(),
 					PriceIndexMutator.createPriceProvider(price),

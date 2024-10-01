@@ -24,6 +24,10 @@
 package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
 import com.linecorp.armeria.common.HttpMethod;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.dto.LivenessDto;
@@ -50,6 +54,7 @@ public class LivenessHandler extends JsonRestHandler<LabApiHandlingContext> {
 	@Nonnull
 	@Override
 	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
+		final ReadinessEvent readinessEvent = new ReadinessEvent(GraphQLProvider.CODE, Prospective.SERVER);
 		return executionContext.executeAsyncInRequestThreadPool(
 			() -> {
 				final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
@@ -61,6 +66,7 @@ public class LivenessHandler extends JsonRestHandler<LabApiHandlingContext> {
 				final Object result = convertResultIntoSerializableObject(executionContext, liveness);
 				requestExecutedEvent.finishResultSerialization();
 
+				readinessEvent.finish(Result.READY);
 				return new SuccessEndpointResponse(result);
 			}
 		);

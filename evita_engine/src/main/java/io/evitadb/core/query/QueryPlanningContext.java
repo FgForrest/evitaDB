@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.cache.CacheSupervisor;
@@ -176,9 +177,9 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	private Map<EntityReferenceContract<EntityReference>, Integer> entityReferencePkReverseIndex;
 	/**
-	 * Cached version of {@link EntitySchemaContract} for {@link #entityType}.
+	 * Cached version of {@link EntitySchema} for {@link #entityType}.
 	 */
-	private EntitySchemaContract entitySchema;
+	private EntitySchema entitySchema;
 	/**
 	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
 	 * that should be included/excluded from traversal.
@@ -316,8 +317,8 @@ public class QueryPlanningContext implements LocaleProvider {
 	/**
 	 * Returns {@link EntityIndex} of external entity type by its key and entity type.
 	 */
-	@Nullable
-	public <T extends EntityIndex> T getIndex(@Nonnull String entityType, @Nonnull EntityIndexKey entityIndexKey, @Nonnull Class<T> indexType) {
+	@Nonnull
+	public <T extends EntityIndex> Optional<T> getIndex(@Nonnull String entityType, @Nonnull EntityIndexKey entityIndexKey, @Nonnull Class<T> indexType) {
 		final EntityIndex entityIndex = getEntityCollectionOrThrowException(entityType, "access entity index")
 			.getIndexByKeyIfExists(entityIndexKey);
 		Assert.isPremiseValid(
@@ -325,7 +326,7 @@ public class QueryPlanningContext implements LocaleProvider {
 			() -> "Expected index of type " + indexType + " but got " + entityIndex.getClass() + "!"
 		);
 		//noinspection unchecked
-		return (T) entityIndex;
+		return ofNullable((T) entityIndex);
 	}
 
 	/**
@@ -474,9 +475,9 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Returns entity schema.
 	 */
 	@Nonnull
-	public EntitySchemaContract getSchema() {
+	public EntitySchema getSchema() {
 		if (this.entitySchema == null) {
-			this.entitySchema = getEntityCollectionOrThrowException(entityType, "access entity schema").getSchema();
+			this.entitySchema = getEntityCollectionOrThrowException(entityType, "access entity schema").getInternalSchema();
 		}
 		return this.entitySchema;
 	}
@@ -520,7 +521,7 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	@Nonnull
 	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType) {
-		return ofNullable(getIndex(entityType, GLOBAL_INDEX_KEY, GlobalEntityIndex.class));
+		return getIndex(entityType, GLOBAL_INDEX_KEY, GlobalEntityIndex.class);
 	}
 
 	/**
@@ -738,7 +739,10 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Sets resolved hierarchy having/exclusion predicate to be shared among filter and requirement phase.
 	 */
 	public void setHierarchyHavingPredicate(@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate) {
-		Assert.isPremiseValid(this.hierarchyHavingPredicate == null, "The hierarchy exclusion predicate can be set only once!");
+		Assert.isPremiseValid(
+			this.hierarchyHavingPredicate == null || this.hierarchyHavingPredicate.equals(hierarchyHavingPredicate),
+			"The hierarchy exclusion predicate can be set only once!"
+		);
 		this.hierarchyHavingPredicate = hierarchyHavingPredicate;
 	}
 

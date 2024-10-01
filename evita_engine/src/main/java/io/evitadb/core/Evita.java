@@ -275,6 +275,12 @@ public final class Evita implements EvitaContract {
 			.filter(CatalogStructuralChangeObserverWithEvitaContractCallback.class::isInstance)
 			.map(CatalogStructuralChangeObserverWithEvitaContractCallback.class::cast)
 			.forEach(it -> it.onInit(this));
+
+		// repeatedly call the updateCatalogStatistics method every 10 minutes, so that metrics are updated
+		this.serviceExecutor.scheduleAtFixedRate(
+			this::updateCatalogStatistics,
+			10, 10, TimeUnit.MINUTES
+		);
 	}
 
 	/**
@@ -394,10 +400,7 @@ public final class Evita implements EvitaContract {
 
 	@Override
 	public void update(@Nonnull TopLevelCatalogSchemaMutation... catalogMutations) {
-		assertActive();
-		if (readOnly) {
-			throw new ReadOnlyException();
-		}
+		assertActiveAndWritable();
 		// TOBEDONE JNO #502 - we have to have a special WAL for the evitaDB server instance as well
 		for (CatalogSchemaMutation catalogMutation : catalogMutations) {
 			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
@@ -486,6 +489,9 @@ public final class Evita implements EvitaContract {
 				}
 			});
 			return result;
+		} catch (RuntimeException ex) {
+			createdSession.closeFuture().completeExceptionally(ex);
+			throw ex;
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
 		}
@@ -857,6 +863,16 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Verifies this instance is still active and not in read-only mode.
+	 */
+	void assertActiveAndWritable() {
+		assertActive();
+		if (readOnly) {
+			throw new ReadOnlyException();
+		}
+	}
+
+	/**
 	 * Method will examine changes in `newCatalog` compared to `currentCatalog` and notify {@link #structuralChangeObservers}
 	 * in case there is any key structural change identified.
 	 */
@@ -974,7 +990,7 @@ public final class Evita implements EvitaContract {
 		// iterate over all catalogs and emit the event
 		for (CatalogContract catalog : this.catalogs.values()) {
 			if (catalog instanceof Catalog theCatalog) {
-				theCatalog.emitStartObservabilityEvents();
+				theCatalog.emitObservabilityEvents();
 			}
 		}
 	}
