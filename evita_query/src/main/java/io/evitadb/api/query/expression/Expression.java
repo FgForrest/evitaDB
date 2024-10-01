@@ -45,7 +45,7 @@ import javax.annotation.Nonnull;
  * {@link ExpressionNode} object. {@link ExpressionNode} objects represent the parsed expression and can be used to evaluate
  * the expression.
  *
- * @author Lukáš Hornych, 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 public interface Expression {
 

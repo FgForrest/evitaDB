@@ -31,7 +31,7 @@ import java.util.stream.Stream;
 /**
  * Abstract class defining the context for parsing operations. It provides a way to get variable values by their names.
  *
- * @author Lukáš Hornych, 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 public sealed abstract class PredicateEvaluationContext permits SingleVariableEvaluationContext, MultiVariableEvaluationContext {
 	private final Random random;

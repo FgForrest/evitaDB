@@ -292,7 +292,7 @@ public class CShell {
     /**
      * Finds URL of an asset with a given name from GitHub release.
      *
-     * @author Lukáš Hornych, 2023
+     * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
      */
     private static class GithubLatestAssetUrlFetcher {
         private static final String GITHUB_RELEASE_API_URL_TEMPLATE = "https://api.github.com/repos/FgForrest/evitaDB-C-Sharp-client/releases/latest";

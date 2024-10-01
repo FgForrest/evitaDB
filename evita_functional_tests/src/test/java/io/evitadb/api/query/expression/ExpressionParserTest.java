@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Test class for the {@link ExpressionParserFactory}.
  *
- * @author Lukáš Hornych, 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 public class ExpressionParserTest {
 

@@ -47,7 +47,7 @@ import java.math.BigDecimal;
  * Implementation of the {@link io.evitadb.api.query.expression.parser.grammar.ExpressionVisitor} for parsing
  * expression into {@link ExpressionNode} object.
  *
- * @author Lukáš Hornych, 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 public class DefaultExpressionVisitor extends ExpressionBaseVisitor<ExpressionNode> {
 
