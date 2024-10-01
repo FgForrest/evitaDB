@@ -22,12 +22,20 @@
 #   limitations under the License.
 #
 
-# todo lho fix
+if [ "$1" == "evitaql" ]; then
+  echo "Generating EvitaQL.g4..."
+  rm src/main/java/io/evitadb/api/query/parser/grammar/*
+  mvn -Pevitaql-grammar clean antlr4:antlr4 replacer:replace
+elif [ "$1" == "expression" ]; then
+  echo "Generating Expression.g4..."
+  rm src/main/java/io/evitadb/api/query/expression/parser/grammar/*
+  mvn -Pexpression-grammar clean antlr4:antlr4 replacer:replace
+else
+  echo "Generating EvitaQL.g4..."
+  rm src/main/java/io/evitadb/api/query/parser/grammar/*
+  mvn -Pevitaql-grammar clean antlr4:antlr4 replacer:replace
 
-#echo "Generating EvitaQL.g4..."
-#rm  src/main/java/io/evitadb/api/query/parser/grammar/*
-#mvn -Pevitaql-grammar clean antlr4:antlr4 replacer:replace
-
-echo "Generating Predicate.g4..."
-rm  src/main/java/io/evitadb/api/query/predicate/parser/grammar/*
-mvn -Ppredicate-grammar clean antlr4:antlr4 replacer:replace
+  echo "Generating Expression.g4..."
+  rm src/main/java/io/evitadb/api/query/expression/parser/grammar/*
+  mvn -Pexpression-grammar clean antlr4:antlr4 replacer:replace
+fi

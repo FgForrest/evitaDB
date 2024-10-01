@@ -112,8 +112,8 @@ $1package io.evitadb.api.query.parser.grammar;
 							</execution>
 						</executions>
 						<configuration>
-							<sourceDirectory>${basedir}/src/main/resources/META-INF/io/evitadb/api/query/parser/</sourceDirectory>
-							<outputDirectory>${basedir}/src/main/java/io/evitadb/api/query/predicate/grammar/</outputDirectory>
+							<sourceDirectory>${basedir}/src/main/resources/META-INF/io/evitadb/api/query/parser/evitaQL/</sourceDirectory>
+							<outputDirectory>${basedir}/src/main/java/io/evitadb/api/query/parser/grammar/</outputDirectory>
 							<visitor>true</visitor>
 						</configuration>
 					</plugin>
@@ -121,7 +121,7 @@ $1package io.evitadb.api.query.parser.grammar;
 			</build>
 		</profile>
 		<profile>
-			<id>predicate-grammar</id>
+			<id>expression-grammar</id>
 			<build>
 				<plugins>
 					<plugin>
@@ -136,8 +136,8 @@ $1package io.evitadb.api.query.parser.grammar;
 							</execution>
 						</executions>
 						<configuration>
-							<sourceDirectory>${basedir}/src/main/resources/META-INF/io/evitadb/api/query/predicate/parser/</sourceDirectory>
-							<outputDirectory>${basedir}/src/main/java/io/evitadb/api/query/predicate/parser/grammar/</outputDirectory>
+							<sourceDirectory>${basedir}/src/main/resources/META-INF/io/evitadb/api/query/parser/expression/</sourceDirectory>
+							<outputDirectory>${basedir}/src/main/java/io/evitadb/api/query/expression/parser/grammar/</outputDirectory>
 							<visitor>true</visitor>
 						</configuration>
 					</plugin>
