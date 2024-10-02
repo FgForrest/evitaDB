@@ -35,7 +35,8 @@ server:                                           # [see Server configuration](#
   quiet: false
 
 storage:                                          # [see Storage configuration](#storage-configuration)
-  storageDirectory: null
+  storageDirectory: "./data"
+  exportDirectory: "./export"
   lockTimeoutSeconds: 60
   waitOnCloseSeconds: 60
   outputBufferSize: 4MB
@@ -43,6 +44,9 @@ storage:                                          # [see Storage configuration](
   computeCRC32C: true
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
+  timeTravelEnabled: true
+  exportDirectorySizeLimitBytes: 1G
+  exportFileHistoryExpirationSeconds: 7d
 
 transaction:                                      # [see Transaction configuration](#transaction-configuration)
   transactionWorkDirectory: /tmp/evitaDB/transaction
@@ -428,9 +432,16 @@ This section contains configuration options for the storage layer of the databas
 <dl>
     <dt>storageDirectory</dt>
     <dd>
-        <p>**Default:** `null`</p>
+        <p>**Default:** `./data`</p>
         <p>It defines the folder where evitaDB stores its catalog data. The path can be specified relative to the working
         directory of the application in absolute form (recommended).</p>
+    </dd>
+    <dt>exportDirectory</dt>
+    <dd>
+        <p>**Default:** `./export`</p>
+        <p>It defines the folder where evitaDB stores its exported files. The path can be specified relative to the working
+        directory of the application in absolute form (recommended). Files are automatically removed according to limits
+        defined in `exportFileHistoryExpirationSeconds` and `exportDirectorySizeLimitBytes`.</p>
     </dd>
     <dt>lockTimeoutSeconds</dt>
     <dd>
@@ -491,6 +502,18 @@ This section contains configuration options for the storage layer of the databas
         as there is history available in the WAL log. This allows a snapshot of the database to be taken at any point 
         in the history covered by the WAL log. From the snapshot, the database can be restored to the exact point in 
         time with all the data available at that time.</p>
+    </dd>
+    <dt>exportDirectorySizeLimitBytes</dt>
+    <dd>
+        <p>**Default:** `1G`</p>
+        <p>It specifies the maximum size of the export directory. If the size of the directory exceeds this limit, the 
+        oldest files are removed until the size of the directory is below the limit.</p>
+    </dd>
+    <dt>exportFileHistoryExpirationSeconds</dt>
+    <dd>
+        <p>**Default:** `7d`</p>
+        <p>It specifies the maximum age of the files in the export directory. If the age of the file exceeds this limit, 
+        the file is removed from the directory.</p>
     </dd>
 </dl>
 
