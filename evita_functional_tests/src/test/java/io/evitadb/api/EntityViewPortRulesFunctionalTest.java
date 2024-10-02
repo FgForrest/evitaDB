@@ -140,9 +140,8 @@ public class EntityViewPortRulesFunctionalTest {
 
 	/**
 	 * Constructs a segmented query for fetching products from the database.
-	 * The query is filtered by the English locale and consists of three segments ordered by
-	 * different attributes with specified limits on each segment.
-	 * It also includes pagination and debug settings.
+	 * The query consists of three segments ordered by different attributes with specified limits on each segment.
+	 * It also includes pagination and debug settings for trying alternativa calculation paths.
 	 *
 	 * @param segments   the segments configuration.
 	 * @param pageNumber the page number for pagination.

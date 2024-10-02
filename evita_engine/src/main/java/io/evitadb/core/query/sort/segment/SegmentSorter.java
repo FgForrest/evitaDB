@@ -118,7 +118,13 @@ public class SegmentSorter implements Sorter {
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		// if the filter is defined we need to narrow the input to only records that satisfy the filter
-		final Formula filterFormula = this.filter == null ? input : FormulaFactory.and(input, this.filter);
+		final Formula filterFormula;
+		if (this.filter == null) {
+			filterFormula = input;
+		} else {
+			filterFormula = FormulaFactory.and(input, this.filter);
+			filterFormula.initialize(queryContext);
+		}
 		final Bitmap filteredRecordIdBitmap = filterFormula.compute();
 		// if there are no records to sort
 		if (filteredRecordIdBitmap.isEmpty()) {
