@@ -132,6 +132,7 @@ public class EvitaDataTypesConverter {
 			case LOCALE -> (T) toLocale(value.getLocaleValue());
 			case CURRENCY -> (T) toCurrency(value.getCurrencyValue());
 			case PREDECESSOR -> (T) toPredecessor(value.getPredecessorValue());
+			case REFERENCED_ENTITY_PREDECESSOR -> (T) toReferencedEntityPredecessor(value.getPredecessorValue());
 			case UUID -> (T) toUuid(value.getUuidValue());
 
 			case STRING_ARRAY -> (T) toStringArray(value.getStringArrayValue());
@@ -254,6 +255,8 @@ public class EvitaDataTypesConverter {
 		} else if (value instanceof UUID uuidValue) {
 			builder.setUuidValue(toGrpcUuid(uuidValue));
 		} else if (value instanceof Predecessor predecessorValue) {
+			builder.setPredecessorValue(toGrpcPredecessor(predecessorValue));
+		} else if (value instanceof ReferencedEntityPredecessor predecessorValue) {
 			builder.setPredecessorValue(toGrpcPredecessor(predecessorValue));
 		} else if (value instanceof byte[] byteArrayValues) {
 			builder.setIntegerArrayValue(toGrpcByteArray(byteArrayValues));
@@ -676,6 +679,18 @@ public class EvitaDataTypesConverter {
 	public static Predecessor toPredecessor(@Nonnull GrpcPredecessor predecessor) {
 		return predecessor.getHead() ? Predecessor.HEAD :
 			(predecessor.hasPredecessorId() ? new Predecessor(predecessor.getPredecessorId().getValue()) : null);
+	}
+
+	/**
+	 * This method is used to convert a {@link GrpcPredecessor} to {@link ReferencedEntityPredecessor}.
+	 *
+	 * @param predecessor value to be converted
+	 * @return {@link ReferencedEntityPredecessor} instance
+	 */
+	@Nonnull
+	public static ReferencedEntityPredecessor toReferencedEntityPredecessor(@Nonnull GrpcPredecessor predecessor) {
+		return predecessor.getHead() ? ReferencedEntityPredecessor.HEAD :
+			(predecessor.hasPredecessorId() ? new ReferencedEntityPredecessor(predecessor.getPredecessorId().getValue()) : null);
 	}
 
 	/**
@@ -1375,6 +1390,25 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static GrpcPredecessor toGrpcPredecessor(@Nonnull Predecessor predecessor) {
+		if (predecessor.isHead()) {
+			return GrpcPredecessor.newBuilder()
+				.setHead(true)
+				.build();
+		} else {
+			return GrpcPredecessor.newBuilder()
+				.setPredecessorId(Int32Value.of(predecessor.predecessorPk()))
+				.build();
+		}
+	}
+
+	/**
+	 * This method is used to convert a {@link ReferencedEntityPredecessor} to {@link GrpcPredecessor}.
+	 *
+	 * @param predecessor value to be converted
+	 * @return {@link GrpcPredecessor} value
+	 */
+	@Nonnull
+	public static GrpcPredecessor toGrpcPredecessor(@Nonnull ReferencedEntityPredecessor predecessor) {
 		if (predecessor.isHead()) {
 			return GrpcPredecessor.newBuilder()
 				.setHead(true)
