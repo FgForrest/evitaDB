@@ -575,7 +575,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					});
 				} else {
 					// no session to close, we couldn't return the catalog version, return error
-					throw new SessionNotFoundException("No session for closing found!");
+					responseObserver.onError(
+						new SessionNotFoundException("No session for closing found!")
+					);
 				}
 			},
 			evita.getRequestExecutor(),

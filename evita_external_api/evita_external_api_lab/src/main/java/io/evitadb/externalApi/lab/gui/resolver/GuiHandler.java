@@ -159,12 +159,10 @@ public class GuiHandler implements HttpService {
 	 * If true, the evitaLab GUI will be in read-only mode.
 	 */
 	private void passReadOnlyFlag(@Nonnull ServiceRequestContext ctx) {
-		if (labConfig.getGui().isReadOnly()) {
-			ctx.addAdditionalResponseHeader(
-				HttpHeaderNames.SET_COOKIE,
-				createCookie(EVITALAB_READONLY_COOKIE, "true")
-			);
-		}
+		ctx.addAdditionalResponseHeader(
+			HttpHeaderNames.SET_COOKIE,
+			createCookie(EVITALAB_READONLY_COOKIE, String.valueOf(labConfig.getGui().isReadOnly()))
+		);
 	}
 
 	/**

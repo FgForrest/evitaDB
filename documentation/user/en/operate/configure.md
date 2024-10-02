@@ -922,8 +922,10 @@ more information.
 
 ### evitaLab configuration
 
-evitaLab configuration primarily exposes a special API used by the [evitaLab web client](https://github.com/lukashornych/evitaLab).
-Besides that, it can also serve an entire evitaLab web client as its copy is built-in in evitaDB. 
+evitaLab configuration primarily provides access to all enabled evitaDB APIs for the [evitaLab web client](https://github.com/lukashornych/evitaLab).
+Besides that, it can also expose and serve an entire embedded version of the evitaLab web client. In default configuration,
+it will expose the embedded evitaLab web client with preconfigured connection to the evitaDB server based on configuration
+of other APIs.
 
 <dl>
     <dt>enabled</dt>
@@ -984,14 +986,12 @@ This configuration controls how the actual evitaLab web client will be served th
 
         <p>
         It accepts either a path to YAML file prefixed with `!include` with a list of connections, or a list of connections
-        directly in the main configuration. A single connection can be defined as follows:
+        directly in the configuration. A single connection can be defined as follows:
 
         ```yaml
-        - name: "evitaDB local" # name displayed in evitaLab in connection manager
-          systemUrl: "http://your-server:5555/system" # mandatory URL of the evitaDB's system API accessible from the web browser
-          grpcUrl: "http://your-server:5555/" # mandatory URL of the evitaDB's gRPC API accessible from the web browser
-          gqlUrl: "http://your-server:5555/gql" # mandatory URL of the GraphQL API accessible from the web browser
-          restUrl: "http://your-server:5555/rest" # optional URL of the GraphQL API accessible from the web browser
+        - id: "evitadb-local" # optional connection ID, if missing, the name is used to generate unique ID 
+          name: "evitaDB local" # name displayed in evitaLab in connection manager
+          serverUrl: "http://your-server:5555" # root server URL where the evitaLab API is exposed
         ```
         </p>
 
