@@ -58,6 +58,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -118,6 +119,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(EvitaParameterResolver.class)
 class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	public static final String ATTRIBUTE_ORDER = "order";
+	public static final String ATTRIBUTE_CATEGORY_ORDER = "orderInCategory";
 	public static final String ATTRIBUTE_UUID = "uuid";
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "EvitaReadOnlyClientDataSet";
@@ -128,6 +130,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		return primaryKey == 0 ? null : primaryKey;
 	};
 	private static final int PRODUCT_COUNT = 10;
+	public static final String REFERENCE_PRODUCTS_IN_CATEGORY = "productsInCategory";
 
 	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, destroyAfterClass = true)
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
@@ -135,8 +138,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			.registerValueGenerator(
 				Entities.PRICE_LIST, ATTRIBUTE_ORDER,
 				faker -> Predecessor.HEAD
-			)
-			.build();
+		).registerValueGenerator(
+			Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER,
+			faker -> Predecessor.HEAD
+		).build();
 		GENERATED_ENTITIES.clear();
 
 		final ApiOptions apiOptions = evitaServer.getExternalApiServer()
@@ -194,6 +199,12 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 							dataGenerator.getSampleCategorySchema(
 								session,
 								builder -> {
+									builder.withReflectedReferenceToEntity(
+										REFERENCE_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, Entities.CATEGORY,
+										whichIs -> whichIs
+											.withAttributesInherited()
+											.withCardinality(Cardinality.ZERO_OR_MORE)
+									);
 									session.updateEntitySchema(builder);
 									return builder.toInstance();
 								}
@@ -274,6 +285,11 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 										Entities.PARAMETER,
 										Cardinality.ZERO_OR_MORE,
 										thatIs -> thatIs.faceted().withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
+									)
+									.withReferenceToEntity(
+										Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+										whichIs -> whichIs.indexed()
+											.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class)
 									);
 								session.updateEntitySchema(builder);
 								return builder.toInstance();
@@ -835,6 +851,53 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			assertEquals(requestedIds[i], product.getPrimaryKey());
 			assertProduct(products.get(requestedIds[i]), product, originalCategories);
 		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldFetchReferencedEntityPredecessors(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final int[] categoryPks = products.values()
+					.stream()
+					.flatMapToInt(
+						it -> it.getReferences(Entities.CATEGORY)
+							.stream()
+							.filter(ref -> ref.getAttribute(ATTRIBUTE_CATEGORY_ORDER) != null)
+							.mapToInt(ReferenceContract::getReferencedPrimaryKey))
+					.distinct()
+					.limit(5)
+					.toArray();
+
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(categoryPks)
+						),
+						require(
+							entityFetchAll()
+						)
+					),
+					SealedEntity.class
+				);
+
+				for (SealedEntity category : categories) {
+					final Collection<ReferenceContract> references = category.getReferences(REFERENCE_PRODUCTS_IN_CATEGORY);
+					assertNotNull(references);
+					assertFalse(references.isEmpty());
+					boolean found = false;
+					for (ReferenceContract reference : references) {
+						if (reference.getAttribute(ATTRIBUTE_CATEGORY_ORDER, ReferencedEntityPredecessor.class) != null) {
+							found = true;
+							break;
+						}
+					}
+					assertTrue(found, "No reference with attribute " + ATTRIBUTE_CATEGORY_ORDER + " found!");
+				}
+			}
+		);
 	}
 
 	@Test
