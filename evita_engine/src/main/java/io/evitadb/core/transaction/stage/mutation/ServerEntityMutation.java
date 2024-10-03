@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.stage.mutation;
 
 
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 
 import javax.annotation.Nonnull;
 import java.util.EnumSet;
@@ -61,5 +62,12 @@ public interface ServerEntityMutation {
 	 */
 	@Nonnull
 	EnumSet<ImplicitMutationBehavior> getImplicitMutationsBehavior();
+
+	/**
+	 * Returns the original entity mutation this server entity mutation is based on.
+	 * @return the original entity mutation
+	 */
+	@Nonnull
+	EntityMutation getDelegate();
 
 }

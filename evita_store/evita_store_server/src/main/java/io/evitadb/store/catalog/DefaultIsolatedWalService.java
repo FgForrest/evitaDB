@@ -26,6 +26,7 @@ package io.evitadb.store.catalog;
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.TransactionContract;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
@@ -82,11 +83,13 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 			"write mutation",
 			() -> { },
 			output -> {
+				final Mutation mutationToWrite = mutation instanceof ServerEntityMutation sem ?
+					sem.getDelegate() : mutation;
 				final StorageRecord<Mutation> record = new StorageRecord<>(
 					output, catalogVersion, false,
 					theOutput -> {
-						writeKryo.writeClassAndObject(output, mutation);
-						return mutation;
+						writeKryo.writeClassAndObject(output, mutationToWrite);
+						return mutationToWrite;
 					}
 				);
 				return record.fileLocation().recordLength();

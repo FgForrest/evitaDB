@@ -50,8 +50,9 @@ public class ServerEntityUpsertMutation extends EntityUpsertMutation implements 
 	 * Specifies whether the implicit mutations should be generated or not.
 	 */
 	@Getter public final EnumSet<ImplicitMutationBehavior> implicitMutations;
-	public final boolean verifyConsistency;
-	public final boolean applyUndoOnError;
+	@Getter private final EntityUpsertMutation delegate;
+	private final boolean verifyConsistency;
+	private final boolean applyUndoOnError;
 
 	public ServerEntityUpsertMutation(
 		@Nonnull EntityUpsertMutation entityUpsertMutation,
@@ -65,6 +66,7 @@ public class ServerEntityUpsertMutation extends EntityUpsertMutation implements 
 			entityUpsertMutation.expects(),
 			entityUpsertMutation.getLocalMutations()
 		);
+		this.delegate = entityUpsertMutation;
 		this.implicitMutations = implicitMutations;
 		this.applyUndoOnError = applyUndoOnError;
 		this.verifyConsistency = verifyConsistency;
@@ -85,6 +87,7 @@ public class ServerEntityUpsertMutation extends EntityUpsertMutation implements 
 			entityExistence,
 			localMutations
 		);
+		this.delegate = new EntityUpsertMutation(entityType, entityPrimaryKey, entityExistence, localMutations);
 		this.implicitMutations = implicitMutations;
 		this.applyUndoOnError = applyUndoOnError;
 		this.verifyConsistency = verifyConsistency;

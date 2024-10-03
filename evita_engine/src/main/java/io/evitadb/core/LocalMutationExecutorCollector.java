@@ -150,7 +150,12 @@ class LocalMutationExecutorCollector {
 		// first register all mutation applicators and mutations to the internal state
 		this.executors.add(entityIndexUpdater);
 		this.executors.add(changeCollector);
-		this.entityMutations.add(entityMutation);
+		// add the mutation to the list of mutations, but only for root level mutations
+		// mutations on lower levels are implicit mutations which should not be written to WAL (considered), because
+		// are automatically generated when top level mutation is applied (replayed)
+		if (level == 0) {
+			this.entityMutations.add(entityMutation);
+		}
 
 		// apply mutations using applicators
 		EntityWithFetchCount result = null;
