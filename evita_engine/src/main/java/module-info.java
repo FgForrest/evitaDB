@@ -74,7 +74,7 @@ module evita.engine {
 	exports io.evitadb.store.spi.exception;
 
 	uses io.evitadb.api.CatalogStructuralChangeObserver;
-	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;;
+	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
 	requires static lombok;
 	requires static jsr305;
