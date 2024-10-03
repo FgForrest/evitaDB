@@ -143,7 +143,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> new Page(
 				ctx.args.pageNumber.accept(intValueTokenVisitor).asInt(),
-				ctx.args.pageSize.accept(intValueTokenVisitor).asInt()
+				ctx.args.pageSize.accept(intValueTokenVisitor).asInt(),
+				/* TODO JNO */
+				null
 			)
 		);
 	}

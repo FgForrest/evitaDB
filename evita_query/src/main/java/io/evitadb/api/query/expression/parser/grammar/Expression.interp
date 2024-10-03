@@ -23,7 +23,7 @@ null
 'ceil'
 'sqrt'
 'floor'
-'randomInt'
+'random'
 null
 null
 null

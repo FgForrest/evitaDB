@@ -26,6 +26,7 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -74,13 +75,14 @@ import java.util.Arrays;
 @ConstraintDefinition(
 	name = "spacing",
 	shortDescription = "The container allows to define rules for inserting gaps instead of entities on particular pages.",
-	userDocsLink = "/documentation/query/requirements/paging#spacing"
+	userDocsLink = "/documentation/query/requirements/paging#spacing",
+	supportedIn = ConstraintDomain.SEGMENT
 )
 public class Spacing extends AbstractRequireConstraintContainer implements GenericConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = 6352220342769661652L;
 
 	@Creator
-	public Spacing(@Nonnull @Child SpacingGap... children) {
+	public Spacing(@Nonnull @Child(domain = ConstraintDomain.SEGMENT) SpacingGap... children) {
 		super(children);
 	}
 

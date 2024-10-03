@@ -23,22 +23,15 @@
 
 package io.evitadb.api.query.expression.parser.visitor;
 
+import io.evitadb.api.query.expression.ExpressionNode;
 import io.evitadb.api.query.expression.parser.grammar.ExpressionBaseVisitor;
 import io.evitadb.api.query.expression.parser.grammar.ExpressionParser.*;
-import io.evitadb.api.query.expression.parser.visitor.operators.ExpressionNode;
-import io.evitadb.api.query.expression.parser.visitor.operators.boolOperator.ConjunctionOperator;
-import io.evitadb.api.query.expression.parser.visitor.operators.boolOperator.DisjunctionOperator;
-import io.evitadb.api.query.expression.parser.visitor.operators.boolOperator.EqualsOperator;
-import io.evitadb.api.query.expression.parser.visitor.operators.boolOperator.GreaterThanEqualsOperator;
-import io.evitadb.api.query.expression.parser.visitor.operators.boolOperator.GreaterThanOperator;
-import io.evitadb.api.query.expression.parser.visitor.operators.boolOperator.InverseOperator;
-import io.evitadb.api.query.expression.parser.visitor.operators.boolOperator.LesserThanEqualsOperator;
-import io.evitadb.api.query.expression.parser.visitor.operators.boolOperator.LesserThanOperator;
-import io.evitadb.api.query.expression.parser.visitor.operators.boolOperator.NotEqualsOperator;
-import io.evitadb.api.query.expression.parser.visitor.operators.numericOperator.*;
-import io.evitadb.api.query.expression.parser.visitor.operators.operand.ConstantOperand;
-import io.evitadb.api.query.expression.parser.visitor.operators.operand.RandomOperand;
-import io.evitadb.api.query.expression.parser.visitor.operators.operand.VariableOperand;
+import io.evitadb.api.query.expression.parser.visitor.boolOperator.*;
+import io.evitadb.api.query.expression.parser.visitor.numericOperator.*;
+import io.evitadb.api.query.expression.parser.visitor.operand.ConstantOperand;
+import io.evitadb.api.query.expression.parser.visitor.operand.PositiveNumberOperand;
+import io.evitadb.api.query.expression.parser.visitor.operand.RandomOperand;
+import io.evitadb.api.query.expression.parser.visitor.operand.VariableOperand;
 import io.evitadb.utils.StringUtils;
 
 import java.math.BigDecimal;
@@ -92,7 +85,7 @@ public class DefaultExpressionVisitor extends ExpressionBaseVisitor<ExpressionNo
 
 	@Override
 	public ExpressionNode visitNestedExpression(NestedExpressionContext ctx) {
-		return ctx.expression().accept(this);
+		return new NestedOperator(ctx.expression().accept(this));
 	}
 
 	@Override
@@ -212,7 +205,7 @@ public class DefaultExpressionVisitor extends ExpressionBaseVisitor<ExpressionNo
 
 	@Override
 	public ExpressionNode visitPositiveSignedAtom(PositiveSignedAtomContext ctx) {
-		return ctx.signedAtom().accept(this);
+		return new PositiveNumberOperand(ctx.signedAtom().accept(this));
 	}
 
 	@Override
@@ -242,7 +235,7 @@ public class DefaultExpressionVisitor extends ExpressionBaseVisitor<ExpressionNo
 
 	@Override
 	public ExpressionNode visitExpressionAtom(ExpressionAtomContext ctx) {
-		return ctx.combinationExpression().accept(this);
+		return new NestedOperator(ctx.combinationExpression().accept(this));
 	}
 
 	@Override

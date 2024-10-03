@@ -143,7 +143,7 @@ SQRT : 'sqrt' ;
 
 FLOOR : 'floor' ;
 
-RANDOM_INT : 'randomInt' ;
+RANDOM_INT : 'random' ;
 
 fragment SIGN
     : '+'

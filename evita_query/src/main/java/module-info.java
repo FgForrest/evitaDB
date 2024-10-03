@@ -12,6 +12,9 @@ module evita.query {
 	exports io.evitadb.api.query.order;
 	exports io.evitadb.api.query.require;
 	exports io.evitadb.api.query.parser;
+	exports io.evitadb.api.query.expression;
+	exports io.evitadb.api.query.expression.evaluate;
+	exports io.evitadb.api.query.expression.exception;
 
 	requires static jsr305;
 	requires static lombok;

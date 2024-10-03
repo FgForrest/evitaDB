@@ -49,4 +49,4 @@ BOOLEAN=29
 'ceil'=21
 'sqrt'=22
 'floor'=23
-'randomInt'=24
+'random'=24

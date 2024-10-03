@@ -24,15 +24,16 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.expression.ExpressionNode;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.function.IntPredicate;
 
 /**
  * The `gap` constraint can only be used within the {@link Spacing} container and defines a single rule that makes
@@ -68,7 +69,8 @@ import java.util.function.IntPredicate;
 @ConstraintDefinition(
 	name = "gap",
 	shortDescription = "The constraint sizes the number of entities in particular segment of the output.",
-	userDocsLink = "/documentation/query/requirements/paging#spacing-gap"
+	userDocsLink = "/documentation/query/requirements/paging#spacing-gap",
+	supportedIn = ConstraintDomain.SEGMENT
 )
 public class SpacingGap extends AbstractRequireConstraintLeaf {
 	@Serial private static final long serialVersionUID = -2372173491681325841L;
@@ -81,15 +83,11 @@ public class SpacingGap extends AbstractRequireConstraintLeaf {
 	}
 
 	@Creator
-	public SpacingGap(int size, @Nonnull String onPage) {
+	public SpacingGap(int size, @Nonnull ExpressionNode onPage) {
 		// because this query can be used only within some other segment query, it would be
 		// unnecessary to duplicate the segment prefix
 		super(CONSTRAINT_NAME, size);
 		Assert.isTrue(size > 0, () -> new EvitaInvalidUsageException("Segment size must be greater than zero."));
-	}
-
-	public SpacingGap(int size, @Nonnull IntPredicate pagePredicate) {
-
 	}
 
 	/**

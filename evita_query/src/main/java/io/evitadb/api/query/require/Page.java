@@ -25,7 +25,9 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.PaginatedList;
@@ -70,8 +72,12 @@ public class Page extends AbstractRequireConstraintLeaf implements GenericConstr
 		super(arguments);
 	}
 
-	@Creator
 	public Page(@Nullable Integer number, @Nullable Integer size) {
+		this(number, size, null);
+	}
+
+	@Creator
+	public Page(@Nullable Integer number, @Nullable Integer size, @Nullable @Child(domain = ConstraintDomain.SEGMENT) Spacing spacing) {
 		super(
 			Optional.ofNullable(number).orElse(1),
 			Optional.ofNullable(size).orElse(20)

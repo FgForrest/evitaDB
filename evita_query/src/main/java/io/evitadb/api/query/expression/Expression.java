@@ -23,12 +23,11 @@
 
 package io.evitadb.api.query.expression;
 
-import io.evitadb.api.query.expression.parser.exception.ExpressionEvaluationException;
-import io.evitadb.api.query.expression.parser.exception.ParserException;
+import io.evitadb.api.query.expression.exception.ExpressionEvaluationException;
+import io.evitadb.api.query.expression.exception.ParserException;
 import io.evitadb.api.query.expression.parser.grammar.ExpressionLexer;
 import io.evitadb.api.query.expression.parser.grammar.ExpressionParser;
 import io.evitadb.api.query.expression.parser.visitor.DefaultExpressionVisitor;
-import io.evitadb.api.query.expression.parser.visitor.operators.ExpressionNode;
 import io.evitadb.api.query.parser.exception.BailErrorStrategy;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.exception.SyntaxErrorReporter;
