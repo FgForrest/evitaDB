@@ -21,8 +21,6 @@
  *   limitations under the License.
  */
 
-import io.evitadb.api.CatalogStructuralChangeObserver;
-
 /**
  * The implementation of evitaDB.
  */
@@ -75,8 +73,8 @@ module evita.engine {
 	exports io.evitadb.store.spi.model.storageParts.index;
 	exports io.evitadb.store.spi.exception;
 
-	uses CatalogStructuralChangeObserver;
-	uses CatalogPersistenceServiceFactory;
+	uses io.evitadb.api.CatalogStructuralChangeObserver;
+	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;;
 
 	requires static lombok;
 	requires static jsr305;
