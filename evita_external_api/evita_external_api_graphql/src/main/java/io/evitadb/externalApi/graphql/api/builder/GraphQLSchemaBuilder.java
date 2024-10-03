@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.builder;
 
 import graphql.schema.GraphQLEnumType;
+import io.evitadb.api.query.expression.ExpressionNode;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
@@ -149,6 +150,7 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		registerScalarValue(scalarBuilder, Predecessor.class);
 		registerScalarValue(scalarBuilder, ReferencedEntityPredecessor.class);
 		registerScalarValue(scalarBuilder, ComplexDataObject.class);
+		registerScalarValue(scalarBuilder, ExpressionNode.class);
 
 		return scalarBuilder.build();
 	}

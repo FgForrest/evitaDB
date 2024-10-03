@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.query.expression.ExpressionNode;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -109,6 +110,7 @@ public class ObjectJsonSerializer {
 		if (value instanceof UUID uuid) return jsonNodeFactory.textNode(serialize(uuid));
 		if (value instanceof Predecessor predecessor) return jsonNodeFactory.numberNode(serialize(predecessor));
 		if (value instanceof PriceContract price) return serialize(price);
+		if (value instanceof ExpressionNode expression) return jsonNodeFactory.textNode(expression.toString());
 		if (value.getClass().isEnum()) return jsonNodeFactory.textNode(serialize((Enum<?>) value));
 
 		throw new RestInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
