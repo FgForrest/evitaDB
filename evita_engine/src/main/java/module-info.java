@@ -22,7 +22,6 @@
  */
 
 import io.evitadb.api.CatalogStructuralChangeObserver;
-import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
 /**
  * The implementation of evitaDB.
@@ -100,4 +99,5 @@ module evita.engine {
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	opens io.evitadb.core.metric.event.storage to jdk.jfr;
+	exports io.evitadb.core.transaction.stage.mutation;
 }
