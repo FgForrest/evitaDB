@@ -120,8 +120,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final int SEED = 40;
-
 	private static final String PRODUCT_QUERY_PATH = "data.queryProduct";
 	public static final String PRODUCT_QUERY_DATA_PATH = PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name();
 	private static final String CATEGORY_QUERY_PATH = "data.queryCategory";
@@ -138,78 +136,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	private static final String REFERENCED_ROOT_SIBLINGS_PATH = REFERENCED_HIERARCHY_PATH + ".rootSiblings";
 
 	private static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_QUERY = GRAPHQL_THOUSAND_PRODUCTS + "forEmptyQuery";
-	private static final String GRAPHQL_HUNDRED_PRODUCTS_FOR_SEGMENTS = "GraphQLHundredProductsForSegments";
 
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_QUERY, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUpForEmptyQuery(Evita evita) {
 		return super.setUpData(evita, 0);
-	}
-
-	@DataSet(value = GRAPHQL_HUNDRED_PRODUCTS_FOR_SEGMENTS, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
-	DataCarrier setUpForSegments(Evita evita) {
-		return evita.updateCatalog(TEST_CATALOG, session -> {
-			final DataGenerator dataGenerator = new DataGenerator();
-			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
-				final int entityCount = session.getEntityCollectionSize(entityType);
-				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
-				return primaryKey == 0 ? null : primaryKey;
-			};
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleBrandSchema(session),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(5)
-				.forEach(session::upsertEntity);
-
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleCategorySchema(session),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(10)
-				.forEach(session::upsertEntity);
-
-			dataGenerator.generateEntities(
-					dataGenerator.getSamplePriceListSchema(session),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(4)
-				.forEach(session::upsertEntity);
-
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleStoreSchema(session),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(12)
-				.forEach(session::upsertEntity);
-
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
-					dataGenerator.getSampleProductSchema(
-						session,
-						builder -> {
-							builder
-								.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized(() -> false).filterable().sortable().nullable(() -> false))
-								.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.filterable().sortable().nullable(() -> false))
-								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().sortable().nullable(() -> false));
-						}
-					),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(100)
-				.map(session::upsertEntity)
-				.toList();
-
-			return new DataCarrier(
-				"originalProductEntities",
-				storedProducts.stream()
-					.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
-					.collect(Collectors.toList())
-			);
-		});
 	}
 
 	@Test

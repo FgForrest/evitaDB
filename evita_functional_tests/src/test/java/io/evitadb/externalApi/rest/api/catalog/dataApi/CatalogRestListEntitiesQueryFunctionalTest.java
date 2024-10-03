@@ -23,6 +23,11 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.Query;
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.order.Segments;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -38,6 +43,7 @@ import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -52,10 +58,12 @@ import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -1314,5 +1322,283 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.executeAndThen()
 			.statusCode(200)
 			.body(EntityDescriptor.PRIMARY_KEY.name(), contains(expectedEntities.stream().limit(5).toArray(Integer[]::new)));
+	}
+
+
+	@Test
+	@UseDataSet(REST_HUNDRED_PRODUCTS_FOR_SEGMENTS)
+	@DisplayName("Should return entities in manually crafter segmented order")
+	void shouldReturnDifferentlySortedSegments(Evita evita, RestTester tester) {
+		final Segments evitaQLSegments = segments(
+			segment(
+				orderBy(
+					attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+				),
+				limit(5)
+			),
+			segment(
+				orderBy(
+					attributeNatural(ATTRIBUTE_EAN, OrderDirection.DESC)
+				),
+				limit(2)
+			),
+			segment(
+				orderBy(
+					attributeNatural(ATTRIBUTE_QUANTITY, OrderDirection.ASC)
+				),
+				limit(2)
+			)
+		);
+		final String graphQLSegments = """
+			"segments": [
+			  {
+			    "segment": {
+			      "orderBy": [{
+			        "attributeNameNatural": "DESC"
+			      }],
+			      "limit": 5
+			    }
+			  },
+			  {
+			    "segment": {
+			      "orderBy": [{
+			        "attributeEanNatural": "DESC"
+			      }],
+			      "limit": 2
+			    }
+			  },
+			  {
+			    "segment": {
+			      "orderBy": [{
+			        "attributeQuantityNatural": "ASC"
+			      }],
+			      "limit": 2
+			    }
+			  }
+			]
+			""";
+
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertRestSegmentedQuery(
+					"First page must be sorted by name in descending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(1, 5, evitaQLSegments),
+					fabricateRestSegmentedQuery(1, 5, graphQLSegments)
+				);
+
+				assertRestSegmentedQuery(
+					"Second page must be sorted by ean in descending order and quantity in asceding order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(2, 5, evitaQLSegments),
+					fabricateRestSegmentedQuery(2, 5, graphQLSegments)
+				);
+
+				assertRestSegmentedQuery(
+					"Third page must be sorted by PK in ascending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(3, 5, evitaQLSegments),
+					fabricateRestSegmentedQuery(3, 5, graphQLSegments)
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_PRODUCTS_FOR_SEGMENTS)
+	@DisplayName("Should return filtered entities in manually crafter segmented order")
+	void shouldReturnDifferentlySortedAndFilteredSegments(Evita evita, RestTester tester) {
+		final Segments evitaQLSegments = segments(
+			segment(
+				entityHaving(
+					attributeLessThanEquals(ATTRIBUTE_NAME, "L")
+				),
+				orderBy(
+					attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+				),
+				limit(10)
+			),
+			segment(
+				entityHaving(
+					attributeLessThanEquals(ATTRIBUTE_NAME, "P")
+				),
+				orderBy(
+					attributeNatural(ATTRIBUTE_EAN, OrderDirection.DESC)
+				),
+				limit(8)
+			),
+			segment(
+				entityHaving(
+					attributeLessThanEquals(ATTRIBUTE_NAME, "T")
+				),
+				orderBy(
+					attributeNatural(ATTRIBUTE_QUANTITY, OrderDirection.ASC)
+				),
+				limit(6)
+			)
+		);
+		final String graphQLSegments = """
+			"segments": [
+			  {
+			    "segment": {
+			      "entityHaving": {
+			        "attributeNameLessThanEquals": "L"
+			      },
+			      "orderBy": [{
+			        "attributeNameNatural": "DESC"
+			      }],
+			      "limit": 10
+			    }
+			  },
+			  {
+			    "segment": {
+			      "entityHaving": {
+			        "attributeNameLessThanEquals": "P"
+			      },
+			      "orderBy": [{
+			        "attributeEanNatural": "DESC"
+			      }],
+			      "limit": 8
+			    }
+			  },
+			  {
+			    "segment": {
+			      "entityHaving": {
+			        "attributeNameLessThanEquals": "T"
+			      },
+			      "orderBy": [{
+			        "attributeQuantityNatural": "ASC"
+			      }],
+			      "limit": 6
+			    }
+			  }
+			]
+			""";
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertRestSegmentedQuery(
+					"First page must be sorted by name in descending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(1, 5, evitaQLSegments),
+					fabricateRestSegmentedQuery(1, 5, graphQLSegments)
+				);
+
+				assertRestSegmentedQuery(
+					"Second page must be sorted by name in descending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(2, 5, evitaQLSegments),
+					fabricateRestSegmentedQuery(2, 5, graphQLSegments)
+				);
+
+				assertRestSegmentedQuery(
+					"Third page must be sorted by EAN in descending order (excluding items on first two pages).",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(3, 5, evitaQLSegments),
+					fabricateRestSegmentedQuery(3, 5, graphQLSegments)
+				);
+
+				assertRestSegmentedQuery(
+					"Fourth page contains 3 entities sorted according to EAN in descending order and ends with first 2 entities sorted according to quantity in ascending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(4, 5, evitaQLSegments),
+					fabricateRestSegmentedQuery(4, 5, graphQLSegments)
+				);
+
+				assertRestSegmentedQuery(
+					"Fifth page must have only 4 entities be sorted by quantity in ascending order and must end with first entity sorted by PK in ascending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(5, 5, evitaQLSegments),
+					fabricateRestSegmentedQuery(5, 5, graphQLSegments)
+				);
+
+				assertRestSegmentedQuery(
+					"Sixth page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(6, 5, evitaQLSegments),
+					fabricateRestSegmentedQuery(6, 5, graphQLSegments)
+				);
+
+				assertRestSegmentedQuery(
+					"Seventh page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(7, 5, evitaQLSegments),
+					fabricateRestSegmentedQuery(7, 5, graphQLSegments)
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@Nonnull
+	private static Query fabricateEvitaQLSegmentedQuery(int pageNumber, int pageSize, @Nonnull Segments segments) {
+		return query(
+			collection(Entities.PRODUCT),
+			filterBy(entityLocaleEquals(Locale.ENGLISH)),
+			orderBy(segments),
+			require(
+				page(pageNumber, pageSize),
+				debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+			)
+		);
+	}
+
+
+	@Nonnull
+	private static String fabricateRestSegmentedQuery(int pageNumber, int pageSize, @Nonnull String segments) {
+		return String.format(
+			"""
+			{
+				"filterBy": {
+					"entityLocaleEquals": "en"
+				},
+				"orderBy": [{
+					%s
+				}],
+				"require": {
+					"page": {
+						"number": %d,
+						"size": %d
+					}
+				}
+			}
+			""",
+			segments,
+			pageNumber,
+			pageSize
+		);
+	}
+
+	private void assertRestSegmentedQuery(@Nonnull String message,
+	                                      @Nonnull EvitaSessionContract session,
+	                                      @Nonnull RestTester tester,
+	                                      @Nonnull Query sampleEvitaQLQuery,
+	                                      @Nonnull String targetRestQuery) {
+		final int[] expectedEntities = session.query(sampleEvitaQLQuery, EntityReference.class)
+			.getRecordData()
+			.stream()
+			.mapToInt(EntityReference::getPrimaryKey)
+			.toArray();
+		assertEquals(5, expectedEntities.length);
+		final List<Integer> actualEntities = tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(targetRestQuery)
+			.executeAndExpectOkAndThen()
+			.extract()
+			.body()
+			.jsonPath()
+			.getList(EntityDescriptor.PRIMARY_KEY.name(), Integer.class);
+		assertSortedResultEquals(
+			message,
+			actualEntities,
+			expectedEntities
+		);
 	}
 }

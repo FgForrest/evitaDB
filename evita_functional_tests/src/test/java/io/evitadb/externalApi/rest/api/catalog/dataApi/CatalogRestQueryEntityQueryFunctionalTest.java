@@ -108,8 +108,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
-	private static final int SEED = 40;
-
 	private static final String DATA_PATH = ResponseDescriptor.RECORD_PAGE.name() + ".data";
 	private static final String HIERARCHY_EXTRA_RESULTS_PATH = ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
 
@@ -120,76 +118,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	private static final String REFERENCED_HIERARCHY_EXTRA_RESULTS_PATH = HIERARCHY_EXTRA_RESULTS_PATH + ".category";
 	private static final String REFERENCED_MEGA_MENU_PATH = REFERENCED_HIERARCHY_EXTRA_RESULTS_PATH + ".megaMenu";
 	private static final String REFERENCED_ROOT_SIBLINGS_PATH = REFERENCED_HIERARCHY_EXTRA_RESULTS_PATH + ".rootSiblings";
-
-	private static final String REST_HUNDRED_PRODUCTS_FOR_SEGMENTS = "RestHundredProductsForSegments";
-
-
-	@DataSet(value = REST_HUNDRED_PRODUCTS_FOR_SEGMENTS, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
-	DataCarrier setUpForSegments(Evita evita) {
-		return evita.updateCatalog(TEST_CATALOG, session -> {
-			final DataGenerator dataGenerator = new DataGenerator();
-			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
-				final int entityCount = session.getEntityCollectionSize(entityType);
-				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
-				return primaryKey == 0 ? null : primaryKey;
-			};
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleBrandSchema(session),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(5)
-				.forEach(session::upsertEntity);
-
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleCategorySchema(session),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(10)
-				.forEach(session::upsertEntity);
-
-			dataGenerator.generateEntities(
-					dataGenerator.getSamplePriceListSchema(session),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(4)
-				.forEach(session::upsertEntity);
-
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleStoreSchema(session),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(12)
-				.forEach(session::upsertEntity);
-
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
-					dataGenerator.getSampleProductSchema(
-						session,
-						builder -> {
-							builder
-								.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized(() -> false).filterable().sortable().nullable(() -> false))
-								.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.filterable().sortable().nullable(() -> false))
-								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().sortable().nullable(() -> false));
-						}
-					),
-					randomEntityPicker,
-					SEED
-				)
-				.limit(100)
-				.map(session::upsertEntity)
-				.toList();
-
-			return new DataCarrier(
-				"originalProductEntities",
-				storedProducts.stream()
-					.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
-					.collect(Collectors.toList())
-			);
-		});
-	}
 
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
