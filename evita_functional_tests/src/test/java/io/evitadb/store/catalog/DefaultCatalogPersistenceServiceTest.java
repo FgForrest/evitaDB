@@ -852,8 +852,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				),
 				OffsetDateTime.now(),
 				EntityClassifier.class,
-				null,
-				EvitaRequest.CONVERSION_NOT_SUPPORTED
+				null
 			);
 			final SealedEntity deserializedEntity = collection.getEntity(primaryKey, request, mockSession).orElseThrow();
 			final SealedEntity originEntity = entityCollection.getEntity(primaryKey, request, mockSession).orElseThrow();

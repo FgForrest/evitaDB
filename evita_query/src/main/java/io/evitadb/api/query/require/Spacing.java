@@ -33,7 +33,6 @@ import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -43,8 +42,9 @@ import java.util.Arrays;
  * are defined by the {@link SpacingGap} sub-constraints, which specify the number of entities that should be skipped
  * on the page when the `onPage` expression is evaluated to true.
  *
- * First gap space that satisfies the condition is used. If no gap space is satisfied, the page contains the number of
- * entities defined by the `page` requirement (as long as there is enough entities available in the result).
+ * All gap space definitions that satisfy the condition are used (the rules are cumulative). If no gap space is satisfied,
+ * the page contains the number of entities defined by the `page` requirement (as long as there is enough entities
+ * available in the result).
  *
  * Example of usage:
  *
@@ -63,15 +63,14 @@ import java.util.Arrays;
  * )
  * </pre>
  *
- * todo jno - document grammar
- * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/expression">the separate page</a>.
+ * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/user/en/query/expression-language.md">the separate page</a>.
  * In the context of this constraint, the expression can use only the `$pageNumber` variable, which represents
  * the currently examined page number.
  *
  * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
- */
+ **/
 @ConstraintDefinition(
 	name = "spacing",
 	shortDescription = "The container allows to define rules for inserting gaps instead of entities on particular pages.",
@@ -91,7 +90,7 @@ public class Spacing extends AbstractRequireConstraintContainer implements Gener
 	 *
 	 * @return array of gap rules
 	 */
-	@Nullable
+	@Nonnull
 	public SpacingGap[] getGaps() {
 		return Arrays.stream(getChildren())
 			.map(SpacingGap.class::cast)

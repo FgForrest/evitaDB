@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.EvitaSession;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
@@ -130,7 +131,7 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Contains reference to the enveloping {@link EvitaSessionContract} within which the {@link #evitaRequest} is executed.
 	 */
 	@Getter
-	@Nonnull private final EvitaSessionContract evitaSession;
+	@Nonnull private final EvitaSession evitaSession;
 	/**
 	 * Contains input in {@link EvitaRequest}.
 	 */
@@ -264,7 +265,8 @@ public class QueryPlanningContext implements LocaleProvider {
 			.map(EntityCollection::getSchema)
 			.map(EntitySchemaContract::getName)
 			.orElse(null);
-		this.evitaSession = evitaSession;
+		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
+		this.evitaSession = (EvitaSession) evitaSession;
 		this.evitaRequest = evitaRequest;
 		if (parentQueryContext == null) {
 			// when debug mode is enabled we need to enforce the main plan to be non-cached
@@ -858,7 +860,9 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	@Nonnull
 	public QueryExecutionContext createExecutionContext(@Nullable byte[] frozenRandom) {
-		return new QueryExecutionContext(this, frozenRandom);
+		return new QueryExecutionContext(
+			this, frozenRandom, this.evitaSession::createEntityProxy
+		);
 	}
 
 	/*

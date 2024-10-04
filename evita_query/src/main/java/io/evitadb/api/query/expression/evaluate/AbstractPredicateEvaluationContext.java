@@ -23,50 +23,30 @@
 
 package io.evitadb.api.query.expression.evaluate;
 
+import io.evitadb.dataType.expression.PredicateEvaluationContext;
+
 import javax.annotation.Nonnull;
-import java.util.Optional;
 import java.util.Random;
-import java.util.stream.Stream;
 
 /**
  * Abstract class defining the context for parsing operations. It provides a way to get variable values by their names.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public sealed abstract class PredicateEvaluationContext permits SingleVariableEvaluationContext, MultiVariableEvaluationContext {
+abstract sealed class AbstractPredicateEvaluationContext implements PredicateEvaluationContext
+	permits SingleVariableEvaluationContext, MultiVariableEvaluationContext {
 	private final Random random;
 
-	protected PredicateEvaluationContext() {
+	protected AbstractPredicateEvaluationContext() {
 		this.random = new Random();
 	}
 
-	protected PredicateEvaluationContext(long seed) {
+	protected AbstractPredicateEvaluationContext(long seed) {
 		this.random = new Random(seed);
 	}
 
-	/**
-	 * Returns stream of variable names available.
-	 *
-	 * @return stream of variable names available
-	 */
 	@Nonnull
-	public abstract Stream<String> getVariableNames();
-
-	/**
-	 * Returns variable value by its name.
-	 *
-	 * @param variableName variable name
-	 * @return variable value or empty if variable with given name does not exist
-	 */
-	@Nonnull
-	public abstract Optional<Object> getVariable(@Nonnull String variableName);
-
-	/**
-	 * Returns the random number generator.
-	 *
-	 * @return the random number generator
-	 */
-	@Nonnull
+	@Override
 	public Random getRandom() {
 		return random;
 	}

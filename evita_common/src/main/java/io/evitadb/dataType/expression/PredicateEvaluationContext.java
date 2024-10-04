@@ -21,26 +21,44 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.expression.exception;
+package io.evitadb.dataType.expression;
 
-
-import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
-import java.io.Serial;
+import java.util.Optional;
+import java.util.Random;
+import java.util.stream.Stream;
 
 /**
- * Represents an exception that occurs during the evaluation of an expression.
- * This exception is thrown when the evaluation process encounters an error,
- * indicating that there is an issue with the expression or its evaluation context.
+ * Interface defining a context for evaluating predicates. It provides access to variable names,
+ * variable values, and a random number generator.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class ExpressionEvaluationException extends EvitaInvalidUsageException {
-	@Serial private static final long serialVersionUID = 7564732111737294881L;
+public interface PredicateEvaluationContext {
+	/**
+	 * Returns stream of variable names available.
+	 *
+	 * @return stream of variable names available
+	 */
+	@Nonnull
+	Stream<String> getVariableNames();
 
-	public ExpressionEvaluationException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
-		super(privateMessage, publicMessage, cause);
-	}
+	/**
+	 * Returns variable value by its name.
+	 *
+	 * @param variableName variable name
+	 * @return variable value or empty if variable with given name does not exist
+	 */
+	@Nonnull
+	Optional<Object> getVariable(@Nonnull String variableName);
+
+	/**
+	 * Returns the random number generator.
+	 *
+	 * @return the random number generator
+	 */
+	@Nonnull
+	Random getRandom();
 
 }

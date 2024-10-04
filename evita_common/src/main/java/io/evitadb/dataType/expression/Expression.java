@@ -21,47 +21,34 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.expression.parser.visitor.operand;
+package io.evitadb.dataType.expression;
 
 
-import io.evitadb.api.query.expression.exception.ParserException;
-import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.PredicateEvaluationContext;
-import io.evitadb.utils.Assert;
-import lombok.Getter;
+import io.evitadb.exception.ExpressionEvaluationException;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The ConstantOperand class represents an operator that always returns a constant value.
- * This class implements the ExpressionNode interface and is used to encapsulate a Serializable value
- * that will be returned whenever the compute method is called.
+ * Class wraps an {@link ExpressionNode} object and provides a way to evaluate the expression.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class ConstantOperand implements ExpressionNode {
-	@Serial private static final long serialVersionUID = 272389410429555636L;
-	@Getter private final Serializable value;
-
-	public ConstantOperand(Serializable value) {
-		Assert.isTrue(
-			value != null,
-			() -> new ParserException("Null value is not allowed!")
-		);
-		this.value = value;
-	}
+@RequiredArgsConstructor
+public class Expression implements ExpressionNode {
+	@Serial private static final long serialVersionUID = 661548006498130632L;
+	private final ExpressionNode root;
 
 	@Nonnull
 	@Override
-	public Serializable compute(@Nonnull PredicateEvaluationContext context) {
-		return value;
+	public Serializable compute(@Nonnull PredicateEvaluationContext context) throws ExpressionEvaluationException {
+		return root.compute(context);
 	}
 
 	@Override
 	public String toString() {
-		return EvitaDataTypes.formatValue(this.value);
+		return root.toString();
 	}
 }

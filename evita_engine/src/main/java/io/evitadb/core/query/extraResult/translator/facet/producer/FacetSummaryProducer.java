@@ -208,7 +208,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context, @Nonnull List<T> entities) {
+	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
 		// create facet calculators - in reaction to requested depth level
 		final MemoizingFacetCalculator universalCalculator = new MemoizingFacetCalculator(
 			context, filterFormula, filterFormulaWithoutUserFilter

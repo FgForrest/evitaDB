@@ -179,6 +179,8 @@ message GrpcPaginatedList {
   int32 pageSize = 1;
   // The number of the page.
   int32 pageNumber = 2;
+  // The number of the last page.
+  int32 lastPageNumber = 3;
 }
 
 // Structure that represents a strip within a data chunk.

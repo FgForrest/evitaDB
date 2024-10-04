@@ -23,11 +23,13 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.expression.ExpressionNode;
+import io.evitadb.dataType.expression.Expression;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
@@ -57,22 +59,21 @@ import java.io.Serializable;
  * )
  * </pre>
  *
- * todo jno - document grammar
- * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/expression">the separate page</a>.
+ * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/user/en/query/expression-language.md">the separate page</a>.
  * In the context of this constraint, the expression can use only the `$pageNumber` variable, which represents
  * the currently examined page number.
  *
  * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing-gap">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
- */
+ **/
 @ConstraintDefinition(
 	name = "gap",
 	shortDescription = "The constraint sizes the number of entities in particular segment of the output.",
 	userDocsLink = "/documentation/query/requirements/paging#spacing-gap",
 	supportedIn = ConstraintDomain.SEGMENT
 )
-public class SpacingGap extends AbstractRequireConstraintLeaf {
+public class SpacingGap extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -2372173491681325841L;
 	private static final String CONSTRAINT_NAME = "gap";
 
@@ -83,10 +84,10 @@ public class SpacingGap extends AbstractRequireConstraintLeaf {
 	}
 
 	@Creator
-	public SpacingGap(int size, @Nonnull ExpressionNode onPage) {
+	public SpacingGap(int size, @Nonnull Expression onPage) {
 		// because this query can be used only within some other segment query, it would be
 		// unnecessary to duplicate the segment prefix
-		super(CONSTRAINT_NAME, size);
+		super(CONSTRAINT_NAME, size, onPage);
 		Assert.isTrue(size > 0, () -> new EvitaInvalidUsageException("Segment size must be greater than zero."));
 	}
 
@@ -97,17 +98,25 @@ public class SpacingGap extends AbstractRequireConstraintLeaf {
 		return (Integer) getArguments()[0];
 	}
 
+	/**
+	 * Returns the expression that must be evaluated to true to apply the gap.
+	 */
+	@Nonnull
+	public Expression getOnPage() {
+		return (Expression) getArguments()[1];
+	}
+
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length == 1;
+		return isArgumentsNonNull() && getArguments().length == 2;
 	}
 
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		Assert.isTrue(
-			newArguments.length == 1 && newArguments[0] instanceof Integer,
-			"Segmentsize container accepts only single integer argument!"
+			newArguments.length == 2 && newArguments[0] instanceof Integer && newArguments[1] instanceof ExpressionNode,
+			"Spacing gap container accepts only two arguments: size and onPage expression."
 		);
 		return new SpacingGap(newArguments);
 	}

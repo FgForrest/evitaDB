@@ -23,7 +23,6 @@
 
 package io.evitadb.api.query.expression;
 
-import io.evitadb.api.query.expression.exception.ExpressionEvaluationException;
 import io.evitadb.api.query.expression.exception.ParserException;
 import io.evitadb.api.query.expression.parser.grammar.ExpressionLexer;
 import io.evitadb.api.query.expression.parser.grammar.ExpressionParser;
@@ -31,7 +30,10 @@ import io.evitadb.api.query.expression.parser.visitor.DefaultExpressionVisitor;
 import io.evitadb.api.query.parser.exception.BailErrorStrategy;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.exception.SyntaxErrorReporter;
+import io.evitadb.dataType.expression.Expression;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.utils.Assert;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
@@ -40,13 +42,13 @@ import org.antlr.v4.runtime.misc.ParseCancellationException;
 import javax.annotation.Nonnull;
 
 /**
- * The Expression interface provides methods for parsing an expression string and generating the corresponding
+ * The ExpressionFactory interface provides methods for parsing an expression string and generating the corresponding
  * {@link ExpressionNode} object. {@link ExpressionNode} objects represent the parsed expression and can be used to evaluate
  * the expression.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public interface Expression {
+public interface ExpressionFactory {
 
 	/**
 	 * Parses a given expression string and returns the corresponding ExpressionNode object.
@@ -55,14 +57,14 @@ public interface Expression {
 	 * @return the ExpressionNode object resulting from parsing the input expression
 	 */
 	@Nonnull
-	static ExpressionNode parse(@Nonnull String expression) {
+	static Expression parse(@Nonnull String expression) {
 		try {
 			final ExpressionNode result = getParser(expression).expression().accept(new DefaultExpressionVisitor());
 			Assert.isPremiseValid(
 				result != null,
 				"Result of parse execution is null."
 			);
-			return result;
+			return new Expression(result);
 		} catch (EvitaInvalidUsageException e) {
 			// simply rethrow
 			throw new ExpressionEvaluationException(
@@ -89,8 +91,8 @@ public interface Expression {
 	/**
 	 * Returns new preconfigured expression parser with preconfigured lexer to string that is being parsed.
 	 *
-	 * @param stringToParse the input string to be parsed by the Expression
-	 * @return a configured Expression instance ready to parse the input string
+	 * @param stringToParse the input string to be parsed by the ExpressionFactory
+	 * @return a configured ExpressionFactory instance ready to parse the input string
 	 */
 	@Nonnull
 	private static ExpressionParser getParser(@Nonnull String stringToParse) {

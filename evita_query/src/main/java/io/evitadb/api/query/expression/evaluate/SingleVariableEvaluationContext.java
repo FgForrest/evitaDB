@@ -36,7 +36,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public final class SingleVariableEvaluationContext extends PredicateEvaluationContext {
+public final class SingleVariableEvaluationContext extends AbstractPredicateEvaluationContext {
 	private final String variableName;
 	private final Object variableValue;
 

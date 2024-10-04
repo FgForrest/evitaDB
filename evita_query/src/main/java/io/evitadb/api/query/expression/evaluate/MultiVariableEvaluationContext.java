@@ -35,7 +35,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public final class MultiVariableEvaluationContext extends PredicateEvaluationContext {
+public final class MultiVariableEvaluationContext extends AbstractPredicateEvaluationContext {
 	/**
 	 * A map storing the variables by their names. The keys are the variable names and the values are the variable values.
 	 */

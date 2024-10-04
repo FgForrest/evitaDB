@@ -21,14 +21,13 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.expression;
+package io.evitadb.dataType.expression;
 
-
-import io.evitadb.api.query.expression.evaluate.PredicateEvaluationContext;
-import io.evitadb.api.query.expression.exception.ExpressionEvaluationException;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.exception.ExpressionEvaluationException;
 
 import javax.annotation.Nonnull;
+import java.beans.Expression;
 import java.io.Serializable;
 
 /**

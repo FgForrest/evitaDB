@@ -24,6 +24,7 @@
 package io.evitadb.api.query.expression;
 
 import io.evitadb.api.query.expression.evaluate.MultiVariableEvaluationContext;
+import io.evitadb.dataType.expression.ExpressionNode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -36,7 +37,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Test class for the {@link Expression}.
+ * Test class for the {@link ExpressionFactory}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
@@ -51,7 +52,7 @@ public class ExpressionTest {
 	@ParameterizedTest
 	@MethodSource("predicates")
 	void shouldSerializeExpressionToString(String predicate, Map<String, Object> variables, boolean result) {
-		assertEquals(predicate.trim(), Expression.parse(predicate).toString());
+		assertEquals(predicate.trim(), ExpressionFactory.parse(predicate).toString());
 	}
 
 	static Stream<Arguments> predicates() {
@@ -112,7 +113,7 @@ public class ExpressionTest {
 	}
 
 	private static boolean evaluate(@Nonnull String predicate, @Nonnull Map<String, Object> variables) {
-		final ExpressionNode operator = Expression.parse(predicate);
+		final ExpressionNode operator = ExpressionFactory.parse(predicate);
 		return operator.compute(new MultiVariableEvaluationContext(42, variables), Boolean.class);
 	}
 }

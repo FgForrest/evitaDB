@@ -133,6 +133,9 @@ class RegisteredConstraintProvider {
 		Strip.class,
 		DataInLocales.class,
 		QueryTelemetry.class,
+		// spacing,
+		Spacing.class,
+		SpacingGap.class,
 		// entity
 		EntityFetch.class,
 		EntityGroupFetch.class,

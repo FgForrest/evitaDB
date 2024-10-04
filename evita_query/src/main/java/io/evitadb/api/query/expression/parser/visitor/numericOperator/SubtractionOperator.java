@@ -24,9 +24,9 @@
 package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
-import io.evitadb.api.query.expression.ExpressionNode;
-import io.evitadb.api.query.expression.evaluate.PredicateEvaluationContext;
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;

@@ -23,7 +23,6 @@
 
 package io.evitadb.api.query.expression.parser.visitor;
 
-import io.evitadb.api.query.expression.ExpressionNode;
 import io.evitadb.api.query.expression.parser.grammar.ExpressionBaseVisitor;
 import io.evitadb.api.query.expression.parser.grammar.ExpressionParser.*;
 import io.evitadb.api.query.expression.parser.visitor.boolOperator.*;
@@ -32,6 +31,7 @@ import io.evitadb.api.query.expression.parser.visitor.operand.ConstantOperand;
 import io.evitadb.api.query.expression.parser.visitor.operand.PositiveNumberOperand;
 import io.evitadb.api.query.expression.parser.visitor.operand.RandomOperand;
 import io.evitadb.api.query.expression.parser.visitor.operand.VariableOperand;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.utils.StringUtils;
 
 import java.math.BigDecimal;

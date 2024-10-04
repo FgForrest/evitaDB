@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -74,6 +75,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_EAN;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * This test verifies segmented output and spacing rules for paginated results.
@@ -689,6 +691,145 @@ public class EntityViewPortRulesFunctionalTest {
 
 				return null;
 			}
+		);
+	}
+
+	@DisplayName("Should insert spaces into paginated results")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldInsertSpaces(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HashSet<Integer> drainedPks = new HashSet<>();
+				assertEquals(
+					8,
+					registerPks(
+						session.query(
+							fabricateSpacingQuery(1, 10),
+							EntityReference.class
+						),
+						drainedPks
+					)
+				);
+				assertEquals(
+					9,
+					registerPks(
+						session.query(
+							fabricateSpacingQuery(2, 10),
+							EntityReference.class
+						),
+						drainedPks
+					)
+				);
+				assertEquals(
+					8,
+					registerPks(
+						session.query(
+							fabricateSpacingQuery(3, 10),
+							EntityReference.class
+						),
+						drainedPks
+					)
+				);
+				assertEquals(
+					9,
+					registerPks(
+						session.query(
+							fabricateSpacingQuery(4, 10),
+							EntityReference.class
+						),
+						drainedPks
+					)
+				);
+				assertEquals(
+					8,
+					registerPks(
+						session.query(
+							fabricateSpacingQuery(5, 10),
+							EntityReference.class
+						),
+						drainedPks
+					)
+				);
+				final EvitaResponse<EntityReference> pageSixResponse = session.query(
+					fabricateSpacingQuery(6, 10),
+					EntityReference.class
+				);
+				assertEquals(
+					9,
+					registerPks(
+						pageSixResponse,
+						drainedPks
+					)
+				);
+
+				final int lastPageNumber = ((PaginatedList<EntityReference>) pageSixResponse.getRecordPage()).getLastPageNumber();
+				for (int i = 7; i < lastPageNumber; i++) {
+					assertEquals(
+						10,
+						registerPks(
+							session.query(
+								fabricateSpacingQuery(i, 10),
+								EntityReference.class
+							),
+							drainedPks
+						),
+						"Page " + i + " must contain 10 entities."
+					);
+				}
+
+				final int lastPageExpectedCount = (3 * 2) + (3 * 1);
+				assertEquals(
+					lastPageExpectedCount,
+					registerPks(
+						session.query(
+							fabricateSpacingQuery(lastPageNumber, 10),
+							EntityReference.class
+						),
+						drainedPks
+					),
+					"Page " + lastPageNumber + " must contain " + lastPageExpectedCount + " entities."
+				);
+
+				assertEquals(100, drainedPks.size());
+			}
+		);
+	}
+
+	/**
+	 * Registers the primary keys from the given EvitaResponse into the drainedPks set.
+	 *
+	 * @param response the EvitaResponse containing EntityReference objects from which primary keys are extracted
+	 * @param drainedPks the set where the extracted primary keys will be added
+	 * @return the number of primary keys extracted from the response
+	 */
+	private static int registerPks(@Nonnull EvitaResponse<EntityReference> response, @Nonnull Set<Integer> drainedPks) {
+		response.getRecordData().forEach(it -> drainedPks.add(it.getPrimaryKey()));
+		return response.getRecordData().size();
+	}
+
+	/**
+	 * Creates a query for retrieving paginated product entities with specified spacing conditions.
+	 *
+	 * @param pageNumber the page number to retrieve, must be greater than 0
+	 * @param pageSize the number of items per page, must be greater than 0
+	 * @return a constructed Query object with the specified pagination and spacing conditions
+	 */
+	@Nonnull
+	private static Query fabricateSpacingQuery(int pageNumber, int pageSize) {
+		return query(
+			collection(Entities.PRODUCT),
+			require(
+				page(
+					pageNumber, pageSize,
+					spacing(
+						gap(2, "(($pageNumber - 1) % 2 == 0) && $pageNumber <= 6"),
+						gap(1, "($pageNumber % 2 == 0) && $pageNumber <= 6")
+					)
+				),
+				debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+			)
 		);
 	}
 

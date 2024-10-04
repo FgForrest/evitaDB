@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link AttributeHistogram} to {@link Histogram}.
  * The producer instance has all pointer necessary to compute result. All operations in this translator are relatively
- * cheap comparing to final result computation, that is deferred to {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)}
+ * cheap comparing to final result computation, that is deferred to {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)}
  * method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022

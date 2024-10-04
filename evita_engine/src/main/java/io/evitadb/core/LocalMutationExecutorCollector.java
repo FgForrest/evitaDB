@@ -115,8 +115,7 @@ class LocalMutationExecutorCollector {
 			),
 			OffsetDateTime.now(),
 			Entity.class,
-			null,
-			EvitaRequest.CONVERSION_NOT_SUPPORTED
+			null
 		);
 		return entityFetcher.apply(primaryKey, evitaRequest);
 	}

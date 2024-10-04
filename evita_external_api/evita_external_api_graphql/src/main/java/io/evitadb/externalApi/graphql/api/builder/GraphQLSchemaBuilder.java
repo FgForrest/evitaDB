@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.graphql.api.builder;
 
 import graphql.schema.GraphQLEnumType;
-import io.evitadb.api.query.expression.ExpressionNode;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
@@ -34,6 +33,7 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;

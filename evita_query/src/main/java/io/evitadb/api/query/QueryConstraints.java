@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query;
 
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.*;
@@ -30,6 +31,7 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.StripList;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -22337,11 +22339,181 @@ public interface QueryConstraints {
 	 * page(1, 24)
 	 * </pre>
 	 *
+	 * Page also allows to insert artificial gaps instead of entities on particular pages. The gaps are defined by the
+	 * {@link Spacing} sub-constraints, which specify the number of entities that should be skipped on the page when the
+	 * `onPage` expression is evaluated to true.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * page(
+	 *    1, 20,
+	 *    spacing(
+	 *       gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+	 *       gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+	 *    )
+	 * )
+	 * </pre>
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static Page page(@Nullable Integer pageNumber, @Nullable Integer pageSize) {
 		return new Page(pageNumber, pageSize);
+	}
+
+	/**
+	 * The `page` requirement controls the number and slice of entities returned in the query response. If no page
+	 * requirement is used in the query, the default page 1 with the default page size 20 is used. If the requested page
+	 * exceeds the number of available pages, a result with the first page is returned. An empty result is only returned if
+	 * the query returns no result at all or the page size is set to zero. By automatically returning the first page result
+	 * when the requested page is exceeded, we try to avoid the need to issue a secondary request to fetch the data.
+	 *
+	 * The information about the actual returned page and data statistics can be found in the query response, which is
+	 * wrapped in a so-called data chunk object. In case of the page constraint, the {@link PaginatedList} is used as data
+	 * chunk object.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * page(1, 24)
+	 * </pre>
+	 *
+	 * Page also allows to insert artificial gaps instead of entities on particular pages. The gaps are defined by the
+	 * {@link Spacing} sub-constraints, which specify the number of entities that should be skipped on the page when the
+	 * `onPage` expression is evaluated to true.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * page(
+	 *    1, 20,
+	 *    spacing(
+	 *       gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+	 *       gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static Page page(@Nullable Integer pageNumber, @Nullable Integer pageSize, @Nullable Spacing spacing) {
+		return new Page(pageNumber, pageSize, spacing);
+	}
+
+	/**
+	 * The `spacing` allows to define multiple rules for inserting gaps instead of entities on particular pages. The gaps
+	 * are defined by the {@link SpacingGap} sub-constraints, which specify the number of entities that should be skipped
+	 * on the page when the `onPage` expression is evaluated to true.
+	 *
+	 * First gap space that satisfies the condition is used. If no gap space is satisfied, the page contains the number of
+	 * entities defined by the `page` requirement (as long as there is enough entities available in the result).
+	 *
+	 * Example of usage:
+	 *
+	 * 1. one ad block on each page, up to page 6
+	 * 2. an additional block of blog post teasers on the first three even pages
+	 *
+	 * <pre>
+	 * require(
+	 *    page(
+	 *       1, 20,
+	 *       spacing(
+	 *          gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+	 *          gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/user/en/query/expression-language.md">the separate page</a>.
+	 * In the context of this constraint, the expression can use only the `$pageNumber` variable, which represents
+	 * the currently examined page number.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Spacing spacing(@Nullable SpacingGap... gaps) {
+		if (ArrayUtils.isEmpty(gaps)) {
+			return null;
+		} else {
+			return new Spacing(gaps);
+		}
+	}
+
+	/**
+	 * The `gap` constraint can only be used within the {@link Spacing} container and defines a single rule that makes
+	 * the necessary gap on particular page when the `onPage` expression is evaluated to true. The gap is defined by the
+	 * `size` argument, which specifies the number of entities that should be skipped on the page.
+	 *
+	 * See following example:
+	 *
+	 * 1. one ad block on each page, up to page 6
+	 * 2. an additional block of blog post teasers on the first three even pages
+	 *
+	 * <pre>
+	 * require(
+	 *    page(
+	 *       1, 20,
+	 *       spacing(
+	 *          gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+	 *          gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/user/en/query/expression-language.md">the separate page</a>.
+	 * In the context of this constraint, the expression can use only the `$pageNumber` variable, which represents
+	 * the currently examined page number.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing-gap">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static SpacingGap gap(int size, @Nullable Expression expression) {
+		if (expression == null) {
+			return null;
+		} else {
+			return new SpacingGap(size, expression);
+		}
+	}
+
+	/**
+	 * The `gap` constraint can only be used within the {@link Spacing} container and defines a single rule that makes
+	 * the necessary gap on particular page when the `onPage` expression is evaluated to true. The gap is defined by the
+	 * `size` argument, which specifies the number of entities that should be skipped on the page.
+	 *
+	 * See following example:
+	 *
+	 * 1. one ad block on each page, up to page 6
+	 * 2. an additional block of blog post teasers on the first three even pages
+	 *
+	 * <pre>
+	 * require(
+	 *    page(
+	 *       1, 20,
+	 *       spacing(
+	 *          gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+	 *          gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/user/en/query/expression-language.md">the separate page</a>.
+	 * In the context of this constraint, the expression can use only the `$pageNumber` variable, which represents
+	 * the currently examined page number.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing-gap">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static SpacingGap gap(int size, @Nullable String expression) {
+		if (expression == null) {
+			return null;
+		} else {
+			return new SpacingGap(size, ExpressionFactory.parse(expression));
+		}
 	}
 
 	/**

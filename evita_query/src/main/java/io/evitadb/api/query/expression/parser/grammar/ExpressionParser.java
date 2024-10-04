@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-// Generated from Expression.g4 by ANTLR 4.9.2
+// Generated from ExpressionFactory.g4 by ANTLR 4.9.2
 
     package io.evitadb.api.query.expression.parser.grammar;
 
@@ -112,7 +112,7 @@ public class ExpressionParser extends Parser {
 	}
 
 	@Override
-	public String getGrammarFileName() { return "Expression.g4"; }
+	public String getGrammarFileName() { return "ExpressionFactory.g4"; }
 
 	@Override
 	public String[] getRuleNames() { return ruleNames; }

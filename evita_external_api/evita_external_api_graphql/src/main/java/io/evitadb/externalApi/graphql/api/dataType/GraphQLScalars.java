@@ -203,8 +203,8 @@ public class GraphQLScalars {
 
     public static final Coercing<?, ?> EXPRESSION_COERCING = new ExpressionCoercing();
     public static final GraphQLScalarType EXPRESSION = newScalar()
-        .name("Expression")
-        .description("Expression statement allowing simple mathematics formulas and boolean algebra including support for externally provide data via input variables.")
+        .name("ExpressionFactory")
+        .description("ExpressionFactory statement allowing simple mathematics formulas and boolean algebra including support for externally provide data via input variables.")
         .coercing(EXPRESSION_COERCING)
         .build();
 

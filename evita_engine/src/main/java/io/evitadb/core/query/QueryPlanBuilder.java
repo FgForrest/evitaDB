@@ -32,6 +32,8 @@ import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.slice.DefaultSlicer;
+import io.evitadb.core.query.slice.Slicer;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import lombok.Getter;
@@ -82,6 +84,13 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	@Nullable
 	@Getter private Sorter sorter;
 	/**
+	 * The `slicer` variable represents an instance of the Slicer interface used to determine the offset and limit
+	 * for paginating query results. By default, it is set to the `DefaultSlicer` instance. The slicer can be customized
+	 * to apply different pagination strategies by invoking the {@link #setSlicer} method.
+	 */
+	@Nullable
+	@Getter private Slicer slicer = DefaultSlicer.INSTANCE;
+	/**
 	 * Collection of {@link ExtraResultProducer} that compute additional results requested in response.
 	 */
 	@Nonnull
@@ -95,7 +104,9 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 		return new QueryPlan(
 			queryContext,
 			"None", EmptyFormula.INSTANCE, PrefetchFactory.NO_OP,
-			NoSorter.INSTANCE, Collections.emptyList()
+			NoSorter.INSTANCE,
+			DefaultSlicer.INSTANCE,
+			Collections.emptyList()
 		);
 	}
 
@@ -131,9 +142,20 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 
 	/**
 	 * Method accepts a sorter that should be used for sorting the filtered results.
+	 *
+	 * @param sorter the sorter implementation that defines the sorting logic to be applied to the query results
 	 */
 	public void appendSorter(@Nonnull Sorter sorter) {
 		this.sorter = sorter;
+	}
+
+	/**
+	 * Sets the slicer that will be used to determine the offset and limit for query results.
+	 *
+	 * @param slicer the slicer responsible for calculating offset and limit
+	 */
+	public void setSlicer(@Nonnull Slicer slicer) {
+		this.slicer = slicer;
 	}
 
 	/**
@@ -148,12 +170,14 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	 */
 	@Nonnull
 	public QueryPlan build() {
-		ofNullable(queryContext.getQueryFinishedEvent())
+		ofNullable(this.queryContext.getQueryFinishedEvent())
 			.ifPresent(FinishedEvent::startExecuting);
 		return new QueryPlan(
-			queryContext,
-			targetIndexes.getIndexDescription(), filterFormula, prefetchFormulaVisitor,
-			sorter, extraResultProducers
+			this.queryContext,
+			this.targetIndexes.getIndexDescription(), filterFormula, prefetchFormulaVisitor,
+			this.sorter,
+			this.slicer,
+			this.extraResultProducers
 		);
 	}
 }

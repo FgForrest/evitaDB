@@ -24,9 +24,9 @@
 package io.evitadb.api.query.expression.parser.visitor.operand;
 
 
-import io.evitadb.api.query.expression.ExpressionNode;
-import io.evitadb.api.query.expression.evaluate.PredicateEvaluationContext;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;

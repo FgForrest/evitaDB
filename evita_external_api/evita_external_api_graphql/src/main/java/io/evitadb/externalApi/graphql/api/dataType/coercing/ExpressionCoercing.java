@@ -28,8 +28,8 @@ import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
-import io.evitadb.api.query.expression.Expression;
-import io.evitadb.api.query.expression.ExpressionNode;
+import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.dataType.expression.ExpressionNode;
 
 import javax.annotation.Nonnull;
 
@@ -43,7 +43,7 @@ public class ExpressionCoercing implements Coercing<ExpressionNode, String> {
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
         if (!(dataFetcherResult instanceof ExpressionNode)) {
-            throw new CoercingSerializeException("Expression data fetcher result is not an expression.");
+            throw new CoercingSerializeException("ExpressionFactory data fetcher result is not an expression.");
         }
         return dataFetcherResult.toString();
     }
@@ -52,10 +52,10 @@ public class ExpressionCoercing implements Coercing<ExpressionNode, String> {
     @Override
     public ExpressionNode parseValue(@Nonnull Object input) throws CoercingParseValueException {
         if (!(input instanceof String)) {
-            throw new CoercingParseValueException("Expression input value is not a string.");
+            throw new CoercingParseValueException("ExpressionFactory input value is not a string.");
         }
         try {
-            return Expression.parse((String) input);
+            return ExpressionFactory.parse((String) input);
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -65,10 +65,10 @@ public class ExpressionCoercing implements Coercing<ExpressionNode, String> {
     @Override
     public ExpressionNode parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue)) {
-            throw new CoercingParseValueException("Expression input value is not a string.");
+            throw new CoercingParseValueException("ExpressionFactory input value is not a string.");
         }
         try {
-            return Expression.parse(((StringValue) input).getValue());
+            return ExpressionFactory.parse(((StringValue) input).getValue());
         } catch (IllegalArgumentException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

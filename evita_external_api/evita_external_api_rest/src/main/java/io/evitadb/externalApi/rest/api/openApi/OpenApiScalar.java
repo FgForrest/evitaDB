@@ -23,8 +23,8 @@
 
 package io.evitadb.externalApi.rest.api.openApi;
 
-import io.evitadb.api.query.expression.ExpressionNode;
 import io.evitadb.dataType.*;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.dataType.GenericObject;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
