@@ -408,7 +408,7 @@ public class ExportFileService {
 			if (this.storageOptions.exportDirectory().toFile().exists()) {
 				try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
 					this.files = fileStream
-						.filter(it -> !it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
+						.filter(it -> it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
 						.map(ExportFileService::toFileForFetch)
 						.flatMap(Optional::stream)
 						.sorted(Comparator.comparing(FileForFetch::created).reversed())

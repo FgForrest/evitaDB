@@ -1542,10 +1542,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	) {
 		final String currentName = modifyEntitySchemaNameMutation.getName();
 		final String newName = modifyEntitySchemaNameMutation.getNewName();
-		this.persistenceService.verifyEntityType(
-			this.entityCollections.values(),
-			modifyEntitySchemaNameMutation.getNewName()
-		);
+		this.persistenceService.verifyEntityType(this.entityCollections.values(), newName);
 
 		final EntityCollection entityCollectionToBeRenamed = getCollectionForEntityOrThrowException(currentName);
 		doReplaceEntityCollectionInternal(

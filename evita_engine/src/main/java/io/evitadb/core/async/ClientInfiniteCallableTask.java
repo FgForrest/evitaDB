@@ -44,36 +44,36 @@ import java.util.function.Function;
 @InternallyScheduledTask
 public abstract class ClientInfiniteCallableTask<S, T> extends ClientCallableTask<S, T> implements InfiniteTask<S, T> {
 
-	public ClientInfiniteCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull TaskTrait... traits) {
-		super(catalogName, taskName, settings, callable, traits);
+	public ClientInfiniteCallableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, callable, traits);
 	}
 
-	public ClientInfiniteCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull TaskTrait... traits) {
-		super(taskName, settings, callable, traits);
+	public ClientInfiniteCallableTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, callable, traits);
 	}
 
-	public ClientInfiniteCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull TaskTrait... traits) {
-		super(catalogName, taskName, settings, callable, traits);
+	public ClientInfiniteCallableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, callable, traits);
 	}
 
-	public ClientInfiniteCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull TaskTrait... traits) {
-		super(taskName, settings, callable, traits);
+	public ClientInfiniteCallableTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, callable, traits);
 	}
 
-	public ClientInfiniteCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
-		super(catalogName, taskName, settings, callable, exceptionHandler, traits);
+	public ClientInfiniteCallableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, callable, exceptionHandler, traits);
 	}
 
-	public ClientInfiniteCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
-		super(taskName, settings, callable, exceptionHandler, traits);
+	public ClientInfiniteCallableTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, callable, exceptionHandler, traits);
 	}
 
-	public ClientInfiniteCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
-		super(catalogName, taskName, settings, callable, exceptionHandler, traits);
+	public ClientInfiniteCallableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, callable, exceptionHandler, traits);
 	}
 
-	public ClientInfiniteCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
-		super(taskName, settings, callable, exceptionHandler, traits);
+	public ClientInfiniteCallableTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, callable, exceptionHandler, traits);
 	}
 
 	@Nonnull

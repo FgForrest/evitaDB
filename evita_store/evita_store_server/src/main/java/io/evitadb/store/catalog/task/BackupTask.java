@@ -24,7 +24,6 @@
 package io.evitadb.store.catalog.task;
 
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.async.ClientCallableTask;
 import io.evitadb.core.async.Interruptible;
@@ -97,6 +96,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	) {
 		super(
 			catalogName,
+			BackupTask.class.getSimpleName(),
 			"Backup catalog " + catalogName +
 				(pastMoment == null ? " now" : " at " + pastMoment) +
 				(includingWAL ? "" : ", including WAL: " + includingWAL),
@@ -130,7 +130,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		}
 
 		final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
-			"backup_" +
+			"backup_" + catalogName + "_" +
 				(thePastMoment == null ?
 					"actual_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) :
 					"historical_" + thePastMoment.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
@@ -233,7 +233,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			.copySnapshotTo(
 				catalogVersion,
 				zipOutputStream,
-				recordsCopied -> getUpdateProgress(processedRecords + recordsCopied, servicesAndStatistics.totalRecords()),
+				recordsCopied -> doUpdateProgress(processedRecords + recordsCopied, servicesAndStatistics.totalRecords()),
 				Stream.concat(
 						Stream.of(
 							new CatalogHeader(
@@ -302,7 +302,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 					entityTypeFileIndex.fileLocation()
 				),
 				zipOutputStream,
-				recordsCopied -> getUpdateProgress(finalBackedUpRecords + recordsCopied, servicesAndStatistics.totalRecords())
+				recordsCopied -> doUpdateProgress(finalBackedUpRecords + recordsCopied, servicesAndStatistics.totalRecords())
 			);
 		entityHeaders.put(
 			entityTypeFileIndex.entityType(),
@@ -327,7 +327,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + walFile.getFileName()));
 				Files.copy(walFile, zipOutputStream);
 				zipOutputStream.closeEntry();
-				getUpdateProgress(backedUpRecords + i + 1, servicesAndStatistics.totalRecords());
+				doUpdateProgress(backedUpRecords + i + 1, servicesAndStatistics.totalRecords());
 			} catch (IOException e) {
 				throw new UnexpectedIOException(
 					"Failed to backup WAL file `" + walFile + "`!",
@@ -381,9 +381,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	 * @return the updated task status
 	 */
 	@Interruptible
-	@Nonnull
-	private TaskStatus<BackupSettings, FileForFetch> getUpdateProgress(int processedRecords, int totalRecords) {
-		return getStatus().updateProgress((int) (((float) processedRecords / (float) totalRecords) * 100.0));
+	private void doUpdateProgress(int processedRecords, int totalRecords) {
+		this.updateProgress((int) (((float) processedRecords / (float) totalRecords) * 100.0));
 	}
 
 	/**

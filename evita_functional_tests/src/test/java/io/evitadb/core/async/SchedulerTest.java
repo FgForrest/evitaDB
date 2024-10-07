@@ -64,7 +64,7 @@ class SchedulerTest {
 		assertEquals(0, scheduler.listTaskStatuses(1, 20, null).getTotalRecordCount());
 
 		scheduler.submit(
-			(ServerTask<?, ?>) new ClientRunnableTask<>("Test task", null, () -> {
+			(ServerTask<?, ?>) new ClientRunnableTask<>("task", "Test task", null, () -> {
 			})
 		);
 
@@ -77,7 +77,7 @@ class SchedulerTest {
 
 		for (int i = 0; i < 10; i++) {
 			scheduler.submit(
-				(ServerTask<?, ?>) new ClientRunnableTask<>("Test task", null, () -> {
+				(ServerTask<?, ?>) new ClientRunnableTask<>("task", "Test task", null, () -> {
 				})
 			);
 		}
@@ -92,13 +92,13 @@ class SchedulerTest {
 		assertEquals(0, scheduler.listTaskStatuses(1, 20, null).getTotalRecordCount());
 
 		final CompletableFuture<Integer> result = scheduler.submit(
-			(ServerTask<?, Integer>) new ClientCallableTask<>("Test task", null, () -> 5)
+			(ServerTask<?, Integer>) new ClientCallableTask<>("task", "Test task", null, () -> 5)
 		);
 
 		final PaginatedList<TaskStatus<?, ?>> jobStatuses = scheduler.listTaskStatuses(1, 20, null);
 		assertEquals(1, jobStatuses.getTotalRecordCount());
 
-		final PaginatedList<TaskStatus<?, ?>> typeFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, new String[] { ClientCallableTask.class.getSimpleName() });
+		final PaginatedList<TaskStatus<?, ?>> typeFilteredJobStatuses = scheduler.listTaskStatuses(1, 20, new String[] { "task" });
 		assertEquals(1, typeFilteredJobStatuses.getTotalRecordCount());
 
 		while (scheduler.listTaskStatuses(1, 20, null).getData().get(0).simplifiedState() != TaskSimplifiedState.FINISHED) {
@@ -136,7 +136,7 @@ class SchedulerTest {
 		final AtomicBoolean started = new AtomicBoolean(false);
 		final AtomicBoolean interrupted = new AtomicBoolean(false);
 		final CompletableFuture<Integer> result = scheduler.submit(
-			(ServerTask<Void, Integer>) new ClientCallableTask<Void, Integer>("Test task", null, theTask -> {
+			(ServerTask<Void, Integer>) new ClientCallableTask<Void, Integer>("task", "Test task", null, theTask -> {
 				started.set(true);
 				for (int i = 0; i < 1_000_000_000; i++) {
 					if (theTask.getFutureResult().isCancelled()) {

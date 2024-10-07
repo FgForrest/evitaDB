@@ -35,6 +35,7 @@ import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.EvitaEventGroup;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.JdkEventGroup;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask.RecordingSettings;
+import io.evitadb.utils.StringUtils;
 import jdk.jfr.EventType;
 import jdk.jfr.FlightRecorder;
 import jdk.jfr.Recording;
@@ -89,13 +90,14 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 		@Nonnull ExportFileService exportFileService
 	) {
 		super(
+			JfrRecorderTask.class.getSimpleName(),
 			"JFR recording",
 			new RecordingSettings(allowedEvents, maxSizeInBytes, maxAgeInSeconds),
 			(task) -> {
 				((JfrRecorderTask) task).start();
 				return null;
 			},
-			TaskTrait.CAN_BE_STARTED, TaskTrait.NEEDS_TO_BE_STOPPED
+			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED, TaskTrait.NEEDS_TO_BE_STOPPED
 		);
 		this.recording = new Recording();
 		this.targetFile = exportFileService.createTempFile(
@@ -230,6 +232,14 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 		@Nullable Long maxSizeInBytes,
 		@Nullable Long maxAgeInSeconds
 	) {
+
+		@Override
+		public String toString() {
+			return "AllowedEvents: " + Arrays.toString(allowedEvents) +
+				", maxSizeInBytes: " + StringUtils.formatByteSize(maxSizeInBytes) +
+				", maxAge: " + StringUtils.formatDuration(Duration.ofSeconds(maxAgeInSeconds));
+		}
+
 	}
 
 }

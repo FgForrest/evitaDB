@@ -56,43 +56,43 @@ public class ClientRunnableTask<S> extends AbstractServerTask<S, Void> implement
 		};
 	}
 
-	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable, @Nonnull TaskTrait... traits) {
-		super(catalogName, taskName, settings, traits);
+	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, traits);
 		this.runnableWithProgress = task -> runnable.run();
 	}
 
-	public ClientRunnableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable, @Nonnull TaskTrait... traits) {
-		super(taskName, settings, traits);
+	public ClientRunnableTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, traits);
 		this.runnableWithProgress = task -> runnable.run();
 	}
 
-	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable, @Nonnull Consumer<Throwable> exceptionHandler, @Nonnull TaskTrait... traits) {
-		super(catalogName, taskName, settings, wrapExceptionHandler(exceptionHandler), traits);
+	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable, @Nonnull Consumer<Throwable> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, wrapExceptionHandler(exceptionHandler), traits);
 		this.runnableWithProgress = task -> runnable.run();
 	}
 
-	public ClientRunnableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable, @Nonnull Consumer<Throwable> exceptionHandler, @Nonnull TaskTrait... traits) {
-		super(taskName, settings, wrapExceptionHandler(exceptionHandler), traits);
+	public ClientRunnableTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Runnable runnable, @Nonnull Consumer<Throwable> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, wrapExceptionHandler(exceptionHandler), traits);
 		this.runnableWithProgress = task -> runnable.run();
 	}
 
-	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress, @Nonnull TaskTrait... traits) {
-		super(catalogName, taskName, settings, traits);
+	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, traits);
 		this.runnableWithProgress = runnableWithProgress;
 	}
 
-	public ClientRunnableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress, @Nonnull TaskTrait... traits) {
-		super(taskName, settings, traits);
+	public ClientRunnableTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, traits);
 		this.runnableWithProgress = runnableWithProgress;
 	}
 
-	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress, @Nonnull Consumer<Throwable> exceptionHandler, @Nonnull TaskTrait... traits) {
-		super(catalogName, taskName, settings, wrapExceptionHandler(exceptionHandler), traits);
+	public ClientRunnableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress, @Nonnull Consumer<Throwable> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, wrapExceptionHandler(exceptionHandler), traits);
 		this.runnableWithProgress = runnableWithProgress;
 	}
 
-	public ClientRunnableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress, @Nonnull Consumer<Throwable> exceptionHandler, @Nonnull TaskTrait... traits) {
-		super(taskName, settings, wrapExceptionHandler(exceptionHandler), traits);
+	public ClientRunnableTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Consumer<ClientRunnableTask<S>> runnableWithProgress, @Nonnull Consumer<Throwable> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, wrapExceptionHandler(exceptionHandler), traits);
 		this.runnableWithProgress = runnableWithProgress;
 	}
 

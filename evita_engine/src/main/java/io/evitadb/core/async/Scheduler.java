@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class Scheduler implements ObservableExecutorService, ScheduledExecutorService {
-	private static final int FINISHED_TASKS_KEEP_INTERVAL_MILLIS = 120_000;
+	private static final int FINISHED_TASKS_KEEP_INTERVAL_MILLIS = 300_000; // 5 minutes
 	private static final int BUFFER_CAPACITY = 512;
 	/**
 	 * Buffer used for purging finished tasks.
@@ -82,9 +82,37 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 */
 	private final ArrayBlockingQueue<ServerTask<?, ?>> queue;
 	/**
+	 * Maximum number of tasks that can be stored in the queue.
+	 */
+	private final int queueCapacity;
+	/**
 	 * Rejected execution handler that is called when the queue is full and a new task cannot be added.
 	 */
 	private final EvitaRejectingExecutorHandler rejectingExecutorHandler;
+
+	/**
+	 * Creates a predicate to evaluate {@link TaskStatus} objects based on the specified task types and simplified states.
+	 *
+	 * @param taskType an array of task type strings to filter by; can be null or empty to ignore task type filtering
+	 * @param stateSet a set of {@link TaskSimplifiedState} enums to filter by; cannot be null, but can be empty to ignore state filtering
+	 * @return a {@link Predicate} that filters {@link TaskStatus} objects based on the provided task types and simplified states;
+	 * returns null if neither taskType nor stateSet contain filtering criteria
+	 */
+	@Nullable
+	private static Predicate<TaskStatus<?, ?>> getTaskStatusPredicate(
+		@Nullable String[] taskType,
+		@Nonnull EnumSet<TaskSimplifiedState> stateSet
+	) {
+		final Predicate<TaskStatus<?, ?>> typePredicate = ArrayUtils.isEmpty(taskType) ?
+			null :
+			status -> Arrays.stream(taskType)
+				.anyMatch(it -> Arrays.stream(status.taskType().split(","))
+					.map(String::trim)
+					.anyMatch(tt -> tt.equals(it))
+				);
+		final Predicate<TaskStatus<?, ?>> statePredicate = stateSet.isEmpty() ? null : status -> stateSet.contains(status.simplifiedState());
+		return statePredicate == null ? typePredicate : (typePredicate == null ? statePredicate : typePredicate.and(statePredicate));
+	}
 
 	public Scheduler(@Nonnull ThreadPoolOptions options) {
 		this.rejectingExecutorHandler = new EvitaRejectingExecutorHandler("service", this.rejectedTaskCount::incrementAndGet);
@@ -97,7 +125,8 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		theExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
 		this.executorService = theExecutor;
 		// create queue with double the size of the configured queue size to have some breathing room
-		this.queue = new ArrayBlockingQueue<>(options.queueSize() << 1);
+		this.queueCapacity = options.queueSize();
+		this.queue = new ArrayBlockingQueue<>(queueCapacity << 1);
 		// schedule automatic purging task
 		new DelayedAsyncTask(
 			null,
@@ -116,7 +145,28 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	public Scheduler(@Nonnull ScheduledExecutorService executorService) {
 		this.executorService = executorService;
 		this.queue = new ArrayBlockingQueue<>(64);
+		this.queueCapacity = 64;
 		this.rejectingExecutorHandler = null;
+	}
+
+	@Nonnull
+	@Override
+	public ScheduledFuture<?> schedule(@Nonnull Runnable lambda, long delay, @Nonnull TimeUnit delayUnits) {
+		if (!this.executorService.isShutdown()) {
+			return this.executorService.schedule(lambda, delay, delayUnits);
+		} else {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		}
+	}
+
+	@Nonnull
+	@Override
+	public <V> ScheduledFuture<V> schedule(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
+		if (!this.executorService.isShutdown()) {
+			return this.executorService.schedule(callable, delay, unit);
+		} else {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		}
 	}
 
 	@Nonnull
@@ -148,26 +198,6 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			);
 			this.submittedTaskCount.incrementAndGet();
 			return scheduledFuture;
-		} else {
-			throw new RejectedExecutionException("Scheduler is already shut down.");
-		}
-	}
-
-	@Nonnull
-	@Override
-	public <V> ScheduledFuture<V> schedule(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
-		if (!this.executorService.isShutdown()) {
-			return this.executorService.schedule(callable, delay, unit);
-		} else {
-			throw new RejectedExecutionException("Scheduler is already shut down.");
-		}
-	}
-
-	@Nonnull
-	@Override
-	public ScheduledFuture<?> schedule(@Nonnull Runnable lambda, long delay, @Nonnull TimeUnit delayUnits) {
-		if (!this.executorService.isShutdown()) {
-			return this.executorService.schedule(lambda, delay, delayUnits);
 		} else {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
 		}
@@ -300,8 +330,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * @param page     the page number (starting from 1)
 	 * @param pageSize the size of the page
 	 * @param taskType allows limiting result statuses to those of a particular type
-	 * @param states allows limiting result statuses to those of a particular simplified state
-	 *
+	 * @param states   allows limiting result statuses to those of a particular simplified state
 	 * @return the paginated list of tasks
 	 */
 	@Nonnull
@@ -315,9 +344,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		final EnumSet<TaskSimplifiedState> stateSet = EnumSet.noneOf(TaskSimplifiedState.class);
 		Collections.addAll(stateSet, states);
 
-		final Predicate<TaskStatus<?, ?>> typePredicate = ArrayUtils.isEmpty(taskType) ? null : status -> Arrays.stream(taskType).anyMatch(it -> it.equals(status.taskType()));
-		final Predicate<TaskStatus<?, ?>> statePredicate =  stateSet.isEmpty() ? null : status -> stateSet.contains(status.simplifiedState());
-		final Predicate<TaskStatus<?, ?>> finalPredicate = statePredicate == null ? typePredicate : (typePredicate == null ? statePredicate : typePredicate.and(statePredicate));
+		final Predicate<TaskStatus<?, ?>> finalPredicate = getTaskStatusPredicate(taskType, stateSet);
 
 		final Collection<ServerTask<?, ?>> tasks = finalPredicate == null ?
 			this.queue : this.queue.stream().filter(it -> finalPredicate.test(it.getStatus())).toList();
@@ -334,9 +361,10 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 
 	/**
 	 * Returns the tasks of the given task type.
+	 *
 	 * @param taskType the type of the task
+	 * @param <T>      the type of the task
 	 * @return the list of matching tasks
-	 * @param <T> the type of the task
 	 */
 	@Nonnull
 	public <T extends ServerTask<?, ?>> Collection<T> getTasks(@Nonnull Class<T> taskType) {
@@ -359,12 +387,13 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		return this.queue
 			.stream()
 			.filter(it -> uuids.contains(it.getStatus().taskId()))
-			.map(it -> (TaskStatus<?,?>)it.getStatus())
+			.map(it -> (TaskStatus<?, ?>) it.getStatus())
 			.collect(Collectors.toCollection(ArrayList::new));
 	}
 
 	/**
 	 * Returns job status for the specified jobId or empty if the job is not found.
+	 *
 	 * @param jobId jobId of the job
 	 * @return job status
 	 */
@@ -445,7 +474,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 						final Task<?, ?> task = it.next();
 						final TaskStatus<?, ?> status = task.getStatus();
 						final TaskSimplifiedState taskState = status.simplifiedState();
-						if ((taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED)) {
+						if (taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED) {
 							// if task is finished, remove it from the queue
 							it.remove();
 							// if its defense period hasn't perished add it to list, that might end up in the queue again
@@ -463,12 +492,13 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 					this.buffer.clear();
 				}
 				// now add the tasks that are still in defense period back to the queue, but keep at least 1/3 of the queue empty
-				final int requiredEmptyBlock = queueSize / 3;
-				final int remainingCapacity = this.queue.remainingCapacity();
+				final int requiredEmptyBlock = Math.min(1, this.queueCapacity / 3);
+				final int remainingCapacity = this.queueCapacity - this.queue.size();
 				if (remainingCapacity > requiredEmptyBlock && finishedTaskInDefensePeriod != null) {
 					//noinspection rawtypes
 					final Iterator<Task> it = finishedTaskInDefensePeriod.iterator();
-					for (int i = remainingCapacity; i < queueSize - requiredEmptyBlock && it.hasNext(); i++) {
+					final int currentCapacity = this.queue.size();
+					for (int i = currentCapacity; i < this.queueCapacity - requiredEmptyBlock && i < remainingCapacity && it.hasNext(); i++) {
 						this.queue.add((ServerTask<?, ?>) it.next());
 					}
 				}
