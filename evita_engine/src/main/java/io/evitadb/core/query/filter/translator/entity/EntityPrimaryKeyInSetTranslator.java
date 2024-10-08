@@ -27,8 +27,10 @@ import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
+import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
@@ -54,7 +56,7 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 		Assert.notNull(filterByVisitor.getSchema(), "Schema must be known!");
 		final SuperSetMatchingPostProcessor superSetMatchingPostProcessor = filterByVisitor.registerFormulaPostProcessor(
 			SuperSetMatchingPostProcessor.class,
-			() -> new SuperSetMatchingPostProcessor(filterByVisitor)
+			SuperSetMatchingPostProcessor::new
 		);
 		final int[] primaryKeys = entityPrimaryKeyInSet.getPrimaryKeys();
 		final Formula requiredBitmap = ArrayUtils.isEmpty(primaryKeys) ?
@@ -86,9 +88,13 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 	@RequiredArgsConstructor
 	private static class SuperSetMatchingPostProcessor implements FormulaPostProcessor {
 		/**
-		 * A variable that holds an instance of the FilterByVisitor class.
+		 * Flag that signalizes {@link #visit(Formula)} happens in conjunctive scope.
 		 */
-		private final FilterByVisitor filterByVisitor;
+		protected boolean conjunctiveScope = true;
+		/**
+		 * Flag that signalizes that the target index is queried by other formulas in the conjunctive scope.
+		 */
+		protected boolean targetIndexQueriedByOtherConstraints = false;
 		/**
 		 * Set of formulas representing the super set.
 		 */
@@ -103,17 +109,17 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 		public Formula getPostProcessedFormula() {
 			// if the index is queried by other constraints, we don't need to merge the super set formulas
 			// because it's already more constrained than the super set
-			if (filterByVisitor.isTargetIndexQueriedByOtherConstraints()) {
-				return resultFormula;
+			if (targetIndexQueriedByOtherConstraints) {
+				return this.resultFormula;
 			} else {
 				// if the index is not queried by other constraints, we need to merge the super set formulas
 				return FormulaFactory.and(
 					FormulaFactory.or(
-						superSetFormulas.stream()
+						this.superSetFormulas.stream()
 							.map(it -> it.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(it))
 							.toArray(Formula[]::new)
 					),
-					resultFormula
+					this.resultFormula
 				);
 			}
 		}
@@ -121,7 +127,28 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 		@Override
 		public void visit(@Nonnull Formula formula) {
 			// if the result formula is not set yet, set it to the current formula and return
-			resultFormula = formula;
+			if (this.resultFormula == null) {
+				this.resultFormula = formula;
+			}
+
+			final boolean formerConjunctiveScope = this.conjunctiveScope;
+			try {
+				if (!FilterByVisitor.isConjunctiveFormula(formula.getClass())) {
+					this.conjunctiveScope = false;
+				}
+				if (formula instanceof final AttributeFormula attributeFormula) {
+					this.targetIndexQueriedByOtherConstraints = this.targetIndexQueriedByOtherConstraints ||
+						(!attributeFormula.isTargetsGlobalAttribute() && conjunctiveScope);
+				} else if (formula instanceof PriceWrappingFormula) {
+					this.targetIndexQueriedByOtherConstraints = this.targetIndexQueriedByOtherConstraints ||
+						conjunctiveScope;
+				}
+				for (Formula innerFormula : formula.getInnerFormulas()) {
+					innerFormula.accept(this);
+				}
+			} finally {
+				this.conjunctiveScope = formerConjunctiveScope;
+			}
 		}
 
 		/**

@@ -64,7 +64,7 @@ import java.io.Serializable;
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
-public class AttributeLessThanEquals extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+public class AttributeLessThanEquals extends AbstractAttributeFilterConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = -6991102136613476099L;
 
 	private AttributeLessThanEquals(Serializable... arguments) {

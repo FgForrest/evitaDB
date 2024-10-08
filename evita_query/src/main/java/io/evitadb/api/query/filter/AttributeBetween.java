@@ -92,7 +92,7 @@ import java.io.Serializable;
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
-public class AttributeBetween extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+public class AttributeBetween extends AbstractAttributeFilterConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = 4684374310853295964L;
 
 	private AttributeBetween(Serializable... arguments) {

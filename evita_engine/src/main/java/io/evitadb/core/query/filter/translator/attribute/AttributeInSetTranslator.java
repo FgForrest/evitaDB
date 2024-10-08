@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.AttributeInSet;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -79,6 +80,7 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 			globalAttributeSchema.isUniqueGlobally()) {
 			// when entity type is not known and attribute is unique globally - access catalog index instead
 			return new AttributeFormula(
+				true,
 				attributeDefinition.isLocalized() ?
 					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyOnGlobalUniqueIndex(
@@ -103,6 +105,7 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 		} else if (attributeDefinition.isUnique()) {
 			// if attribute is unique prefer O(1) hash map lookup over histogram
 			return new AttributeFormula(
+				attributeDefinition instanceof GlobalAttributeSchemaContract,
 				attributeDefinition.isLocalized() ?
 					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyStreamOnUniqueIndexes(
@@ -117,6 +120,7 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 		} else {
 			// use histogram lookup
 			return new AttributeFormula(
+				attributeDefinition instanceof GlobalAttributeSchemaContract,
 				attributeDefinition.isLocalized() ?
 					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyStreamOnFilterIndexes(

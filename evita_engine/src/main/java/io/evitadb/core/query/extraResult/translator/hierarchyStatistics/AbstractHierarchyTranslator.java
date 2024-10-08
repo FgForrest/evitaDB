@@ -165,8 +165,7 @@ public abstract class AbstractHierarchyTranslator {
 			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
 				queryContext,
 				Collections.emptyList(),
-				TargetIndexes.EMPTY,
-				false
+				TargetIndexes.EMPTY
 			);
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			final Formula theFormula = queryContext.analyse(
