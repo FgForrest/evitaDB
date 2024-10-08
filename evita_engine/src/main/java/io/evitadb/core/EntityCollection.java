@@ -315,7 +315,11 @@ public final class EntityCollection implements
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
 			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
 			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
-		this.dataStoreReader = new DataStoreReaderBridge(this.dataStoreBuffer, this::getInternalSchema);
+		this.dataStoreReader = new DataStoreReaderBridge(
+			this.dataStoreBuffer,
+			this::getIndexByKeyIfExists,
+			this::getInternalSchema
+		);
 		// initialize schema - still in constructor
 		this.initialSchema = ofNullable(storagePartPersistenceService.getStoragePart(catalogVersion, 1, EntitySchemaStoragePart.class))
 			.map(EntitySchemaStoragePart::entitySchema)
@@ -381,7 +385,11 @@ public final class EntityCollection implements
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
 			new WarmUpDataStoreMemoryBuffer(persistenceService.getStoragePartPersistenceService()) :
 			new TransactionalDataStoreMemoryBuffer(this, persistenceService.getStoragePartPersistenceService());
-		this.dataStoreReader = new DataStoreReaderBridge(this.dataStoreBuffer, this::getInternalSchema);
+		this.dataStoreReader = new DataStoreReaderBridge(
+			this.dataStoreBuffer,
+			this::getIndexByKeyIfExists,
+			this::getInternalSchema
+		);
 		this.indexes = new TransactionalMap<>(indexes, it -> (EntityIndex) it);
 		this.cacheSupervisor = cacheSupervisor;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
@@ -1867,6 +1875,7 @@ public final class EntityCollection implements
 	@RequiredArgsConstructor
 	private static class DataStoreReaderBridge implements DataStoreReader {
 		private final DataStoreReader dataStoreReader;
+		private final Function<EntityIndexKey, EntityIndex> indexAccessor;
 		private final Supplier<EntitySchema> schemaSupplier;
 
 		@Override
@@ -1912,7 +1921,22 @@ public final class EntityCollection implements
 
 		@Override
 		public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-			return this.dataStoreReader.getIndexIfExists(entityIndexKey, accessorWhenMissing);
+			return this.dataStoreReader.getIndexIfExists(
+				entityIndexKey,
+				ik -> {
+					// we need first to fall-back on index search in this collection index
+					if (ik instanceof EntityIndexKey eik) {
+						//noinspection unchecked
+						final I index = (I) indexAccessor.apply(eik);
+						// and apply accessor when missing only if no index in collection is found
+						return index == null ? accessorWhenMissing.apply(ik) : index;
+					} else {
+						throw new GenericEvitaInternalError(
+							"EntityIndexKey must be used as a key for EntityIndex, but got " + ik.getClass().getName() + "!"
+						);
+					}
+				}
+			);
 		}
 
 	}

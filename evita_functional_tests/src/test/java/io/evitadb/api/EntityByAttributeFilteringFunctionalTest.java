@@ -281,15 +281,17 @@ public class EntityByAttributeFilteringFunctionalTest {
 			final List<EntityReference> storedBrands = dataGenerator.generateEntities(
 					dataGenerator.getSampleBrandSchema(
 						session,
-						schemaBuilder -> schemaBuilder
-							.withReflectedReferenceToEntity(
-								REFERENCE_BRAND_PRODUCTS,
-								Entities.PRODUCT,
-								Entities.BRAND,
-								whichIs -> whichIs
-									.withCardinality(Cardinality.ZERO_OR_MORE)
-									.withAttributesInherited()
-							).updateAndFetchVia(session)
+						schemaBuilder -> {
+							return schemaBuilder
+								.withReflectedReferenceToEntity(
+									REFERENCE_BRAND_PRODUCTS,
+									Entities.PRODUCT,
+									Entities.BRAND,
+									whichIs -> whichIs
+										.withCardinality(Cardinality.ZERO_OR_MORE)
+										.withAttributesInherited()
+								).updateAndFetchVia(session);
+						}
 					),
 					randomEntityPicker,
 					SEED
