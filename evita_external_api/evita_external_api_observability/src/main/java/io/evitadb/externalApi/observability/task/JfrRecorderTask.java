@@ -236,8 +236,8 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 		@Override
 		public String toString() {
 			return "AllowedEvents: " + Arrays.toString(allowedEvents) +
-				", maxSizeInBytes: " + StringUtils.formatByteSize(maxSizeInBytes) +
-				", maxAge: " + StringUtils.formatDuration(Duration.ofSeconds(maxAgeInSeconds));
+				(maxSizeInBytes == null ? "" : ", maxSize: " + StringUtils.formatByteSize(maxSizeInBytes)) +
+				(maxAgeInSeconds == null ? "" : ", maxAge: " + StringUtils.formatDuration(Duration.ofSeconds(maxAgeInSeconds)));
 		}
 
 	}

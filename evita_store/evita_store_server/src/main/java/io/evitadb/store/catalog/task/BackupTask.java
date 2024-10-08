@@ -29,6 +29,7 @@ import io.evitadb.core.async.ClientCallableTask;
 import io.evitadb.core.async.Interruptible;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.file.ExportFileService.ExportFileHandle;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService;
@@ -46,6 +47,7 @@ import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -486,6 +488,14 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		@Nullable OffsetDateTime pastMoment,
 		boolean includingWAL
 	) implements Serializable {
+
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(
+				(pastMoment == null ? "" : "pastMoment=" + EvitaDataTypes.formatValue(pastMoment) + ", ") +
+				"includingWAL=" + includingWAL
+			);
+		}
 	}
 
 	/**
