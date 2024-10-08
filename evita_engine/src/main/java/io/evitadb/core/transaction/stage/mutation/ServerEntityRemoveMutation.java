@@ -74,7 +74,7 @@ public class ServerEntityRemoveMutation extends EntityRemoveMutation implements 
 	@Nonnull
 	@Override
 	public EnumSet<ImplicitMutationBehavior> getImplicitMutationsBehavior() {
-		return EnumSet.noneOf(ImplicitMutationBehavior.class);
+		return EnumSet.of(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES);
 	}
 
 	@Nonnull
