@@ -856,7 +856,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	) {
 		// we can rely on a fact, that references are ordered by reference key
 		String referenceName = null;
-		final ReferenceContract[] references = referencesStorageContainer.getReferences();
+		// we need to filter out already discarded references
+		final ReferenceContract[] references = Arrays.stream(referencesStorageContainer.getReferences())
+			.filter(Droppable::exists)
+			.toArray(ReferenceContract[]::new);
+
 		for (int i = 0; i < references.length; i++) {
 			final ReferenceContract reference = references[i];
 			final String thisReferenceName = reference.getReferenceName();
