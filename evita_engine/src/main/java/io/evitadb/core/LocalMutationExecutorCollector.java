@@ -187,11 +187,11 @@ class LocalMutationExecutorCollector {
 					changeCollector.applyMutation(localMutation);
 				}
 				// and for each external mutation - call external collection to apply it
-				for (EntityMutation externaEntityMutations : implicitMutations.externalMutations()) {
-					final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externaEntityMutations;
-					catalog.getCollectionForEntityOrThrowException(externaEntityMutations.getEntityType())
+				for (EntityMutation externalEntityMutations : implicitMutations.externalMutations()) {
+					final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externalEntityMutations;
+					catalog.getCollectionForEntityOrThrowException(externalEntityMutations.getEntityType())
 						.applyMutations(
-							externaEntityMutations,
+							externalEntityMutations,
 							serverEntityMutation.shouldApplyUndoOnError(),
 							serverEntityMutation.shouldVerifyConsistency(),
 							null,
