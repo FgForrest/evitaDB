@@ -128,7 +128,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	/**
 	 * List of all reflected reference schemas within {@link #references}, prepared for quick lookup.
 	 */
-	private final Map<String, ReflectedReferenceSchema> reflectedReferences;
+	private final Map<EntityTypeReference, ReflectedReferenceSchema> reflectedReferences;
 	/**
 	 * Contains allowed evolution modes for the entity schema.
 	 */
@@ -509,7 +509,7 @@ public final class EntitySchema implements EntitySchemaContract {
 			.map(ReflectedReferenceSchema.class::cast)
 			.collect(
 				Collectors.toMap(
-					ReflectedReferenceSchema::getReflectedReferenceName,
+					it -> new EntityTypeReference(it.getReferencedEntityType(), it.getReflectedReferenceName()),
 					Function.identity()
 				)
 			);
@@ -821,8 +821,8 @@ public final class EntitySchema implements EntitySchemaContract {
 	 * an empty optional is returned.
 	 */
 	@Nonnull
-	public Optional<ReflectedReferenceSchema> getReflectedReferenceFor(@Nonnull String referenceName) {
-		return ofNullable(this.reflectedReferences.get(referenceName));
+	public Optional<ReflectedReferenceSchema> getReflectedReferenceFor(@Nonnull String entityType, @Nonnull String referenceName) {
+		return ofNullable(this.reflectedReferences.get(new EntityTypeReference(entityType, referenceName)));
 	}
 
 	/**
@@ -836,4 +836,11 @@ public final class EntitySchema implements EntitySchemaContract {
 		@Nonnull SortableAttributeCompoundSchema compoundSchema
 	) {
 	}
+
+	private record EntityTypeReference(
+		@Nonnull String entityType,
+		@Nonnull String referenceName
+	) {
+	}
+
 }

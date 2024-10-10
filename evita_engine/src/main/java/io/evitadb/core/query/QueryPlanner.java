@@ -226,10 +226,7 @@ public class QueryPlanner {
 			final IndexSelectionVisitor indexSelectionVisitor = new IndexSelectionVisitor(queryContext);
 			ofNullable(queryContext.getFilterBy()).ifPresent(indexSelectionVisitor::visit);
 			//noinspection rawtypes,unchecked
-			return new IndexSelectionResult<>(
-				(List) indexSelectionVisitor.getTargetIndexes(),
-				indexSelectionVisitor.isTargetIndexQueriedByOtherConstraints()
-			);
+			return new IndexSelectionResult<>((List) indexSelectionVisitor.getTargetIndexes());
 		} finally {
 			queryContext.popStep();
 		}
@@ -256,8 +253,7 @@ public class QueryPlanner {
 					final FilterByVisitor filterByVisitor = new FilterByVisitor(
 						queryContext,
 						indexSelectionResult.targetIndexes(),
-						targetIndex,
-						indexSelectionResult.targetIndexQueriedByOtherConstraints()
+						targetIndex
 					);
 
 					final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(targetIndex);

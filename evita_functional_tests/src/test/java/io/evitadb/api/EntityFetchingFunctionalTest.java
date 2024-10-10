@@ -27,6 +27,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.*;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -3954,7 +3955,8 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 									Entities.CATEGORY,
 									entityFetch(hierarchyContent())
 								)
-							)
+							),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
 						)
 					)
 				);

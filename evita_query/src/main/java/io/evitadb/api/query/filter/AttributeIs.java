@@ -69,7 +69,7 @@ import java.io.Serializable;
 		nullability = ConstraintNullabilitySupport.ONLY_NULLABLE
 	)
 )
-public class AttributeIs extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+public class AttributeIs extends AbstractAttributeFilterConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = 6615086027607982158L;
 
 	private AttributeIs(Serializable... arguments) {

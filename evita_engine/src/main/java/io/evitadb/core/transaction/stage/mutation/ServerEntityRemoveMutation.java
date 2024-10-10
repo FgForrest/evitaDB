@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -42,8 +43,9 @@ import java.util.Optional;
  */
 public class ServerEntityRemoveMutation extends EntityRemoveMutation implements ServerEntityMutation {
 	@Serial private static final long serialVersionUID = 2860854495453490511L;
-	public final boolean applyUndoOnError;
-	public final boolean verifyConsistency;
+	@Getter private final EntityRemoveMutation delegate;
+	private final boolean applyUndoOnError;
+	private final boolean verifyConsistency;
 
 	public ServerEntityRemoveMutation(
 		@Nonnull EntityRemoveMutation entityRemoveMutation,
@@ -54,6 +56,7 @@ public class ServerEntityRemoveMutation extends EntityRemoveMutation implements 
 			entityRemoveMutation.getEntityType(),
 			entityRemoveMutation.getEntityPrimaryKey()
 		);
+		this.delegate = entityRemoveMutation;
 		this.applyUndoOnError = applyUndoOnError;
 		this.verifyConsistency = verifyConsistency;
 	}
@@ -71,7 +74,7 @@ public class ServerEntityRemoveMutation extends EntityRemoveMutation implements 
 	@Nonnull
 	@Override
 	public EnumSet<ImplicitMutationBehavior> getImplicitMutationsBehavior() {
-		return EnumSet.noneOf(ImplicitMutationBehavior.class);
+		return EnumSet.of(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES);
 	}
 
 	@Nonnull

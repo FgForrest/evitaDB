@@ -61,11 +61,12 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		)
 		.exportDirectory(getPathInTargetDirectory(SUBDIR_NAME))
 		.build();
-	private final ExportFileService exportFileService = new ExportFileService(storageOptions);
+	private ExportFileService exportFileService;
 
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(SUBDIR_NAME);
+		this.exportFileService = new ExportFileService(storageOptions);
 	}
 
 	@Test

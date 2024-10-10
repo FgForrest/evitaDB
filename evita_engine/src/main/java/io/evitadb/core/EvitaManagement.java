@@ -27,7 +27,6 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.SessionTraits;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
@@ -120,7 +119,8 @@ public class EvitaManagement implements EvitaManagementContract {
 		boolean includingWAL
 	) throws TemporalDataNotAvailableException {
 		this.evita.assertActiveAndWritable();
-		try (final EvitaSessionContract session = this.evita.createSession(new SessionTraits(catalogName))) {
+		// we need writable session for backup
+		try (final EvitaSessionContract session = this.evita.createReadWriteSession(catalogName)) {
 			return session.backupCatalog(pastMoment, includingWAL).getFutureResult();
 		}
 	}

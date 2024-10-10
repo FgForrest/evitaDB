@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.AttributeLessThan;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -80,6 +81,7 @@ public class AttributeLessThanTranslator implements FilteringConstraintTranslato
 			}
 
 			final AttributeFormula filteringFormula = new AttributeFormula(
+				attributeDefinition instanceof GlobalAttributeSchemaContract,
 				attributeDefinition.isLocalized() ?
 					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyOnFilterIndexes(

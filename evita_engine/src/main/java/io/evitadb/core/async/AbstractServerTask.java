@@ -64,12 +64,17 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	 * Contains the actual status of the task.
 	 */
 	protected final AtomicReference<TaskStatus<S, T>> status;
+	/**
+	 * The type of the task.
+	 */
+	protected final String taskType;
 
-	protected AbstractServerTask(@Nonnull String taskName, @Nullable S settings, @Nonnull TaskTrait... traits) {
+	protected AbstractServerTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull TaskTrait... traits) {
+		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
-				this.getClass().getSimpleName(),
+				this.taskType,
 				taskName,
 				UUIDUtil.randomUUID(),
 				null,
@@ -87,11 +92,12 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 		this.exceptionHandler = null;
 	}
 
-	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull TaskTrait... traits) {
+	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull TaskTrait... traits) {
+		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
-				this.getClass().getSimpleName(),
+				this.taskType,
 				taskName,
 				UUIDUtil.randomUUID(),
 				catalogName,
@@ -109,11 +115,12 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 		this.exceptionHandler = null;
 	}
 
-	protected AbstractServerTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+	protected AbstractServerTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
-				this.getClass().getSimpleName(),
+				this.taskType,
 				taskName,
 				UUIDUtil.randomUUID(),
 				null,
@@ -131,11 +138,12 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 		this.exceptionHandler = exceptionHandler;
 	}
 
-	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
-				this.getClass().getSimpleName(),
+				this.taskType,
 				taskName,
 				UUIDUtil.randomUUID(),
 				catalogName,

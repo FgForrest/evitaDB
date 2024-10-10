@@ -33,13 +33,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.EnumSet;
-import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This task ensures that all the steps are executed in a sequence. It is a thin wrapper around {@link Task} that
@@ -91,12 +88,10 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 		for (Task<?, ?> step : steps) {
 			overallProgress |= step.getStatus().progress();
 		}
-		final String newTaskName = this.taskName + ofNullable(this.currentStep.get()).map(it -> " [" + it.getStatus().taskName() + "]").orElse("");
 		final int newProgress = overallProgress / this.steps.length;
 		final TaskStatus<Void, T> currentStatus = this.status.get();
 		return currentStatus.simplifiedState() != TaskSimplifiedState.RUNNING ||
-			currentStatus.progress() == newProgress ||
-			!Objects.equals(currentStatus.taskName(), newTaskName) ?
+			currentStatus.progress() == newProgress ?
 				currentStatus :
 				this.status.updateAndGet(current -> current.updateProgress(newProgress));
 	}

@@ -30,6 +30,7 @@ import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.file.FileService;
+import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.exception.SingletonTaskAlreadyRunningException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.ServerTask;
@@ -279,6 +280,11 @@ public class ObservabilityManager {
 		@Nullable Long maxSizeInBytes,
 		@Nullable Long maxAgeInSeconds
 	) throws JfRException, SingletonTaskAlreadyRunningException {
+		Assert.isTrue(
+			!evita.getConfiguration().server().readOnly(),
+			ReadOnlyException::new
+		);
+
 		final Collection<JfrRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(JfrRecorderTask.class);
 		final JfrRecorderTask runningTask = existingTaskStatus.stream().filter(it -> !it.getFutureResult().isDone()).findFirst().orElse(null);
 		if (runningTask != null) {
@@ -298,6 +304,11 @@ public class ObservabilityManager {
 	 */
 	@Nonnull
 	public TaskStatus<?, ?> stop() throws JfRException {
+		Assert.isTrue(
+			!evita.getConfiguration().server().readOnly(),
+			ReadOnlyException::new
+		);
+
 		final Collection<JfrRecorderTask> existingTaskStatus = evita.management().getTaskStatuses(JfrRecorderTask.class);
 		final JfrRecorderTask runningTask = existingTaskStatus.stream().filter(it -> !it.getFutureResult().isDone()).findFirst().orElse(null);
 		if (runningTask != null) {

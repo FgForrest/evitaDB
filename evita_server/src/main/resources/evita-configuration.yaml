@@ -24,6 +24,7 @@ server:
 
 storage:
   storageDirectory: ${storage.storageDirectory:null}
+  exportDirectory: ${storage.exportDirectory:null}
   lockTimeoutSeconds: ${storage.lockTimeoutSeconds:60}
   waitOnCloseSeconds: ${storage.waitOnCloseSeconds:60}
   outputBufferSize: ${storage.outputBufferSize:4MB}
@@ -31,6 +32,9 @@ storage:
   computeCRC32C: ${storage.computeCRC32C:true}
   minimalActiveRecordShare: ${storage.minimalActiveRecordShare:0.5}
   fileSizeCompactionThresholdBytes: ${storage.fileSizeCompactionThresholdBytes:100M}
+  timeTravelEnabled: ${storage.timeTravelEnabled:true}
+  exportDirectorySizeLimitBytes: ${storage.exportDirectorySizeLimitBytes:1G}
+  exportFileHistoryExpirationSeconds: ${storage.exportFileHistoryExpirationSeconds:7d}
 
 transaction:
   transactionWorkDirectory: ${transaction.workDirectory:null}

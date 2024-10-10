@@ -85,6 +85,7 @@ public interface DataStoreReader {
 	 * Returns {@link EntityIndex} by key if it already exists in change set. If the index is no present there
 	 * `accessorWhenMissing` is executed to retrieve primary read-only index from the origin collection.
 	 */
+	@Nullable
 	<IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing);
 
 }

@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator.attribute;
 import io.evitadb.api.query.filter.AttributeIs;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -88,6 +89,7 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 							return EmptyFormula.INSTANCE;
 						} else {
 							return new AttributeFormula(
+								attributeDefinition instanceof GlobalAttributeSchemaContract,
 								attributeDefinition.isLocalized() ?
 									new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 								FormulaFactory.or(formulas));
@@ -111,6 +113,7 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 							return EmptyFormula.INSTANCE;
 						} else {
 							return new AttributeFormula(
+								attributeDefinition instanceof GlobalAttributeSchemaContract,
 								attributeDefinition.isLocalized() ?
 									new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 								FormulaFactory.or(formulas)
@@ -134,6 +137,7 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 			// if attribute is unique prefer O(1) hash map lookup over histogram
 			if (attributeDefinition.isUnique()) {
 				return new AttributeFormula(
+					attributeDefinition instanceof GlobalAttributeSchemaContract,
 					attributeDefinition.isLocalized() ?
 						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 					filterByVisitor.applyOnUniqueIndexes(
@@ -142,6 +146,7 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 				);
 			} else {
 				final AttributeFormula filteringFormula = new AttributeFormula(
+					attributeDefinition instanceof GlobalAttributeSchemaContract,
 					attributeDefinition.isLocalized() ?
 						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 					filterByVisitor.applyOnFilterIndexes(

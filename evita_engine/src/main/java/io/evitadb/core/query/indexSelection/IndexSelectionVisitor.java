@@ -34,7 +34,6 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
-import io.evitadb.api.query.filter.IndexUsingConstraint;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -77,7 +76,6 @@ import java.util.Optional;
 public class IndexSelectionVisitor implements ConstraintVisitor {
 	private final QueryPlanningContext queryContext;
 	@Getter private final List<TargetIndexes<? extends Index<?>>> targetIndexes = new LinkedList<>();
-	@Getter private boolean targetIndexQueriedByOtherConstraints;
 	private FilterByVisitor filterByVisitor;
 
 	public IndexSelectionVisitor(@Nonnull QueryPlanningContext queryContext) {
@@ -126,8 +124,6 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					subConstraint.accept(this);
 				}
 			}
-		} else if (filterConstraint instanceof IndexUsingConstraint) {
-			this.targetIndexQueriedByOtherConstraints = true;
 		}
 	}
 
@@ -208,16 +204,15 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	}
 
 	private FilterByVisitor getFilterByVisitor() {
-		if (filterByVisitor == null) {
+		if (this.filterByVisitor == null) {
 			// create lightweight visitor that can evaluate referenced attributes index location only
-			filterByVisitor = new FilterByVisitor(
+			this.filterByVisitor = new FilterByVisitor(
 				this.queryContext,
 				Collections.emptyList(),
-				TargetIndexes.EMPTY,
-				false
+				TargetIndexes.EMPTY
 			);
 		}
-		return filterByVisitor;
+		return this.filterByVisitor;
 	}
 
 }

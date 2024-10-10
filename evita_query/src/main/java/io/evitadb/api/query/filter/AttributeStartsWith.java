@@ -71,7 +71,7 @@ import java.io.Serializable;
 		arraysSupported = true
 	)
 )
-public class AttributeStartsWith extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+public class AttributeStartsWith extends AbstractAttributeFilterConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = 5516189083269213655L;
 
 	private AttributeStartsWith(Serializable... arguments) {

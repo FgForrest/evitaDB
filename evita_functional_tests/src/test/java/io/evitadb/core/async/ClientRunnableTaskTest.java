@@ -44,8 +44,8 @@ class ClientRunnableTaskTest implements TestConstants {
 
 	@Test
 	void shouldCombineBackgroundTasksUsingFutures() throws ExecutionException, InterruptedException {
-		final ClientRunnableTask<Void> task1 = new ClientRunnableTask<>("task1", null, task -> {});
-		final ClientRunnableTask<Void> task2 = new ClientRunnableTask<>("task2", null, task -> {});
+		final ClientRunnableTask<Void> task1 = new ClientRunnableTask<>("task1", "task1", null, task -> {});
+		final ClientRunnableTask<Void> task2 = new ClientRunnableTask<>("task2", "task2", null, task -> {});
 		final CompletableFuture<Integer> result = task1.getFutureResult().thenCombine(task2.getFutureResult(), (a, b) -> 3);
 
 		task1.run();
@@ -58,8 +58,8 @@ class ClientRunnableTaskTest implements TestConstants {
 
 	@Test
 	void shouldCombineBackgroundTasksUsingFuturesAndExecutor() throws ExecutionException, InterruptedException {
-		final ClientRunnableTask<Void> task1 = new ClientRunnableTask<>("task1", null, task -> {});
-		final ClientRunnableTask<Void> task2 = new ClientRunnableTask<>("task2", null, task -> {});
+		final ClientRunnableTask<Void> task1 = new ClientRunnableTask<>("task1", "task1", null, task -> {});
+		final ClientRunnableTask<Void> task2 = new ClientRunnableTask<>("task2", "task2", null, task -> {});
 		final CompletableFuture<Integer> result = task1.getFutureResult().thenCombine(task2.getFutureResult(), (a, b) -> 3);
 
 		final ForkJoinPool forkJoinPool = ForkJoinPool.commonPool();
@@ -72,7 +72,7 @@ class ClientRunnableTaskTest implements TestConstants {
 	@Test
 	void shouldPropagateInformationAboutProgress() {
 		final ClientRunnableTask<Void> task = new ClientRunnableTask<>(
-			"task", null,
+			"task", "task", null,
 			theTask -> sleepingUpdateTask(theTask, 100, 2)
 		);
 

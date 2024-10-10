@@ -566,6 +566,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
 			CatalogSchema currentSchema = originalSchema;
 			CatalogSchemaContract updatedSchema = originalSchema;
+			final Transaction transaction = transactionRef.orElse(null);
 			for (CatalogSchemaMutation theMutation : schemaMutation) {
 				transactionRef.ifPresent(it -> it.registerMutation(theMutation));
 				// if the mutation implements entity schema mutation apply it on the appropriate schema
@@ -577,16 +578,16 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 						if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
 							throw new InvalidSchemaMutationException(entityType, CatalogEvolutionMode.ADDING_ENTITY_TYPES);
 						}
-						currentSchema = createEntitySchema(new CreateEntitySchemaMutation(entityType), updatedSchema);
+						currentSchema = createEntitySchema(new CreateEntitySchemaMutation(entityType), transaction, updatedSchema);
 						entityCollection = this.entityCollections.get(entityType);
 					}
 					updatedSchema = modifyEntitySchema(modifyEntitySchemaMutation, updatedSchema, entityCollection);
 				} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
-					updatedSchema = removeEntitySchema(removeEntitySchemaMutation, transactionRef.orElse(null), updatedSchema);
+					updatedSchema = removeEntitySchema(removeEntitySchemaMutation, transaction, updatedSchema);
 				} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
-					updatedSchema = createEntitySchema(createEntitySchemaMutation, updatedSchema);
+					updatedSchema = createEntitySchema(createEntitySchemaMutation, transaction, updatedSchema);
 				} else if (theMutation instanceof ModifyEntitySchemaNameMutation renameEntitySchemaMutation) {
-					updatedSchema = modifyEntitySchemaName(renameEntitySchemaMutation, transactionRef.orElse(null), updatedSchema);
+					updatedSchema = modifyEntitySchemaName(renameEntitySchemaMutation, transaction, updatedSchema);
 				} else {
 					final CatalogSchemaWithImpactOnEntitySchemas schemaWithImpactOnEntitySchemas = modifyCatalogSchema(theMutation, updatedSchema);
 					updatedSchema = schemaWithImpactOnEntitySchemas.updatedCatalogSchema();
@@ -1432,6 +1433,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	@Nonnull
 	private CatalogSchema createEntitySchema(
 		@Nonnull CreateEntitySchemaMutation createEntitySchemaMutation,
+		@Nullable Transaction transaction,
 		@Nonnull CatalogSchemaContract catalogSchema
 	) {
 		this.persistenceService.verifyEntityType(
@@ -1443,10 +1445,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			this.getVersion(),
 			this.getCatalogState(), this.entityTypeSequence.incrementAndGet(),
 			createEntitySchemaMutation.getName(),
-			persistenceService,
-			cacheSupervisor,
-			sequenceService,
-			tracingContext
+			this.persistenceService,
+			this.cacheSupervisor,
+			this.sequenceService,
+			this.tracingContext
 		);
 		this.entityCollectionsByPrimaryKey.put(newCollection.getEntityTypePrimaryKey(), newCollection);
 		this.entityCollections.put(newCollection.getEntityType(), newCollection);
@@ -1456,6 +1458,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			getEntitySchemaAccessor()
 		);
 		entitySchemaUpdated(newCollection.getSchema());
+		// when the catalog is in WARM-UP state we need to execute immediate flush when collection is created
+		if (transaction == null) {
+			this.flush();
+		}
 		return newSchema;
 	}
 
@@ -1493,6 +1499,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			entitySchemaRemoved(collectionToRemove.getEntityType());
 		} else {
 			result = catalogSchema;
+		}
+		// when the catalog is in WARM-UP state we need to execute immediate flush when collection is removed
+		if (transaction == null) {
+			this.flush();
 		}
 		return result;
 	}
@@ -1542,10 +1552,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	) {
 		final String currentName = modifyEntitySchemaNameMutation.getName();
 		final String newName = modifyEntitySchemaNameMutation.getNewName();
-		this.persistenceService.verifyEntityType(
-			this.entityCollections.values(),
-			modifyEntitySchemaNameMutation.getNewName()
-		);
+		this.persistenceService.verifyEntityType(this.entityCollections.values(), newName);
 
 		final EntityCollection entityCollectionToBeRenamed = getCollectionForEntityOrThrowException(currentName);
 		doReplaceEntityCollectionInternal(

@@ -150,7 +150,12 @@ class LocalMutationExecutorCollector {
 		// first register all mutation applicators and mutations to the internal state
 		this.executors.add(entityIndexUpdater);
 		this.executors.add(changeCollector);
-		this.entityMutations.add(entityMutation);
+		// add the mutation to the list of mutations, but only for root level mutations
+		// mutations on lower levels are implicit mutations which should not be written to WAL (considered), because
+		// are automatically generated when top level mutation is applied (replayed)
+		if (level == 0) {
+			this.entityMutations.add(entityMutation);
+		}
 
 		// apply mutations using applicators
 		EntityWithFetchCount result = null;
@@ -182,11 +187,11 @@ class LocalMutationExecutorCollector {
 					changeCollector.applyMutation(localMutation);
 				}
 				// and for each external mutation - call external collection to apply it
-				for (EntityMutation externaEntityMutations : implicitMutations.externalMutations()) {
-					final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externaEntityMutations;
-					catalog.getCollectionForEntityOrThrowException(externaEntityMutations.getEntityType())
+				for (EntityMutation externalEntityMutations : implicitMutations.externalMutations()) {
+					final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externalEntityMutations;
+					catalog.getCollectionForEntityOrThrowException(externalEntityMutations.getEntityType())
 						.applyMutations(
-							externaEntityMutations,
+							externalEntityMutations,
 							serverEntityMutation.shouldApplyUndoOnError(),
 							serverEntityMutation.shouldVerifyConsistency(),
 							null,
@@ -201,10 +206,10 @@ class LocalMutationExecutorCollector {
 
 		} catch (RuntimeException ex) {
 			// we need to catch all exceptions and store them in the exception field
-			if (exception == null) {
-				exception = ex;
-			} else {
-				exception.addSuppressed(ex);
+			if (this.exception == null) {
+				this.exception = ex;
+			} else if (ex != this.exception) {
+				this.exception.addSuppressed(ex);
 			}
 		} finally {
 			// we finalize this collector only on zero level

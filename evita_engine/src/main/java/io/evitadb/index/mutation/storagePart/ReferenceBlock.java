@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -110,6 +111,7 @@ class ReferenceBlock {
 	public <T> ReferenceBlock(
 		@Nonnull CatalogSchema catalogSchema,
 		@Nonnull Set<Locale> locales,
+		@Nonnull EntitySchemaContract localEntitySchema,
 		@Nonnull ReferenceSchema localReferenceSchema,
 		@Nonnull ReflectedReferenceAttributeValueProvider<T> attributeValueProvider
 	) {
@@ -132,7 +134,7 @@ class ReferenceBlock {
 			inheritedAttributes = of(rrs.getInheritedAttributes());
 		} else {
 			final Optional<ReflectedReferenceSchema> rrs = catalogSchema.getEntitySchema(localReferenceSchema.getReferencedEntityType())
-				.flatMap(it -> ((EntitySchemaDecorator) it).getDelegate().getReflectedReferenceFor(localReferenceSchema.getName()));
+				.flatMap(it -> ((EntitySchemaDecorator) it).getDelegate().getReflectedReferenceFor(localEntitySchema.getName(), localReferenceSchema.getName()));
 			theOtherReferenceSchema = rrs.map(ReferenceSchema.class::cast);
 			inheritedAttributes = rrs.map(ReflectedReferenceSchema::getInheritedAttributes);
 		}

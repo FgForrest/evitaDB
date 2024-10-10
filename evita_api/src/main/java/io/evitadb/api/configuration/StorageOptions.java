@@ -87,7 +87,7 @@ public record StorageOptions(
 	long exportFileHistoryExpirationSeconds
 ) {
 
-	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152;
+	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152; // 2MB
 	public static final Path DEFAULT_DATA_DIRECTORY = Paths.get("").resolve("data");
 	public static final Path DEFAULT_EXPORT_DIRECTORY = Paths.get("").resolve("export");
 	public static final int DEFAULT_LOCK_TIMEOUT_SECONDS = 5;
@@ -95,10 +95,10 @@ public record StorageOptions(
 	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors();
 	public static final boolean DEFAULT_COMPUTE_CRC = true;
 	public static final double DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE = 0.5;
-	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L;
+	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L; // 100MB
 	public static final boolean DEFAULT_TIME_TRAVEL_ENABLED = true;
-	public static final long DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES = 1_073_741_824L;
-	public static final long DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS = 604_800L;
+	public static final long DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES = 1_073_741_824L; // 1GB
+	public static final long DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS = 604_800L; // 7 days
 
 	/**
 	 * Builder method is planned to be used only in tests.

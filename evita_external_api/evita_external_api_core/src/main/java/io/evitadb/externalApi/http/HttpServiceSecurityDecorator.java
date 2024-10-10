@@ -153,9 +153,9 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 						newHost = false;
 					} else if (hostTriple.isSuperiorOrEqual(existingTriple)) {
 						hostTriples.set(i, hostTriple);
-						this.hosts[index] = hostTriple.host();
-						this.ports[index] = hostTriple.port();
-						this.schemes[index] = hostTriple.scheme();
+						this.hosts[i] = hostTriple.host();
+						this.ports[i] = hostTriple.port();
+						this.schemes[i] = hostTriple.scheme();
 						newHost = false;
 					}
 				}

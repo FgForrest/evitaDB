@@ -66,7 +66,7 @@ import static java.util.Optional.of;
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class PriceValidIn extends AbstractFilterConstraintLeaf
-	implements PriceConstraint<FilterConstraint>, IndexUsingConstraint, ConstraintWithSuffix {
+	implements PriceConstraint<FilterConstraint>, ConstraintWithSuffix, FilterConstraint {
 	@Serial private static final long serialVersionUID = -3041416427283645494L;
 	private static final String SUFFIX = "now";
 

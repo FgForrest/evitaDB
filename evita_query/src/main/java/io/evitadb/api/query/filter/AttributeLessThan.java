@@ -63,7 +63,7 @@ import java.io.Serializable;
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
-public class AttributeLessThan extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+public class AttributeLessThan extends AbstractAttributeFilterConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = -1531450217250657781L;
 
 	private AttributeLessThan(Serializable... arguments) {
