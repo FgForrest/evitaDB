@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,33 +23,32 @@
 
 package io.evitadb.api.query.filter;
 
-import io.evitadb.api.query.AttributeConstraint;
-import io.evitadb.api.query.FilterConstraint;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Represents base query leaf accepting only filtering constraints and having first argument attribute name.
+ * The AbstractAttributeFilterStringSearchConstraintLeaf class is an abstract base class that represents a specific type
+ * of attribute filter constraint focusing on string search operations. It inherits from the
+ * AbstractAttributeFilterConstraintLeaf class and provides a method to retrieve the string that needs to be searched
+ * within attribute values.
  *
- * @author Jan Novotný, FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public abstract class AbstractAttributeFilterConstraintLeaf extends AbstractFilterConstraintLeaf
-	implements AttributeConstraint<FilterConstraint>, FilterConstraint {
-	@Serial private static final long serialVersionUID = 3153809771456358624L;
+public abstract class AbstractAttributeFilterStringSearchConstraintLeaf
+	extends AbstractAttributeFilterConstraintLeaf {
+	@Serial private static final long serialVersionUID = 219317868969717309L;
 
-	protected AbstractAttributeFilterConstraintLeaf(Serializable... arguments) {
+	protected AbstractAttributeFilterStringSearchConstraintLeaf(Serializable... arguments) {
 		super(arguments);
 	}
 
 	/**
-	 * Returns attribute name that needs to be examined.
+	 * Returns part of attribute value that needs to be looked up for.
+	 * @return part of attribute value that needs to be looked up for
 	 */
-	@Override
 	@Nonnull
-	public String getAttributeName() {
-		return (String) getArguments()[0];
-	}
+	public abstract String getTextToSearch();
 
 }

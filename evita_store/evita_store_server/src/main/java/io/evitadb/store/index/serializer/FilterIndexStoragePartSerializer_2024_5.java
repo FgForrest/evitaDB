@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,7 +54,15 @@ public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIn
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(filterIndex.getAttributeKey()), true);
 
-		kryo.writeObject(output, new InvertedIndex<>(filterIndex.getHistogramPoints(), (o1, o2) -> ((Comparable)o1).compareTo(o2)));
+		//noinspection rawtypes,unchecked
+		kryo.writeObject(
+			output,
+			new InvertedIndex(
+				filterIndex.getHistogramPoints(),
+				FilterIndex.NO_NORMALIZATION,
+				(o1, o2) -> ((Comparable)o1).compareTo(o2)
+			)
+		);
 		final boolean rangeIndex = filterIndex.getRangeIndex() != null;
 		output.writeBoolean(rangeIndex);
 		if (rangeIndex) {
@@ -68,7 +76,7 @@ public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIn
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
 
-		final InvertedIndex<?> invertedIndex = kryo.readObject(input, InvertedIndex.class);
+		final InvertedIndex invertedIndex = kryo.readObject(input, InvertedIndex.class);
 		final boolean hasRangeIndex = input.readBoolean();
 		if (hasRangeIndex) {
 			final RangeIndex intRangeIndex = kryo.readObject(input, RangeIndex.class);

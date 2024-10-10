@@ -42,6 +42,7 @@ import org.openjdk.jmh.annotations.State;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Random;
 
 /**
@@ -55,7 +56,7 @@ public class BucketsRecordState {
 	private static final int BUCKET_COUNT = 2000;
 	private static final int VALUE_COUNT = 100_000;
 	private static final Random random = new Random(42);
-	@Getter private ValueToRecordBitmap<Integer>[] buckets;
+	@Getter private ValueToRecordBitmap[] buckets;
 	@Getter private Bitmap entityIds;
 	@Getter private AttributeHistogramRequest request;
 	@Getter private Formula formula;
@@ -68,6 +69,7 @@ public class BucketsRecordState {
 		entityIds = generateBitmap(VALUE_COUNT, 1);
 		request = new AttributeHistogramRequest(
 			AttributeSchema._internalBuild("whatever", Integer.class, false),
+			Comparator.naturalOrder(),
 			Arrays.asList(
 				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
 				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
@@ -81,20 +83,20 @@ public class BucketsRecordState {
 		this.formula = new ConstantFormula(entityIds);
 	}
 
-	private ValueToRecordBitmap<Integer>[] generateBuckets(int bucketCount, int valueCount) {
-		@SuppressWarnings("unchecked") final ValueToRecordBitmap<Integer>[] result = new ValueToRecordBitmap[bucketCount];
+	private static ValueToRecordBitmap[] generateBuckets(int bucketCount, int valueCount) {
+		final ValueToRecordBitmap[] result = new ValueToRecordBitmap[bucketCount];
 		int theValue = random.nextInt(100);
 		int recId = 1;
 		for (int i = 0; i < bucketCount; i++) {
 			theValue += random.nextInt(100) + 1;
 			final Bitmap recordIds = generateBitmap(valueCount / bucketCount, recId);
 			recId = recordIds.getLast();
-			result[i] = new ValueToRecordBitmap<>(theValue, recordIds);
+			result[i] = new ValueToRecordBitmap(theValue, recordIds);
 		}
 		return result;
 	}
 
-	private Bitmap generateBitmap(int valueCount, int startValue) {
+	private static Bitmap generateBitmap(int valueCount, int startValue) {
 		final CompositeIntArray intArray = new CompositeIntArray();
 		final ArrayBitmap bitmap = new ArrayBitmap(intArray);
 		int recId = startValue;

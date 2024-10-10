@@ -26,6 +26,7 @@ package io.evitadb.core.query.algebra.attribute;
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.RequirementsDefiner;
@@ -69,11 +70,20 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	 */
 	@Getter private final Predicate<BigDecimal> requestedPredicate;
 
-	public AttributeFormula(boolean targetsGlobalAttribute, @Nonnull AttributeKey attributeKey, @Nonnull Formula innerFormula) {
+	public AttributeFormula(
+		boolean targetsGlobalAttribute,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Formula innerFormula
+	) {
 		this(targetsGlobalAttribute, attributeKey, innerFormula, null);
 	}
 
-	public AttributeFormula(boolean targetsGlobalAttribute, @Nonnull AttributeKey attributeKey, @Nonnull Formula innerFormula, @Nullable Predicate<BigDecimal> requestedPredicate) {
+	public AttributeFormula(
+		boolean targetsGlobalAttribute,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Formula innerFormula,
+		@Nullable Predicate<BigDecimal> requestedPredicate
+	) {
 		this.targetsGlobalAttribute = targetsGlobalAttribute;
 		this.attributeKey = attributeKey;
 		this.requestedPredicate = requestedPredicate;

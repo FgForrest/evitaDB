@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,33 +23,31 @@
 
 package io.evitadb.api.query.filter;
 
-import io.evitadb.api.query.AttributeConstraint;
-import io.evitadb.api.query.FilterConstraint;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Represents base query leaf accepting only filtering constraints and having first argument attribute name.
+ * Abstract base class for attribute filter constraints that require comparison.
+ * This class extends AbstractAttributeFilterConstraintLeaf and represents
+ * constraints that compare attribute values against a specified value.
  *
- * @author Jan Novotný, FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public abstract class AbstractAttributeFilterConstraintLeaf extends AbstractFilterConstraintLeaf
-	implements AttributeConstraint<FilterConstraint>, FilterConstraint {
-	@Serial private static final long serialVersionUID = 3153809771456358624L;
+public abstract class AbstractAttributeFilterComparisonConstraintLeaf
+	extends AbstractAttributeFilterConstraintLeaf {
+	@Serial private static final long serialVersionUID = 2078148475923740022L;
 
-	protected AbstractAttributeFilterConstraintLeaf(Serializable... arguments) {
+	protected AbstractAttributeFilterComparisonConstraintLeaf(Serializable... arguments) {
 		super(arguments);
 	}
 
 	/**
-	 * Returns attribute name that needs to be examined.
+	 * Returns value which needs to be compared with the attribute value.
+	 * @return value to be compared with the attribute value
 	 */
-	@Override
 	@Nonnull
-	public String getAttributeName() {
-		return (String) getArguments()[0];
-	}
+	public abstract <T extends Serializable> T getAttributeValue();
 
 }

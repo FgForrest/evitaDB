@@ -435,6 +435,8 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			!currentSchema.isSortable() ||
 				plainType.isPrimitive() ||
 				Comparable.class.isAssignableFrom(plainType) ||
+				Currency.class.isAssignableFrom(plainType) ||
+				Locale.class.isAssignableFrom(plainType) ||
 				Predecessor.class.isAssignableFrom(plainType) ||
 				ReferencedEntityPredecessor.class.isAssignableFrom(plainType),
 			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable (or must be Predecessor/ReferencedEntityPredecessor) in order to be usable for sort index!")

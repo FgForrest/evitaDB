@@ -229,6 +229,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	/**
 	 * Returns set of requirements to fetch entities with.
 	 */
+	@Nonnull
 	protected EntityFetchRequire getRequirements() {
 		return new EntityFetch(
 			requirements.values().toArray(new EntityContentRequire[0])
@@ -255,6 +256,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	/**
 	 * Returns entity primary keys to fetch.
 	 */
+	@Nonnull
 	private Bitmap getConjunctiveEntities() {
 		return estimatedBitmapCardinality <= BITMAP_SIZE_THRESHOLD ?
 			conjunctiveEntityIds.stream()

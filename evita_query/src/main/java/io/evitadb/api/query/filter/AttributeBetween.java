@@ -100,7 +100,7 @@ public class AttributeBetween extends AbstractAttributeFilterConstraintLeaf impl
 	}
 
 	@Creator
-	public <T extends Serializable & Comparable<?>> AttributeBetween(@Nonnull @Classifier String attributeName,
+	public <T extends Serializable> AttributeBetween(@Nonnull @Classifier String attributeName,
 	                                                                 @Nullable @Value(requiresPlainType = true) T from,
 	                                                                 @Nullable @Value(requiresPlainType = true) T to) {
 		super(attributeName, from, to);
@@ -110,7 +110,7 @@ public class AttributeBetween extends AbstractAttributeFilterConstraintLeaf impl
 	 * Returns lower bound of attribute value (inclusive).
 	 */
 	@Nullable
-	public <T extends Serializable & Comparable<?>> T getFrom() {
+	public <T extends Serializable> T getFrom() {
 		//noinspection unchecked
 		return (T) getArguments()[1];
 	}
@@ -119,7 +119,7 @@ public class AttributeBetween extends AbstractAttributeFilterConstraintLeaf impl
 	 * Returns upper bound of attribute value (inclusive).
 	 */
 	@Nullable
-	public <T extends Serializable & Comparable<?>> T getTo() {
+	public <T extends Serializable> T getTo() {
 		//noinspection unchecked
 		return (T) getArguments()[2];
 	}

@@ -30,15 +30,22 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogRelatedDataStructure;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -92,6 +99,10 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	 */
 	@Nonnull private final TransactionalMap<Serializable, EntityWithTypeTuple> uniqueValueToEntityTuple;
 	/**
+	 * Keeps the lists of primary keys per entity type.
+	 */
+	@Nonnull private final TransactionalMap<Integer, TransactionalBitmap> entitiesPerType;
+	/**
 	 * Keeps internal index where each locale has assigned its own unique integer primary key.
 	 * These primary keys are assigned internally and don't leave this unique index, but are serialized and deserialized
 	 * along with it.
@@ -114,7 +125,13 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	 * pointer.
 	 */
 	private Catalog catalog;
+	/**
+	 * Maps entity type primary key to entity type name.
+	 */
 	private final Map<Integer, String> primaryKeyToEntityType = new ConcurrentHashMap<>();
+	/**
+	 * Maps entity type name to entity type primary key.
+	 */
 	private final Map<String, Integer> entityTypeToPk = new ConcurrentHashMap<>();
 
 	public GlobalUniqueIndex(@Nonnull AttributeKey attributeKey, @Nonnull Class<? extends Serializable> attributeType) {
@@ -122,6 +139,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 		this.attributeKey = attributeKey;
 		this.type = attributeType;
 		this.uniqueValueToEntityTuple = new TransactionalMap<>(new HashMap<>());
+		this.entitiesPerType = new TransactionalMap<>(new HashMap<>(), TransactionalBitmap.class, TransactionalBitmap::new);
 		this.localeToIdIndex = new TransactionalMap<>(new HashMap<>());
 		this.idToLocaleIndex = new TransactionalMap<>(new HashMap<>());
 	}
@@ -147,12 +165,45 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 					)
 				)
 		);
+		// construct the index from scratch
+		Map<Integer, TransactionalBitmap> entitiesPerTypeBase = CollectionUtils.createHashMap(8);
+		for (EntityWithTypeTuple value : uniqueValueToEntityTuple.values()) {
+			entitiesPerTypeBase.computeIfAbsent(value.entityType(), entityType -> new TransactionalBitmap())
+				.add(value.entityPrimaryKey());
+		}
+		this.entitiesPerType = new TransactionalMap<>(entitiesPerTypeBase, TransactionalBitmap.class, TransactionalBitmap::new);
+	}
+
+	public GlobalUniqueIndex(
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Class<? extends Serializable> attributeType,
+		@Nonnull Map<Serializable, EntityWithTypeTuple> uniqueValueToEntityTuple,
+		@Nonnull Map<Integer, TransactionalBitmap> entitiesPerType,
+		@Nonnull Map<Integer, Locale> localeIndex
+	) {
+		this.dirty = new TransactionalBoolean();
+		this.attributeKey = attributeKey;
+		this.type = attributeType;
+		this.uniqueValueToEntityTuple = new TransactionalMap<>(uniqueValueToEntityTuple);
+		this.entitiesPerType = new TransactionalMap<>(entitiesPerType, TransactionalBitmap.class, TransactionalBitmap::new);
+		this.idToLocaleIndex = new TransactionalMap<>(localeIndex);
+		this.localeToIdIndex = new TransactionalMap<>(
+			localeIndex.entrySet().stream()
+				.peek(it -> this.localePkSequence.getAndUpdate(currentValue -> currentValue < it.getKey() ? it.getKey() : currentValue))
+				.collect(
+					Collectors.toMap(
+						Entry::getValue,
+						Entry::getKey
+					)
+				)
+		);
 	}
 
 	private GlobalUniqueIndex(
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Class<? extends Serializable> attributeType,
 		@Nonnull TransactionalMap<Serializable, EntityWithTypeTuple> uniqueValueToEntityTuple,
+		@Nonnull TransactionalMap<Integer, TransactionalBitmap> entitiesPerType,
 		@Nonnull TransactionalMap<Locale, Integer> localeToIdIndex,
 		@Nonnull TransactionalMap<Integer, Locale> idToLocaleIndex
 	) {
@@ -160,6 +211,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 		this.type = attributeType;
 		this.dirty = new TransactionalBoolean();
 		this.uniqueValueToEntityTuple = uniqueValueToEntityTuple;
+		this.entitiesPerType = entitiesPerType;
 		this.localeToIdIndex = localeToIdIndex;
 		this.idToLocaleIndex = idToLocaleIndex;
 	}
@@ -177,6 +229,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 			this.attributeKey,
 			this.type,
 			this.uniqueValueToEntityTuple,
+			this.entitiesPerType,
 			this.localeToIdIndex,
 			this.idToLocaleIndex
 		);
@@ -215,6 +268,32 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 			.filter(it -> locale == null || it.locale() == NO_LOCALE || fromLocale(locale) == it.locale())
 			.map(it -> new EntityReferenceWithLocale(toClassifier(it.entityType()), it.entityPrimaryKey(), toLocale(it.locale())))
 			.orElse(null);
+	}
+
+	/**
+	 * Generates a {@link Formula} instance that provides the record IDs associated with the specified entity type.
+	 *
+	 * @param entityType the type of the entity for which to generate the record IDs formula
+	 * @return a {@link Formula} instance that computes the record IDs for the given entity type
+	 */
+	@Nonnull
+	public Formula getRecordIdsFormula(@Nonnull String entityType) {
+		final Bitmap recordIds = getRecordIds(entityType);
+		return recordIds instanceof EmptyBitmap ? EmptyFormula.INSTANCE : new ConstantFormula(recordIds);
+	}
+
+	/**
+	 * Retrieves the record IDs associated with a specific entity type.
+	 *
+	 * @param entityType the type of the entity for which record IDs are being retrieved
+	 * @return a Bitmap containing the record IDs for the specified entity type
+	 */
+	@Nonnull
+	public Bitmap getRecordIds(@Nonnull String entityType) {
+		final int entityTypePk = fromClassifier(entityType);
+		return ofNullable(this.entitiesPerType.get(entityTypePk))
+			.map(Bitmap.class::cast)
+			.orElse(EmptyBitmap.INSTANCE);
 	}
 
 	/**
@@ -258,6 +337,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 		final GlobalUniqueIndex uniqueKeyIndex = new GlobalUniqueIndex(
 			attributeKey, type,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueValueToEntityTuple),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entitiesPerType),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.idToLocaleIndex)
 		);
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
@@ -270,6 +350,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.dirty.removeLayer(transactionalLayer);
 		this.uniqueValueToEntityTuple.removeLayer(transactionalLayer);
+		this.entitiesPerType.removeLayer(transactionalLayer);
 	}
 
 	/*
@@ -330,6 +411,9 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 		final EntityWithTypeTuple existingRecordId = uniqueValueToEntityTuple.get(key);
 		assertUniqueKeyIsFree(key, record, existingRecordId);
 		this.uniqueValueToEntityTuple.put(key, record);
+		this.entitiesPerType
+			.computeIfAbsent(record.entityType(), entityType -> new TransactionalBitmap())
+			.add(record.entityPrimaryKey());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -359,6 +443,9 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 
 	private <T extends Serializable & Comparable<T>> EntityWithTypeTuple unregisterUniqueKeyValue(@Nonnull T key, EntityWithTypeTuple expectedRecordId) {
 		final EntityWithTypeTuple existingRecordId = this.uniqueValueToEntityTuple.remove(key);
+		if (existingRecordId != null) {
+			this.entitiesPerType.get(existingRecordId.entityType()).remove(existingRecordId.entityPrimaryKey());
+		}
 		assertUniqueKeyOwnership(key, expectedRecordId, existingRecordId);
 		return existingRecordId;
 	}
@@ -409,7 +496,18 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 		);
 	}
 
-	private <T extends Serializable & Comparable<T>> void assertUniqueKeyOwnership(@Nonnull T key, EntityWithTypeTuple expectedRecordId, @Nullable EntityWithTypeTuple existingRecordId) {
+	/**
+	 * Ensures that the unique key is owned by the expected record.
+	 *
+	 * @param key             the unique key to check
+	 * @param expectedRecordId the expected record that should own the key
+	 * @param existingRecordId the existing record that currently owns the key, can be null
+	 */
+	private <T extends Serializable & Comparable<T>> void assertUniqueKeyOwnership(
+		@Nonnull T key,
+		@Nonnull EntityWithTypeTuple expectedRecordId,
+		@Nullable EntityWithTypeTuple existingRecordId
+	) {
 		isTrue(
 			Objects.equals(existingRecordId, expectedRecordId),
 			() -> existingRecordId == null ?

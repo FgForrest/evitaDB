@@ -36,15 +36,20 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Optional;
+import java.util.function.Function;
 
+import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeComparisonTranslator.createAlternativeBitmapFilter;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -52,62 +57,139 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class AttributeEqualsTranslator implements FilteringConstraintTranslator<AttributeEquals> {
+public class AttributeEqualsTranslator extends AbstractAttributeTranslator
+	implements FilteringConstraintTranslator<AttributeEquals> {
 
-	@SuppressWarnings({"rawtypes", "unchecked"})
+	/**
+	 * Creates an {@link AttributeFormula} that targets a globally unique attribute schema.
+	 *
+	 * @param filterByVisitor       The filter visitor that applies filtering logic on global unique indexes.
+	 * @param globalAttributeSchema The schema defining global attributes.
+	 * @param attributeKey          The key representing the specific attribute.
+	 * @param comparedValue         The value to be compared against in the unique index.
+	 * @return An {@link AttributeFormula} targeting the globally unique attribute.
+	 */
+	@Nonnull
+	private static AttributeFormula createGloballyUniqueAttributeFormula(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull GlobalAttributeSchema globalAttributeSchema,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Serializable comparedValue
+	) {
+		// when entity type is not known and attribute is unique globally - access catalog index instead
+		return new AttributeFormula(
+			true,
+			attributeKey,
+			filterByVisitor.applyOnGlobalUniqueIndex(
+				globalAttributeSchema,
+				index -> {
+					final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue(
+						comparedValue, attributeKey.locale()
+					);
+					//noinspection unchecked
+					return entityReference == null ?
+						EmptyFormula.INSTANCE :
+						new MultipleEntityFormula(
+							new long[]{index.getId()},
+							filterByVisitor.translateEntityReference(entityReference)
+						);
+				}
+			)
+		);
+	}
+
+	/**
+	 * Creates an {@link AttributeFormula} that targets a unique attribute schema.
+	 *
+	 * @param filterByVisitor     The filter visitor that applies filtering logic on unique indexes.
+	 * @param attributeDefinition The schema defining the attributes.
+	 * @param attributeKey        The key representing the specific attribute.
+	 * @param comparedValue       The value to be compared against in the unique index.
+	 * @return An {@link AttributeFormula} targeting the unique attribute.
+	 */
+	@Nonnull
+	private static AttributeFormula createUniqueAttributeFormula(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Serializable comparedValue
+	) {
+		// if attribute is unique prefer O(1) hash map lookup over histogram
+		return new AttributeFormula(
+			attributeDefinition instanceof GlobalAttributeSchemaContract,
+			attributeKey,
+			filterByVisitor.applyOnUniqueIndexes(
+				attributeDefinition, index -> {
+					final Integer recordId = index.getRecordIdByUniqueValue(comparedValue);
+					return ofNullable(recordId)
+						.map(it -> (Formula) new ConstantFormula(new ArrayBitmap(recordId)))
+						.orElse(EmptyFormula.INSTANCE);
+				}
+			)
+		);
+	}
+
+	/**
+	 * Creates an {@link AttributeFormula} that is filterable based on the provided parameters.
+	 *
+	 * @param filterByVisitor     The filter visitor that applies filtering logic on attribute indexes.
+	 * @param attributeDefinition The schema defining the attributes.
+	 * @param attributeKey        The key representing the specific attribute.
+	 * @param comparedValue       The value to be compared against in the attribute index.
+	 * @return An {@link AttributeFormula} representing the filterable attribute logic.
+	 */
+	@Nonnull
+	private static AttributeFormula createFilterableAttributeFormula(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Serializable comparedValue
+	) {
+		// use histogram lookup
+		return new AttributeFormula(
+			attributeDefinition instanceof GlobalAttributeSchemaContract,
+			attributeKey,
+			filterByVisitor.applyOnFilterIndexes(
+				attributeDefinition, index -> index.getRecordsEqualToFormula(comparedValue)
+			)
+		);
+	}
+
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull AttributeEquals attributeEquals, @Nonnull FilterByVisitor filterByVisitor) {
 		final String attributeName = attributeEquals.getAttributeName();
 		final Serializable attributeValue = attributeEquals.getAttributeValue();
-		final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
-		final Serializable targetType = EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getPlainType());
-		final Comparable comparableValue = targetType instanceof Comparable comparable ? comparable : targetType.toString();
+		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
 
-		if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
-			globalAttributeSchema.isUniqueGlobally()) {
-			// when entity type is not known and attribute is unique globally - access catalog index instead
-			return new AttributeFormula(
-				true,
-				attributeDefinition.isLocalized() ?
-					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
-				filterByVisitor.applyOnGlobalUniqueIndex(
-					globalAttributeSchema,
-					index -> {
-						final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue(
-							(Serializable) comparableValue, filterByVisitor.getLocale()
-						);
-						return entityReference == null ?
-							EmptyFormula.INSTANCE :
-							new MultipleEntityFormula(
-								new long[] { index.getId() },
-								filterByVisitor.translateEntityReference(entityReference)
-							);
-					}
-				)
-			);
-		} else if (attributeDefinition.isUnique()) {
-			// if attribute is unique prefer O(1) hash map lookup over histogram
-			return new AttributeFormula(
-				attributeDefinition instanceof GlobalAttributeSchemaContract,
-				attributeDefinition.isLocalized() ?
-					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
-				filterByVisitor.applyOnUniqueIndexes(
-					attributeDefinition, index -> {
-						final Integer recordId = index.getRecordIdByUniqueValue((Serializable) comparableValue);
-						return ofNullable(recordId).map(it -> (Formula) new ConstantFormula(new ArrayBitmap(recordId))).orElse(EmptyFormula.INSTANCE);
-					}
-				)
-			);
+		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
+				.map(AttributeSchemaContract.class::cast)
+				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
+			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
+
+			final Class<? extends Serializable> plainType = attributeDefinition.getPlainType();
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(plainType);
+			final Serializable comparedValue = normalizer.apply(EvitaDataTypes.toTargetType(attributeValue, plainType));
+
+			if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
+				globalAttributeSchema.isUniqueGlobally()) {
+				return createGloballyUniqueAttributeFormula(
+					filterByVisitor, globalAttributeSchema, attributeKey, comparedValue
+				);
+			} else if (attributeDefinition.isUnique()) {
+				return createUniqueAttributeFormula(
+					filterByVisitor, attributeDefinition, attributeKey, comparedValue
+				);
+			} else {
+				return createFilterableAttributeFormula(
+					filterByVisitor, attributeDefinition, attributeKey, comparedValue
+				);
+			}
 		} else {
-			// use histogram lookup
-			return new AttributeFormula(
-				attributeDefinition instanceof GlobalAttributeSchemaContract,
-				attributeDefinition.isLocalized() ?
-					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
-				filterByVisitor.applyOnFilterIndexes(
-					attributeDefinition, index -> index.getRecordsEqualToFormula(comparableValue)
-				)
+			return new EntityFilteringFormula(
+				"attribute equals filter",
+				createAlternativeBitmapFilter(filterByVisitor, attributeName, attributeValue, result -> result == 0)
 			);
 		}
 	}

@@ -21,11 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.filter.translator.attribute.alternative;
+package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -38,15 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.filter.translator.TestQueryExecutionContext;
-import io.evitadb.core.query.filter.translator.attribute.AttributeBetweenTranslator;
-import io.evitadb.core.query.filter.translator.attribute.AttributeContainsTranslator;
-import io.evitadb.core.query.filter.translator.attribute.AttributeEndsWithTranslator;
-import io.evitadb.core.query.filter.translator.attribute.AttributeGreaterThanEqualsTranslator;
-import io.evitadb.core.query.filter.translator.attribute.AttributeGreaterThanTranslator;
-import io.evitadb.core.query.filter.translator.attribute.AttributeInRangeTranslator;
-import io.evitadb.core.query.filter.translator.attribute.AttributeLessThanEqualsTranslator;
-import io.evitadb.core.query.filter.translator.attribute.AttributeLessThanTranslator;
-import io.evitadb.core.query.filter.translator.attribute.AttributeStartsWithTranslator;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.index.bitmap.Bitmap;
@@ -64,6 +57,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
@@ -71,6 +65,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeComparisonTranslator.getPredicate;
+import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeStringSearchTranslator.transformPredicate;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -85,7 +81,6 @@ class AttributeBitmapFilterTest {
 	public static final String NUMBER_RANGE = "numberRange";
 	private static final int SEED = 40;
 	private AttributeSchemaAccessor attributeSchemaAccessor;
-	private CatalogSchema catalogSchema;
 	private EntitySchemaContract entitySchema;
 	private Map<Integer, SealedEntity> entities;
 
@@ -131,7 +126,7 @@ class AttributeBitmapFilterTest {
 			AttributeContent.ALL_ATTRIBUTES,
 			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeBetweenTranslator.getComparablePredicate(from, to)
+			attributeSchema -> AttributeBetweenTranslator.getComparablePredicate(o -> (java.io.Serializable) o, Comparator.naturalOrder(), from, to)
 		);
 
 		final Bitmap result = filter.filter(
@@ -262,7 +257,7 @@ class AttributeBitmapFilterTest {
 			AttributeContent.ALL_ATTRIBUTES,
 			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeContainsTranslator.getPredicate(textToSearch)
+			attributeSchema -> transformPredicate(theValue -> AttributeContainsTranslator.createPredicate().test(theValue, textToSearch))
 		);
 
 		final Bitmap result = filter.filter(
@@ -288,7 +283,7 @@ class AttributeBitmapFilterTest {
 			AttributeContent.ALL_ATTRIBUTES,
 			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeEndsWithTranslator.getPredicate(textToSearch)
+			attributeSchema -> transformPredicate(theValue -> AttributeEndsWithTranslator.createPredicate().test(theValue, textToSearch))
 		);
 
 		final Bitmap result = filter.filter(
@@ -314,7 +309,7 @@ class AttributeBitmapFilterTest {
 			AttributeContent.ALL_ATTRIBUTES,
 			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeStartsWithTranslator.getPredicate(textToSearch)
+			attributeSchema -> transformPredicate(theValue -> AttributeStartsWithTranslator.createPredicate().test(theValue, textToSearch))
 		);
 
 		final Bitmap result = filter.filter(
@@ -340,7 +335,10 @@ class AttributeBitmapFilterTest {
 			AttributeContent.ALL_ATTRIBUTES,
 			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeGreaterThanEqualsTranslator.getPredicate(theNumber)
+			attributeSchema -> getPredicate(
+				attributeSchemaAccessor.getAttributeSchema(attributeName),
+				new AttributeKey(attributeName), theNumber, result -> result >= 0
+			)
 		);
 
 		final Bitmap result = filter.filter(
@@ -366,7 +364,10 @@ class AttributeBitmapFilterTest {
 			AttributeContent.ALL_ATTRIBUTES,
 			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeGreaterThanTranslator.getPredicate(theNumber)
+			attributeSchema -> getPredicate(
+				attributeSchemaAccessor.getAttributeSchema(attributeName),
+				new AttributeKey(attributeName), theNumber, result -> result > 0
+			)
 		);
 
 		final Bitmap result = filter.filter(
@@ -392,7 +393,10 @@ class AttributeBitmapFilterTest {
 			AttributeContent.ALL_ATTRIBUTES,
 			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeLessThanTranslator.getPredicate(theNumber)
+			attributeSchema -> getPredicate(
+				attributeSchemaAccessor.getAttributeSchema(attributeName),
+				new AttributeKey(attributeName), theNumber, result -> result < 0
+			)
 		);
 
 		final Bitmap result = filter.filter(
@@ -418,7 +422,10 @@ class AttributeBitmapFilterTest {
 			AttributeContent.ALL_ATTRIBUTES,
 			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
-			attributeSchema -> AttributeLessThanEqualsTranslator.getPredicate(theNumber)
+			attributeSchema -> getPredicate(
+				attributeSchemaAccessor.getAttributeSchema(attributeName),
+				new AttributeKey(attributeName), theNumber, result -> result <= 0
+			)
 		);
 
 		final Bitmap result = filter.filter(
