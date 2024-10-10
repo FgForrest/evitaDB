@@ -612,6 +612,7 @@ public final class Evita implements EvitaContract {
 	ServerTask<Void, Void> createLoadCatalogTask(@Nonnull String catalogName) {
 		return new ClientRunnableTask<>(
 			catalogName,
+			"LoadCatalogTask",
 			"Loading catalog " + catalogName + " from disk...",
 			null,
 			() -> {

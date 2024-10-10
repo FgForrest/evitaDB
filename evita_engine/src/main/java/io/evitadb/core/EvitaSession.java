@@ -1198,6 +1198,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+		// added read only check
+		Assert.isTrue(
+			!isReadOnly(),
+			ReadOnlyException::new
+		);
 		return getCatalog().backup(pastMoment, includingWAL);
 	}
 
@@ -1522,7 +1527,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Creates new transaction a wraps it into carrier object.
 	 */
 	private Transaction createTransaction(@Nonnull CommitBehavior commitBehaviour) {
-		Assert.isTrue(!isReadOnly(), "Evita session is read only!");
+		Assert.isTrue(
+			!isReadOnly(),
+			ReadOnlyException::new
+		);
 		final CatalogContract currentCatalog = getCatalog();
 		if (currentCatalog instanceof Catalog theCatalog) {
 			final Transaction transaction = new Transaction(

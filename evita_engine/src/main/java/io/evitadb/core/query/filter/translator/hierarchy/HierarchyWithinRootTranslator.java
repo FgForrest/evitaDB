@@ -33,7 +33,7 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.infra.SkipFormula;
+import io.evitadb.core.query.algebra.hierarchy.HierarchyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.index.EntityIndex;
@@ -135,20 +135,24 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		// but! we can't do this when reference related constraints are found within the query because they'd use
 		// the record sets from different indexes than it's our hierarchy index (i.e. not subset)
 		if (filterByVisitor.isTargetIndexRepresentingConstraint(hierarchyWithinRoot) &&
-			filterByVisitor.isTargetIndexQueriedByOtherConstraints() &&
-			!filterByVisitor.isReferenceQueriedByOtherConstraints()) {
-			return SkipFormula.INSTANCE;
+			!filterByVisitor.isReferenceQueriedByOtherConstraints()
+		) {
+			filterByVisitor.registerFormulaPostProcessor(
+				HierarchyOptimizingPostProcessor.class, HierarchyOptimizingPostProcessor::new
+			);
+		}
+
+		final Formula matchingHierarchyNodIds = createFormulaFromHierarchyIndex(hierarchyWithinRoot, filterByVisitor);
+		if (hierarchyWithinRoot.getReferenceName().isEmpty()) {
+			return new HierarchyFormula(matchingHierarchyNodIds);
 		} else {
-			final Formula matchingHierarchyNodIds = createFormulaFromHierarchyIndex(hierarchyWithinRoot, filterByVisitor);
-			if (hierarchyWithinRoot.getReferenceName().isEmpty()) {
-				return matchingHierarchyNodIds;
-			} else {
-				return createFormulaForReferencingEntities(
+			return new HierarchyFormula(
+				createFormulaForReferencingEntities(
 					hierarchyWithinRoot,
 					filterByVisitor,
 					() -> matchingHierarchyNodIds
-				);
-			}
+				)
+			);
 		}
 	}
 

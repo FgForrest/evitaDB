@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator.attribute;
 import io.evitadb.api.query.filter.AttributeIs;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -41,7 +42,11 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.index.CatalogIndex;
+import io.evitadb.index.CatalogIndexKey;
+import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 
 import javax.annotation.Nonnull;
@@ -52,71 +57,44 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class AttributeIsTranslator implements FilteringConstraintTranslator<AttributeIs> {
+public class AttributeIsTranslator extends AbstractAttributeTranslator
+	implements FilteringConstraintTranslator<AttributeIs> {
 
+	/**
+	 * Translates an "IS NULL" attribute condition into a corresponding Formula.
+	 *
+	 * @param attributeName   the name of the attribute to be checked for null values
+	 * @param filterByVisitor the visitor responsible for filtering operations
+	 * @return a Formula representing the translated "IS NULL" condition for the specified attribute
+	 */
 	@Nonnull
-	@Override
-	public Formula translate(@Nonnull AttributeIs attributeIs, @Nonnull FilterByVisitor filterByVisitor) {
-		final String attributeName = attributeIs.getAttributeName();
-
-		// also consider the possibly more special values supported in the future
-		return switch (attributeIs.getAttributeSpecialValue()) {
-			case NULL -> translateIsNull(attributeName, filterByVisitor);
-			case NOT_NULL -> translateIsNotNull(attributeName, filterByVisitor);
-		};
-	}
-
-	@Nonnull
-	private static Formula translateIsNull(@Nonnull String attributeName, @Nonnull FilterByVisitor filterByVisitor) {
+	private static Formula translateIsNull(
+		@Nonnull String attributeName,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
+			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName)
+				.map(AttributeSchemaContract.class::cast)
+				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
+			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
+
 			// if attribute is unique prefer O(1) hash map lookup over inverted index
-			if (attributeDefinition.isUnique()) {
+			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
+				globalAttributeSchema.isUniqueGlobally()
+			) {
 				return FutureNotFormula.postProcess(
-					filterByVisitor.getEntityIndexStream().map(it -> {
-						final UniqueIndex uniqueIndex = it.getUniqueIndex(attributeDefinition, filterByVisitor.getLocale());
-						if (uniqueIndex == null) {
-							return EmptyFormula.INSTANCE;
-						}
-						return new NotFormula(
-							uniqueIndex.getRecordIdsFormula(),
-							it.getAllPrimaryKeysFormula()
-						);
-					}).toArray(Formula[]::new),
-					formulas -> {
-						if (formulas.length == 0) {
-							return EmptyFormula.INSTANCE;
-						} else {
-							return new AttributeFormula(
-								attributeDefinition.isLocalized() ?
-									new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
-								FormulaFactory.or(formulas));
-						}
-					}
+					createNullGloballyUniqueSubtractionFormula(globalAttributeSchema, filterByVisitor),
+					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
+				);
+			} else if (attributeDefinition.isUnique()) {
+				return FutureNotFormula.postProcess(
+					createNullUniqueSubtractionFormula(attributeDefinition, filterByVisitor),
+					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
 				);
 			} else {
 				return FutureNotFormula.postProcess(
-					filterByVisitor.getEntityIndexStream().map(it -> {
-						final FilterIndex filterIndex = it.getFilterIndex(attributeDefinition.getName(), filterByVisitor.getLocale());
-						if (filterIndex == null) {
-							return it.getAllPrimaryKeysFormula();
-						}
-						return new NotFormula(
-							filterIndex.getAllRecordsFormula(),
-							it.getAllPrimaryKeysFormula()
-						);
-					}).toArray(Formula[]::new),
-					formulas -> {
-						if (formulas.length == 0) {
-							return EmptyFormula.INSTANCE;
-						} else {
-							return new AttributeFormula(
-								attributeDefinition.isLocalized() ?
-									new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
-								FormulaFactory.or(formulas)
-							);
-						}
-					}
+					createNullFilterableSubtractionFormula(attributeDefinition, filterByVisitor),
+					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
 				);
 			}
 		} else {
@@ -127,31 +105,174 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 		}
 	}
 
+	/**
+	 * Creates an array of Formulas for filtering entities where a specified attribute is null based on information
+	 * in filter indexes. The formulas apply a subtraction operation to filter out records with non-null attributes.
+	 *
+	 * @param attributeDefinition the schema definition of the attribute being processed
+	 * @param filterByVisitor     the visitor responsible for filtering operations
+	 * @return an array of Formulas representing the null filterable subtraction conditions
+	 */
 	@Nonnull
-	private static Formula translateIsNotNull(@Nonnull String attributeName, @Nonnull FilterByVisitor filterByVisitor) {
+	private static Formula[] createNullFilterableSubtractionFormula(
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		return filterByVisitor.getEntityIndexStream()
+			.map(
+				it -> {
+					final FilterIndex filterIndex = it.getFilterIndex(attributeDefinition.getName(), filterByVisitor.getLocale());
+					if (filterIndex == null) {
+						return it.getAllPrimaryKeysFormula();
+					}
+					return new NotFormula(
+						filterIndex.getAllRecordsFormula(),
+						it.getAllPrimaryKeysFormula()
+					);
+				}
+			)
+			.toArray(Formula[]::new);
+	}
+
+	/**
+	 * Creates an array of Formulas for filtering entities where a specified attribute is null based on information
+	 * in unique indexes. The formulas apply a subtraction operation to filter out records with non-null attributes.
+	 *
+	 * @param attributeDefinition the schema definition of the attribute being processed
+	 * @param filterByVisitor     the visitor responsible for filtering operations
+	 * @return an array of Formulas representing the null filterable subtraction conditions
+	 */
+	@Nonnull
+	private static Formula[] createNullGloballyUniqueSubtractionFormula(
+		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		return filterByVisitor.getIndex(CatalogIndexKey.INSTANCE)
+			.map(
+				it -> {
+					final CatalogIndex catalogIndex = (CatalogIndex) it;
+					final GlobalUniqueIndex uniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeDefinition, filterByVisitor.getLocale());
+					return new Formula[] {
+						uniqueIndex == null ?
+							EmptyFormula.INSTANCE :
+							new NotFormula(
+								uniqueIndex.getRecordIdsFormula(filterByVisitor.getEntityType()),
+								FormulaFactory.or(
+									filterByVisitor.getEntityIndexStream()
+										.map(EntityIndex::getAllPrimaryKeysFormula)
+										.toArray(Formula[]::new)
+								)
+							)
+					};
+				}
+			)
+			.orElse(new Formula[0]);
+	}
+
+	/**
+	 * Creates an array of Formulas for filtering entities where a specified attribute is null based on information
+	 * in unique indexes. The formulas apply a subtraction operation to filter out records with non-null attributes.
+	 *
+	 * @param attributeDefinition the schema definition of the attribute being processed
+	 * @param filterByVisitor     the visitor responsible for filtering operations
+	 * @return an array of Formulas representing the null filterable subtraction conditions
+	 */
+	@Nonnull
+	private static Formula[] createNullUniqueSubtractionFormula(
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		return filterByVisitor.getEntityIndexStream()
+			.map(
+				it -> {
+					final UniqueIndex uniqueIndex = it.getUniqueIndex(attributeDefinition, filterByVisitor.getLocale());
+					return uniqueIndex == null ?
+						EmptyFormula.INSTANCE :
+						new NotFormula(
+							uniqueIndex.getRecordIdsFormula(),
+							it.getAllPrimaryKeysFormula()
+						);
+				}
+			)
+			.toArray(Formula[]::new);
+	}
+
+	/**
+	 * Aggregates the provided formulas into a single Formula (either empty formula or disjunctive join).
+	 *
+	 * @param attributeDefinition the schema definition of the attribute being processed
+	 * @param attributeKey        the key of the attribute being processed
+	 * @param formulas            an array of formulas to be aggregated
+	 * @return an AbstractFormula that represents the aggregation of the input formulas
+	 */
+	@Nonnull
+	private static Formula aggregateFormulas(
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Formula[] formulas
+	) {
+		if (formulas.length == 0) {
+			return EmptyFormula.INSTANCE;
+		} else {
+			return new AttributeFormula(
+				attributeDefinition instanceof GlobalAttributeSchemaContract,
+				attributeKey,
+				FormulaFactory.or(formulas)
+			);
+		}
+	}
+
+	/**
+	 * Translates an "IS NOT NULL" attribute condition into a corresponding Formula.
+	 *
+	 * @param attributeName   the name of the attribute to be checked for non-null values
+	 * @param filterByVisitor the visitor responsible for filtering operations
+	 * @return a Formula representing the translated "IS NOT NULL" condition for the specified attribute
+	 */
+	@Nonnull
+	private static Formula translateIsNotNull(
+		@Nonnull String attributeName,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName);
+			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName)
+				.map(AttributeSchemaContract.class::cast)
+				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
+			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
 			// if attribute is unique prefer O(1) hash map lookup over histogram
-			if (attributeDefinition.isUnique()) {
+			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
+				globalAttributeSchema.isUniqueGlobally()
+			) {
 				return new AttributeFormula(
-					attributeDefinition.isLocalized() ?
-						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
+					true,
+					attributeKey,
+					filterByVisitor.applyOnGlobalUniqueIndex(
+						globalAttributeSchema,
+						index -> new ConstantFormula(index.getRecordIds(filterByVisitor.getEntityType()))
+					)
+				);
+			} else if (attributeDefinition.isUnique()) {
+				return new AttributeFormula(
+					attributeDefinition instanceof GlobalAttributeSchemaContract,
+					attributeKey,
 					filterByVisitor.applyOnUniqueIndexes(
-						attributeDefinition, index -> new ConstantFormula(index.getRecordIds())
+						attributeDefinition,
+						index -> new ConstantFormula(index.getRecordIds())
 					)
 				);
 			} else {
 				final AttributeFormula filteringFormula = new AttributeFormula(
-					attributeDefinition.isLocalized() ?
-						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
+					attributeDefinition instanceof GlobalAttributeSchemaContract,
+					attributeKey,
 					filterByVisitor.applyOnFilterIndexes(
-						attributeDefinition, FilterIndex::getAllRecordsFormula
+						attributeDefinition,
+						FilterIndex::getAllRecordsFormula
 					)
 				);
 				if (filterByVisitor.isPrefetchPossible()) {
 					return new SelectionFormula(
 						filteringFormula,
-						createAlternativeNotNullBitmapFilter(attributeName, filterByVisitor)
+						createAlternativeNotNullBitmapFilter(attributeKey.attributeName(), filterByVisitor)
 					);
 				} else {
 					return filteringFormula;
@@ -165,9 +286,19 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 		}
 	}
 
+	/**
+	 * Creates an AttributeBitmapFilter that checks for the absence of a specified attribute.
+	 *
+	 * @param attributeName   the name of the attribute to be checked for absence
+	 * @param filterByVisitor the visitor responsible for filtering operations
+	 * @return an AttributeBitmapFilter instance configured to check for attribute absence
+	 */
 	@Nonnull
-	private static AttributeBitmapFilter createAlternativeNullBitmapFilter(@Nonnull String attributeName, @Nonnull FilterByVisitor filterByVisitor) {
-		final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
+	private static AttributeBitmapFilter createAlternativeNullBitmapFilter(
+		@Nonnull String attributeName,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
 			processingScope.getRequirements(),
@@ -178,9 +309,19 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 		);
 	}
 
+	/**
+	 * Creates an AttributeBitmapFilter that ensures a specified attribute is not null.
+	 *
+	 * @param attributeName   the name of the attribute to check for non-null values
+	 * @param filterByVisitor the visitor responsible for filtering operations
+	 * @return an AttributeBitmapFilter instance configured to check for non-null attribute values
+	 */
 	@Nonnull
-	private static AttributeBitmapFilter createAlternativeNotNullBitmapFilter(@Nonnull String attributeName, @Nonnull FilterByVisitor filterByVisitor) {
-		final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
+	private static AttributeBitmapFilter createAlternativeNotNullBitmapFilter(
+		@Nonnull String attributeName,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
 			processingScope.getRequirements(),
@@ -189,6 +330,18 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent),
 			AttributeTrait.FILTERABLE
 		);
+	}
+
+	@Nonnull
+	@Override
+	public Formula translate(@Nonnull AttributeIs attributeIs, @Nonnull FilterByVisitor filterByVisitor) {
+		final String attributeName = attributeIs.getAttributeName();
+
+		// also consider the possibly more special values supported in the future
+		return switch (attributeIs.getAttributeSpecialValue()) {
+			case NULL -> translateIsNull(attributeName, filterByVisitor);
+			case NOT_NULL -> translateIsNotNull(attributeName, filterByVisitor);
+		};
 	}
 
 }

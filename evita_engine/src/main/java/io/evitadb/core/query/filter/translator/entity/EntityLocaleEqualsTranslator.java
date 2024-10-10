@@ -92,72 +92,72 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 		}
 	}
 
+	/**
+	 * This class postprocess the created {@link Formula} filtering tree and removes the {@link LocaleFormula} in case
+	 * an {@link AttributeFormula} that uses the localized attribute index is indexed in the filtering conjunction tree.
+	 * This will remove necessity to process AND conjunction with rather large index with all localized entity primary
+	 * keys.
+	 */
+	private static class LocaleOptimizingPostProcessor extends FormulaCloner implements FormulaPostProcessor {
 		/**
-		 * This class postprocess the created {@link Formula} filtering tree and removes the {@link LocaleFormula} in case
-		 * an {@link AttributeFormula} that uses the localized attribute index is indexed in the filtering conjunction tree.
-		 * This will remove necessity to process AND conjunction with rather large index with all localized entity primary
-		 * keys.
+		 * Flag that signalizes {@link #visit(Formula)} happens in conjunctive scope.
 		 */
-		private static class LocaleOptimizingPostProcessor extends FormulaCloner implements FormulaPostProcessor {
-			/**
-			 * Flag that signalizes {@link #visit(Formula)} happens in conjunctive scope.
-			 */
-			protected boolean conjunctiveScope = true;
-			/**
-			 * Reference to the original unchanged {@link Formula}.
-			 */
-			private Formula originalFormula;
-			/**
-			 * Flag that signalizes that localized {@link AttributeFormula} was found in conjunctive scope.
-			 */
-			private boolean localizedAttributeFormulaFound;
+		protected boolean conjunctiveScope = true;
+		/**
+		 * Reference to the original unchanged {@link Formula}.
+		 */
+		private Formula originalFormula;
+		/**
+		 * Flag that signalizes that localized {@link AttributeFormula} was found in conjunctive scope.
+		 */
+		private boolean localizedAttributeFormulaFound;
 
-			public LocaleOptimizingPostProcessor() {
-				super(
-					(formulaCloner, formula) -> {
-						final LocaleOptimizingPostProcessor clonerInstance = (LocaleOptimizingPostProcessor) formulaCloner;
-						if (clonerInstance.originalFormula == null) {
-							clonerInstance.originalFormula = formula;
-						}
-						if (formula instanceof final AttributeFormula attributeFormula) {
-							clonerInstance.localizedAttributeFormulaFound = clonerInstance.localizedAttributeFormulaFound ||
-								(attributeFormula.isLocalized() && clonerInstance.conjunctiveScope);
-						} else if (formula instanceof SelectionFormula selectionFormula &&
-							(selectionFormula.getDelegate() instanceof LocaleFormula ||
-								selectionFormula.getDelegate() instanceof OrFormula orFormula &&
-									Arrays.stream(orFormula.getInnerFormulas()).allMatch(it -> it instanceof LocaleFormula))
-						) {
-							// skip this formula
-							return null;
-						} else if (formula instanceof LocaleFormula && clonerInstance.conjunctiveScope) {
-							// skip this formula
-							return null;
-						}
-						// include the formula
-						return formula;
+		public LocaleOptimizingPostProcessor() {
+			super(
+				(formulaCloner, formula) -> {
+					final LocaleOptimizingPostProcessor clonerInstance = (LocaleOptimizingPostProcessor) formulaCloner;
+					if (clonerInstance.originalFormula == null) {
+						clonerInstance.originalFormula = formula;
 					}
-				);
-			}
-
-			@Override
-			public void visit(@Nonnull Formula formula) {
-				final boolean formerConjunctiveScope = this.conjunctiveScope;
-				try {
-					if (!FilterByVisitor.isConjunctiveFormula(formula.getClass())) {
-						this.conjunctiveScope = false;
+					if (formula instanceof final AttributeFormula attributeFormula) {
+						clonerInstance.localizedAttributeFormulaFound = clonerInstance.localizedAttributeFormulaFound ||
+							(attributeFormula.isLocalized() && clonerInstance.conjunctiveScope);
+					} else if (formula instanceof SelectionFormula selectionFormula &&
+						(selectionFormula.getDelegate() instanceof LocaleFormula ||
+							selectionFormula.getDelegate() instanceof OrFormula orFormula &&
+								Arrays.stream(orFormula.getInnerFormulas()).allMatch(it -> it instanceof LocaleFormula))
+					) {
+						// skip this formula
+						return null;
+					} else if (formula instanceof LocaleFormula && clonerInstance.conjunctiveScope) {
+						// skip this formula
+						return null;
 					}
-					super.visit(formula);
-				} finally {
-					this.conjunctiveScope = formerConjunctiveScope;
+					// include the formula
+					return formula;
 				}
-			}
-
-			@Nonnull
-			@Override
-			public Formula getPostProcessedFormula() {
-				return localizedAttributeFormulaFound ?
-					getResultClone() : originalFormula;
-			}
-
+			);
 		}
+
+		@Override
+		public void visit(@Nonnull Formula formula) {
+			final boolean formerConjunctiveScope = this.conjunctiveScope;
+			try {
+				if (!FilterByVisitor.isConjunctiveFormula(formula.getClass())) {
+					this.conjunctiveScope = false;
+				}
+				super.visit(formula);
+			} finally {
+				this.conjunctiveScope = formerConjunctiveScope;
+			}
+		}
+
+		@Nonnull
+		@Override
+		public Formula getPostProcessedFormula() {
+			return localizedAttributeFormulaFound ?
+				getResultClone() : originalFormula;
+		}
+
 	}
+}

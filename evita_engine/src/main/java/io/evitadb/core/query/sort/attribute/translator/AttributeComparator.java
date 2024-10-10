@@ -52,6 +52,7 @@ import static java.util.Optional.ofNullable;
 @SuppressWarnings("ComparatorNotSerializable")
 public class AttributeComparator implements EntityComparator {
 	@Nonnull private final Function<EntityContract, Comparable<?>> attributeValueFetcher;
+	@Nonnull private final Comparator<EntityContract> pkComparator;
 	@Nonnull private final Comparator<Comparable<?>> comparator;
 	private CompositeObjectArray<EntityContract> nonSortedEntities;
 
@@ -65,13 +66,16 @@ public class AttributeComparator implements EntityComparator {
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
-		final Optional<UnaryOperator<Comparable<?>>> normalizerFor = createNormalizerFor(comparatorSource);
-		final UnaryOperator<Comparable<?>> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		final Optional<UnaryOperator<Object>> normalizerFor = createNormalizerFor(comparatorSource);
+		final UnaryOperator<Object> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		this.pkComparator = orderDirection == OrderDirection.ASC ?
+			Comparator.comparingInt(EntityContract::getPrimaryKey) :
+			Comparator.comparingInt(EntityContract::getPrimaryKey).reversed();
 		//noinspection unchecked
 		this.comparator = createComparatorFor(locale, comparatorSource);
 		this.attributeValueFetcher = locale == null ?
-			entityContract -> normalizer.apply(attributeExtractor.extract(entityContract, attributeName)) :
-			entityContract -> normalizer.apply(attributeExtractor.extract(entityContract, attributeName, locale));
+			entityContract -> (Comparable<?>) normalizer.apply(attributeExtractor.extract(entityContract, attributeName)) :
+			entityContract -> (Comparable<?>) normalizer.apply(attributeExtractor.extract(entityContract, attributeName, locale));
 	}
 
 	@Nonnull
@@ -86,7 +90,12 @@ public class AttributeComparator implements EntityComparator {
 		final Comparable<?> attribute1 = attributeValueFetcher.apply(o1);
 		final Comparable<?> attribute2 = attributeValueFetcher.apply(o2);
 		if (attribute1 != null && attribute2 != null) {
-			return comparator.compare(attribute1, attribute2);
+			final int result = comparator.compare(attribute1, attribute2);
+			if (result == 0) {
+				return pkComparator.compare(o1, o2);
+			} else {
+				return result;
+			}
 		} else if (attribute1 == null && attribute2 != null) {
 			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
 				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));

@@ -424,6 +424,7 @@ public class MetricHandler {
 			@Nonnull Set<Class<? extends CustomMetricsExecutionEvent>> allowedMetrics
 		) {
 			super(
+				MetricHandler.class.getSimpleName(),
 				"Metric handler",
 				null,
 				theTask -> {

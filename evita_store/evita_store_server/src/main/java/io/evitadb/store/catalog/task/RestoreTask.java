@@ -35,6 +35,7 @@ import io.evitadb.store.catalog.task.RestoreTask.RestoreSettings;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CountingInputStream;
+import io.evitadb.utils.StringUtils;
 import io.evitadb.utils.UUIDUtil;
 import lombok.extern.slf4j.Slf4j;
 
@@ -105,6 +106,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 	) {
 		super(
 			catalogName,
+			RestoreTask.class.getSimpleName(),
 			"Restore catalog `" + catalogName + "`",
 			new RestoreSettings(inputStream, storageOptions.exportDirectory(), totalSizeInBytes),
 			task -> ((RestoreTask) task).doRestore(),
@@ -127,7 +129,9 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 		try (
 			final CountingInputStream cis = new CountingInputStream(
 				new BufferedInputStream(
-					Files.newInputStream(inputFile, StandardOpenOption.READ, StandardOpenOption.DELETE_ON_CLOSE)
+					status.settings().deleteAfterRestore() ?
+						Files.newInputStream(inputFile, StandardOpenOption.READ, StandardOpenOption.DELETE_ON_CLOSE) :
+						Files.newInputStream(inputFile, StandardOpenOption.READ)
 				)
 			);
 			final ZipInputStream zipInputStream = new ZipInputStream(cis)
@@ -187,7 +191,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			fileChannel.write(buffer);
 		}
 		buffer.clear();
-		updateProgress((int) ((cis.getCount() * 100L) / getStatus().settings().totalSizeInBytes()));
+		updateProgress((int) (((float) cis.getCount() / (float) getStatus().settings().totalSizeInBytes()) * 100));
 	}
 
 	/**
@@ -198,14 +202,16 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 	 */
 	public record RestoreSettings(
 		@Nonnull String fileName,
-		long totalSizeInBytes
+		long totalSizeInBytes,
+		boolean deleteAfterRestore
 	) implements Serializable {
 
 		public RestoreSettings(@Nonnull InputStream inputStream, @Nonnull Path export, long totalSizeInBytes) {
 			this(
 				inputStream instanceof ExportFileInputStream exportFileInputStream ?
 					exportFileInputStream.getFile().path(export).toFile().getName() : UUIDUtil.randomUUID() + ".zip",
-				totalSizeInBytes
+				totalSizeInBytes,
+				!(inputStream instanceof ExportFileInputStream)
 			);
 			if (!(inputStream instanceof ExportFileInputStream)) {
 				// if the file is not a locally stored export file, store it to the export directory first
@@ -228,6 +234,11 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			}
 		}
 
+		@Override
+		public String toString() {
+			return "FileName: `" + fileName + '`' +
+				", totalSizeInBytes: " + StringUtils.formatByteSize(totalSizeInBytes);
+		}
 	}
 
 }

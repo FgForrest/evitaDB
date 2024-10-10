@@ -143,6 +143,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private final DataStoreMemoryBuffer dataStoreUpdater;
 	private EntityBodyStoragePart entityContainer;
 	private PricesStoragePart pricesContainer;
+	private ReferencesStoragePart initialReferencesStorageContainer;
 	private ReferencesStoragePart referencesStorageContainer;
 	private AttributesStoragePart globalAttributesStorageContainer;
 	private Map<Locale, AttributesStoragePart> languageSpecificAttributesContainer;
@@ -353,7 +354,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				throw new MandatoryAttributesNotProvidedException(this.schemaAccessor.get().getName(), missingMandatedAttributes);
 			}
 		} else if (this.entityContainer.isMarkedForRemoval()) {
-			removeReflectedReferences(this.referencesStorageContainer, mutationCollector);
+			removeReflectedReferences(this.initialReferencesStorageContainer, mutationCollector);
 		} else {
 			final List<Object> missingMandatedAttributes = new LinkedList<>();
 			// we need to check only changed parts
@@ -537,6 +538,15 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	protected ReferencesStoragePart cacheReferencesStorageContainer(int entityPrimaryKey, @Nonnull ReferencesStoragePart referencesStorageContainer) {
 		Assert.isPremiseValid(entityPrimaryKey == this.entityPrimaryKey, ERROR_SAME_KEY_EXPECTED);
 		this.referencesStorageContainer = referencesStorageContainer;
+		if (this.removeOnly) {
+			// when the entity is being removed we need to keep the initial state of references
+			// in order to correctly propagate reflected references removal
+			this.initialReferencesStorageContainer = new ReferencesStoragePart(
+				referencesStorageContainer.getEntityPrimaryKey(),
+				Arrays.copyOf(referencesStorageContainer.getReferences(), referencesStorageContainer.getReferences().length),
+				referencesStorageContainer.sizeInBytes().orElse(-1)
+			);
+		}
 		return this.referencesStorageContainer;
 	}
 
@@ -856,7 +866,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	) {
 		// we can rely on a fact, that references are ordered by reference key
 		String referenceName = null;
-		final ReferenceContract[] references = referencesStorageContainer.getReferences();
+		// we need to filter out already discarded references
+		final ReferenceContract[] references = Arrays.stream(referencesStorageContainer.getReferences())
+			.filter(Droppable::exists)
+			.toArray(ReferenceContract[]::new);
+
 		for (int i = 0; i < references.length; i++) {
 			final ReferenceContract reference = references[i];
 			final String thisReferenceName = reference.getReferenceName();

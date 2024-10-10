@@ -81,6 +81,7 @@ import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
@@ -534,13 +535,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @param catalogStoragePath            the path to the catalog storage directory
 	 * @param storagePartPersistenceService the storage part persistence service
 	 */
-	private static void verifyCatalogNameMatches(
+	private void verifyCatalogNameMatches(
 		@Nonnull CatalogContract catalogInstance,
 		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogStoragePartPersistenceService storagePartPersistenceService,
-		@Nonnull OnDifferentCatalogName onDifferentCatalogName
+		@Nonnull OnDifferentCatalogName onDifferentCatalogName,
+		@Nonnull CatalogBootstrap bootstrapUsed
 	) {
 		// verify that the catalog schema is the same as the one in the catalog directory
 		final CatalogHeader catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
@@ -588,6 +590,18 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			);
 			storagePartPersistenceService.putStoragePart(
 				catalogVersion, new CatalogSchemaStoragePart(updateCatalogSchema)
+			);
+
+			final PersistentStorageDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
+
+			writeCatalogBootstrap(
+				catalogVersion, catalogName,
+				new CatalogBootstrap(
+					catalogVersion,
+					bootstrapUsed.catalogFileIndex(),
+					OffsetDateTime.now(),
+					flushedDescriptor.fileLocation()
+				)
 			);
 		}
 	}
@@ -936,7 +950,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		verifyCatalogNameMatches(
 			catalogInstance, catalogVersion, catalogName, catalogStoragePath,
 			catalogStoragePartPersistenceService, restoreFlagFile.exists() ?
-				OnDifferentCatalogName.ADAPT : OnDifferentCatalogName.THROW_EXCEPTION
+				OnDifferentCatalogName.ADAPT : OnDifferentCatalogName.THROW_EXCEPTION,
+			this.bootstrapUsed
 		);
 		if (restoreFlagFile.exists()) {
 			Assert.isPremiseValid(

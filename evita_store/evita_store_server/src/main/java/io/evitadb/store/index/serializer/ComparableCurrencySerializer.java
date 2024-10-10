@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,14 +21,27 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.filter;
+package io.evitadb.store.index.serializer;
 
-import io.evitadb.api.query.FilterConstraint;
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.Serializer;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.dataType.ComparableCurrency;
 
 /**
- * This interface is marker interface for all {@link FilterConstraint} that directly work with information in the indexes.
+ * Class handles Kryo (de)serialization of {@link ComparableCurrency} instances.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public interface IndexUsingConstraint extends FilterConstraint {
+public class ComparableCurrencySerializer extends Serializer<ComparableCurrency> {
+
+	public void write(Kryo kryo, Output output, ComparableCurrency currency) {
+		kryo.writeObject(output, currency.getCurrency());
+	}
+
+	public ComparableCurrency read(Kryo kryo, Input input, Class<? extends ComparableCurrency> type) {
+		return kryo.readObject(input, ComparableCurrency.class);
+	}
+
 }

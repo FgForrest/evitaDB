@@ -99,6 +99,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -713,6 +714,30 @@ class EvitaTest implements EvitaTestSupport {
 
 		// the original file was immediately removed from the file system (we're in warm-up mode)
 		assertFalse(theCollectionFile.exists());
+	}
+
+	@Test
+	void shouldRenameEntityCollection() {
+		setupCatalogWithProductAndCategory();
+
+		final File theCollectionFile = getEvitaTestDirectory()
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.toFile();
+		assertTrue(theCollectionFile.exists());
+
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.renameCollection(Entities.PRODUCT, Entities.BRAND);
+		});
+
+		evita.queryCatalog(TEST_CATALOG, session -> {
+			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
+			assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
+			assertEquals(1, session.getEntityCollectionSize(Entities.BRAND));
+			final Optional<SealedEntity> brand = session.getEntity(Entities.BRAND, 1, entityFetchAllContent());
+			assertTrue(brand.isPresent());
+			assertEquals("The product", brand.get().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+			return null;
+		});
 	}
 
 	@Test
@@ -2171,18 +2196,18 @@ class EvitaTest implements EvitaTestSupport {
 			assertEquals(
 				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, 922, new EntityCollectionStatistics[0]
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, 1150, new EntityCollectionStatistics[0]
 				)
 			);
 
 			assertEquals(
-				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1381,
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1642,
 					new EntityCollectionStatistics[]{
-						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 475)
+						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 508)
 					}
-				)
+				),
+				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow()
 			);
 
 		} finally {

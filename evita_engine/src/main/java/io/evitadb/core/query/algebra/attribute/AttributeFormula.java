@@ -58,6 +58,10 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	private static final long CLASS_ID = 4944486926494447594L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
+	 * Contains TRUE if the attribute targets the global attribute schema and thus global attribute index.
+	 */
+	@Getter private final boolean targetsGlobalAttribute;
+	/**
 	 * Contains {@link AttributeValue#key()} of the attribute that is targeted by inner query.
 	 */
 	@Getter private final AttributeKey attributeKey;
@@ -66,11 +70,21 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	 */
 	@Getter private final Predicate<BigDecimal> requestedPredicate;
 
-	public AttributeFormula(@Nonnull AttributeKey attributeKey, @Nonnull Formula innerFormula) {
-		this(attributeKey, innerFormula, null);
+	public AttributeFormula(
+		boolean targetsGlobalAttribute,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Formula innerFormula
+	) {
+		this(targetsGlobalAttribute, attributeKey, innerFormula, null);
 	}
 
-	public AttributeFormula(@Nonnull AttributeKey attributeKey, @Nonnull Formula innerFormula, @Nullable Predicate<BigDecimal> requestedPredicate) {
+	public AttributeFormula(
+		boolean targetsGlobalAttribute,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Formula innerFormula,
+		@Nullable Predicate<BigDecimal> requestedPredicate
+	) {
+		this.targetsGlobalAttribute = targetsGlobalAttribute;
 		this.attributeKey = attributeKey;
 		this.requestedPredicate = requestedPredicate;
 		this.initFields(innerFormula);
@@ -80,7 +94,7 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-		return new AttributeFormula(attributeKey, innerFormulas[0], requestedPredicate);
+		return new AttributeFormula(targetsGlobalAttribute, attributeKey, innerFormulas[0], requestedPredicate);
 	}
 
 	/**

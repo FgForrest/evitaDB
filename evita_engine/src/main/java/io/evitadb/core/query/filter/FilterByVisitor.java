@@ -215,13 +215,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	private final TargetIndexes<? extends Index<?>> indexSetToUse;
 	/**
-	 * Field is set to TRUE when it's already known that filtering query contains query that uses data from
-	 * the {@link #indexSetToUse} - i.e. query implementing {@link IndexUsingConstraint}. This situation allows
-	 * certain translators to entirely skip themselves because the query will be implicitly evaluated by the other
-	 * constraints using already limited subset from the {@link #indexSetToUse}.
-	 */
-	@Getter private final boolean targetIndexQueriedByOtherConstraints;
-	/**
 	 * Contains the translated formula from the filtering query source tree.
 	 */
 	private Formula computedFormula;
@@ -260,8 +253,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
 				queryContext,
 				Collections.emptyList(),
-				TargetIndexes.EMPTY,
-				false
+				TargetIndexes.EMPTY
 			);
 
 			// now analyze the filter by in a nested context with exchanged primary entity index
@@ -296,8 +288,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nonnull ProcessingScope<T> processingScope,
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<TargetIndexes<T>> targetIndexes,
-		@Nonnull TargetIndexes<T> indexSetToUse,
-		boolean targetIndexQueriedByOtherConstraints
+		@Nonnull TargetIndexes<T> indexSetToUse
 	) {
 		this.stack.push(new LinkedList<>());
 		this.scope.push(processingScope);
@@ -306,14 +297,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 		//noinspection unchecked,rawtypes
 		this.targetIndexes = (List) targetIndexes;
 		this.indexSetToUse = indexSetToUse;
-		this.targetIndexQueriedByOtherConstraints = targetIndexQueriedByOtherConstraints;
 	}
 
 	public <T extends Index<?>> FilterByVisitor(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<TargetIndexes<T>> targetIndexes,
-		@Nonnull TargetIndexes<T> indexSetToUse,
-		boolean targetIndexQueriedByOtherConstraints
+		@Nonnull TargetIndexes<T> indexSetToUse
 	) {
 		this(
 			new ProcessingScope<>(
@@ -327,8 +316,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			),
 			queryContext,
 			targetIndexes,
-			indexSetToUse,
-			targetIndexQueriedByOtherConstraints
+			indexSetToUse
 		);
 	}
 

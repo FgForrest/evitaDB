@@ -691,8 +691,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		return new FilterByVisitor(
 			queryContext,
 			Collections.emptyList(),
-			TargetIndexes.EMPTY,
-			false
+			TargetIndexes.EMPTY
 		);
 	}
 

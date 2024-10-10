@@ -45,9 +45,9 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapSupplier {
+public class HistogramBitmapSupplier implements BitmapSupplier {
 	private static final long CLASS_ID = 516692463222738021L;
-	private final ValueToRecordBitmap<T>[] histogramBuckets;
+	private final ValueToRecordBitmap[] histogramBuckets;
 	/**
 	 * Contains memoized result once {@link #get()} is invoked for the first time. Additional calls of
 	 * {@link #get()} will return this memoized result without paying the computational costs
@@ -82,7 +82,7 @@ public class HistogramBitmapSupplier<T extends Comparable<T>> implements BitmapS
 	 */
 	private final Long transactionalIdHash;
 
-	public HistogramBitmapSupplier(ValueToRecordBitmap<T>[] histogramBuckets) {
+	public HistogramBitmapSupplier(@Nonnull ValueToRecordBitmap[] histogramBuckets) {
 		this.histogramBuckets = histogramBuckets;
 		this.hash = HASH_FUNCTION.hashLongs(
 			Stream.of(

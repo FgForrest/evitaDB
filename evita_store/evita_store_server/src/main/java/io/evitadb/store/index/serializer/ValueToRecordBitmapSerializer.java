@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 
+import java.io.Serializable;
+
 /**
  * Class handles Kryo (de)serialization of {@link ValueToRecordBitmap} instances.
  *
@@ -46,12 +48,9 @@ public class ValueToRecordBitmapSerializer extends Serializer<ValueToRecordBitma
 	}
 
 	public ValueToRecordBitmap read(Kryo kryo, Input input, Class<? extends ValueToRecordBitmap> type) {
-		final Comparable comparable = (Comparable) kryo.readClassAndObject(input);
-		//noinspection unchecked
-		return new ValueToRecordBitmap(
-			comparable,
-			kryo.readObject(input, TransactionalBitmap.class)
-		);
+		final Serializable comparable = (Serializable) kryo.readClassAndObject(input);
+		final TransactionalBitmap bitmap = kryo.readObject(input, TransactionalBitmap.class);
+		return new ValueToRecordBitmap(comparable, bitmap);
 	}
 
 }
