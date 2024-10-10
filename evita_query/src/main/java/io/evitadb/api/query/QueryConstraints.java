@@ -433,7 +433,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-between">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeBetween attributeBetween(@Nullable String attributeName, @Nullable T from, @Nullable T to) {
+	static <T extends Serializable> AttributeBetween attributeBetween(@Nullable String attributeName, @Nullable T from, @Nullable T to) {
 		if (attributeName == null || (from == null && to == null)) {
 			return null;
 		} else {
@@ -581,7 +581,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeLessThan attributeLessThan(@Nullable String attributeName, @Nullable T attributeValue) {
+	static <T extends Serializable> AttributeLessThan attributeLessThan(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeLessThan(attributeName, attributeValue);
 	}
 
@@ -606,7 +606,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeLessThanEquals attributeLessThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
+	static <T extends Serializable> AttributeLessThanEquals attributeLessThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeLessThanEquals(attributeName, attributeValue);
 	}
 
@@ -630,7 +630,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeGreaterThan attributeGreaterThan(@Nullable String attributeName, @Nullable T attributeValue) {
+	static <T extends Serializable> AttributeGreaterThan attributeGreaterThan(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeGreaterThan(attributeName, attributeValue);
 	}
 
@@ -655,7 +655,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
+	static <T extends Serializable> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeGreaterThanEquals(attributeName, attributeValue);
 	}
 

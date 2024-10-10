@@ -1881,69 +1881,6 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldFailToMarkCurrencyAsSortable() {
-		assertThrows(
-			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
-				TEST_CATALOG,
-				session -> {
-					session.getCatalogSchema()
-						.openForWrite()
-						.withEntitySchema(
-							"whatever",
-							whichIs -> whichIs.withAttribute("whatever", Currency.class, AttributeSchemaEditor::sortable)
-						)
-						.updateVia(session);
-				}
-			)
-		);
-	}
-
-	@Test
-	void shouldMarkLocaleAsFilterable() {
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.getCatalogSchema()
-					.openForWrite()
-					.withEntitySchema(
-						"whatever",
-						whichIs -> whichIs.withAttribute("whatever", Locale.class, AttributeSchemaEditor::filterable)
-					)
-					.updateVia(session);
-			}
-		);
-
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				assertTrue(
-					session.getEntitySchemaOrThrow("whatever").getAttribute("whatever").orElseThrow().isFilterable()
-				);
-			}
-		);
-	}
-
-	@Test
-	void shouldFailToMarkLocaleAsSortable() {
-		assertThrows(
-			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
-				TEST_CATALOG,
-				session -> {
-					session.getCatalogSchema()
-						.openForWrite()
-						.withEntitySchema(
-							"whatever",
-							whichIs -> whichIs.withAttribute("whatever", Locale.class, AttributeSchemaEditor::sortable)
-						)
-						.updateVia(session);
-				}
-			)
-		);
-	}
-
-	@Test
 	void shouldFailToSetNonNullableAssociatedDataToNull() {
 		try {
 			evita.updateCatalog(

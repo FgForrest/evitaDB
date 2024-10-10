@@ -112,8 +112,8 @@ public interface AttributeIndexMutator {
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(() -> entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
 					}
-					if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
-						// TOBEDONE JNO this should be replaced with RadixTree
+					if (!attributeDefinition.isFilterable()) {
+						// TOBEDONE JNO this should be replaced with RadixTree (for String values)
 						entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
 						if (undoActionConsumer != null) {
 							undoActionConsumer.accept(() -> entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
@@ -124,8 +124,8 @@ public interface AttributeIndexMutator {
 				if (undoActionConsumer != null) {
 					undoActionConsumer.accept(() -> entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey));
 				}
-				if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
-					// TOBEDONE JNO this should be replaced with RadixTree
+				if (!attributeDefinition.isFilterable()) {
+					// TOBEDONE JNO this should be replaced with RadixTree (for String values)
 					entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(() -> entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey));
@@ -253,8 +253,8 @@ public interface AttributeIndexMutator {
 						)
 					);
 				}
-				if (String.class.equals(attributeDefinition.getType()) && !attributeDefinition.isFilterable()) {
-					// TOBEDONE JNO this should be replaced with RadixTree
+				if (!attributeDefinition.isFilterable()) {
+					// TOBEDONE JNO this should be replaced with RadixTree (for String values)
 					entityIndex.removeFilterAttribute(
 						attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
 						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)

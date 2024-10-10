@@ -66,16 +66,16 @@ public class AttributeComparator implements EntityComparator {
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
-		final Optional<UnaryOperator<Comparable<?>>> normalizerFor = createNormalizerFor(comparatorSource);
-		final UnaryOperator<Comparable<?>> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		final Optional<UnaryOperator<Object>> normalizerFor = createNormalizerFor(comparatorSource);
+		final UnaryOperator<Object> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
 		this.pkComparator = orderDirection == OrderDirection.ASC ?
 			Comparator.comparingInt(EntityContract::getPrimaryKey) :
 			Comparator.comparingInt(EntityContract::getPrimaryKey).reversed();
 		//noinspection unchecked
 		this.comparator = createComparatorFor(locale, comparatorSource);
 		this.attributeValueFetcher = locale == null ?
-			entityContract -> normalizer.apply(attributeExtractor.extract(entityContract, attributeName)) :
-			entityContract -> normalizer.apply(attributeExtractor.extract(entityContract, attributeName, locale));
+			entityContract -> (Comparable<?>) normalizer.apply(attributeExtractor.extract(entityContract, attributeName)) :
+			entityContract -> (Comparable<?>) normalizer.apply(attributeExtractor.extract(entityContract, attributeName, locale));
 	}
 
 	@Nonnull

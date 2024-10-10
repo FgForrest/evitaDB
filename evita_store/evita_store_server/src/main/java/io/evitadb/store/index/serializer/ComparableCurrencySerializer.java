@@ -27,30 +27,21 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
-
-import java.io.Serializable;
+import io.evitadb.dataType.ComparableCurrency;
 
 /**
- * Class handles Kryo (de)serialization of {@link ValueToRecordBitmap} instances.
+ * Class handles Kryo (de)serialization of {@link ComparableCurrency} instances.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-@SuppressWarnings("rawtypes")
-public class ValueToRecordBitmapSerializer extends Serializer<ValueToRecordBitmap> {
+public class ComparableCurrencySerializer extends Serializer<ComparableCurrency> {
 
-	public void write(Kryo kryo, Output output, ValueToRecordBitmap valueToRecordBitmap) {
-		kryo.writeClassAndObject(output, valueToRecordBitmap.getValue());
-		final Bitmap bitmap = valueToRecordBitmap.getRecordIds();
-		kryo.writeObject(output, bitmap);
+	public void write(Kryo kryo, Output output, ComparableCurrency currency) {
+		kryo.writeObject(output, currency.getCurrency());
 	}
 
-	public ValueToRecordBitmap read(Kryo kryo, Input input, Class<? extends ValueToRecordBitmap> type) {
-		final Serializable comparable = (Serializable) kryo.readClassAndObject(input);
-		final TransactionalBitmap bitmap = kryo.readObject(input, TransactionalBitmap.class);
-		return new ValueToRecordBitmap(comparable, bitmap);
+	public ComparableCurrency read(Kryo kryo, Input input, Class<? extends ComparableCurrency> type) {
+		return kryo.readObject(input, ComparableCurrency.class);
 	}
 
 }
