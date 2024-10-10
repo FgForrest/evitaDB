@@ -471,7 +471,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		//noinspection unchecked
 		final Class<?> attributeType = ofNullable(filterIndexCnt.getAttributeType())
 			.orElseGet(() -> attributeTypeSupplier.apply(attributeKey));
-		//noinspection unchecked
 		filterIndexes.put(
 			attributeKey,
 			new FilterIndex(

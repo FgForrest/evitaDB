@@ -23,11 +23,6 @@
           <entry name="$USER_HOME$/.m2/repository/org/openjdk/jmh/jmh-core/1.27/jmh-core-1.27.jar" />
           <entry name="$USER_HOME$/.m2/repository/net/sf/jopt-simple/jopt-simple/4.6/jopt-simple-4.6.jar" />
           <entry name="$USER_HOME$/.m2/repository/org/apache/commons/commons-math3/3.2/commons-math3-3.2.jar" />
-          <entry name="$USER_HOME$/.m2/repository/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
-          <entry name="$USER_HOME$/.m2/repository/org/openjdk/jmh/jmh-generator-annprocess/1.27/jmh-generator-annprocess-1.27.jar" />
-          <entry name="$USER_HOME$/.m2/repository/org/openjdk/jmh/jmh-core/1.27/jmh-core-1.27.jar" />
-          <entry name="$USER_HOME$/.m2/repository/net/sf/jopt-simple/jopt-simple/4.6/jopt-simple-4.6.jar" />
-          <entry name="$USER_HOME$/.m2/repository/org/apache/commons/commons-math3/3.2/commons-math3-3.2.jar" />
         </processorPath>
         <module name="evita_performance_tests" />
       </profile>
@@ -36,7 +31,6 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="false">
-          <entry name="$USER_HOME$/.m2/repository/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
           <entry name="$USER_HOME$/.m2/repository/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
         </processorPath>
         <module name="evita_engine" />
