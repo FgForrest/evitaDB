@@ -16,7 +16,7 @@ ENV SYSTEM_API_PORT="5555"
 
 ## folder with configuration files, all of them are applied one on top of another in alphabetical order
 ENV EVITA_BIN_DIR="$EVITA_HOME/bin/"
-ENV EVITA_CONFIG_DIR="$EVITA_HOME/conf/"
+ENV EVITA_CONFIG_DIR="$EVITA_HOME/config/"
 ENV EVITA_STORAGE_DIR="$EVITA_HOME/data/"
 ENV EVITA_EXPORT_DIR="$EVITA_HOME/export/"
 ENV EVITA_CERTIFICATE_DIR="$EVITA_HOME/certificates/"
