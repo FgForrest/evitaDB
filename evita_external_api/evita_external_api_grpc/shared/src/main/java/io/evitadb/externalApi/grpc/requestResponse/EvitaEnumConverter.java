@@ -25,6 +25,8 @@ package io.evitadb.externalApi.grpc.requestResponse;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.observability.HealthProblem;
+import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
@@ -57,8 +59,6 @@ import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.externalApi.api.system.ProbesProvider.ReadinessState;
-import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;

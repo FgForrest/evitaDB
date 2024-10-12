@@ -154,6 +154,11 @@ class LocalMutationExecutorCollector {
 		// are automatically generated when top level mutation is applied (replayed)
 		if (level == 0) {
 			this.entityMutations.add(entityMutation);
+			// root level changes are applied immediately
+			changeCollector.setTrapChanges(false);
+		} else {
+			// while implicit mutations are trapped in memory and stored on next flush
+			changeCollector.setTrapChanges(true);
 		}
 
 		// apply mutations using applicators

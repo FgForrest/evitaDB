@@ -52,17 +52,12 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	/**
 	 * DTO contains all trapped changes in this memory buffer.
 	 */
-	@Nonnull private final DataStoreIndexChanges dataStoreIndexChanges = new DataStoreIndexMemoryBuffer();
-	/**
-	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
-	 * This reference can be exchanged in case of internal store compaction.
-	 */
-	@Nonnull private StoragePartPersistenceService persistenceService;
+	@Nonnull private final DataStoreChanges dataStoreChanges;
 
 	public WarmUpDataStoreMemoryBuffer(
 		@Nonnull StoragePartPersistenceService persistenceService
 	) {
-		this.persistenceService = persistenceService;
+		this.dataStoreChanges = new DataStoreChanges(persistenceService);
 	}
 
 	/**
@@ -71,53 +66,53 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	 * @param persistenceService new persistence service to be used
 	 */
 	public void setPersistenceService(@Nonnull StoragePartPersistenceService persistenceService) {
-		this.persistenceService = persistenceService;
+		this.dataStoreChanges.setPersistenceService(persistenceService);
 	}
 
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		return dataStoreIndexChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
+		return dataStoreChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
 	}
 
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		return dataStoreIndexChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
+		return dataStoreChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
 	}
 
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
-		return dataStoreIndexChanges.removeIndex(entityIndexKey, removalPropagation);
+		return dataStoreChanges.removeIndex(entityIndexKey, removalPropagation);
 	}
 
 	@Override
 	public int countStorageParts(long catalogVersion, @Nonnull Class<? extends StoragePart> containerType) {
-		return persistenceService.countStorageParts(catalogVersion, containerType);
+		return dataStoreChanges.countStorageParts(catalogVersion, containerType);
 	}
 
 	@Override
 	@Nullable
 	public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-		return persistenceService.getStoragePart(catalogVersion, primaryKey, containerType);
+		return dataStoreChanges.getStoragePart(catalogVersion, primaryKey, containerType);
 	}
 
 	@Override
 	@Nullable
 	public <T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-		return persistenceService.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
+		return dataStoreChanges.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
 	}
 
 	@Override
 	@Nullable
 	public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
 		final OptionalLong storagePartId = compressedKeyComputer.apply(
-			this.persistenceService.getReadOnlyKeyCompressor(),
+			this.dataStoreChanges.getReadOnlyKeyCompressor(),
 			originalKey
 		);
 		if (storagePartId.isEmpty()) {
 			// key wasn't yet assigned
 			return null;
 		} else {
-			return this.persistenceService.getStoragePart(catalogVersion, storagePartId.getAsLong(), containerType);
+			return this.dataStoreChanges.getStoragePart(catalogVersion, storagePartId.getAsLong(), containerType);
 		}
 	}
 
@@ -125,30 +120,40 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	@Nullable
 	public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
 		final OptionalLong storagePartId = compressedKeyComputer.apply(
-			this.persistenceService.getReadOnlyKeyCompressor(),
+			this.dataStoreChanges.getReadOnlyKeyCompressor(),
 			originalKey
 		);
 		if (storagePartId.isEmpty()) {
 			// key wasn't yet assigned
 			return null;
 		} else {
-			return this.persistenceService.getStoragePartAsBinary(catalogVersion, storagePartId.getAsLong(), containerType);
+			return this.dataStoreChanges.getStoragePartAsBinary(catalogVersion, storagePartId.getAsLong(), containerType);
 		}
 	}
 
 	@Override
 	public <T extends StoragePart> boolean removeByPrimaryKey(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
-		return this.persistenceService.removeStoragePart(catalogVersion, primaryKey, entityClass);
+		return this.dataStoreChanges.removeStoragePart(catalogVersion, primaryKey, entityClass);
 	}
 
 	@Override
 	public <T extends StoragePart> void update(long catalogVersion, @Nonnull T value) {
-		this.persistenceService.putStoragePart(catalogVersion, value);
+		this.dataStoreChanges.putStoragePart(catalogVersion, value);
 	}
 
 	@Override
-	public DataStoreIndexChanges getTrappedIndexChanges() {
-		return this.dataStoreIndexChanges;
+	public <T extends StoragePart> boolean trapRemoveByPrimaryKey(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
+		return this.dataStoreChanges.trapRemoveStoragePart(catalogVersion, primaryKey, entityClass);
+	}
+
+	@Override
+	public <T extends StoragePart> void trapUpdate(long catalogVersion, @Nonnull T value) {
+		this.dataStoreChanges.trapPutStoragePart(value);
+	}
+
+	@Override
+	public DataStoreChanges getTrappedChanges() {
+		return this.dataStoreChanges;
 	}
 
 }
