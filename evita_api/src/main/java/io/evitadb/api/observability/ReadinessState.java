@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,28 +21,35 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.spi.model.storageParts;
+package io.evitadb.api.observability;
 
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.service.KeyCompressor;
-
-import javax.annotation.Nonnull;
-import java.io.Serial;
 
 /**
- * This class marks removed {@link StoragePart} in the transactional memory.
+ * Enum representing overall readiness state of the server.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class RemovedStoragePart implements StoragePart {
-	public static final RemovedStoragePart INSTANCE = new RemovedStoragePart();
-	@Serial private static final long serialVersionUID = 2485318464734970542L;
+public enum ReadinessState {
 
-	@Override
-	public Long getStoragePartPK() {
-		throw new UnsupportedOperationException();
-	}
+	/**
+	 * At least one API is not ready.
+	 */
+	STARTING,
+	/**
+	 * All APIs are ready.
+	 */
+	READY,
+	/**
+	 * At least one API that was ready is not ready anymore.
+	 */
+	STALLING,
+	/**
+	 * Server is shutting down. None of the APIs are ready.
+	 */
+	SHUTDOWN,
+	/**
+	 * Unknown state - cannot determine the state of the APIs (should not happen).
+	 */
+	UNKNOWN
 
-	@Override
-	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		throw new UnsupportedOperationException();
-	}
 }

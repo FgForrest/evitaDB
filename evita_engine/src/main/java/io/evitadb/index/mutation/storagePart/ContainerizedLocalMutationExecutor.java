@@ -85,10 +85,13 @@ import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.model.EntityStoragePart;
+import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.AbstractEntityStorageContainerAccessor;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
+import lombok.Setter;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -98,6 +101,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -141,6 +145,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Nonnull private final Function<String, DataStoreReader> dataStoreReaderAccessor;
 	private final boolean removeOnly;
 	private final DataStoreMemoryBuffer dataStoreUpdater;
+	@Getter @Setter private boolean trapChanges;
 	private EntityBodyStoragePart entityContainer;
 	private PricesStoragePart pricesContainer;
 	private ReferencesStoragePart initialReferencesStorageContainer;
@@ -284,21 +289,30 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 	@Override
 	public void commit() {
+		final BiConsumer<Long, StoragePart> remover = this.trapChanges ?
+			(catalogVersion, part) -> this.dataStoreUpdater.trapRemoveByPrimaryKey(
+				catalogVersion,
+				part.getStoragePartPK(),
+				part.getClass()
+			)
+			: (catalogVersion, part) -> this.dataStoreUpdater.removeByPrimaryKey(
+				catalogVersion,
+				part.getStoragePartPK(),
+				part.getClass()
+			);
+		final BiConsumer<Long, StoragePart> updater = this.trapChanges ?
+			this.dataStoreUpdater::trapUpdate : this.dataStoreUpdater::update;
 		// now store all dirty containers
 		getChangedEntityStorageParts()
 			.forEach(part -> {
 				if (part.isEmpty()) {
-					this.dataStoreUpdater.removeByPrimaryKey(
-						catalogVersion,
-						part.getStoragePartPK(),
-						part.getClass()
-					);
+					remover.accept(catalogVersion, part);
 				} else {
 					Assert.isPremiseValid(
 						!removeOnly,
 						"Only removal operations are expected to happen!"
 					);
-					this.dataStoreUpdater.update(catalogVersion, part);
+					updater.accept(catalogVersion, part);
 				}
 			});
 	}

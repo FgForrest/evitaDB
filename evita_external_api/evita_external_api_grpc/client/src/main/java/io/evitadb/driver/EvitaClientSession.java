@@ -1652,7 +1652,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final Timeout timeout = callTimeout.peek();
 		try {
 			return executeWithEvitaSessionService(
-				lambda, this.evitaSessionServiceFutureStub
+				lambda, this.evitaSessionServiceFutureStub.withDeadlineAfter(
+					timeout.timeout(), timeout.timeoutUnit()
+				)
 			).get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			if (e.getCause() instanceof EvitaInvalidUsageException invalidUsageException) {

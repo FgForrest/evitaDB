@@ -24,7 +24,8 @@
 package io.evitadb.externalApi.api.system;
 
 import io.evitadb.api.EvitaContract;
-import io.evitadb.externalApi.api.system.model.HealthProblem;
+import io.evitadb.api.observability.HealthProblem;
+import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 
@@ -93,33 +94,5 @@ public interface ProbesProvider {
 		@Nonnull String apiCode,
 		boolean isReady
 	) {}
-
-	/**
-	 * Enum representing overall readiness state of the server.
-	 */
-	enum ReadinessState {
-
-		/**
-		 * At least one API is not ready.
-		 */
-		STARTING,
-		/**
-		 * All APIs are ready.
-		 */
-		READY,
-		/**
-		 * At least one API that was ready is not ready anymore.
-		 */
-		STALLING,
-		/**
-		 * Server is shutting down. None of the APIs are ready.
-		 */
-		SHUTDOWN,
-		/**
-		 * Unknown state - cannot determine the state of the APIs (should not happen).
-		 */
-		UNKNOWN
-
-	}
 
 }

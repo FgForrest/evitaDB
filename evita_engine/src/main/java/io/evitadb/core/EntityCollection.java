@@ -1156,16 +1156,28 @@ public final class EntityCollection implements
 	 * is ignored when there are no changes present in {@link CatalogPersistenceService}.
 	 */
 	@Nonnull
-	public EntityCollectionHeader flush() {
-		this.persistenceService.flushTrappedUpdates(0L, this.dataStoreBuffer.getTrappedIndexChanges());
+	public EntityCollectionHeaderWithCollection flush() {
+		this.persistenceService.flushTrappedUpdates(0L, this.dataStoreBuffer.getTrappedChanges());
 		return this.catalogPersistenceService.flush(
 				0L,
 				this.headerInfoSupplier,
 				this.persistenceService.getEntityCollectionHeader(),
 				this.dataStoreBuffer
 			)
-			.map(EntityCollectionPersistenceService::getEntityCollectionHeader)
-			.orElseGet(this::getEntityCollectionHeader);
+			.map(
+				it -> {
+					final EntityCollectionHeader theHeader = it.getEntityCollectionHeader();
+					return this.persistenceService == it ?
+						new EntityCollectionHeaderWithCollection(theHeader, this) :
+						new EntityCollectionHeaderWithCollection(
+							theHeader,
+							this.createCopyWithNewPersistenceService(theHeader.version(), CatalogState.WARMING_UP, it)
+						);
+				}
+			)
+			.orElseGet(
+				() -> new EntityCollectionHeaderWithCollection(this.getEntityCollectionHeader(), this)
+			);
 	}
 
 	/**
@@ -1299,7 +1311,11 @@ public final class EntityCollection implements
 	 * @return a new EntityCollection object with the updated persistence service
 	 */
 	@Nonnull
-	public EntityCollection createCopyWithNewPersistenceService(long catalogVersion, @Nonnull CatalogState catalogState, @Nonnull EntityCollectionPersistenceService newPersistenceService) {
+	public EntityCollection createCopyWithNewPersistenceService(
+		long catalogVersion,
+		@Nonnull CatalogState catalogState,
+		@Nonnull EntityCollectionPersistenceService newPersistenceService
+	) {
 		final EntityCollection entityCollection = new EntityCollection(
 			catalogVersion,
 			catalogState,
@@ -1385,7 +1401,7 @@ public final class EntityCollection implements
 	 */
 	@Nonnull
 	EntityCollectionHeader flush(long catalogVersion) {
-		this.persistenceService.flushTrappedUpdates(catalogVersion, this.dataStoreBuffer.getTrappedIndexChanges());
+		this.persistenceService.flushTrappedUpdates(catalogVersion, this.dataStoreBuffer.getTrappedChanges());
 		return this.catalogPersistenceService.flush(
 				catalogVersion,
 				this.headerInfoSupplier,
@@ -2054,4 +2070,14 @@ public final class EntityCollection implements
 				.collect(Collectors.toList());
 		}
 	}
+
+	/**
+	 * The EntityCollectionHeaderWithCollection record encapsulates both an EntityCollectionHeader and an EntityCollection.
+	 * It's used to detect whether it's needed to replace collection instance in the catalog index.
+	 */
+	public record EntityCollectionHeaderWithCollection(
+		@Nonnull EntityCollectionHeader header,
+		@Nonnull EntityCollection collection
+	) {}
+
 }

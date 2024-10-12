@@ -72,6 +72,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
+import io.evitadb.core.EntityCollection.EntityCollectionHeaderWithCollection;
 import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -849,7 +850,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 			return true;
 		} finally {
-			goingLive.set(false);
+			this.goingLive.set(false);
 		}
 	}
 
@@ -920,7 +921,11 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				// in warmup state try to persist all changes in volatile memory
 				if (warmingUpState) {
 					final long lastSeenVersion = entityCollection.getVersion();
-					entityHeaders.add(entityCollection.flush());
+					entityHeaders.add(
+						updateIndexIfNecessary(
+							entityCollection.flush()
+						)
+					);
 					changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
 				}
 				// in all states terminate collection operations
@@ -933,7 +938,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				this.persistenceService.storeHeader(
 					this.catalogId,
 					getCatalogState(),
-					this.versionId.getId(),
+					getVersion(),
 					this.entityTypeSequence.get(),
 					null,
 					entityHeaders,
@@ -1193,7 +1198,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		if (changeOccurred) {
 			this.persistenceService.flushTrappedUpdates(
 				catalogVersion,
-				this.dataStoreBuffer.getTrappedIndexChanges()
+				this.dataStoreBuffer.getTrappedChanges()
 			);
 			this.persistenceService.storeHeader(
 				this.catalogId,
@@ -1311,14 +1316,23 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
 		for (EntityCollection entityCollection : this.entityCollections.values()) {
 			final long lastSeenVersion = entityCollection.getVersion();
-			entityHeaders.add(entityCollection.flush());
+			entityHeaders.add(
+				updateIndexIfNecessary(
+					entityCollection.flush()
+				)
+			);
 			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
 		}
 
 		if (changeOccurred) {
 			this.persistenceService.flushTrappedUpdates(
 				0L,
-				this.dataStoreBuffer.getTrappedIndexChanges()
+				this.dataStoreBuffer.getTrappedChanges()
+			);
+			final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(0L);
+			Assert.isPremiseValid(
+				catalogHeader != null && catalogHeader.catalogState() == CatalogState.WARMING_UP,
+				"Catalog header is expected to be present in the storage in WARMING_UP flag!"
 			);
 			this.persistenceService.storeHeader(
 				this.catalogId,
@@ -1331,6 +1345,27 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			);
 			this.lastPersistedSchemaVersion = this.schema.get().version();
 		}
+	}
+
+	/**
+	 * Method transparently updates the contents of {@link #entityCollections} map with the new collection, if the
+	 * passed {@link EntityCollectionHeaderWithCollection} contains a different collection than the one stored in
+	 * the index.
+	 *
+	 * @param flushResult The result containing the header and the entity collection to potentially update.
+	 * @return The entity collection header from the flush result.
+	 */
+	@Nonnull
+	private EntityCollectionHeader updateIndexIfNecessary(
+		@Nonnull EntityCollectionHeaderWithCollection flushResult
+	) {
+		final EntityCollectionHeader header = flushResult.header();
+		this.entityCollections.computeIfPresent(
+			header.entityType(),
+			(entityType, entityCollection) -> entityCollection == flushResult.collection() ?
+				entityCollection : flushResult.collection()
+		);
+		return header;
 	}
 
 	/*
@@ -1484,7 +1519,11 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			final long catalogVersion = getVersion();
 			this.persistenceService.deleteEntityCollection(
 				catalogVersion,
-				catalogVersion > 0L ? collectionToRemove.flush(catalogVersion) : collectionToRemove.flush()
+				catalogVersion > 0L ?
+					collectionToRemove.flush(catalogVersion) :
+					updateIndexIfNecessary(
+						collectionToRemove.flush()
+					)
 			);
 		}
 		final CatalogSchemaContract result;
@@ -1591,7 +1630,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		entityCollectionToBeReplacedWith.updateSchema(getSchema(), modifyEntitySchemaName);
 		this.entityCollections.remove(entityCollectionNameToBeReplacedWith);
 		if (!transactionOpen) {
-			entityCollectionToBeReplacedWith.flush();
+			updateIndexIfNecessary(
+				entityCollectionToBeReplacedWith.flush()
+			);
 			final long catalogVersion = getVersion();
 			Assert.isPremiseValid(catalogVersion == 0L, "Catalog version is expected to be `0`!");
 			final EntityCollectionPersistenceService newPersistenceService = this.persistenceService.replaceCollectionWith(
@@ -1611,7 +1652,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 					entityCollectionNameToBeReplacedWith, entityCollectionToBeReplacedWith
 				);
 				if (schemaUpdated) {
-					otherCollection.flush();
+					updateIndexIfNecessary(
+						otherCollection.flush()
+					);
 				}
 			}
 			// store catalog with a new file pointer

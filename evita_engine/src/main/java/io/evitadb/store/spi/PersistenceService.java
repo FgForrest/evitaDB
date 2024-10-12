@@ -23,7 +23,7 @@
 
 package io.evitadb.store.spi;
 
-import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.core.buffer.DataStoreChanges;
 
 import javax.annotation.Nonnull;
 import java.io.Closeable;
@@ -46,7 +46,7 @@ sealed interface PersistenceService
 	 * Flushes all trapped memory data to the persistent storage.
 	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
 	 */
-	void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges dataStoreIndexChanges);
+	void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreChanges dataStoreChanges);
 
 	/**
 	 * Returns true if the persistence service is closed.

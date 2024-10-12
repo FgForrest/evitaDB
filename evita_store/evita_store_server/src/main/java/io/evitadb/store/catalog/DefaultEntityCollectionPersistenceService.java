@@ -50,7 +50,8 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.core.buffer.DataStoreChanges;
+import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
@@ -840,10 +841,18 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges dataStoreIndexChanges) {
+	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreChanges dataStoreChanges) {
 		// now store all entity trapped updates
-		dataStoreIndexChanges.popTrappedUpdates()
-			.forEach(it -> this.storagePartPersistenceService.putStoragePart(catalogVersion, it));
+		dataStoreChanges.popTrappedUpdates()
+			.forEach(it -> {
+				if (it instanceof RemovedStoragePart removedStoragePart) {
+					this.storagePartPersistenceService.removeStoragePart(
+						catalogVersion, removedStoragePart.getStoragePartPK(), removedStoragePart.containerType()
+					);
+				} else {
+					this.storagePartPersistenceService.putStoragePart(catalogVersion, it);
+				}
+			});
 	}
 
 	@Override
