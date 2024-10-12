@@ -465,6 +465,19 @@ public class EvitaJfrEventRegistry {
 				}
 			)
 		);
+		// Events related to method profiling
+		JDK_EVENT_GROUPS.put(
+			"MethodProfiling",
+			new JdkEventGroup(
+				"MethodProfiling",
+				"JDK - Method profiling",
+				"Events related to performance profiling.",
+				new String[]{
+					"jdk.ExecutionSample",
+					"jdk.MethodProfiling"
+				}
+			)
+		);
 
 		final String[] unknownJdkEvents = FlightRecorder.getFlightRecorder()
 			.getEventTypes()
