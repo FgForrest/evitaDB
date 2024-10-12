@@ -2808,6 +2808,8 @@ public class EntityByAttributeFilteringFunctionalTest {
 					return null;
 				}
 			);
+		} catch (Exception ex) {
+			fail(ex);
 		} finally {
 			// revert changes
 			evita.updateCatalog(

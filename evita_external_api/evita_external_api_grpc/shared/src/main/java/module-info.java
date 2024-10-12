@@ -33,7 +33,6 @@ module evita.external.api.grpc.shared {
 
 	requires evita.common;
 	requires evita.api;
-	requires evita.external.api.core;
 	requires evita.query;
 	requires com.google.common;
 	requires io.grpc;

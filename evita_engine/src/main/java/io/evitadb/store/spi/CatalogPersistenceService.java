@@ -38,7 +38,6 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;

@@ -33,7 +33,6 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.EvitaEventGroup;
-import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.JdkEventGroup;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask.RecordingSettings;
 import io.evitadb.utils.StringUtils;
 import jdk.jfr.EventType;
@@ -54,7 +53,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -125,7 +123,7 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 			final Set<String> allowedEvents = new HashSet<>(Arrays.asList(settings.allowedEvents()));
 
 			// first disable all JDK events, that are not wanted
-			disableUnwantedJdkEvents(allowedEvents);
+			enableJdkEvents(allowedEvents);
 
 			// then register all custom event groups
 			enableEvitaEvents(allowedEvents);
@@ -190,18 +188,16 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 	 * Disables all JDK events that are not in the allowed set.
 	 * @param allowedEvents set of allowed events
 	 */
-	private void disableUnwantedJdkEvents(@Nonnull Set<String> allowedEvents) {
-		final Set<String> disabledJdkEvents = EvitaJfrEventRegistry.getJdkEventGroups()
+	private void enableJdkEvents(@Nonnull Set<String> allowedEvents) {
+		final Set<String> unrolledAllowedEvents = EvitaJfrEventRegistry.getJdkEventGroups()
 			.entrySet()
 			.stream()
-			.filter(entry -> !allowedEvents.contains(entry.getKey()))
-			.map(Entry::getValue)
-			.map(JdkEventGroup::events)
-			.flatMap(Arrays::stream)
+			.filter(entry -> allowedEvents.contains(entry.getKey()))
+			.flatMap(entry -> Arrays.stream(entry.getValue().events()))
 			.collect(Collectors.toSet());
 		for (EventType eventType : FlightRecorder.getFlightRecorder().getEventTypes()) {
-			if (disabledJdkEvents.contains(eventType.getName())) {
-				this.recording.disable(eventType.getName());
+			if (unrolledAllowedEvents.contains(eventType.getName())) {
+				this.recording.enable(eventType.getName());
 			}
 		}
 	}

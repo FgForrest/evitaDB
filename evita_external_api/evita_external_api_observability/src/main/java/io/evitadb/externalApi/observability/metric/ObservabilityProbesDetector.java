@@ -24,10 +24,11 @@
 package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.api.EvitaContract;
+import io.evitadb.api.observability.HealthProblem;
+import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.externalApi.api.system.ProbesProvider;
-import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;

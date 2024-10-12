@@ -44,7 +44,7 @@ import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 /**
  * TransactionalDataStoreMemoryBuffer represents volatile temporal memory between the {@link EntityCollection} and persistent
  * storage that takes {@link io.evitadb.core.Transaction} into an account. Even if transactional memory is not available
- * this buffer traps updates of certain objects in {@link DataStoreIndexMemoryBuffer} to avoid persistence of large
+ * this buffer traps updates of certain objects in {@link DataStoreMemoryBuffer} to avoid persistence of large
  * indexes with each update (which would drastically slow initial bulk database setup).
  *
  * All reads-writes are primarily targeting transactional memory if it's present for the current thread. If the value
@@ -60,7 +60,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	/**
 	 * DTO contains all trapped changes in this memory buffer.
 	 */
-	@Nonnull private final DataStoreIndexChanges dataStoreIndexChanges = new DataStoreIndexMemoryBuffer();
+	@Nonnull private final DataStoreChanges dataStoreChanges;
 	/**
 	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
 	 */
@@ -72,13 +72,14 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	) {
 		this.transactionalMemoryDataSource = transactionalMemoryDataSource;
 		this.persistenceService = persistenceService;
+		this.dataStoreChanges = new DataStoreChanges(persistenceService);
 	}
 
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(transactionalMemoryDataSource);
 		if (layer == null) {
-			return dataStoreIndexChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
+			return dataStoreChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
 		} else {
 			return layer.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
 		}
@@ -88,7 +89,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
-			return dataStoreIndexChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
+			return dataStoreChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
 		} else {
 			return layer.getIndexIfExists(entityIndexKey, accessorWhenMissing);
 		}
@@ -98,7 +99,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
 		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
-			return dataStoreIndexChanges.removeIndex(entityIndexKey, removalPropagation);
+			return dataStoreChanges.removeIndex(entityIndexKey, removalPropagation);
 		} else {
 			return layer.removeIndex(entityIndexKey, removalPropagation);
 		}
@@ -193,11 +194,31 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	}
 
 	@Override
-	public DataStoreIndexChanges getTrappedIndexChanges() {
+	public <T extends StoragePart> boolean trapRemoveByPrimaryKey(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
+		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(transactionalMemoryDataSource);
+		if (layer == null) {
+			return this.dataStoreChanges.trapRemoveStoragePart(catalogVersion, primaryKey, entityClass);
+		} else {
+			return layer.trapRemoveStoragePart(catalogVersion, primaryKey, entityClass);
+		}
+	}
+
+	@Override
+	public <T extends StoragePart> void trapUpdate(long catalogVersion, @Nonnull T value) {
+		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(transactionalMemoryDataSource);
+		if (layer == null) {
+			this.dataStoreChanges.trapPutStoragePart(value);
+		} else {
+			layer.trapPutStoragePart(value);
+		}
+	}
+
+	@Override
+	public DataStoreChanges getTrappedChanges() {
 		final DataStoreChanges layer = Transaction.getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		// return current transactional layer that contains trapped updates
 		// or fallback to shared memory buffer with trapped updates
-		return Objects.requireNonNullElse(layer, this.dataStoreIndexChanges);
+		return Objects.requireNonNullElse(layer, this.dataStoreChanges);
 	}
 
 }

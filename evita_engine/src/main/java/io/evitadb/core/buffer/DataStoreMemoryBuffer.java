@@ -34,7 +34,7 @@ import java.util.function.Function;
 
 /**
  * DataStoreMemoryBuffer represents volatile temporal memory between the {@link EntityCollection} and persistent
- * storage that keeps frequently changed data in the {@link DataStoreIndexMemoryBuffer}.
+ * storage that keeps frequently changed data in the {@link DataStoreMemoryBuffer}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -62,6 +62,12 @@ public interface DataStoreMemoryBuffer extends DataStoreReader {
 	<T extends StoragePart> boolean removeByPrimaryKey(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass);
 
 	/**
+	 * Removes container from the target storage in the memory only. Changes are written at the moment when
+	 * buffer is flushed and {@link #getTrappedChanges()} is called.
+	 */
+	<T extends StoragePart> boolean trapRemoveByPrimaryKey(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass);
+
+	/**
 	 * Inserts or updates container in the target storage. If transaction is opened, the changes are written only in
 	 * the transactional layer and are not really written to the persistent storage. Changes are written at the moment
 	 * when transaction is committed.
@@ -69,7 +75,14 @@ public interface DataStoreMemoryBuffer extends DataStoreReader {
 	<T extends StoragePart> void update(long catalogVersion, @Nonnull T value);
 
 	/**
+	 * Inserts or updates container in the target storage in the memory only. Changes are written at the moment when
+	 * buffer is flushed and {@link #getTrappedChanges()} is called.
+	 */
+	<T extends StoragePart> void trapUpdate(long catalogVersion, @Nonnull T value);
+
+	/**
 	 * Method returns current buffer with trapped changes.
 	 */
-	DataStoreIndexChanges getTrappedIndexChanges();
+	DataStoreChanges getTrappedChanges();
+
 }
