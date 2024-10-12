@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.system.model;
+package io.evitadb.api.observability;
 
 /**
  * This enum represents the possible health problems that can be signaled by the server.

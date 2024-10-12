@@ -411,7 +411,7 @@ public class EntityByChainOrderingFunctionalTest {
 				// we need to update the order in second pass
 				.registerValueGenerator(
 					Entities.CATEGORY, ATTRIBUTE_CATEGORY_ORDER,
-					faker -> Predecessor.HEAD
+					faker -> ReferencedEntityPredecessor.HEAD
 				)
 				.build();
 
@@ -432,7 +432,7 @@ public class EntityByChainOrderingFunctionalTest {
 							Entities.PRODUCT,
 							Cardinality.ONE_OR_MORE,
 							whichIs -> whichIs.indexed()
-								.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
+								.withAttribute(ATTRIBUTE_CATEGORY_ORDER, ReferencedEntityPredecessor.class, AttributeSchemaEditor::sortable)
 						);
 				}
 			);
@@ -481,7 +481,7 @@ public class EntityByChainOrderingFunctionalTest {
 				(reference, referencedProducts) -> {
 					final int theIndex = ArrayUtils.indexOf(reference.getReferencedPrimaryKey(), referencedProducts);
 					return theIndex == 0 ?
-						Predecessor.HEAD : new Predecessor(referencedProducts[theIndex - 1]);
+						ReferencedEntityPredecessor.HEAD : new ReferencedEntityPredecessor(referencedProducts[theIndex - 1]);
 				}
 			);
 

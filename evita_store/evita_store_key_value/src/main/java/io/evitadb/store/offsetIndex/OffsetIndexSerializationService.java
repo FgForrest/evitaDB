@@ -97,7 +97,7 @@ public class OffsetIndexSerializationService {
 		@Nonnull StorageOptions storageOptions
 	) {
 		final long estimatedSize = (long) recordCount * (MEM_TABLE_RECORD_SIZE);
-		return estimatedSize + (long) StorageRecord.getOverheadSize() * (PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE + computeExpectedRecordCount(storageOptions, recordCount).fragments());
+		return estimatedSize + ((long) StorageRecord.getOverheadSize() + PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE) * (long) computeExpectedRecordCount(storageOptions, recordCount).fragments();
 	}
 
 	/**

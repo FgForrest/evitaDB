@@ -37,7 +37,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.store.model.EntityStoragePart;
@@ -69,7 +69,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 
 	/**
 	 * Returns current instance of {@link EntityCollectionHeader}. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
+	 * and (because it's immutable) is exchanged with each {@link #flushTrappedUpdates(long, DataStoreChanges)}
 	 * method call.
 	 */
 	@Nonnull
@@ -200,8 +200,8 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	long getSizeOnDiskInBytes();
 
 	/**
-	 * Closes the entity collection persistent storage. If you don't call {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
-	 * or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}  you'll lose the data in the buffers.
+	 * Closes the entity collection persistent storage. If you don't call {@link #flushTrappedUpdates(long, DataStoreChanges)}
+	 * or {@link #flushTrappedUpdates(long, DataStoreChanges)}   you'll lose the data in the buffers.
 	 */
 	@Override
 	void close();
