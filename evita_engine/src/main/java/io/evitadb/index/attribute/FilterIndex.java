@@ -213,9 +213,10 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		this.attributeKey = attributeKey;
 		this.attributeType = attributeType;
 		this.dirty = new TransactionalBoolean();
-		this.rangeIndex = Range.class.isAssignableFrom(attributeType) ? new RangeIndex() : null;
-		this.comparator = getComparator(attributeKey, attributeType);
-		this.normalizer = getNormalizer(attributeType);
+		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+		this.rangeIndex = Range.class.isAssignableFrom(plainType) ? new RangeIndex() : null;
+		this.comparator = getComparator(attributeKey, plainType);
+		this.normalizer = getNormalizer(plainType);
 		this.invertedIndex = new InvertedIndex<>(this.comparator);
 	}
 
@@ -229,8 +230,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		this.attributeType = attributeType;
 		this.dirty = new TransactionalBoolean();
 		this.rangeIndex = rangeIndex;
-		this.comparator = getComparator(attributeKey, attributeType);
-		this.normalizer = getNormalizer(attributeType);
+		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+		this.comparator = getComparator(attributeKey, plainType);
+		this.normalizer = getNormalizer(plainType);
 		this.invertedIndex = new InvertedIndex<>(valueToRecords, (Comparator<T>) this.comparator);
 	}
 
@@ -246,8 +248,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		this.attributeType = attributeType;
 		this.dirty = new TransactionalBoolean();
 		this.rangeIndex = rangeIndex;
-		this.comparator = getComparator(attributeKey, attributeType);
-		this.normalizer = getNormalizer(attributeType);
+		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+		this.comparator = getComparator(attributeKey, plainType);
+		this.normalizer = getNormalizer(plainType);
 		if (updateSortedValues) {
 			if (this.normalizer != NO_NORMALIZATION) {
 				for (int i = 0; i < valueToRecords.length; i++) {
