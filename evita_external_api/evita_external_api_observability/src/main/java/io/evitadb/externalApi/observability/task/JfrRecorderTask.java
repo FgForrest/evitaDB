@@ -30,7 +30,6 @@ import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
-import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.EvitaEventGroup;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask.RecordingSettings;
@@ -38,7 +37,6 @@ import io.evitadb.utils.StringUtils;
 import jdk.jfr.EventType;
 import jdk.jfr.FlightRecorder;
 import jdk.jfr.Recording;
-import jdk.jfr.RecordingState;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -55,6 +53,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -77,6 +76,10 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 	 */
 	private final Path targetFile;
 	/**
+	 * Flag indicating that the recording has finished.
+	 */
+	private final CountDownLatch finalizationLatch = new CountDownLatch(1);
+	/**
 	 * Export file service that manages the target file.
 	 */
 	private final ExportFileService exportFileService;
@@ -91,10 +94,7 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 			JfrRecorderTask.class.getSimpleName(),
 			"JFR recording",
 			new RecordingSettings(allowedEvents, maxSizeInBytes, maxAgeInSeconds),
-			(task) -> {
-				((JfrRecorderTask) task).start();
-				return null;
-			},
+			(task) -> ((JfrRecorderTask) task).start(),
 			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED, TaskTrait.NEEDS_TO_BE_STOPPED
 		);
 		this.recording = new Recording();
@@ -113,7 +113,8 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 	/**
 	 * Starts the JFR recording.
 	 */
-	private void start() {
+	@Nullable
+	private FileForFetch start() {
 		try {
 			this.recording.setToDisk(true);
 			this.recording.setDestination(this.targetFile);
@@ -129,59 +130,57 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 			enableEvitaEvents(allowedEvents);
 
 			this.recording.start();
+
+			try {
+				this.finalizationLatch.await();
+
+				this.recording.stop();
+				this.updateTaskName("JFR recording stopped (compressing output)");
+
+				final String fileName = "jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+				final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
+					fileName + ".zip",
+					"JFR recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + " with events: " + Arrays.toString(settings.allowedEvents()) + ".",
+					"application/zip",
+					this.getClass().getSimpleName()
+				);
+
+				try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
+					zipOutputStream.putNextEntry(new ZipEntry(fileName + ".jfr"));
+					// copy contents of the JFR recording to the zip file
+					Files.copy(this.targetFile, zipOutputStream);
+
+					log.info("JFR recording export completed.");
+					return exportFileHandle.fileForFetchFuture().getNow(null);
+				} catch (IOException e) {
+					throw new UnexpectedIOException(
+						"Failed to compress and store JFR recording: `" + this.targetFile + "`!",
+						"Failed to compress and store JFR recording!",
+						e
+					);
+				} finally {
+					try {
+						Files.deleteIfExists(this.targetFile);
+					} catch (IOException e) {
+						log.error(
+							"Failed to delete temporary JFR recording file: `" + this.targetFile + "`!",
+							e
+						);
+					}
+				}
+			} catch (InterruptedException e) {
+				this.recording.stop();
+				throw new GenericEvitaInternalError("JFR recording task finished abnormally (interrupt).", e);
+			}
+
 		} catch (IOException e) {
-			throw new RuntimeException(e);
+			throw new GenericEvitaInternalError("JFR recording task finished abnormally (I/O exception).", e);
 		}
 	}
 
-	@Nonnull
 	@Override
-	protected FileForFetch stopInternal() {
-		if (this.recording.getState() != RecordingState.RUNNING) {
-			throw new JfRException("Recording is not running.");
-		}
-
-		this.recording.stop();
-		final RecordingSettings settings = getStatus().settings();
-
-		final String fileName = "jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-		final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
-			fileName + ".zip",
-			"JFR recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + " with events: " + Arrays.toString(settings.allowedEvents()) + ".",
-			"application/zip",
-			this.getClass().getSimpleName()
-		);
-
-		try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
-			zipOutputStream.putNextEntry(new ZipEntry(fileName + ".jfr"));
-			// copy contents of the JFR recording to the zip file
-			Files.copy(this.targetFile, zipOutputStream);
-		} catch (IOException e) {
-			throw new UnexpectedIOException(
-				"Failed to compress and store JFR recording: `" + this.targetFile + "`!",
-				"Failed to compress and store JFR recording!",
-				e
-			);
-		} finally {
-			try {
-				Files.deleteIfExists(this.targetFile);
-			} catch (IOException e) {
-				log.error(
-					"Failed to delete temporary JFR recording file: `" + this.targetFile + "`!",
-					e
-				);
-			}
-		}
-
-		log.info("JFR recording export completed.");
-
-		return ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
-			.orElseThrow(
-				() -> new GenericEvitaInternalError(
-					"File for fetch should be generated in close method and" +
-						" should be already available by now."
-				)
-			);
+	protected void stopInternal() {
+		this.finalizationLatch.countDown();
 	}
 
 	/**

@@ -116,6 +116,36 @@ public record TaskStatus<S, T>(
 	}
 
 	/**
+	 * Updates the name of the task and returns a new instance of {@link TaskStatus}
+	 * with the updated task name, if the new name is different from the current name.
+	 *
+	 * @param taskName The new name for the task.
+	 * @return The new instance of {@link TaskStatus} with the updated task name.
+	 */
+	@Nonnull
+	public TaskStatus<S, T> updateTaskName(@Nonnull String taskName) {
+		if (!taskName.equals(this.taskName)) {
+			return new TaskStatus<>(
+				this.taskType,
+				taskName,
+				this.taskId,
+				this.catalogName,
+				this.issued,
+				this.started,
+				this.finished,
+				this.progress,
+				this.settings,
+				this.result,
+				this.publicExceptionMessage,
+				this.exceptionWithStackTrace,
+				this.traits
+			);
+		} else {
+			return this;
+		}
+	}
+
+	/**
 	 * Returns new instance of {@link TaskStatus} with updated started time and progress.
 	 *
 	 * @return The new instance of {@link TaskStatus} with updated started time and progress.
