@@ -135,7 +135,7 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 				this.finalizationLatch.await();
 
 				this.recording.stop();
-				this.updateTaskName("JFR recording stopped (compressing output)");
+				this.updateTaskNameAndTraits("JFR recording stopped (compressing output)");
 
 				final String fileName = "jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 				final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(

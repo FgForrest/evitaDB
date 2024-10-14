@@ -253,11 +253,12 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	 * Updates the name of the current task if it is still in progress.
 	 *
 	 * @param taskName The new name to be assigned to the task. Must not be null.
+	 * @param traits   The traits of the task.
 	 */
-	public void updateTaskName(@Nonnull String taskName) {
+	public void updateTaskNameAndTraits(@Nonnull String taskName, @Nonnull TaskTrait... traits) {
 		if (!(this.future.isDone() || this.future.isCancelled())) {
 			this.status.updateAndGet(
-				currentStatus -> currentStatus.updateTaskName(taskName)
+				currentStatus -> currentStatus.updateTaskNameAndTraits(taskName)
 			);
 		}
 	}

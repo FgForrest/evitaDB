@@ -24,6 +24,7 @@
 package io.evitadb.api.task;
 
 import io.evitadb.exception.EvitaError;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -120,11 +121,12 @@ public record TaskStatus<S, T>(
 	 * with the updated task name, if the new name is different from the current name.
 	 *
 	 * @param taskName The new name for the task.
+	 * @param traits  The traits of the task.
 	 * @return The new instance of {@link TaskStatus} with the updated task name.
 	 */
 	@Nonnull
-	public TaskStatus<S, T> updateTaskName(@Nonnull String taskName) {
-		if (!taskName.equals(this.taskName)) {
+	public TaskStatus<S, T> updateTaskNameAndTraits(@Nonnull String taskName, @Nonnull TaskTrait... traits) {
+		if (!taskName.equals(this.taskName) || !ArrayUtils.equals(traits, this.traits)) {
 			return new TaskStatus<>(
 				this.taskType,
 				taskName,
@@ -138,7 +140,8 @@ public record TaskStatus<S, T>(
 				this.result,
 				this.publicExceptionMessage,
 				this.exceptionWithStackTrace,
-				this.traits
+				ArrayUtils.isEmpty(traits) ?
+					EnumSet.noneOf(TaskTrait.class) : EnumSet.of(traits[0], traits)
 			);
 		} else {
 			return this;
