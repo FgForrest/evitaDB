@@ -24,6 +24,8 @@
 package io.evitadb.dataType.expression;
 
 
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.RequiredArgsConstructor;
 
@@ -45,6 +47,12 @@ public class Expression implements ExpressionNode {
 	@Override
 	public Serializable compute(@Nonnull PredicateEvaluationContext context) throws ExpressionEvaluationException {
 		return root.compute(context);
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return root.determinePossibleRange();
 	}
 
 	@Override

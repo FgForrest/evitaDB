@@ -25,6 +25,8 @@ package io.evitadb.api.query.expression.parser.visitor.boolOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -43,7 +45,7 @@ public class ConjunctionOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 8865132783193638404L;
 	private final ExpressionNode[] operator;
 
-	public ConjunctionOperator(ExpressionNode[] operator) {
+	public ConjunctionOperator(@Nonnull ExpressionNode[] operator) {
 		Assert.isTrue(
 			operator.length >= 2,
 			() -> new ParserException("Conjunction function must have at least two operands!")
@@ -57,6 +59,16 @@ public class ConjunctionOperator implements ExpressionNode {
 		return Arrays.stream(operator)
 			.map(op -> op.compute(context, Boolean.class))
 			.reduce(true, (a, b) -> a && b);
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		BigDecimalNumberRange resultRange = operator[0].determinePossibleRange();
+		for (int i = 1; i < operator.length; i++) {
+		    resultRange = BigDecimalNumberRange.intersect(resultRange, operator[i].determinePossibleRange());
+		}
+		return resultRange;
 	}
 
 	@Override

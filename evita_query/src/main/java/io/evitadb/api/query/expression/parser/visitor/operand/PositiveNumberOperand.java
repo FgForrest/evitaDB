@@ -25,6 +25,8 @@ package io.evitadb.api.query.expression.parser.visitor.operand;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.exception.ExpressionEvaluationException;
@@ -57,6 +59,12 @@ public class PositiveNumberOperand implements ExpressionNode {
 	@Override
 	public Serializable compute(@Nonnull PredicateEvaluationContext context) throws ExpressionEvaluationException {
 		return this.operator.compute(context);
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return BigDecimalNumberRange.INFINITE;
 	}
 
 	@Override

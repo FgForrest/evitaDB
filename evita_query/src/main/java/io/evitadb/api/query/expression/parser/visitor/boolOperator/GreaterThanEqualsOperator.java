@@ -25,7 +25,9 @@ package io.evitadb.api.query.expression.parser.visitor.boolOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -33,6 +35,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 /**
  * Implementation of the GreaterThanEqualsOperator that evaluates whether the result of the
@@ -69,6 +72,24 @@ public class GreaterThanEqualsOperator implements ExpressionNode {
 		final Serializable convertedValue2 = EvitaDataTypes.toTargetType(value2, value1.getClass());
 		//noinspection rawtypes,unchecked
 		return ((Comparable) value1).compareTo(convertedValue2) >= 0;
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		final BigDecimal from1 = leftOperator.determinePossibleRange().getPreciseFrom();
+		final BigDecimal from2 = rightOperator.determinePossibleRange().getPreciseFrom();
+		if (from1 == null && from2 == null) {
+			return BigDecimalNumberRange.INFINITE;
+		} else if (from1 == null) {
+			return BigDecimalNumberRange.from(from2);
+		} else if (from2 == null) {
+			return BigDecimalNumberRange.from(from1);
+		} else if (from1.compareTo(from2) > 0) {
+			return BigDecimalNumberRange.from(from2);
+		} else {
+			return BigDecimalNumberRange.from(from1);
+		}
 	}
 
 	@Override

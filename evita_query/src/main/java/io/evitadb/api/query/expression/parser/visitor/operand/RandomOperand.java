@@ -24,7 +24,9 @@
 package io.evitadb.api.query.expression.parser.visitor.operand;
 
 
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 
@@ -51,6 +53,12 @@ public class RandomOperand implements ExpressionNode {
 	public Long compute(@Nonnull PredicateEvaluationContext context) {
 		final Random rnd = context.getRandom();
 		return operator == null ? rnd.nextLong() : rnd.nextLong(EvitaDataTypes.toTargetType(operator.compute(context), Long.class));
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return BigDecimalNumberRange.INFINITE;
 	}
 
 	@Override

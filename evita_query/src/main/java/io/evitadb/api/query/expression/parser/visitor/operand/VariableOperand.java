@@ -24,7 +24,9 @@
 package io.evitadb.api.query.expression.parser.visitor.operand;
 
 
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -65,6 +67,12 @@ public class VariableOperand implements ExpressionNode {
 				"Variable `" + variableName + "` not found! Only these variables are available: " +
 					context.getVariableNames().map(it -> "`" + it + "`").collect(Collectors.joining(", ")))
 			);
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return BigDecimalNumberRange.INFINITE;
 	}
 
 	@Override

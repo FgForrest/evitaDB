@@ -76,6 +76,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * This test verifies segmented output and spacing rules for paginated results.
@@ -805,7 +806,11 @@ public class EntityViewPortRulesFunctionalTest {
 	 * @return the number of primary keys extracted from the response
 	 */
 	private static int registerPks(@Nonnull EvitaResponse<EntityReference> response, @Nonnull Set<Integer> drainedPks) {
-		response.getRecordData().forEach(it -> drainedPks.add(it.getPrimaryKey()));
+		response.getRecordData()
+			.forEach(it -> {
+				assertFalse(drainedPks.contains(it.getPrimaryKey()), "Primary key " + it.getPrimaryKey() + " must not be repeated.");
+				drainedPks.add(it.getPrimaryKey());
+			});
 		return response.getRecordData().size();
 	}
 

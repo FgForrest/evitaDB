@@ -25,6 +25,8 @@ package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -57,6 +59,15 @@ public class FloorOperator implements ExpressionNode {
 	public BigDecimal compute(@Nonnull PredicateEvaluationContext context) {
 		final BigDecimal number = operator.compute(context, BigDecimal.class);
 		return number.setScale(0, RoundingMode.FLOOR);
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return ExpressionNode.transform(
+			operator.determinePossibleRange(),
+			bd -> bd.setScale(0, RoundingMode.FLOOR)
+		);
 	}
 
 	@Override

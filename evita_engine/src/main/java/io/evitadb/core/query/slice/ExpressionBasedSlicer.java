@@ -28,16 +28,18 @@ import io.evitadb.api.query.expression.evaluate.SingleVariableEvaluationContext;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap;
 import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
+import java.util.Arrays;
 
 /**
  * ExpressionBasedSlicer is an implementation of the Slicer interface that calculates pagination offsets and limits
  * based on conditional gaps defined in the constructor.
- *
- * TODO JNO - introduce range optimization
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -65,6 +67,15 @@ public class ExpressionBasedSlicer implements Slicer {
 		// input parameters defined in the query
 		final int pageNumber = evitaRequest.getStart();
 		final int requestedPageSize = evitaRequest.getLimit();
+
+		// determine possible page number ranges
+		final int[] activeGaps = new int[this.conditionalGaps.length];
+		final BigDecimalNumberRange[] pageNumberRanges = new BigDecimalNumberRange[this.conditionalGaps.length];
+		for (int i = 0; i < this.conditionalGaps.length; i++) {
+			pageNumberRanges[i] = this.conditionalGaps[i].expression().determinePossibleRange();
+			activeGaps[i] = 1;
+		}
+
 		// moving offset for the current page
 		int accumulatedOffset = 0;
 		// number of records on previous page
@@ -80,12 +91,23 @@ public class ExpressionBasedSlicer implements Slicer {
 		do {
 			// accumulated page size
 			int gapSize = 0;
+			boolean activeGapCountDecreased = false;
 			// iterate over conditional gaps
-			for (ConditionalGap conditionalGap : this.conditionalGaps) {
-				// when the expression is evaluated to TRUE
-				if (Boolean.TRUE.equals(conditionalGap.expression().compute(new SingleVariableEvaluationContext(VAR_PAGE_NUMBER, lastPageNumber)))) {
-					// add the gap size to the accumulated gap size
-					gapSize += conditionalGap.size();
+			for (int i = 0; i < this.conditionalGaps.length; i++) {
+				final ConditionalGap conditionalGap = this.conditionalGaps[i];
+				final BigDecimalNumberRange pageNumberRange = pageNumberRanges[i];
+				final BigDecimal pageNumberAsBigDecimal = new BigDecimal(String.valueOf(lastPageNumber));
+				if (pageNumberRange.isWithin(pageNumberAsBigDecimal)) {
+					// when the expression is evaluated to TRUE
+					final Expression expression = conditionalGap.expression();
+					if (Boolean.TRUE.equals(expression.compute(new SingleVariableEvaluationContext(VAR_PAGE_NUMBER, lastPageNumber)))) {
+						// add the gap size to the accumulated gap size
+						gapSize += conditionalGap.size();
+					}
+				} else if (activeGaps[i] == 1 && pageNumberRange.compareTo(BigDecimalNumberRange.between(pageNumberAsBigDecimal, pageNumberAsBigDecimal)) < 0) {
+					// if the page number is greater than the maximum possible page number, decrease the number of active gaps
+					activeGaps[i] = 0;
+					activeGapCountDecreased = true;
 				}
 			}
 			// update temporary "moving" variables
@@ -100,8 +122,16 @@ public class ExpressionBasedSlicer implements Slicer {
 				offset = accumulatedOffset;
 				pageSize = previousPageSize;
 			}
-			// increment the page number
-			lastPageNumber++;
+			//
+			if (activeGapCountDecreased && Arrays.stream(activeGaps).allMatch(value -> value == 0)) {
+				// if there are no active gaps, stop the loop and return the offset and limit for the last page
+				offset += Math.max(0, pageNumber - lastPageNumber) * pageSize;
+				lastPageNumber += (int) Math.ceil((float) (totalRecordCount - accumulatedOffset) / (float) requestedPageSize) + 1;
+				break;
+			} else {
+				// increment the page number
+				lastPageNumber++;
+			}
 		// stop when the accumulated offset is greater than the total record count
 		} while (accumulatedOffset < totalRecordCount);
 

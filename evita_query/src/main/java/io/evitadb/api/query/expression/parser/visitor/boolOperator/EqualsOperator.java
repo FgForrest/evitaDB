@@ -25,7 +25,9 @@ package io.evitadb.api.query.expression.parser.visitor.boolOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -44,7 +46,7 @@ public class EqualsOperator implements ExpressionNode {
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;
 
-	public EqualsOperator(ExpressionNode leftOperator, ExpressionNode rightOperator) {
+	public EqualsOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
 	}
@@ -67,9 +69,21 @@ public class EqualsOperator implements ExpressionNode {
 		return ((Comparable) value1).compareTo(convertedValue2) == 0;
 	}
 
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		final BigDecimalNumberRange range1 = leftOperator.determinePossibleRange();
+		final BigDecimalNumberRange range2 = rightOperator.determinePossibleRange();
+		if (range1 == BigDecimalNumberRange.INFINITE || range2 == BigDecimalNumberRange.INFINITE) {
+			return BigDecimalNumberRange.INFINITE;
+		} else {
+			return BigDecimalNumberRange.intersect(range1, range2);
+		}
+	}
+
 	@Override
 	public String toString() {
-		return leftOperator.toString() + " == " + rightOperator.toString();
+		return leftOperator + " == " + rightOperator;
 	}
 
 }

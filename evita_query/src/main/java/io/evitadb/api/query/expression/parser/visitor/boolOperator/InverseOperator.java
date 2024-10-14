@@ -26,6 +26,8 @@ package io.evitadb.api.query.expression.parser.visitor.boolOperator;
 
 import io.evitadb.api.query.expression.exception.ParserException;
 import io.evitadb.api.query.expression.parser.visitor.operand.ConstantOperand;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -55,6 +57,12 @@ public class InverseOperator implements ExpressionNode {
 	@Override
 	public Boolean compute(@Nonnull PredicateEvaluationContext context) {
 		return !operator.compute(context, Boolean.class);
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return operator.determinePossibleRange().inverse(16);
 	}
 
 	@Override

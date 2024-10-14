@@ -25,6 +25,8 @@ package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -44,7 +46,7 @@ public class AddingOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 1108096701846934297L;
 	private final ExpressionNode[] operator;
 
-	public AddingOperator(ExpressionNode[] operator) {
+	public AddingOperator(@Nonnull ExpressionNode[] operator) {
 		Assert.isTrue(
 			operator.length >= 2,
 			() -> new ParserException("Adding function must have at least two operands!")
@@ -58,6 +60,15 @@ public class AddingOperator implements ExpressionNode {
 		return Arrays.stream(operator)
 			.map(op -> op.compute(context, BigDecimal.class))
 			.reduce(BigDecimal.ZERO, BigDecimal::add);
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return Arrays.stream(operator)
+			.map(ExpressionNode::determinePossibleRange)
+			.reduce((a, b) -> ExpressionNode.combine(a, b, BigDecimal::add))
+			.orElseThrow();
 	}
 
 	@Override

@@ -23,12 +23,17 @@
 
 package io.evitadb.dataType.expression;
 
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.ExpressionEvaluationException;
 
 import javax.annotation.Nonnull;
 import java.beans.Expression;
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.util.function.BinaryOperator;
+import java.util.function.UnaryOperator;
 
 /**
  * Atomic data structure for {@link Expression} evaluation. It represents a single node (operator or operand) in
@@ -37,6 +42,63 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface ExpressionNode extends Serializable {
+
+	/**
+	 * Combines two BigDecimalNumberRange instances into a new range using a specified combiner function.
+	 *
+	 * @param a the first BigDecimalNumberRange instance to be combined
+	 * @param b the second BigDecimalNumberRange instance to be combined
+	 * @param combiner a BinaryOperator to combine the BigDecimal values from each range
+	 * @return a BigDecimalNumberRange instance resulting from the combination of the input ranges
+	 */
+	@Nonnull
+	static BigDecimalNumberRange combine(
+		@Nonnull BigDecimalNumberRange a,
+		@Nonnull BigDecimalNumberRange b,
+		@Nonnull BinaryOperator<BigDecimal> combiner
+	) {
+		final BigDecimal left = a.getPreciseFrom() == null || b.getPreciseFrom() == null
+			? null
+			: combiner.apply(a.getPreciseFrom(), b.getPreciseFrom());
+		final BigDecimal right = a.getPreciseTo() == null || b.getPreciseTo() == null
+			? null
+			: combiner.apply(a.getPreciseTo(), b.getPreciseTo());
+		if (left == null && right == null) {
+			return BigDecimalNumberRange.INFINITE;
+		} else if (left == null) {
+			return BigDecimalNumberRange.to(right);
+		} else if (right == null) {
+			return BigDecimalNumberRange.from(left);
+		} else {
+			return BigDecimalNumberRange.between(left, right);
+		}
+	}
+
+	/**
+	 * Transforms the given BigDecimalNumberRange instance using a specified UnaryOperator.
+	 *
+	 * @param range the BigDecimalNumberRange instance to be transformed
+	 * @param transformer a UnaryOperator to transform the BigDecimal values within the range
+	 * @return a new BigDecimalNumberRange instance resulting from the transformation of the input range
+	 */
+	@Nonnull
+	static BigDecimalNumberRange transform(
+		@Nonnull BigDecimalNumberRange range,
+		@Nonnull UnaryOperator<BigDecimal> transformer
+	) {
+		final BigDecimal left = range.getPreciseFrom() == null ? null : transformer.apply(range.getPreciseFrom());
+		final BigDecimal right = range.getPreciseTo() == null ? null : transformer.apply(range.getPreciseTo());
+
+		if (left == null && right == null) {
+			return BigDecimalNumberRange.INFINITE;
+		} else if (left == null) {
+			return BigDecimalNumberRange.to(right);
+		} else if (right == null) {
+			return BigDecimalNumberRange.from(left);
+		} else {
+			return BigDecimalNumberRange.between(left, right);
+		}
+	}
 
 	/**
 	 * Computes the result of evaluating this expression node within the given context.
@@ -61,5 +123,17 @@ public interface ExpressionNode extends Serializable {
 	default <T extends Serializable> T compute(@Nonnull PredicateEvaluationContext context, @Nonnull Class<T> clazz) throws ExpressionEvaluationException {
 		return EvitaDataTypes.toTargetType(compute(context), clazz);
 	}
+
+	/**
+	 * Determines the possible numeric range of values for this expression node. In other words tries to identify
+	 * the minimum and maximum values that the expression can evaluate to (if it's possible to determine them).
+	 * This method can be used to limit the range of tested variable values in order to optimize the evaluation
+	 * of the expression.
+	 *
+	 * @return a BigDecimalNumberRange representing the possible range of values
+	 * @throws UnsupportedDataTypeException if the data type is not supported
+	 */
+	@Nonnull
+	BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException;
 
 }

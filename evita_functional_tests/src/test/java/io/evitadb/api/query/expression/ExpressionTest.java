@@ -24,6 +24,7 @@
 package io.evitadb.api.query.expression;
 
 import io.evitadb.api.query.expression.evaluate.MultiVariableEvaluationContext;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.expression.ExpressionNode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -51,69 +52,90 @@ public class ExpressionTest {
 
 	@ParameterizedTest
 	@MethodSource("predicates")
-	void shouldSerializeExpressionToString(String predicate, Map<String, Object> variables, boolean result) {
+	void shouldSerializeExpressionToString(String predicate) {
 		assertEquals(predicate.trim(), ExpressionFactory.parse(predicate).toString());
 	}
 
+	@ParameterizedTest
+	@MethodSource("predicates")
+	void shouldCalculatePossibleRange(String predicate, Map<String, Object> variables, boolean result, BigDecimalNumberRange range) {
+		assertEquals(range, determineRange(predicate));
+	}
+
+	@Nonnull
 	static Stream<Arguments> predicates() {
 		return Stream.of(
-			Arguments.of("true", Map.of(), true),
-			Arguments.of("!true", Map.of(), false),
-			Arguments.of("true || false", Map.of(), true),
-			Arguments.of("true && false", Map.of(), false),
-			Arguments.of("true && (true || false)", Map.of(), true),
-			Arguments.of("!true == false", Map.of(), true),
-			Arguments.of("true == !(false && true)", Map.of(), true),
-			Arguments.of("true == true", Map.of(), true),
-			Arguments.of("true == false", Map.of(), false),
-			Arguments.of("5 != 4", Map.of(), true),
-			Arguments.of("5 == 5", Map.of(), true),
-			Arguments.of("(5 == 5)", Map.of(), true),
-			Arguments.of("true == (5 == 5)", Map.of(), true),
-			Arguments.of("'abc' == 'abc'", Map.of(), true),
-			Arguments.of("'abc' == 'def'", Map.of(), false),
-			Arguments.of("10 > 5", Map.of(), true),
-			Arguments.of("5 < 10", Map.of(), true),
-			Arguments.of("10 < 5", Map.of(), false),
-			Arguments.of("5 > 10", Map.of(), false),
-			Arguments.of("10 > 5 && 5 < 10", Map.of(), true),
-			Arguments.of("10 > 5 || 5 > 10", Map.of(), true),
-			Arguments.of("10 < 5 || 5 < 10", Map.of(), true),
-			Arguments.of("10 < 5 || 5 > 10", Map.of(), false),
-			Arguments.of("10 <= 5 || 5 >= 10", Map.of(), false),
-			Arguments.of("10 <= 5 || 6 >= 5", Map.of(), true),
-			Arguments.of("1 + 3 + 5 == 9", Map.of(), true),
-			Arguments.of("1 + 3 + 5 == 8", Map.of(), false),
-			Arguments.of("1 + 3 + 5 != 8", Map.of(), true),
-			Arguments.of("1 + 3 + 5 != 9", Map.of(), false),
-			Arguments.of("-1.0 < -1.11", Map.of(), false),
-			Arguments.of("-1.0 > -1.11", Map.of(), true),
-			Arguments.of("-1 < +1", Map.of(), true),
-			Arguments.of("-(1 + 2) < +1", Map.of(), true),
-			Arguments.of("2 - 5 > +1", Map.of(), false),
-			Arguments.of("2 * (8 - 4) == 8", Map.of(), true),
-			Arguments.of("2 ^ 6 == 64", Map.of(), true),
-			Arguments.of("(2 + 4) * 2 == (8 - 2) * 2", Map.of(), true),
-			Arguments.of("random(5) > 8", Map.of(), false),
-			Arguments.of("random() > 0 && 5 > 7", Map.of(), false),
-			Arguments.of("sqrt(3 + 13) == 4", Map.of(), true),
-			Arguments.of("$pageNumber > 5", Map.of("pageNumber", BigDecimal.valueOf(10)), true),
-			Arguments.of("$pageNumber > 5", Map.of("pageNumber", BigDecimal.valueOf(1)), false),
-			Arguments.of("$pageNumber > 5 ", Map.of("pageNumber", BigDecimal.valueOf(1)), false),
-			Arguments.of("$pageNumber > 2 && $pageNumber % 2 == 0 ", Map.of("pageNumber", BigDecimal.valueOf(1)), false),
-			Arguments.of("$pageNumber > 2 && $pageNumber % 2 == 0 ", Map.of("pageNumber", BigDecimal.valueOf(2)), false),
-			Arguments.of("$pageNumber > 2 && $pageNumber % 2 == 0 ", Map.of("pageNumber", BigDecimal.valueOf(3)), false),
-			Arguments.of("$pageNumber > 2 && $pageNumber % 2 == 0 ", Map.of("pageNumber", BigDecimal.valueOf(4)), true),
-			Arguments.of("ceil($pageNumber / 2) == 3", Map.of("pageNumber", BigDecimal.valueOf(5)), true),
-			Arguments.of("floor($pageNumber / 2) == 2", Map.of("pageNumber", BigDecimal.valueOf(5)), true),
-			Arguments.of("floor(sqrt($pageNumber)) == 2", Map.of("pageNumber", BigDecimal.valueOf(4)), true),
-			Arguments.of("floor(sqrt($pageNumber)) == 2", Map.of("pageNumber", BigDecimal.valueOf(5)), true),
-			Arguments.of("floor(sqrt($pageNumber)) == 2", Map.of("pageNumber", BigDecimal.valueOf(16)), false)
+			Arguments.of("true", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("!true", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			Arguments.of("true || false", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("true && false", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			Arguments.of("true && (true || false)", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("!true == false", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("true == !(false && true)", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("true == true", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("true == false", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			Arguments.of("5 != 4", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("5 == 5", Map.of(), true, BigDecimalNumberRange.between(new BigDecimal("5"), new BigDecimal("5"))),
+			Arguments.of("(5 == 5)", Map.of(), true, BigDecimalNumberRange.between(new BigDecimal("5"), new BigDecimal("5"))),
+			Arguments.of("true == (5 == 5)", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("'abc' == 'abc'", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("'abc' == 'def'", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			Arguments.of("10 > 5", Map.of(), true, BigDecimalNumberRange.from(new BigDecimal("5.0000000000000001"))),
+			Arguments.of("5 < 10", Map.of(), true, BigDecimalNumberRange.to(new BigDecimal("4.9999999999999999"))),
+			Arguments.of("10 < 5", Map.of(), false, BigDecimalNumberRange.to(new BigDecimal("4.9999999999999999"))),
+			Arguments.of("5 > 10", Map.of(), false, BigDecimalNumberRange.from(new BigDecimal("5.0000000000000001"))),
+			Arguments.of("10 > 5 && 5 < 10", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("10 > 5 || 5 > 10", Map.of(), true, BigDecimalNumberRange.from(new BigDecimal("5.0000000000000001"))),
+			Arguments.of("10 < 5 || 5 < 10", Map.of(), true, BigDecimalNumberRange.to(new BigDecimal("4.9999999999999999"))),
+			Arguments.of("10 < 5 || 5 > 10", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			Arguments.of("10 <= 5 || 5 >= 10", Map.of(), false, BigDecimalNumberRange.between(new BigDecimal("5"), new BigDecimal("5"))),
+			Arguments.of("10 <= 5 || 6 >= 5", Map.of(), true, BigDecimalNumberRange.between(new BigDecimal("5"), new BigDecimal("5"))),
+			Arguments.of("1 + 3 + 5 == 9", Map.of(), true, BigDecimalNumberRange.between(new BigDecimal("9"), new BigDecimal("9"))),
+			Arguments.of("1 + 3 + 5 == 8", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			Arguments.of("1 + 3 + 5 != 8", Map.of(), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("1 + 3 + 5 != 9", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			Arguments.of("-1.0 < -1.11", Map.of(), false, BigDecimalNumberRange.to(new BigDecimal("-1.1100000000000001"))),
+			Arguments.of("-1.0 > -1.11", Map.of(), true, BigDecimalNumberRange.from(new BigDecimal("-1.1099999999999999"))),
+			Arguments.of("-1 < +1", Map.of(), true, BigDecimalNumberRange.to(new BigDecimal("-1.0000000000000001"))),
+			Arguments.of("-(1 + 2) < +1", Map.of(), true, BigDecimalNumberRange.to(new BigDecimal("-3.0000000000000001"))),
+			Arguments.of("2 - 5 > +1", Map.of(), false, BigDecimalNumberRange.from(new BigDecimal("-2.9999999999999999"))),
+			Arguments.of("2 * (8 - 4) == 8", Map.of(), true, BigDecimalNumberRange.between(new BigDecimal("8"), new BigDecimal("8"))),
+			Arguments.of("2 ^ 6 == 64", Map.of(), true, BigDecimalNumberRange.between(new BigDecimal("64"), new BigDecimal("64"))),
+			Arguments.of("(2 + 4) * 2 == (8 - 2) * 2", Map.of(), true, BigDecimalNumberRange.between(new BigDecimal("12"), new BigDecimal("12"))),
+			Arguments.of("random(5) > 8", Map.of(), false, BigDecimalNumberRange.from(new BigDecimal("8.0000000000000001"))),
+			Arguments.of("random() > 0 && 5 > 7", Map.of(), false, BigDecimalNumberRange.from(new BigDecimal("5.0000000000000001"))),
+			Arguments.of("sqrt(3 + 13) == 4", Map.of(), true, BigDecimalNumberRange.between(new BigDecimal("4"), new BigDecimal("4"))),
+			Arguments.of("$pageNumber > 5", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.from(new BigDecimal("5.0000000000000001"))),
+			Arguments.of("$pageNumber > 5", Map.of("pageNumber", BigDecimal.valueOf(1)), false, BigDecimalNumberRange.from(new BigDecimal("5.0000000000000001"))),
+			Arguments.of("$pageNumber > 5 ", Map.of("pageNumber", BigDecimal.valueOf(1)), false, BigDecimalNumberRange.from(new BigDecimal("5.0000000000000001"))),
+			Arguments.of("$pageNumber > 2 && $pageNumber % 2 == 0 ", Map.of("pageNumber", BigDecimal.valueOf(1)), false, BigDecimalNumberRange.from(new BigDecimal("2.0000000000000001"))),
+			Arguments.of("$pageNumber > 2 && $pageNumber % 2 == 0 ", Map.of("pageNumber", BigDecimal.valueOf(2)), false, BigDecimalNumberRange.from(new BigDecimal("2.0000000000000001"))),
+			Arguments.of("$pageNumber > 2 && $pageNumber % 2 == 0 ", Map.of("pageNumber", BigDecimal.valueOf(3)), false, BigDecimalNumberRange.from(new BigDecimal("2.0000000000000001"))),
+			Arguments.of("$pageNumber > 2 && $pageNumber % 2 == 0 ", Map.of("pageNumber", BigDecimal.valueOf(4)), true, BigDecimalNumberRange.from(new BigDecimal("2.0000000000000001"))),
+			Arguments.of("ceil($pageNumber / 2) == 3", Map.of("pageNumber", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("floor($pageNumber / 2) == 2", Map.of("pageNumber", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("floor(sqrt($pageNumber)) == 2", Map.of("pageNumber", BigDecimal.valueOf(4)), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("floor(sqrt($pageNumber)) == 2", Map.of("pageNumber", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("floor(sqrt($pageNumber)) == 2", Map.of("pageNumber", BigDecimal.valueOf(16)), false, BigDecimalNumberRange.INFINITE),
+			Arguments.of("$pageNumber >= 5", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.from(new BigDecimal("5"))),
+			Arguments.of("$pageNumber < 5", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.to(new BigDecimal("4.9999999999999999"))),
+			Arguments.of("$pageNumber <= 5", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.to(new BigDecimal("5"))),
+			Arguments.of("$pageNumber <= 5 && $pageNumber % 2 == 0", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.to(new BigDecimal("5"))),
+			Arguments.of("$pageNumber <= 5 && $pageNumber >= 2", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.between(new BigDecimal("2"), new BigDecimal("5"))),
+			Arguments.of("$pageNumber <= 5 || $pageNumber >= 2", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.between(new BigDecimal("2"), new BigDecimal("5"))),
+			Arguments.of("$pageNumber <= 4 || $pageNumber >= 5", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.INFINITE),
+			Arguments.of("!($pageNumber <= 13)", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.from(new BigDecimal("13.0000000000000001")))
 		);
 	}
 
 	private static boolean evaluate(@Nonnull String predicate, @Nonnull Map<String, Object> variables) {
 		final ExpressionNode operator = ExpressionFactory.parse(predicate);
 		return operator.compute(new MultiVariableEvaluationContext(42, variables), Boolean.class);
+	}
+
+	@Nonnull
+	private static BigDecimalNumberRange determineRange(@Nonnull String predicate) {
+		final ExpressionNode operator = ExpressionFactory.parse(predicate);
+		return operator.determinePossibleRange();
 	}
 }

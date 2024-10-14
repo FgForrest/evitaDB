@@ -25,6 +25,8 @@ package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -55,6 +57,15 @@ public class NegatingOperator implements ExpressionNode {
 	@Override
 	public BigDecimal compute(@Nonnull PredicateEvaluationContext context) {
 		return operator.compute(context, BigDecimal.class).negate();
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return ExpressionNode.transform(
+			operator.determinePossibleRange(),
+			BigDecimal::negate
+		);
 	}
 
 	@Override

@@ -25,6 +25,8 @@ package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -59,12 +61,24 @@ public class ModOperator implements ExpressionNode {
 		final BigDecimal initial = operator[0].compute(context, BigDecimal.class);
 		return Arrays.stream(operator, 1, operator.length)
 			.map(op -> op.compute(context, BigDecimal.class))
-			.reduce(initial, (a, b) -> {
-				if (b.equals(BigDecimal.ZERO)) {
-					throw new ArithmeticException("Division by zero");
-				}
-				return a.remainder(b);
-			});
+			.reduce(initial, ModOperator::modulo);
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return Arrays.stream(operator)
+			.map(ExpressionNode::determinePossibleRange)
+			.reduce((a, b) -> ExpressionNode.combine(a, b, ModOperator::modulo))
+			.orElseThrow();
+	}
+
+	@Nonnull
+	private static BigDecimal modulo(@Nonnull BigDecimal a, @Nonnull BigDecimal b) {
+		if (b.equals(BigDecimal.ZERO)) {
+			throw new ArithmeticException("Division by zero");
+		}
+		return a.remainder(b);
 	}
 
 	@Override

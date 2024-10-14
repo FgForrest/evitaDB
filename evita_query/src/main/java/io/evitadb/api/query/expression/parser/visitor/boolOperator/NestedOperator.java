@@ -25,6 +25,8 @@ package io.evitadb.api.query.expression.parser.visitor.boolOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -58,6 +60,12 @@ public class NestedOperator implements ExpressionNode {
 	@Override
 	public Serializable compute(@Nonnull PredicateEvaluationContext context) {
 		return operator.compute(context);
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return operator.determinePossibleRange();
 	}
 
 	@Override

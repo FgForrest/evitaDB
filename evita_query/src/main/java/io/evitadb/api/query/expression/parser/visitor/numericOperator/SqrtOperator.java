@@ -25,6 +25,8 @@ package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -59,6 +61,15 @@ public class SqrtOperator implements ExpressionNode {
 	public BigDecimal compute(@Nonnull PredicateEvaluationContext context) {
 		final BigDecimal initial = operator.compute(context, BigDecimal.class);
 		return initial.sqrt(MathContext.DECIMAL64);
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return ExpressionNode.transform(
+			operator.determinePossibleRange(),
+			bd -> bd.sqrt(MathContext.DECIMAL64)
+		);
 	}
 
 	@Override

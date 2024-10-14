@@ -25,7 +25,10 @@ package io.evitadb.api.query.expression.parser.visitor.operand;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.exception.InconvertibleDataTypeException;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -34,6 +37,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 /**
  * The ConstantOperand class represents an operator that always returns a constant value.
@@ -58,6 +62,17 @@ public class ConstantOperand implements ExpressionNode {
 	@Override
 	public Serializable compute(@Nonnull PredicateEvaluationContext context) {
 		return value;
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		try {
+			final BigDecimal valueAsBigDecimal = EvitaDataTypes.toTargetType(value, BigDecimal.class);
+			return BigDecimalNumberRange.between(valueAsBigDecimal, valueAsBigDecimal);
+		} catch (InconvertibleDataTypeException ex) {
+			return BigDecimalNumberRange.INFINITE;
+		}
 	}
 
 	@Override

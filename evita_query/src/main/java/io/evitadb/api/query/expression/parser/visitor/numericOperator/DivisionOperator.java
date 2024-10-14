@@ -25,6 +25,8 @@ package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
@@ -59,13 +61,25 @@ public class DivisionOperator implements ExpressionNode {
 		final BigDecimal initial = operator[0].compute(context, BigDecimal.class);
 		return Arrays.stream(operator, 1, operator.length)
 			.map(op -> op.compute(context, BigDecimal.class))
-			.reduce(initial, (a, b) -> {
-				if (b.equals(BigDecimal.ZERO)) {
-					throw new ArithmeticException("Division by zero");
-				}
-				// we need to automatically switch to float values when necessary
-				return a.divide(b, 16, RoundingMode.HALF_UP).stripTrailingZeros();
-			});
+			.reduce(initial, DivisionOperator::divide);
+	}
+
+	@Nonnull
+	@Override
+	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
+		return Arrays.stream(operator)
+			.map(ExpressionNode::determinePossibleRange)
+			.reduce((a, b) -> ExpressionNode.combine(a, b, DivisionOperator::divide))
+			.orElseThrow();
+	}
+
+	@Nonnull
+	private static BigDecimal divide(@Nonnull BigDecimal a, @Nonnull BigDecimal b) {
+		if (b.equals(BigDecimal.ZERO)) {
+			throw new ArithmeticException("Division by zero");
+		}
+		// we need to automatically switch to float values when necessary
+		return a.divide(b, 16, RoundingMode.HALF_UP).stripTrailingZeros();
 	}
 
 	@Override
