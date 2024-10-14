@@ -33,7 +33,7 @@ java \
         --add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
         -javaagent:target/evita-server.jar \
         -jar "target/evita-server.jar" \
-        "configDir=../config/" \
+        "configDir=../conf/" \
         "logback.configurationFile=./logback.xml" \
         "storage.storageDirectory=../data " \
         "api.exposedOn=localhost" \
