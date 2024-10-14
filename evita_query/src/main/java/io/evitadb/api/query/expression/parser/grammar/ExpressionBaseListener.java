@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-// Generated from ExpressionFactory.g4 by ANTLR 4.9.2
+// Generated from Expression.g4 by ANTLR 4.9.2
 
     package io.evitadb.api.query.expression.parser.grammar;
 

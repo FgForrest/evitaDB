@@ -31,6 +31,7 @@ import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
+import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -42,6 +43,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@EqualsAndHashCode
 public class NotEqualsOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = -3906474600354280068L;
 	private final ExpressionNode leftOperator;

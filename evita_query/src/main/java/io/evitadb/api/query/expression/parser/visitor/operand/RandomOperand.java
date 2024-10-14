@@ -29,6 +29,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
+import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -40,6 +41,7 @@ import java.util.Random;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@EqualsAndHashCode
 public class RandomOperand implements ExpressionNode {
 	@Serial private static final long serialVersionUID = -6261246532556762806L;
 	private final ExpressionNode operator;

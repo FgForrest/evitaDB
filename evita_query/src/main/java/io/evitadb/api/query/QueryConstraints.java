@@ -1127,7 +1127,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static HierarchyHaving having(@Nullable FilterConstraint... includeChildTreeConstraints) {
-		if (ArrayUtils.isEmpty(includeChildTreeConstraints)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(includeChildTreeConstraints)) {
 			return null;
 		}
 		return new HierarchyHaving(includeChildTreeConstraints);
@@ -1222,7 +1222,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static HierarchyExcluding excluding(@Nullable FilterConstraint... excludeChildTreeConstraints) {
-		if (ArrayUtils.isEmpty(excludeChildTreeConstraints)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(excludeChildTreeConstraints)) {
 			return null;
 		}
 		return new HierarchyExcluding(excludeChildTreeConstraints);
@@ -1805,7 +1805,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static FacetHaving facetHaving(@Nullable String referenceName, @Nullable FilterConstraint... constraint) {
-		return referenceName == null || ArrayUtils.isEmpty(constraint) ? null : new FacetHaving(referenceName, constraint);
+		return referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(constraint) ? null : new FacetHaving(referenceName, constraint);
 	}
 
 	/**
@@ -2013,7 +2013,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static Segments segments(@Nullable Segment... constraints) {
-		if (ArrayUtils.isEmpty(constraints)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
 		return new Segments(constraints);
@@ -2399,7 +2399,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static EntityPrimaryKeyExact entityPrimaryKeyExact(@Nullable Integer... primaryKey) {
-		if (ArrayUtils.isEmpty(primaryKey)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(primaryKey)) {
 			return null;
 		}
 		return new EntityPrimaryKeyExact(primaryKey);
@@ -2464,7 +2464,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static AttributeSetExact attributeSetExact(@Nullable String attributeName, @Nullable Serializable... attributeValues) {
-		if (attributeName == null || attributeName.isBlank() || ArrayUtils.isEmpty(attributeValues)) {
+		if (attributeName == null || attributeName.isBlank() || ArrayUtils.isEmptyOrItsValuesNull(attributeValues)) {
 			return null;
 		}
 		return new AttributeSetExact(attributeName, attributeValues);
@@ -2990,7 +2990,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable String... attributeName) {
-		if (ArrayUtils.isEmpty(attributeName)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(attributeName)) {
 			return null;
 		}
 		return new AttributeHistogram(requestedBucketCount, attributeName);
@@ -3022,7 +3022,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior, @Nullable String... attributeName) {
-		if (ArrayUtils.isEmpty(attributeName)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(attributeName)) {
 			return null;
 		}
 		return new AttributeHistogram(requestedBucketCount, behavior, attributeName);
@@ -3440,7 +3440,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(@Nullable HierarchyRequireConstraint... requirement) {
-		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(null, requirement);
+		return ArrayUtils.isEmptyOrItsValuesNull(requirement) ? null : new HierarchyOfSelf(null, requirement);
 	}
 
 	/**
@@ -3482,7 +3482,7 @@ public interface QueryConstraints {
 		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(orderBy, requirement);
+		return ArrayUtils.isEmptyOrItsValuesNull(requirement) ? null : new HierarchyOfSelf(orderBy, requirement);
 	}
 
 	/**
@@ -3622,7 +3622,7 @@ public interface QueryConstraints {
 		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return referenceName == null || ArrayUtils.isEmpty(requirement) ?
+		return referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(requirement) ?
 			null :
 			new HierarchyOfReference(
 				referenceName,
@@ -3676,7 +3676,7 @@ public interface QueryConstraints {
 		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return referenceName == null || ArrayUtils.isEmpty(requirement) ?
+		return referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(requirement) ?
 			null :
 			new HierarchyOfReference(
 				referenceName,
@@ -3823,10 +3823,10 @@ public interface QueryConstraints {
 		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		if (referenceName == null || ArrayUtils.isEmpty(referenceName)) {
+		if (referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(referenceName)) {
 			return null;
 		}
-		if (ArrayUtils.isEmpty(requirement)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirement)) {
 			return null;
 		}
 		return new HierarchyOfReference(
@@ -3881,10 +3881,10 @@ public interface QueryConstraints {
 		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		if (referenceName == null || ArrayUtils.isEmpty(referenceName)) {
+		if (referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(referenceName)) {
 			return null;
 		}
-		if (ArrayUtils.isEmpty(requirement)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirement)) {
 			return null;
 		}
 		return new HierarchyOfReference(
@@ -22233,7 +22233,7 @@ public interface QueryConstraints {
 		if (contentMode == null) {
 			return null;
 		}
-		if (ArrayUtils.isEmpty(priceLists)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(priceLists)) {
 			return new PriceContent(contentMode);
 		} else {
 			return new PriceContent(contentMode, priceLists);
@@ -22435,7 +22435,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static Spacing spacing(@Nullable SpacingGap... gaps) {
-		if (ArrayUtils.isEmpty(gaps)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(gaps)) {
 			return null;
 		} else {
 			return new Spacing(gaps);
@@ -24098,7 +24098,7 @@ public interface QueryConstraints {
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;
 		}
-		if (ArrayUtils.isEmpty(requirements)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirements)) {
 			return new FacetSummary(
 				statisticsDepth,
 				facetFilterBy, facetGroupFilterBy,
@@ -25570,7 +25570,7 @@ public interface QueryConstraints {
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;
 		}
-		if (ArrayUtils.isEmpty(requirements)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirements)) {
 			return new FacetSummaryOfReference(
 				referenceName, statisticsDepth,
 				facetFilterBy, facetGroupFilterBy,
@@ -25608,7 +25608,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static Debug debug(@Nullable DebugMode... debugMode) {
-		return ArrayUtils.isEmpty(debugMode) ? null : new Debug(debugMode);
+		return ArrayUtils.isEmptyOrItsValuesNull(debugMode) ? null : new Debug(debugMode);
 	}
 
 	/**
@@ -25703,7 +25703,7 @@ public interface QueryConstraints {
 	 */
 	@Nonnull
 	static RequireConstraint[] entityFetchAllAnd(@Nullable RequireConstraint... combineWith) {
-		if (ArrayUtils.isEmpty(combineWith)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(combineWith)) {
 			return new RequireConstraint[]{entityFetchAll()};
 		} else {
 			return ArrayUtils.mergeArrays(
@@ -25730,7 +25730,7 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static EntityContentRequire[] entityFetchAllContentAnd(@Nullable EntityContentRequire... combineWith) {
-		if (ArrayUtils.isEmpty(combineWith)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(combineWith)) {
 			return entityFetchAllContent();
 		} else {
 			return ArrayUtils.mergeArrays(

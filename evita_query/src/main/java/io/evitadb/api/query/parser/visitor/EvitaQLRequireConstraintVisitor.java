@@ -26,6 +26,7 @@ package io.evitadb.api.query.parser.visitor;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
@@ -49,6 +50,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -139,13 +141,55 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 	@Override
 	public RequireConstraint visitPageConstraint(@Nonnull PageConstraintContext ctx) {
+		final int pageNumber = ctx.args.pageNumber.accept(intValueTokenVisitor).asInt();
+		final int pageSize = ctx.args.pageSize.accept(intValueTokenVisitor).asInt();
+		final Spacing spacing = ctx.args.requireConstraint() == null ?
+			null :
+			of(ctx.args.requireConstraint().accept(this))
+				.map(it -> {
+					if (it instanceof final Spacing theSpacing) {
+						return theSpacing;
+					} else {
+						throw new EvitaSyntaxException(ctx, "Only `spacing` is accepted as third parameter of `page` require constraint!");
+					}
+				})
+				.orElseThrow(() -> new EvitaSyntaxException(ctx, "Only `spacing` is accepted as third parameter of `page` require constraint!"));
 		return parse(
 			ctx,
 			() -> new Page(
-				ctx.args.pageNumber.accept(intValueTokenVisitor).asInt(),
-				ctx.args.pageSize.accept(intValueTokenVisitor).asInt(),
-				/* TODO JNO */
-				null
+				pageNumber,
+				pageSize,
+				spacing
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitSpacingConstraint(SpacingConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new Spacing(
+				ctx.args.constraints.stream()
+					.map(it -> it.accept(this))
+					.map(it -> {
+						if (it instanceof SpacingGap theGap) {
+							return theGap;
+						} else {
+							throw new EvitaSyntaxException(ctx, "Only `gap` is accepted as parameter of `spacing` require constraint!");
+						}
+					})
+					.toArray(SpacingGap[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitGapConstraint(GapConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new SpacingGap(
+				ctx.args.size.accept(intValueTokenVisitor).asInt(),
+				ExpressionFactory.parse(ctx.args.expression.accept(stringValueTokenVisitor).asString())
 			)
 		);
 	}

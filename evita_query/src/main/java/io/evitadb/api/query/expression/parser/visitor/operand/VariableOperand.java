@@ -31,6 +31,7 @@ import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -48,6 +49,7 @@ import java.util.stream.Collectors;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
+@EqualsAndHashCode
 public class VariableOperand implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 1575684554715298743L;
 	private final String variableName;

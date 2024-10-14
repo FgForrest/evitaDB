@@ -30,6 +30,7 @@ import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
+import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -41,6 +42,7 @@ import java.math.BigDecimal;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@EqualsAndHashCode
 public class NegatingOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = -1917894061802394775L;
 	private final ExpressionNode operator;

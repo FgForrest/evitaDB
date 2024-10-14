@@ -32,6 +32,7 @@ import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import io.evitadb.utils.Assert;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -46,6 +47,7 @@ import java.math.BigDecimal;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@EqualsAndHashCode
 public class ConstantOperand implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 272389410429555636L;
 	@Getter private final Serializable value;

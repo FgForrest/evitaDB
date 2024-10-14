@@ -97,6 +97,24 @@ class EvitaQLRequireConstraintVisitorTest {
 	}
 
 	@Test
+	void shouldParsePageConstraintWithSpacing() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("page(10,20,spacing(gap(1,'true')))");
+		assertEquals(page(10, 20, spacing(gap(1, "true"))), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("page (  10 ,20 , spacing ( gap ( 1 , 'true' ) ) )");
+		assertEquals(page(10, 20, spacing(gap(1, "true"))), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraint("page(?,?,spacing(gap(?,?)))", 10, 20, 1, "true");
+		assertEquals(page(10, 20, spacing(gap(1, "true"))), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraint(
+			"page(@page,@size,spacing(gap(@gapSize,@expression)))",
+			Map.of("page", 10, "size", 20, "gapSize", 1, "expression", "true")
+		);
+		assertEquals(page(10, 20, spacing(gap(1, "true"))), constraint4);
+	}
+
+	@Test
 	void shouldNotParsePageConstraint() {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("page(10,20)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("page(?,?)"));
@@ -106,6 +124,18 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("page(1)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("page('a')"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("page(1,'a')"));
+	}
+
+	@Test
+	void shouldNotParseSpacing() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("spacing(gap(10,20))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("spacing(gap(?,?))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("spacing(gap(@page,@size))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("spacing"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("gap"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("spacing(page(1, 12))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("spacing(gap(1))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("spacing(gap('a', 1))"));
 	}
 
 	@Test

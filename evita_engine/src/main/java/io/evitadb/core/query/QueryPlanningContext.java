@@ -609,7 +609,6 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * @param formulaSupplier the lambda that creates the formula
 	 * @return created formula
 	 */
-	/* TODO JNO - tohle přenést i do sorterů */
 	@Nonnull
 	public Formula computeOnlyOnce(
 		@Nonnull List<EntityIndex> entityIndexes,

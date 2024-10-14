@@ -25,8 +25,10 @@ package io.evitadb.dataType.expression;
 
 
 import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.ExpressionEvaluationException;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -39,6 +41,7 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
+@EqualsAndHashCode
 public class Expression implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 661548006498130632L;
 	private final ExpressionNode root;
@@ -57,6 +60,6 @@ public class Expression implements ExpressionNode {
 
 	@Override
 	public String toString() {
-		return root.toString();
+		return EvitaDataTypes.formatValue(root.toString());
 	}
 }

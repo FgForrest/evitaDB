@@ -37,6 +37,7 @@ import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.stream.Stream;
@@ -61,11 +62,15 @@ public class SegmentsTranslator implements OrderingConstraintTranslator<Segments
 				);
 				// optionally, create a filtering formula for the segment by the filtering constraint contents
 				final Optional<Formula> filteringFormula = segment.getEntityHaving()
-					.map(it -> FilterByVisitor.createFormulaForTheFilter(
-						orderByVisitor.getQueryContext(),
-						new FilterBy(it.getChildren()),
-						orderByVisitor.getSchema().getName(),
-						() -> "Result segment filtering: " + it
+					.map(it -> orderByVisitor.getQueryContext().computeOnlyOnce(
+						Collections.emptyList(),
+						it,
+						() -> FilterByVisitor.createFormulaForTheFilter(
+							orderByVisitor.getQueryContext(),
+							new FilterBy(it.getChildren()),
+							orderByVisitor.getSchema().getName(),
+							() -> "Result segment filtering: " + it
+						)
 					));
 				// optionally, retrieve the limit for the segment
 				final OptionalInt limit = segment.getLimit();

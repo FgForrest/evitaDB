@@ -53,7 +53,7 @@ public class ExpressionTest {
 	@ParameterizedTest
 	@MethodSource("predicates")
 	void shouldSerializeExpressionToString(String predicate) {
-		assertEquals(predicate.trim(), ExpressionFactory.parse(predicate).toString());
+		assertEquals("'" + predicate.trim().replaceAll("'", "\\\\'") + "'", ExpressionFactory.parse(predicate).toString());
 	}
 
 	@ParameterizedTest
@@ -118,13 +118,13 @@ public class ExpressionTest {
 			Arguments.of("floor(sqrt($pageNumber)) == 2", Map.of("pageNumber", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.INFINITE),
 			Arguments.of("floor(sqrt($pageNumber)) == 2", Map.of("pageNumber", BigDecimal.valueOf(16)), false, BigDecimalNumberRange.INFINITE),
 			Arguments.of("$pageNumber >= 5", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.from(new BigDecimal("5"))),
-			Arguments.of("$pageNumber < 5", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.to(new BigDecimal("4.9999999999999999"))),
-			Arguments.of("$pageNumber <= 5", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.to(new BigDecimal("5"))),
-			Arguments.of("$pageNumber <= 5 && $pageNumber % 2 == 0", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.to(new BigDecimal("5"))),
-			Arguments.of("$pageNumber <= 5 && $pageNumber >= 2", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.between(new BigDecimal("2"), new BigDecimal("5"))),
+			Arguments.of("$pageNumber < 5", Map.of("pageNumber", BigDecimal.valueOf(10)), false, BigDecimalNumberRange.to(new BigDecimal("4.9999999999999999"))),
+			Arguments.of("$pageNumber <= 5", Map.of("pageNumber", BigDecimal.valueOf(10)), false, BigDecimalNumberRange.to(new BigDecimal("5"))),
+			Arguments.of("$pageNumber <= 5 && $pageNumber % 2 == 0", Map.of("pageNumber", BigDecimal.valueOf(10)), false, BigDecimalNumberRange.to(new BigDecimal("5"))),
+			Arguments.of("$pageNumber <= 5 && $pageNumber >= 2", Map.of("pageNumber", BigDecimal.valueOf(10)), false, BigDecimalNumberRange.between(new BigDecimal("2"), new BigDecimal("5"))),
 			Arguments.of("$pageNumber <= 5 || $pageNumber >= 2", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.between(new BigDecimal("2"), new BigDecimal("5"))),
 			Arguments.of("$pageNumber <= 4 || $pageNumber >= 5", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.INFINITE),
-			Arguments.of("!($pageNumber <= 13)", Map.of("pageNumber", BigDecimal.valueOf(10)), true, BigDecimalNumberRange.from(new BigDecimal("13.0000000000000001")))
+			Arguments.of("!($pageNumber <= 13)", Map.of("pageNumber", BigDecimal.valueOf(10)), false, BigDecimalNumberRange.from(new BigDecimal("13.0000000000000001")))
 		);
 	}
 
