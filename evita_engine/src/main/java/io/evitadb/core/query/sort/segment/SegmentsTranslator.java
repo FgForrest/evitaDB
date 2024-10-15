@@ -26,6 +26,7 @@ package io.evitadb.core.query.sort.segment;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.Segments;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
@@ -61,13 +62,15 @@ public class SegmentsTranslator implements OrderingConstraintTranslator<Segments
 					() -> Arrays.stream(orderBy.getChildren()).forEach(it -> it.accept(orderByVisitor))
 				);
 				// optionally, create a filtering formula for the segment by the filtering constraint contents
+				final QueryPlanningContext queryContext = orderByVisitor.getQueryContext();
 				final Optional<Formula> filteringFormula = segment.getEntityHaving()
-					.map(it -> orderByVisitor.getQueryContext().computeOnlyOnce(
+					.map(it -> queryContext.computeOnlyOnce(
 						Collections.emptyList(),
 						it,
 						() -> FilterByVisitor.createFormulaForTheFilter(
-							orderByVisitor.getQueryContext(),
+							queryContext,
 							new FilterBy(it.getChildren()),
+							queryContext.getFilterBy(),
 							orderByVisitor.getSchema().getName(),
 							() -> "Result segment filtering: " + it
 						)

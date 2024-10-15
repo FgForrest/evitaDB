@@ -243,6 +243,33 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
+		return createFormulaForTheFilter(
+			queryContext,
+			filterBy,
+			null,
+			entityType,
+			stepDescriptionSupplier
+		);
+	}
+
+	/**
+	 * Method creates a new formula that looks for entity primary keys in global index of `entityType` collection that
+	 * match the `filterBy` constraint.
+	 *
+	 * @param queryContext            used for accessing global index, global cache and recording query telemetry
+	 * @param filterBy                the filter constraints the entities must match
+	 * @param entityType              the entity type of the entity that is looked up
+	 * @param stepDescriptionSupplier the message supplier for the query telemetry
+	 * @return output {@link Formula} that is able to produce the matching entity primary keys
+	 */
+	@Nonnull
+	public static Formula createFormulaForTheFilter(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull FilterBy filterBy,
+		@Nullable FilterBy rootFilterBy,
+		@Nonnull String entityType,
+		@Nonnull Supplier<String> stepDescriptionSupplier
+	) {
 		final Formula theFormula;
 		try {
 			queryContext.pushStep(
@@ -271,6 +298,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 							new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
 							(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 							() -> {
+								// initialize root constraint for the execution
+								if (rootFilterBy != null) {
+									// we don't need to pop it, because the filter by visitor is going to be discarded
+									theFilterByVisitor.scope.peek().pushConstraint(rootFilterBy);
+								}
+
 								filterBy.accept(theFilterByVisitor);
 								// get the result and clear the visitor internal structures
 								return theFilterByVisitor.getFormulaAndClear();

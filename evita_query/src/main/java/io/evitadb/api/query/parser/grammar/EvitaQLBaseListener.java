@@ -821,6 +821,42 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterSegmentsConstraint(EvitaQLParser.SegmentsConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSegmentsConstraint(EvitaQLParser.SegmentsConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSegmentConstraint(EvitaQLParser.SegmentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSegmentConstraint(EvitaQLParser.SegmentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSegmentLimitConstraint(EvitaQLParser.SegmentLimitConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSegmentLimitConstraint(EvitaQLParser.SegmentLimitConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterRequireContainerConstraint(EvitaQLParser.RequireContainerConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -2700,6 +2736,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitGapRequireConstraintArgs(EvitaQLParser.GapRequireConstraintArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSegmentArgs(EvitaQLParser.SegmentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSegmentArgs(EvitaQLParser.SegmentArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

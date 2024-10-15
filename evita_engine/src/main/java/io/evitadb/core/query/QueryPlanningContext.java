@@ -31,6 +31,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
@@ -428,7 +429,7 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Shorthand for {@link EvitaRequest#getQuery()} and {@link Query#getFilterBy()}.
 	 */
 	@Nullable
-	public FilterConstraint getFilterBy() {
+	public FilterBy getFilterBy() {
 		return evitaRequest.getQuery().getFilterBy();
 	}
 

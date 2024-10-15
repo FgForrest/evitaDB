@@ -444,6 +444,51 @@ class EvitaQLOrderConstraintVisitorTest {
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("entityProperty(attributeNatural('b'))"));
     }
 
+    @Test
+    void shouldParseSegmentConstraint() {
+        final OrderConstraint constraint1 = parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()))))");
+        assertEquals(orderBy(segments(segment(orderBy(random())))), constraint1);
+
+        final OrderConstraint constraint2 = parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random())),segment(orderBy(random()))))");
+        assertEquals(orderBy(segments(segment(orderBy(random())), segment(orderBy(random())))), constraint2);
+
+        final OrderConstraint constraint3 = parseOrderConstraintUnsafe("orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()))))");
+        assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random())))), constraint3);
+
+        final OrderConstraint constraint4 = parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()), limit(5))))");
+        assertEquals(orderBy(segments(segment(orderBy(random()), limit(5)))), constraint4);
+
+        final OrderConstraint constraint5 = parseOrderConstraintUnsafe("orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()), limit(5))))");
+        assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()), limit(5)))), constraint5);
+
+        final OrderConstraint constraint6 = parseOrderConstraintUnsafe("orderBy( segments ( segment(   entityHaving( entityPrimaryKeyInSet( 1)), orderBy (random()), limit(5)), segment ( orderBy ( randomWithSeed(8 )) ) ) ))");
+        assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()), limit(5)), segment(orderBy(randomWithSeed(8L))))), constraint6);
+
+        final OrderConstraint constraint7 = parseOrderConstraint(
+            "orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(?)),orderBy(random()),limit(?)),segment(orderBy(randomWithSeed(?))))))",
+            1, 5, 8L
+        );
+        assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()), limit(5)), segment(orderBy(randomWithSeed(8L))))), constraint7);
+
+        final OrderConstraint constraint8 = parseOrderConstraint(
+            "orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(@pk)),orderBy(random()),limit(@limit)),segment(orderBy(randomWithSeed(@seed))))))",
+            Map.of("pk", 10, "limit", 20, "seed", 8L)
+        );
+        assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(10)), orderBy(random()), limit(20)), segment(orderBy(randomWithSeed(8L))))), constraint8);
+    }
+
+    @Test
+    void shouldNotParseSegmentConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments())"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment()))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(attributeEquals('a', 1)))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1))))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(limit(5)))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(random()))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()), random()))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()), limit(?))))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("orderBy(segments(segment(orderBy(random()), limit(5))))"));
+    }
 
     /**
      * Using generated EvitaQL parser tries to parse string as grammar rule "orderConstraint"

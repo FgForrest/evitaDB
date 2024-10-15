@@ -99,6 +99,9 @@ orderConstraint
     | 'entityPrimaryKeyInFilter'            emptyArgs                                                       # entityPrimaryKeyInFilterConstraint
     | 'entityProperty'                      args = orderConstraintListArgs                                  # entityPropertyConstraint
     | 'entityGroupProperty'                 args = orderConstraintListArgs                                  # entityGroupPropertyConstraint
+    | 'segments'                            args = orderConstraintListArgs                                  # segmentsConstraint
+    | 'segment'                             args = segmentArgs                                              # segmentConstraint
+    | 'limit'                               args = valueArgs                                                # segmentLimitConstraint
     ;
 
 requireConstraint
@@ -359,6 +362,8 @@ fullHierarchyOfReferenceWithBehaviourArgs :         argsOpening referenceName = 
 spacingRequireConstraintArgs :                      argsOpening constraints += requireConstraint (ARGS_DELIMITER constraints += requireConstraint)* argsClosing ;
 
 gapRequireConstraintArgs :                          argsOpening size = valueToken ARGS_DELIMITER expression = valueToken argsClosing ;
+
+segmentArgs:                                        argsOpening (entityHaving = filterConstraint ARGS_DELIMITER)? orderBy = orderConstraint (ARGS_DELIMITER limit = orderConstraint)? argsClosing ;
 
 /**
  * Parameters values

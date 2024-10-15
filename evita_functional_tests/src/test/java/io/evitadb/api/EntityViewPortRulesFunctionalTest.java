@@ -32,6 +32,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.Segment;
 import io.evitadb.api.query.order.Segments;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -71,9 +72,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_EAN;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
+import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -693,6 +692,93 @@ public class EntityViewPortRulesFunctionalTest {
 				return null;
 			}
 		);
+	}
+
+	@DisplayName("Should return segment filtered and sorted by price")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnSegmentFilteredAndSortedByPrice(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BigDecimal firstThreshold = new BigDecimal("40");
+				final BigDecimal secondThreshold = new BigDecimal("80");
+				// find product below first threshold
+				final int firstSegmentProduct = originalProductEntities.stream()
+					.filter(it -> it.hasPriceInInterval(BigDecimal.ZERO, firstThreshold, QueryPriceMode.WITH_TAX, CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
+					.sorted((o1, o2) -> o2.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).orElseThrow().priceWithTax()
+						.compareTo(o1.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).orElseThrow().priceWithTax()))
+					.mapToInt(SealedEntity::getPrimaryKey)
+					.findFirst()
+					.orElseThrow();
+				// find product between thresholds
+				final int secondSegmentProduct = originalProductEntities.stream()
+					.filter(it -> it.hasPriceInInterval(firstThreshold, secondThreshold, QueryPriceMode.WITH_TAX, CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
+					.sorted(Comparator.comparing(o -> o.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).orElseThrow().priceWithTax()))
+					.mapToInt(SealedEntity::getPrimaryKey)
+					.findFirst()
+					.orElseThrow();
+
+				final Set<Integer> segmentedProducts = Set.of(firstSegmentProduct, secondSegmentProduct);
+				assertSortedResultEquals(
+					"First page must be sorted by name in descending order.",
+					session.query(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC),
+									priceInCurrency(CURRENCY_CZK)
+								),
+								orderBy(
+									segments(
+										segment(
+											entityHaving(
+												priceBetween(BigDecimal.ZERO, firstThreshold)
+											),
+											orderBy(
+												priceNatural(OrderDirection.DESC)
+											),
+											limit(1)
+										),
+										segment(
+											entityHaving(
+												priceBetween(firstThreshold, secondThreshold)
+											),
+											orderBy(
+												priceNatural(OrderDirection.ASC)
+											),
+											limit(1)
+										)
+									)
+								),
+								require(
+									page(1, 100),
+									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+								)
+							),
+							EntityReference.class
+						)
+						.getRecordData()
+						.stream()
+						.map(EntityReference::getPrimaryKey)
+						.collect(Collectors.toList()),
+					Stream.of(
+						// first insert segmented products
+						IntStream.of(
+							firstSegmentProduct,
+							secondSegmentProduct
+						),
+						// then append all rest products ordered by PK in ascending order
+						originalProductEntities
+							.stream()
+							.filter(it -> it.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).isPresent())
+							.mapToInt(SealedEntity::getPrimaryKey)
+							.filter(it -> !segmentedProducts.contains(it))
+						)
+						.flatMapToInt(it -> it)
+						.toArray()
+				);
+			});
 	}
 
 	@DisplayName("Should insert spaces into paginated results")

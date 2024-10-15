@@ -6,7 +6,7 @@ query(
        priceBetween(100, 103)
     ),
     orderBy(
-       segments(
+        segments(
           segment(
              orderBy(attributeNatural("published", DESC)),
              limit(2)
@@ -28,15 +28,15 @@ query(
           ),
           segment(
              orderBy(attributeNatural("orderedQuantity", DESC))
-          ),
+          )
        )
     ),
     require(
        page(1, 10),
        entityFetch(
           attributeContent("code", "published", "orderedQuantity"),
-          referenceContent("stocks", attributeContent("quantityOnStock")),
-          priceRespectingFilter()
+          referenceContentWithAttributes("stocks", attributeContent("quantityOnStock")),
+          priceContentRespectingFilter()
        )
     )
 )
