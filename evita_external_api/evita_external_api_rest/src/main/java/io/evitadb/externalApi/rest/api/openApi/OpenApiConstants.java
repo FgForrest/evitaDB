@@ -54,6 +54,6 @@ public class OpenApiConstants {
 	public static final String FORMAT_DECIMAL = "decimal";
 	public static final String FORMAT_LOCALE = "locale";
 	public static final String FORMAT_RANGE = "range";
-	public static final String FORMAT_EXPRESSION = "string";
+	public static final String FORMAT_EXPRESSION = "expression";
 
 }

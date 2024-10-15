@@ -136,7 +136,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			catalogSchema,
 			new AtomicReference<>(filterConstraintResolver)
 		);
-		this.pagingRequireResolver = new PagingRequireResolver();
+		this.pagingRequireResolver = new PagingRequireResolver(entitySchema, requireConstraintResolver);
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
 			filterConstraintResolver,

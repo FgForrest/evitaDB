@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.dataType.*;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.dataType.GenericObject;
@@ -97,7 +98,7 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		SCALAR_SCHEMA_MAPPINGS.put(ReferencedEntityPredecessor.class, OpenApiScalar::createReferencedEntityPredecessorSchema);
 		SCALAR_SCHEMA_MAPPINGS.put(Any.class, OpenApiScalar::createAnySchema);
 		SCALAR_SCHEMA_MAPPINGS.put(GenericObject.class, OpenApiScalar::createGenericObjectSchema);
-		SCALAR_SCHEMA_MAPPINGS.put(ExpressionNode.class, OpenApiScalar::createExpressionNodeSchema);
+		SCALAR_SCHEMA_MAPPINGS.put(Expression.class, OpenApiScalar::createExpressionSchema);
 	}
 
 	@Nonnull
@@ -309,12 +310,12 @@ public class OpenApiScalar implements OpenApiSimpleType {
 	 * Creates schema for {@link ExpressionNode}
 	 */
 	@Nonnull
-	private static Schema<?> createExpressionNodeSchema() {
-		final Schema<?> uuidSchema = new StringSchema();
-		uuidSchema
+	private static Schema<?> createExpressionSchema() {
+		final Schema<?> expessionSchema = new StringSchema();
+		expessionSchema
 			.format(FORMAT_EXPRESSION)
 			.example("($pageNumber - 1) % 2 == 0 && $pageNumber <= 6");
-		return uuidSchema;
+		return expessionSchema;
 	}
 
 	/**

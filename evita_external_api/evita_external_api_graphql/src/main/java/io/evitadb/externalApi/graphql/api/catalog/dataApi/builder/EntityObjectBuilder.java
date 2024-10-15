@@ -113,7 +113,7 @@ public class EntityObjectBuilder {
 		this.buildingContext = buildingContext;
 		this.filterConstraintSchemaBuilder = filterConstraintSchemaBuilder;
 		this.orderConstraintSchemaBuilder = orderConstraintSchemaBuilder;
-		this.hierarchyRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forHierarchyRequire(
+		this.hierarchyRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forComplementaryRequire(
 			constraintSchemaBuildingContext,
 			new AtomicReference<>(filterConstraintSchemaBuilder)
 		);

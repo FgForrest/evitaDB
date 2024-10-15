@@ -36,6 +36,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
+import io.evitadb.api.query.require.Spacing;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -46,6 +47,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.SegmentDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
@@ -114,7 +116,7 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
-	@Nonnull private final RequireConstraintSchemaBuilder extraResultRequireConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder complementaryRequireConstraintSchemaBuilder;
 
 	public FullResponseObjectBuilder(@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
 	                                 @Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
@@ -133,7 +135,7 @@ public class FullResponseObjectBuilder {
 		this.inputFieldBuilderTransformer = inputFieldBuilderTransformer;
 		this.filterConstraintSchemaBuilder = filterConstraintSchemaBuilder;
 		this.orderConstraintSchemaBuilder = orderConstraintSchemaBuilder;
-		this.extraResultRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forExtraResultsRequire(
+		this.complementaryRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forComplementaryRequire(
 			constraintSchemaBuildingContext,
 			new AtomicReference<>(filterConstraintSchemaBuilder)
 		);
@@ -176,11 +178,19 @@ public class FullResponseObjectBuilder {
 	private BuiltFieldDescriptor buildRecordPageField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLObjectType recordPageObject = buildRecordPageObject(entitySchema);
 
+		final GraphQLInputType spacingConstraint = complementaryRequireConstraintSchemaBuilder.build(
+			new SegmentDataLocator(new ManagedEntityTypePointer(entitySchema.getName())),
+			Spacing.class
+		);
+
 		final GraphQLFieldDefinition recordPageField = ResponseDescriptor.RECORD_PAGE
 			.to(fieldBuilderTransformer)
 			.type(recordPageObject)
 			.argument(RecordPageFieldHeaderDescriptor.NUMBER.to(argumentBuilderTransformer))
 			.argument(RecordPageFieldHeaderDescriptor.SIZE.to(argumentBuilderTransformer))
+			.argument(RecordPageFieldHeaderDescriptor.SPACING
+				.to(argumentBuilderTransformer)
+				.type(spacingConstraint))
 			.build();
 
 		return new BuiltFieldDescriptor(
@@ -638,8 +648,8 @@ public class FullResponseObjectBuilder {
 		final DataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(
 			new ManagedEntityTypePointer(entitySchema.getName())
 		);
-		final GraphQLInputType nodeConstraint = extraResultRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyNode.class);
-		final GraphQLInputType stopAtConstraint = extraResultRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyStopAt.class);
+		final GraphQLInputType nodeConstraint = complementaryRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyNode.class);
+		final GraphQLInputType stopAtConstraint = complementaryRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyStopAt.class);
 		final GraphQLInputObjectType parentsSiblingsSpecification = HierarchyParentsSiblingsSpecification.THIS
 			.to(inputObjectBuilderTransformer)
 			.name(HierarchyParentsSiblingsSpecification.THIS.name(entitySchema, entitySchema))
@@ -750,8 +760,8 @@ public class FullResponseObjectBuilder {
 			new ManagedEntityTypePointer(entitySchema.getName()),
 			referenceSchema.getName()
 		);
-		final GraphQLInputType nodeConstraint = extraResultRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyNode.class);
-		final GraphQLInputType stopAtConstraint = extraResultRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyStopAt.class);
+		final GraphQLInputType nodeConstraint = complementaryRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyNode.class);
+		final GraphQLInputType stopAtConstraint = complementaryRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyStopAt.class);
 		final GraphQLInputObjectType parentsSiblingsSpecification = HierarchyParentsSiblingsSpecification.THIS
 			.to(inputObjectBuilderTransformer)
 			.name(HierarchyParentsSiblingsSpecification.THIS.name(entitySchema, referenceSchema))

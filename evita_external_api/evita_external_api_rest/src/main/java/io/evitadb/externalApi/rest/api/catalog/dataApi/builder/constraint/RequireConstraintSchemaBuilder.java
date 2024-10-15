@@ -63,6 +63,8 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 		FacetGroupsDisjunction.class,
 		FacetGroupsNegation.class,
 		Page.class,
+		Spacing.class,
+		SpacingGap.class,
 		PriceType.class,
 		Strip.class
 	);

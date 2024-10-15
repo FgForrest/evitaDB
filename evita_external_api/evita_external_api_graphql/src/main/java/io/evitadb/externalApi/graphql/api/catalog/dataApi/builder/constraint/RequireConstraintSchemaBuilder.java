@@ -85,22 +85,10 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 	}
 
 	/**
-	 * Creates schema builder for require containers used in places where inner hierarchy constraints are needed.
+	 * Creates schema builder for partial complementary require containers used in arguments.
 	 */
-	public static RequireConstraintSchemaBuilder forHierarchyRequire(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
-	                                                                 @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
-		return new RequireConstraintSchemaBuilder(
-			sharedContext,
-			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
-			Set.of()
-		);
-	}
-
-	/**
-	 * Creates schema builder for require containers used in many places in extra result fields which often all constraints.
-	 */
-	public static RequireConstraintSchemaBuilder forExtraResultsRequire(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
-	                                                                    @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
+	public static RequireConstraintSchemaBuilder forComplementaryRequire(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
+	                                                                     @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
 		return new RequireConstraintSchemaBuilder(
 			sharedContext,
 			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
