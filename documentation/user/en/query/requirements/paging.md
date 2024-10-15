@@ -345,11 +345,11 @@ spacing(
 </dl>
 
 The `spacing` requirement is a container for one or more `gap` constraints that specify rules for leaving spaces on
-certain pages of the query result. It modifies the default behavior of the [`page`](#page) constraint and decreases
-the number of records returned on particular pages. It also affects the total page count (the `lastPageNumber` property
+particular pages of the query result. It modifies the default behavior of the [`page`](#page) constraint, reducing
+the number of records returned on certain pages. It also affects the number of pages (the `lastPageNumber` property
 of the <LS to="e,j,r"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/DataTypes/PaginatedList.cs</SourceClass></LS>). The [`gap`](#gap) rules are 
-additive, and the gap sizes are summed up from all the gap rules that apply to the given page.
+additive, and the gap sizes are the sum of all gap rules that apply to the given page.
 
 <Note type="info">
 
@@ -359,17 +359,16 @@ additive, and the gap sizes are summed up from all the gap rules that apply to t
 
 </NoteTitle>
 
-To avoid recalculation of the rule for each page in the query result, you could limit the scope by adding a constant
-expression to the rule. For example, the rule `$pageNumber % 2 == 0 && $pageNumber <= 10` will be recalculated only for
-the first 10 pages of the query result, because the interpreter knows that the rule will never be satisfied for the
-remaining pages.
-
+To avoid having to recalculate the rule for every page in the result set, you can limit the scope by adding a constant 
+expression to the rule. For example, the rule `$pageNumber % 2 == 0 && $pageNumber <= 10` will only be recalculated for 
+the first 10 pages of the query result, because the interpreter knows that the rule will never be satisfied for 
+the remaining pages.
 </Note>
 
-Spacing constraints are helpful when you need to make space for additional content on certain pages of the query result,
-such as advertisements, banners, blog posts or other external content that should be displayed between the records. Let's
-say you want to display an advertisement on every even page until the 10th page, and also you want to display a blog post
-on the 1st and 4th page. To achieve this, you need to use the following query:
+Spacing constraints are useful when you need to make room for additional content on certain pages of the query result, 
+such as advertisements, banners, blog posts, or other external content that you want to display between records. 
+For example, let's say you want to display an ad on every even page up to the 10th page, and you also want to display
+a blog post on the 1st and 4th page. To accomplish this, you would use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -384,10 +383,10 @@ on the 1st and 4th page. To achieve this, you need to use the following query:
 ##### The result of requested page with inserted spacing example
 </NoteTitle>
 
-The first page contains 9 records (one slot is left for blog post), the second page contains 9 records (one slot is left
-for advertisement, because page number is even), and the fourth page contains only 8 records (one slot for blog post and
-one for the advertisement, because page number is even), the last page number will be recalculated, because total of
-7 records were left out on the leading pages. 
+The first page contains 9 records (one slot left for the blog post), the second page contains 9 records (one slot left 
+for the advertisement, because the page number is even), and the fourth page contains only 8 records (one slot left for 
+the blog post and one slot left for the advertisement, because the page number is even), the last page number is 
+recalculated because a total of 7 records were left on the front pages.
 
 **First page:**
 
@@ -469,13 +468,13 @@ gap(
 <dl>
     <dt>argument:int</dt>
     <dd>
-        a mandatory number specifying the size of the gap to be left empty on the page (i.e. the number of records to 
-        be skipped on the page)
+        a mandatory number specifying the size of the gap to leave empty on the page (i.e., the number of records to 
+        skip on the page)
     </dd>
     <dt>argument:expression</dt>
     <dd>
         <p>a mandatory [expression](../expression-language.md) that must be evaluated to a boolean value, indicating 
-        whether or not the gap should be applied to the given page</p>
+        whether the gap should be applied to the given page or not.</p>
         <p>the expression can use the following variables:
             <ul>
                 <li>`int`: `pageNumber` - the number of the page to be evaluated</li>
@@ -484,5 +483,5 @@ gap(
     </dd>
 </dl>
 
-The `gap` requirements specifies single rule for leaving a gap of a certain size on a certain page identified by the
-expression for each page. Detailed usage is documented in the [spacing constraint](#spacing) chapter.
+The `gap` requirement specifies a single rule for leaving a gap of a given size on a given page, identified by 
+the expression for each page. Detailed usage is documented in the [spacing constraint](#spacing) chapter.
