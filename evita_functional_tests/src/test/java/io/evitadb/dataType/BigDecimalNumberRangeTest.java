@@ -60,7 +60,7 @@ class BigDecimalNumberRangeTest {
 		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("2.0"));
 		BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(new BigDecimal("3.0"), new BigDecimal("4.0"));
 		BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
-		assertEquals(BigDecimalNumberRange.INFINITE, result);
+		assertEquals(BigDecimalNumberRange.between(new BigDecimal("1.0"), new BigDecimal("4.0")), result);
 	}
 
 	@Test
@@ -78,9 +78,7 @@ class BigDecimalNumberRangeTest {
 		BigDecimalNumberRange rangeA = BigDecimalNumberRange.between(new BigDecimal("1.0"), null);
 		BigDecimalNumberRange rangeB = BigDecimalNumberRange.between(null, new BigDecimal("5.0"));
 		BigDecimalNumberRange result = BigDecimalNumberRange.union(rangeA, rangeB);
-		assertNotEquals(BigDecimalNumberRange.INFINITE, result);
-		assertEquals(new BigDecimal("1.0"), result.getPreciseFrom());
-		assertEquals(new BigDecimal("5.0"), result.getPreciseTo());
+		assertEquals(BigDecimalNumberRange.INFINITE, result);
 	}
 
 	@Test
