@@ -1,7 +1,5 @@
 ```json
 {
-  "lastPageItemNumber": 4,
-  "lastPageNumber": 845,
   "data": [
     {
       "primaryKey": 63049
