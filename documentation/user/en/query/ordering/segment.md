@@ -59,7 +59,7 @@ follows:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Segmented ordering in practice](/documentation/user/en/query/requirements/examples/segment/segments.evitaql)
+[Segmented ordering in practice](/documentation/user/en/query/ordering/examples/segment/segments.evitaql)
 </SourceCodeTabs>
 
 <Note type="info">
@@ -77,17 +77,17 @@ products in stock, the remaining positions are occupied by the products we need 
 
 <LS to="e,j,c">
 
-<MDInclude>[The result of segmented ordering in practice](/documentation/user/en/query/requirements/examples/segment/segments.evitaql.md)</MDInclude>
+<MDInclude>[The result of segmented ordering in practice](/documentation/user/en/query/ordering/examples/segment/segments.evitaql.md)</MDInclude>
 
 </LS>
 <LS to="g">
 
-<MDInclude>[The result of segmented ordering in practice](/documentation/user/en/query/requirements/examples/segment/segments.graphql.json.md)</MDInclude>
+<MDInclude>[The result of segmented ordering in practice](/documentation/user/en/query/ordering/examples/segment/segments.graphql.json.md)</MDInclude>
 
 </LS>
 <LS to="r">
 
-<MDInclude>[The result of segmented ordering in practice](/documentation/user/en/query/requirements/examples/segment/segments.rest.json.md)</MDInclude>
+<MDInclude>[The result of segmented ordering in practice](/documentation/user/en/query/ordering/examples/segment/segments.rest.json.md)</MDInclude>
 
 </LS>
 
