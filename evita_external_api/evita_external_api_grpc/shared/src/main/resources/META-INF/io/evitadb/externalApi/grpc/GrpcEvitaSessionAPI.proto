@@ -490,6 +490,8 @@ message GrpcQueryParam {
     GrpcHistogramBehavior histogramBehavior = 21;
     // The managed references behaviour
     GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;
+    // The expression
+    string expressionValue = 23;
 
     // The string array value.
     GrpcStringArray stringArrayValue = 101;

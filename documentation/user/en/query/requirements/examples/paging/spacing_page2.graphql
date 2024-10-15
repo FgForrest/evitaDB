@@ -4,6 +4,8 @@
       number: 2
       size: 5
     ) {
+      lastPageItemNumber
+      lastPageNumber
       data {
         primaryKey
       }

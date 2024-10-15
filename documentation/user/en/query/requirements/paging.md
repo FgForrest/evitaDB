@@ -171,7 +171,7 @@ To get the second page of the query result, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Second page of results retrieval example](/documentation/user/en/query/requirements/examples/paging/page.evitaql).
+[Second page of results retrieval example](/documentation/user/en/query/requirements/examples/paging/page.evitaql)
 
 </SourceCodeTabs>
 

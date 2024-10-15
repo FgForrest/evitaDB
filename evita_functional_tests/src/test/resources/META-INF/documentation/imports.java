@@ -72,6 +72,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
