@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.expression.parser.visitor.operand;
+package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -36,17 +36,17 @@ import java.io.Serial;
 import java.util.Random;
 
 /**
- * RandomOperand is an implementation of the ExpressionNode interface that generates random integers.
+ * RandomOperator is an implementation of the ExpressionNode interface that generates random integers.
  * It uses the Random instance provided by the PredicateEvaluationContext to produce these values.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public class RandomOperand implements ExpressionNode {
+public class RandomOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = -6261246532556762806L;
 	private final ExpressionNode operator;
 
-	public RandomOperand(ExpressionNode operator) {
+	public RandomOperator(ExpressionNode operator) {
 		this.operator = operator;
 	}
 

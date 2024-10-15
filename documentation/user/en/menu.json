@@ -161,6 +161,10 @@
 		  {
 			"title": "Random",
 			"path": "/query/ordering/random.md"
+		  },
+		  {
+			"title": "Segmentation",
+			"path": "/query/ordering/segment.md"
 		  }
 		]
 	  },

@@ -51,7 +51,7 @@ public class FloorOperator implements ExpressionNode {
 	public FloorOperator(ExpressionNode operator) {
 		Assert.isTrue(
 			operator != null,
-			() -> new ParserException("Floor function must have at least one operand!")
+			() -> new ParserException("Floor function must have exactly one operand!")
 		);
 		this.operator = operator;
 	}

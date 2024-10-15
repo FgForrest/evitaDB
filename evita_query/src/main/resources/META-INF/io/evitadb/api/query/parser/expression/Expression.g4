@@ -94,7 +94,12 @@ function
     : SQRT LPAREN combinationExpression RPAREN # sqrtFunction
     | CEIL LPAREN combinationExpression RPAREN # ceilFunction
     | FLOOR LPAREN combinationExpression RPAREN # floorFunction
-    | RANDOM_INT LPAREN (combinationExpression)? RPAREN # randomIntFunction
+    | ABS LPAREN combinationExpression RPAREN # absFunction
+    | ROUND LPAREN combinationExpression RPAREN # roundFunction
+    | LOG LPAREN combinationExpression RPAREN # logFunction
+    | MIN LPAREN leftOperand = combinationExpression COMMA rightOperand = combinationExpression RPAREN # minFunction
+    | MAX LPAREN leftOperand = combinationExpression COMMA rightOperand = combinationExpression RPAREN # maxFunction
+    | RANDOM LPAREN (combinationExpression)? RPAREN # randomIntFunction
     ;
 
 LPAREN : '(' ;
@@ -143,7 +148,17 @@ SQRT : 'sqrt' ;
 
 FLOOR : 'floor' ;
 
-RANDOM_INT : 'random' ;
+ABS : 'abs' ;
+
+ROUND : 'round' ;
+
+LOG : 'log' ;
+
+MAX : 'max' ;
+
+MIN : 'min' ;
+
+RANDOM : 'random' ;
 
 fragment SIGN
     : '+'

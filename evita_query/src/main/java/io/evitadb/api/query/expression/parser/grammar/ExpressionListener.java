@@ -401,6 +401,66 @@ public interface ExpressionListener extends ParseTreeListener {
 	 */
 	void exitFloorFunction(ExpressionParser.FloorFunctionContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code absFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 */
+	void enterAbsFunction(ExpressionParser.AbsFunctionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code absFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 */
+	void exitAbsFunction(ExpressionParser.AbsFunctionContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code roundFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 */
+	void enterRoundFunction(ExpressionParser.RoundFunctionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code roundFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 */
+	void exitRoundFunction(ExpressionParser.RoundFunctionContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code logFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 */
+	void enterLogFunction(ExpressionParser.LogFunctionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code logFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 */
+	void exitLogFunction(ExpressionParser.LogFunctionContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code minFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 */
+	void enterMinFunction(ExpressionParser.MinFunctionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code minFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 */
+	void exitMinFunction(ExpressionParser.MinFunctionContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code maxFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 */
+	void enterMaxFunction(ExpressionParser.MaxFunctionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code maxFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 */
+	void exitMaxFunction(ExpressionParser.MaxFunctionContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code randomIntFunction}
 	 * labeled alternative in {@link ExpressionParser#function}.
 	 * @param ctx the parse tree

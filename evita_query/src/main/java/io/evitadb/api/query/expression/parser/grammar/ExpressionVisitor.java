@@ -251,6 +251,41 @@ public interface ExpressionVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFloorFunction(ExpressionParser.FloorFunctionContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code absFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAbsFunction(ExpressionParser.AbsFunctionContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code roundFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitRoundFunction(ExpressionParser.RoundFunctionContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code logFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLogFunction(ExpressionParser.LogFunctionContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code minFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMinFunction(ExpressionParser.MinFunctionContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code maxFunction}
+	 * labeled alternative in {@link ExpressionParser#function}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMaxFunction(ExpressionParser.MaxFunctionContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code randomIntFunction}
 	 * labeled alternative in {@link ExpressionParser#function}.
 	 * @param ctx the parse tree

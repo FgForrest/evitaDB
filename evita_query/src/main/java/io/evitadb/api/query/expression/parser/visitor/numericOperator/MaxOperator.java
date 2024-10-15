@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.expression.parser.visitor.boolOperator;
+package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
@@ -36,39 +36,43 @@ import lombok.EqualsAndHashCode;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 /**
- * The EqualsOperator class implements the ExpressionNode interface and is used to compare two operands for equality.
+ * Implementation of the `ExpressionNode` interface that represents a maximum operation between two operands.
+ *
+ * This class takes two `ExpressionNode` operands and computes their maximum value when evaluated.
+ * Both operands must evaluate to instances of `Number`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public class EqualsOperator implements ExpressionNode {
-	@Serial private static final long serialVersionUID = -1594479195657082056L;
+public class MaxOperator implements ExpressionNode {
+	@Serial private static final long serialVersionUID = -7295547379845250317L;
 	private final ExpressionNode leftOperator;
 	private final ExpressionNode rightOperator;
 
-	public EqualsOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
+	public MaxOperator(@Nonnull ExpressionNode leftOperator, @Nonnull ExpressionNode rightOperator) {
 		this.leftOperator = leftOperator;
 		this.rightOperator = rightOperator;
 	}
 
 	@Nonnull
 	@Override
-	public Boolean compute(@Nonnull PredicateEvaluationContext context) {
+	public BigDecimal compute(@Nonnull PredicateEvaluationContext context) {
 		final Serializable value1 = leftOperator.compute(context);
 		Assert.isTrue(
-			value1 instanceof Comparable,
-			() -> new ParserException("Equals function left operand must be comparable!")
+			value1 instanceof Number,
+			() -> new ParserException("Max function left operand must be number!")
 		);
 		final Serializable value2 = rightOperator.compute(context);
 		Assert.isTrue(
-			value2 instanceof Comparable,
-			() -> new ParserException("Equals function right operand must be comparable!")
+			value2 instanceof Number,
+			() -> new ParserException("Max function right operand must be number!")
 		);
-		final Serializable convertedValue2 = EvitaDataTypes.toTargetType(value2, value1.getClass());
-		//noinspection rawtypes,unchecked
-		return ((Comparable) value1).compareTo(convertedValue2) == 0;
+		final BigDecimal convertedValue1 = EvitaDataTypes.toTargetType(value1, BigDecimal.class);
+		final BigDecimal convertedValue2 = EvitaDataTypes.toTargetType(value2, BigDecimal.class);
+		return convertedValue1.compareTo(convertedValue2) < 0 ? convertedValue2 : convertedValue1;
 	}
 
 	@Nonnull
@@ -79,13 +83,13 @@ public class EqualsOperator implements ExpressionNode {
 		if (range1 == BigDecimalNumberRange.INFINITE || range2 == BigDecimalNumberRange.INFINITE) {
 			return BigDecimalNumberRange.INFINITE;
 		} else {
-			return BigDecimalNumberRange.intersect(range1, range2);
+			return BigDecimalNumberRange.union(range1, range2);
 		}
 	}
 
 	@Override
 	public String toString() {
-		return leftOperator + " == " + rightOperator;
+		return "max(" + leftOperator + ", " + rightOperator + ")";
 	}
 
 }

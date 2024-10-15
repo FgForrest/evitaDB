@@ -171,19 +171,22 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 		if (rangeA == INFINITE || rangeB == INFINITE) {
 			return INFINITE;
 		} else {
-			final BigDecimal from = rangeA.from == null ? rangeB.from : (rangeB.from == null ? rangeA.from : rangeA.from.min(rangeB.from));
-			final BigDecimal to = rangeA.to == null ? rangeB.to : (rangeB.to == null ? rangeA.to : rangeA.to.max(rangeB.to));
-			if (rangeA.overlaps(rangeB) && (from != null || to != null)) {
+			final BigDecimal from = rangeA.from == null ? null : (rangeB.from == null ? null : rangeA.from.min(rangeB.from));
+			final BigDecimal to = rangeA.to == null ? null : (rangeB.to == null ? null : rangeA.to.max(rangeB.to));
+			final boolean leftLesserThanRight = from != null && to != null && from.compareTo(to) > 0;
+			final BigDecimal recalculatedFrom = leftLesserThanRight ? to : from;
+			final BigDecimal recalculatedTo = leftLesserThanRight ? from : to;
+			if (recalculatedFrom == null && recalculatedTo == null) {
+				return INFINITE;
+			} else {
 				return new BigDecimalNumberRange(
-					from, to,
+					recalculatedFrom,
+					recalculatedTo,
 					Math.max(
 						rangeA.retainedDecimalPlaces == null ? resolveDefaultRetainedDecimalPlaces(rangeA.from, rangeA.to) : rangeA.retainedDecimalPlaces,
 						rangeB.retainedDecimalPlaces == null ? resolveDefaultRetainedDecimalPlaces(rangeB.from, rangeB.to) : rangeB.retainedDecimalPlaces
 					)
 				);
-			} else {
-				// simplification - the ranges are not overlapping, so we can't create union
-				return INFINITE;
 			}
 		}
 	}

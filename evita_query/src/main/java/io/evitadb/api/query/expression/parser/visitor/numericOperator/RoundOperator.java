@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.expression.parser.visitor.operand;
+package io.evitadb.api.query.expression.parser.visitor.numericOperator;
 
 
 import io.evitadb.api.query.expression.exception.ParserException;
@@ -29,48 +29,53 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.PredicateEvaluationContext;
-import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
-import java.io.Serializable;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 
 /**
- * Represents a positive number operand in an expression. This class encapsulates an operand
- * and ensures that it is not null during instantiation. It implements the ExpressionNode
- * interface and delegates the computation to its encapsulated operand.
+ * RoundOperator is an implementation of the ExpressionNode interface, responsible for rounding the result
+ * of its contained ExpressionNode to a nearest long value.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ *  @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public class PositiveNumberOperand implements ExpressionNode {
-	@Serial private static final long serialVersionUID = 7806494928096151670L;
+public class RoundOperator implements ExpressionNode {
+	@Serial private static final long serialVersionUID = -282278558116650459L;
+	private static final MathContext MATH_CONTEXT = new MathContext(1, RoundingMode.HALF_UP);
 	private final ExpressionNode operator;
 
-	public PositiveNumberOperand(ExpressionNode operator) {
+	public RoundOperator(@Nonnull ExpressionNode operator) {
 		Assert.isTrue(
 			operator != null,
-			() -> new ParserException("Floor function must have at least one operand!")
+			() -> new ParserException("Round function must have exactly one operand!")
 		);
 		this.operator = operator;
 	}
 
 	@Nonnull
 	@Override
-	public Serializable compute(@Nonnull PredicateEvaluationContext context) throws ExpressionEvaluationException {
-		return this.operator.compute(context);
+	public BigDecimal compute(@Nonnull PredicateEvaluationContext context) {
+		final BigDecimal number = operator.compute(context, BigDecimal.class);
+		return number.round(MATH_CONTEXT);
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		return this.operator.determinePossibleRange();
+		return ExpressionNode.transform(
+			operator.determinePossibleRange(),
+			number -> number.round(MATH_CONTEXT)
+		);
 	}
 
 	@Override
 	public String toString() {
-		return "+" + operator.toString();
+		return "round(" + operator.toString() + ")";
 	}
 }

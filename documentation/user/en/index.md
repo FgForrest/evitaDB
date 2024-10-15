@@ -91,6 +91,7 @@ the first version to the general public.
    2. [Price](query/ordering/price.md)
    3. [Reference](query/ordering/reference.md)
    4. [Random](query/ordering/random.md)
+   4. [Segmentation](query/ordering/segment.md)
 4. **Requirements**
    1. [Paging](query/requirements/paging.md)
    2. [Fetching](query/requirements/fetching.md)

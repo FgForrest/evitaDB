@@ -52,7 +52,7 @@ public class CeilOperator implements ExpressionNode {
 	public CeilOperator(@Nonnull ExpressionNode operator) {
 		Assert.isTrue(
 			operator != null,
-			() -> new ParserException("Ceil function must have at least one operand!")
+			() -> new ParserException("Ceil function must have exactly one operand!")
 		);
 		this.operator = operator;
 	}

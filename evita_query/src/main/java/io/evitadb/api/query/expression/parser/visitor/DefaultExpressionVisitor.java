@@ -29,7 +29,6 @@ import io.evitadb.api.query.expression.parser.visitor.boolOperator.*;
 import io.evitadb.api.query.expression.parser.visitor.numericOperator.*;
 import io.evitadb.api.query.expression.parser.visitor.operand.ConstantOperand;
 import io.evitadb.api.query.expression.parser.visitor.operand.PositiveNumberOperand;
-import io.evitadb.api.query.expression.parser.visitor.operand.RandomOperand;
 import io.evitadb.api.query.expression.parser.visitor.operand.VariableOperand;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.utils.StringUtils;
@@ -294,8 +293,33 @@ public class DefaultExpressionVisitor extends ExpressionBaseVisitor<ExpressionNo
 	}
 
 	@Override
+	public ExpressionNode visitAbsFunction(AbsFunctionContext ctx) {
+		return new AbsOperator(ctx.combinationExpression().accept(this));
+	}
+
+	@Override
+	public ExpressionNode visitRoundFunction(RoundFunctionContext ctx) {
+		return new RoundOperator(ctx.combinationExpression().accept(this));
+	}
+
+	@Override
+	public ExpressionNode visitLogFunction(LogFunctionContext ctx) {
+		return new LogOperator(ctx.combinationExpression().accept(this));
+	}
+
+	@Override
+	public ExpressionNode visitMinFunction(MinFunctionContext ctx) {
+		return new MinOperator(ctx.leftOperand.accept(this), ctx.rightOperand.accept(this));
+	}
+
+	@Override
+	public ExpressionNode visitMaxFunction(MaxFunctionContext ctx) {
+		return new MaxOperator(ctx.leftOperand.accept(this), ctx.rightOperand.accept(this));
+	}
+
+	@Override
 	public ExpressionNode visitRandomIntFunction(RandomIntFunctionContext ctx) {
-		return new RandomOperand(
+		return new RandomOperator(
 			ctx.combinationExpression() == null ?
 				null : ctx.combinationExpression().accept(this)
 		);
