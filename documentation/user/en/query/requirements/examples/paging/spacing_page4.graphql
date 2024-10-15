@@ -1,9 +1,11 @@
 {
   queryProduct {
     recordPage(
-      number: 2
+      number: 4
       size: 5
     ) {
+      lastPageItemNumber
+      lastPageNumber
       data {
         primaryKey
       }

@@ -41,6 +41,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder;
@@ -160,6 +161,8 @@ public final class QueryConverter {
 			return EvitaEnumConverter.toHistogramBehavior(GrpcQueryParam.getHistogramBehavior());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.MANAGEDREFERENCESBEHAVIOUR) {
 			return EvitaEnumConverter.toManagedReferencesBehaviour(GrpcQueryParam.getManagedReferencesBehaviour());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.EXPRESSIONVALUE) {
+			return GrpcQueryParam.getExpressionValue();
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STRINGARRAYVALUE) {
 			return toStringArray(GrpcQueryParam.getStringArrayValue());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.INTEGERARRAYVALUE) {
@@ -305,6 +308,8 @@ public final class QueryConverter {
 			builder.setHistogramBehavior(EvitaEnumConverter.toGrpcHistogramBehavior(histogramBehavior));
 		} else if (parameter instanceof final ManagedReferencesBehaviour managedReferencesBehaviour) {
 			builder.setManagedReferencesBehaviour(EvitaEnumConverter.toGrpcManagedReferencesBehaviour(managedReferencesBehaviour));
+		} else if (parameter instanceof Expression expression) {
+			builder.setExpressionValue(expression.toString());
 		} else if (parameter instanceof final String[] stringArrayValue) {
 			builder.setStringArrayValue(toGrpcStringArray(stringArrayValue));
 		} else if (parameter instanceof final Integer[] integerArrayValue) {

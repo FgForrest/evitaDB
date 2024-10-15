@@ -614,6 +614,35 @@ public interface GrpcQueryParamOrBuilder extends
 
   /**
    * <pre>
+   * The expression
+   * </pre>
+   *
+   * <code>string expressionValue = 23;</code>
+   * @return Whether the expressionValue field is set.
+   */
+  boolean hasExpressionValue();
+  /**
+   * <pre>
+   * The expression
+   * </pre>
+   *
+   * <code>string expressionValue = 23;</code>
+   * @return The expressionValue.
+   */
+  java.lang.String getExpressionValue();
+  /**
+   * <pre>
+   * The expression
+   * </pre>
+   *
+   * <code>string expressionValue = 23;</code>
+   * @return The bytes for expressionValue.
+   */
+  com.google.protobuf.ByteString
+      getExpressionValueBytes();
+
+  /**
+   * <pre>
    * The string array value.
    * </pre>
    *

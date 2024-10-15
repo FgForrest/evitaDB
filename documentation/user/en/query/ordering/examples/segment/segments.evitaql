@@ -1,0 +1,42 @@
+query(
+    collection("Product"),
+    filterBy(
+       priceInPriceLists("basic"),
+       priceInCurrency("EUR"),
+       priceBetween(100, 103)
+    ),
+    orderBy(
+       segments(
+          segment(
+             orderBy(attributeNatural("published", DESC)),
+             limit(2)
+          ),
+          segment(
+             entityHaving(priceBetween(500, 10000)),
+             orderBy(attributeNatural("orderedQuantity", DESC)),
+             limit(1)
+          ),
+          segment(
+             entityHaving(priceBetween(0, 500)),
+             orderBy(attributeNatural("orderedQuantity", DESC)),
+             limit(1)
+          ),
+          segment(
+             entityHaving(referenceHaving("stocks", attributeGreaterThan("quantityOnStock", 0))),
+             orderBy(attributeNatural("orderedQuantity", DESC)),
+             limit(1)
+          ),
+          segment(
+             orderBy(attributeNatural("orderedQuantity", DESC))
+          ),
+       )
+    ),
+    require(
+       page(1, 10),
+       entityFetch(
+          attributeContent("code", "published", "orderedQuantity"),
+          referenceContent("stocks", attributeContent("quantityOnStock")),
+          priceRespectingFilter()
+       )
+    )
+)
