@@ -85,6 +85,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcTaskStatus;
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcHealthProblem;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcReadinessState;
@@ -395,7 +396,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 * @see EvitaManagementContract#restoreCatalog(String, long, InputStream)
 	 */
 	@Override
-	public void restoreCatalogUnary(GrpcRestoreCatalogUnaryRequest request, StreamObserver<GrpcRestoreCatalogResponse> responseObserver) {
+	public void restoreCatalogUnary(GrpcRestoreCatalogUnaryRequest request, StreamObserver<GrpcRestoreCatalogUnaryResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
 				UUID fileId = request.hasFileId() ? toUuid(request.getFileId()) : null;
@@ -440,9 +441,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					}
 
 					responseObserver.onNext(
-						GrpcRestoreCatalogResponse.newBuilder()
+						GrpcRestoreCatalogUnaryResponse.newBuilder()
 							.setTask(toGrpcTaskStatus(restorationTask.getStatus()))
 							.setRead(actualSize)
+							.setFileId(toGrpcUuid(fileId))
 							.build()
 					);
 					responseObserver.onCompleted();

@@ -102,7 +102,17 @@ message GrpcRestoreCatalogResponse {
   // returns the number of bytes read from the backup file
   int64 read = 1;
   // the task that is used to restore the catalog and getting its progress
-  GrpcTaskStatus task = 2;
+  GrpcTaskStatus task = 3;
+}
+
+// Response to a catalog restore request.
+message GrpcRestoreCatalogUnaryResponse {
+  // returns the number of bytes read from the backup file
+  int64 read = 1;
+  // The identification of the file on the server that should be restored
+  GrpcUuid fileId = 2;
+  // the task that is used to restore the catalog and getting its progress
+  GrpcTaskStatus task = 3;
 }
 
 // Request to list task statuses in paginated form.
@@ -256,7 +266,7 @@ service EvitaManagementService {
   // Procedure used to restore a catalog from backup.
   rpc RestoreCatalog(stream GrpcRestoreCatalogRequest) returns (GrpcRestoreCatalogResponse);
   // Procedure used to restore a catalog from backup (unary version for gRPC/web).
-  rpc RestoreCatalogUnary(GrpcRestoreCatalogUnaryRequest) returns (GrpcRestoreCatalogResponse);
+  rpc RestoreCatalogUnary(GrpcRestoreCatalogUnaryRequest) returns (GrpcRestoreCatalogUnaryResponse);
   // Procedure used to restore a catalog from backup.
   rpc RestoreCatalogFromServerFile(GrpcRestoreCatalogFromServerFileRequest) returns (GrpcRestoreCatalogResponse);
   // Procedure used to get listing of task statuses.
