@@ -28,6 +28,7 @@ import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -363,7 +364,7 @@ public class ExportFileService {
 	}
 
 	/**
-	 * Creates a temporary file with the given file name in the specified storage directory.
+	 * Creates a temporary file with the given file name in the export storage directory.
 	 *
 	 * @param fileName the name of the file to be created
 	 * @return the Path of the created temporary file
@@ -382,6 +383,37 @@ public class ExportFileService {
 				e
 			);
 		}
+	}
+
+	/**
+	 * Returns path to an existing temporary file with the given file name in the export storage directory.
+	 *
+	 * @param fileName the name of the file to be created
+	 * @return the Path of the created temporary file
+	 * @throws RuntimeException if an I/O error occurs when creating the file
+	 */
+	@Nonnull
+	public Path getTempFile(@Nonnull String fileName) {
+		final Path tempFile = this.storageOptions.exportDirectory().resolve(fileName);
+		Assert.isTrue(
+			tempFile.toFile().exists(),
+			() -> new InvalidFileNameException(
+				"Temporary file does not exist: " + tempFile,
+				"Temporary file does not exist."
+			)
+		);
+		return tempFile;
+	}
+
+	/**
+	 * Retrieves the path of a given file within the specified export directory.
+	 *
+	 * @param file The file object for which the path is to be retrieved. This parameter must not be null.
+	 * @return The path of the specified file located in the export directory.
+	 */
+	@Nonnull
+	public Path getPathOf(@Nonnull FileForFetch file) {
+		return file.path(this.storageOptions.exportDirectory());
 	}
 
 	/**

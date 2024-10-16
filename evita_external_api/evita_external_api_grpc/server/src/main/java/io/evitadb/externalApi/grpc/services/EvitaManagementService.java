@@ -33,6 +33,7 @@ import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -402,16 +403,29 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 
 				try {
 					final Path workDirectory = evita.getConfiguration().transaction().transactionWorkDirectory();
-					Path backupFilePath;
+					final String catalogNameToRestore = request.getCatalogName();
+					Assert.isPremiseValid(catalogNameToRestore != null, "Catalog name to restore must be provided.");
+
+					final ServerTask<?, ?> restorationTask;
+					final Path backupFilePath;
 					if (fileId == null) {
 						if (!workDirectory.toFile().exists()) {
 							Assert.isTrue(workDirectory.toFile().mkdirs(), "Failed to create work directory for catalog restore.");
 						}
+
 						fileId = UUIDUtil.randomUUID();
-						backupFilePath = Files.createFile(workDirectory.resolve("catalog_backup_for_restore-" + fileId + ".zip"));
-						backupFilePath.toFile().deleteOnExit();
+						backupFilePath = management.exportFileService().createTempFile(fileId + ".zip");
+						restorationTask = management.createRestorationTask(
+							catalogNameToRestore,
+							backupFilePath,
+							request.getTotalSizeInBytes(),
+							true
+						);
+						this.management.registerWaitingTask(fileId, restorationTask);
 					} else {
-						backupFilePath = workDirectory.resolve("catalog_backup_for_restore-" + fileId + ".zip");
+						backupFilePath = management.exportFileService().getTempFile(fileId + ".zip");
+						restorationTask = this.management.getWaitingTask(fileId)
+							.orElseThrow(() -> new UnexpectedIOException("Task not found for file: " + backupFilePath, "Task not found for file id!"));
 					}
 
 					try (final OutputStream outputStream = Files.newOutputStream(backupFilePath, StandardOpenOption.APPEND)) {
@@ -421,22 +435,18 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 
 					// we've reached the expected size of the file
 					final long actualSize = Files.size(backupFilePath);
-					if (actualSize == totalSizeInBytes) {
-						final String catalogNameToRestore = request.getCatalogName();
-						Assert.isPremiseValid(catalogNameToRestore != null, "Catalog name to restore must be provided.");
-						final Task<?, Void> restorationTask = management.restoreCatalog(
-							catalogNameToRestore,
-							Files.size(backupFilePath),
-							Files.newInputStream(backupFilePath, StandardOpenOption.READ)
-						);
-						responseObserver.onNext(
-							GrpcRestoreCatalogResponse.newBuilder()
-								.setTask(toGrpcTaskStatus(restorationTask.getStatus()))
-								.setRead(actualSize)
-								.build()
-						);
-						responseObserver.onCompleted();
+					if (actualSize == request.getTotalSizeInBytes()) {
+						this.management.submitWaitingTask(fileId);
 					}
+
+					responseObserver.onNext(
+						GrpcRestoreCatalogResponse.newBuilder()
+							.setTask(toGrpcTaskStatus(restorationTask.getStatus()))
+							.setRead(actualSize)
+							.build()
+					);
+					responseObserver.onCompleted();
+
 					if (actualSize > totalSizeInBytes) {
 						deleteFileIfExists(backupFilePath, "restore");
 						throw new UnexpectedIOException(

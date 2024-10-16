@@ -36,7 +36,7 @@ import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 
 import javax.annotation.Nonnull;
-import java.io.InputStream;
+import java.nio.file.Path;
 
 /**
  * This implementation is the single and only implementation of {@link CatalogPersistenceServiceFactory}. Instance is
@@ -82,13 +82,15 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 	public ClientRunnableTask<?> restoreCatalogTo(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
+		@Nonnull Path pathToFile,
 		long totalBytesExpected,
-		@Nonnull InputStream inputStream
+		boolean deleteAfterRestore
 	) throws DirectoryNotEmptyException, InvalidStoragePathException {
 		return new RestoreTask(
 			catalogName,
-			inputStream,
+			pathToFile,
 			totalBytesExpected,
+			deleteAfterRestore,
 			storageOptions
 		);
 	}

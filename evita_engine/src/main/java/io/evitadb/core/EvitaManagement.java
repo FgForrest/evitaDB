@@ -40,6 +40,9 @@ import io.evitadb.core.async.SequentialTask;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
 import lombok.Setter;
 
@@ -47,14 +50,22 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Main implementation of {@link EvitaManagementContract}.
@@ -63,6 +74,7 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class EvitaManagement implements EvitaManagementContract {
+	private static final long WAITING_TASK_MAX_AGE = 5 * 60 * 1000; // 5 minutes
 	/**
 	 * Contains reference to the main evita service.
 	 */
@@ -83,6 +95,10 @@ public class EvitaManagement implements EvitaManagementContract {
 	 * Supplier that provides the configuration.
 	 */
 	@Setter private Supplier<String> configurationSupplier;
+	/**
+	 * Map of waiting tasks that are waiting for the response to be completed.
+	 */
+	@Nonnull private final Map<Object, ServerTask<?, ?>> waitingTasks = CollectionUtils.createConcurrentHashMap(16);
 
 	public EvitaManagement(@Nonnull Evita evita) {
 		this.evita = evita;
@@ -90,6 +106,56 @@ public class EvitaManagement implements EvitaManagementContract {
 		this.exportFileService = new ExportFileService(evita.getConfiguration().storage());
 		this.started = OffsetDateTime.now();
 		this.configurationSupplier = evita.getConfiguration()::toString;
+		this.serviceExecutor.scheduleAtFixedRate(this::discardOldWaitingTasks, 5, 5, TimeUnit.MINUTES);
+	}
+
+	/**
+	 * Registers a task to be kept in the waiting queue until it can be executed.
+	 *
+	 * @param registrationId The unique identifier for the task registration.
+	 * @param task The task to be registered and added to the waiting queue.
+	 */
+	public void registerWaitingTask(@Nonnull Object registrationId, @Nonnull ServerTask<?, ?> task) {
+		this.waitingTasks.put(registrationId, task);
+		this.waitingTasks.put(task.getStatus().taskId(), task);
+	}
+
+	/**
+	 * Retrieves a task from the waiting queue based on the provided registration identifier.
+	 *
+	 * @param registrationId The unique identifier for the task registration.
+	 * @return An {@link Optional} containing the {@link ServerTask} if found, otherwise an empty {@link Optional}.
+	 */
+	public Optional<ServerTask<?, ?>> getWaitingTask(@Nonnull Object registrationId) {
+		return ofNullable(this.waitingTasks.get(registrationId));
+	}
+
+	/**
+	 * Submits a task from the waiting queue based on the provided registration identifier.
+	 *
+	 * @param registrationId The unique identifier for the task registration.
+	 */
+	public void submitWaitingTask(@Nonnull Object registrationId) {
+		ofNullable(this.waitingTasks.remove(registrationId))
+			.ifPresent(it -> {
+				this.waitingTasks.remove(it.getStatus().taskId());
+				this.serviceExecutor.submit(it);
+			});
+	}
+
+	/**
+	 * This method iterates over the tasks in the waiting queue and removes any task whose initial issue time
+	 * is older than the specified maximum waiting age. If a task is removed due to exceeding the maximum waiting age,
+	 * it marks the task as failed with a {@link CancellationException}.
+	 */
+	private void discardOldWaitingTasks() {
+		this.waitingTasks.values().removeIf(task -> {
+			if (task.getStatus().issued().isBefore(OffsetDateTime.now().minusMinutes(WAITING_TASK_MAX_AGE))) {
+				task.fail(new CancellationException("Task was waiting for too long."));
+				return true;
+			}
+			return false;
+		});
 	}
 
 	/**
@@ -133,14 +199,25 @@ public class EvitaManagement implements EvitaManagementContract {
 		@Nonnull InputStream inputStream
 	) throws UnexpectedIOException {
 		this.evita.assertActiveAndWritable();
-		final SequentialTask<Void> task = new SequentialTask<>(
-			catalogName,
-			"Restore catalog " + catalogName + " from backup.",
-			Catalog.createRestoreCatalogTask(
-				catalogName, this.evita.getConfiguration().storage(), totalBytesExpected, inputStream
-			),
-			this.evita.createLoadCatalogTask(catalogName)
-		);
+		// if the file is not a locally stored export file, store it to the export directory first
+		final Path tempFile = exportFileService.createTempFile(UUIDUtil.randomUUID() + ".zip");
+		try {
+			final long bytesCopied = Files.copy(
+				inputStream, tempFile,
+				StandardCopyOption.REPLACE_EXISTING
+			);
+			Assert.isPremiseValid(
+				bytesCopied == totalBytesExpected,
+				"Unexpected number of bytes copied (" + bytesCopied + "B instead of " + totalBytesExpected + "B)!"
+			);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Unexpected exception occurred while storing catalog file for restoration: " + e.getMessage(),
+				"Unexpected exception occurred while storing catalog file for restoration!",
+				e
+			);
+		}
+		final SequentialTask<Void> task = createRestorationTask(catalogName, tempFile, totalBytesExpected, true);
 		this.serviceExecutor.submit(task);
 		return task;
 	}
@@ -151,22 +228,36 @@ public class EvitaManagement implements EvitaManagementContract {
 		this.evita.assertActiveAndWritable();
 		final FileForFetch file = this.exportFileService.getFile(fileId)
 			.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-		try {
-			final SequentialTask<Void> task = new SequentialTask<>(
-				catalogName,
-				"Restore catalog " + catalogName + " from backup.",
-				Catalog.createRestoreCatalogTask(
-					catalogName, this.evita.getConfiguration().storage(),
-					file.totalSizeInBytes(),
-					this.exportFileService.createInputStream(file)
-				),
-				this.evita.createLoadCatalogTask(catalogName)
-			);
-			this.serviceExecutor.submit(task);
-			return task;
-		} catch (IOException e) {
-			throw new FileForFetchNotFoundException(fileId);
-		}
+		final SequentialTask<Void> task = createRestorationTask(catalogName, this.exportFileService.getPathOf(file), file.totalSizeInBytes(), false);
+		this.serviceExecutor.submit(task);
+		return task;
+	}
+
+	/**
+	 * Creates a restoration task for a catalog, which consists of multiple sequential steps:
+	 * restoring the catalog from a backup and loading the catalog. This method does not submit the task to the executor.
+	 *
+	 * @param catalogName          The name of the catalog to be restored.
+	 * @param pathToFile		   The path to the ZIP file containing the backup.
+	 * @param totalBytesExpected total bytes expected to be read from the input stream
+	 * @param deleteAfterRestore whether to delete the ZIP file after restore
+	 * @return A {@link SequentialTask} that represents the restoration task for the specified catalog.
+	 */
+	@Nonnull
+	public SequentialTask<Void> createRestorationTask(
+		@Nonnull String catalogName,
+		@Nonnull Path pathToFile,
+		long totalBytesExpected,
+		boolean deleteAfterRestore
+	) {
+		return new SequentialTask<>(
+			catalogName,
+			"Restore catalog " + catalogName + " from backup.",
+			Catalog.createRestoreCatalogTask(
+				catalogName, this.evita.getConfiguration().storage(), pathToFile, totalBytesExpected, deleteAfterRestore
+			),
+			this.evita.createLoadCatalogTask(catalogName)
+		);
 	}
 
 	/**
@@ -197,7 +288,12 @@ public class EvitaManagement implements EvitaManagementContract {
 	@Override
 	public Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) {
 		this.evita.assertActive();
-		return this.serviceExecutor.getTaskStatus(jobId);
+		final ServerTask<?, ?> waitingTask = this.waitingTasks.get(jobId);
+		if (waitingTask == null) {
+			return this.serviceExecutor.getTaskStatus(jobId);
+		} else {
+			return Optional.of(waitingTask.getStatus());
+		}
 	}
 
 	@Nonnull
