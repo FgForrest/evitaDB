@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.SessionProtocol;
 import com.linecorp.armeria.common.util.EventLoopGroups;
@@ -615,6 +616,7 @@ public class ExternalApiServer implements AutoCloseable {
 					}
 
 					// now provide implementation for the host services
+					boolean defaultServiceConfigured = false;
 					for (HttpServiceDefinition httpServiceDefinition : registeredApiProvider.getHttpServiceDefinitions()) {
 						final String basePath = configuration instanceof ApiWithSpecificPrefix apiWithSpecificPrefix ?
 							apiWithSpecificPrefix.getPrefix() : "";
@@ -647,6 +649,17 @@ public class ExternalApiServer implements AutoCloseable {
 								dynamicPathHandlingService = new PathHandlingService();
 							}
 							dynamicPathHandlingService.addPrefixPath(servicePath, service);
+
+							if (httpServiceDefinition.defaultService()) {
+								Assert.isPremiseValid(
+									!defaultServiceConfigured,
+									"Multiple default services found. Only one service can be default."
+								);
+								dynamicPathHandlingService.addExactPath(
+									"/", (reqCtx, req) -> HttpResponse.ofRedirect(servicePath)
+								);
+								defaultServiceConfigured = true;
+							}
 						}
 					}
 				}
