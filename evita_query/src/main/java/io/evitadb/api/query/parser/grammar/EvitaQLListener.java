@@ -713,6 +713,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitRandomConstraint(EvitaQLParser.RandomConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code randomWithSeedConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterRandomWithSeedConstraint(EvitaQLParser.RandomWithSeedConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code randomWithSeedConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitRandomWithSeedConstraint(EvitaQLParser.RandomWithSeedConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code referencePropertyConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
@@ -784,6 +796,42 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitEntityGroupPropertyConstraint(EvitaQLParser.EntityGroupPropertyConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code segmentsConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSegmentsConstraint(EvitaQLParser.SegmentsConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code segmentsConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSegmentsConstraint(EvitaQLParser.SegmentsConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code segmentConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSegmentConstraint(EvitaQLParser.SegmentConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code segmentConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSegmentConstraint(EvitaQLParser.SegmentConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code segmentLimitConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSegmentLimitConstraint(EvitaQLParser.SegmentLimitConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code segmentLimitConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSegmentLimitConstraint(EvitaQLParser.SegmentLimitConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code requireContainerConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
@@ -1576,6 +1624,30 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFullHierarchySiblingsConstraint(EvitaQLParser.FullHierarchySiblingsConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code spacingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSpacingConstraint(EvitaQLParser.SpacingConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code spacingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSpacingConstraint(EvitaQLParser.SpacingConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code gapConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterGapConstraint(EvitaQLParser.GapConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code gapConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitGapConstraint(EvitaQLParser.GapConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code hierarchyParentsConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
@@ -2462,6 +2534,36 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFullHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#spacingRequireConstraintArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterSpacingRequireConstraintArgs(EvitaQLParser.SpacingRequireConstraintArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#spacingRequireConstraintArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitSpacingRequireConstraintArgs(EvitaQLParser.SpacingRequireConstraintArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#gapRequireConstraintArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterGapRequireConstraintArgs(EvitaQLParser.GapRequireConstraintArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#gapRequireConstraintArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitGapRequireConstraintArgs(EvitaQLParser.GapRequireConstraintArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#segmentArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterSegmentArgs(EvitaQLParser.SegmentArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#segmentArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitSegmentArgs(EvitaQLParser.SegmentArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#positionalParameter}.
 	 * @param ctx the parse tree

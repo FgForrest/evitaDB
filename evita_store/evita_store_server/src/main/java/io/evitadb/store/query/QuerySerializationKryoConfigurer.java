@@ -148,6 +148,10 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(QueryTelemetry.class, new QueryTelemetrySerializer(), index++);
 		kryo.register(Debug.class, new DebugSerializer(), index++);
 
+		kryo.register(Segments.class, new SegmentsSerializer(), index++);
+		kryo.register(Segment.class, new SegmentSerializer(), index++);
+		kryo.register(SegmentLimit.class, new SegmentLimitSerializer(), index++);
+
 		Assert.isPremiseValid(index < 1100, "Index count overflow.");
 	}
 

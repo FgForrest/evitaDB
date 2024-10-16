@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,22 +21,33 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.constraint;
+package io.evitadb.api.query.expression.evaluate;
 
-import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.dataType.expression.PredicateEvaluationContext;
 
 import javax.annotation.Nonnull;
+import java.util.Random;
 
 /**
- * Specifies how to get data from entity that is not managed by evitaDB.
+ * Abstract class defining the context for parsing operations. It provides a way to get variable values by their names.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public record ExternalEntityDataLocator(@Nonnull String entityType) implements DataLocator {
+abstract sealed class AbstractPredicateEvaluationContext implements PredicateEvaluationContext
+	permits SingleVariableEvaluationContext, MultiVariableEvaluationContext {
+	private final Random random;
+
+	protected AbstractPredicateEvaluationContext() {
+		this.random = new Random();
+	}
+
+	protected AbstractPredicateEvaluationContext(long seed) {
+		this.random = new Random(seed);
+	}
 
 	@Nonnull
 	@Override
-	public ConstraintDomain targetDomain() {
-		return ConstraintDomain.ENTITY;
+	public Random getRandom() {
+		return random;
 	}
 }

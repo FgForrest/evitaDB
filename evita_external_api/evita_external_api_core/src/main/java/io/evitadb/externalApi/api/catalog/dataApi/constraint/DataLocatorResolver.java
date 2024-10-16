@@ -70,7 +70,7 @@ public class DataLocatorResolver {
 				() -> new ExternalApiInternalError("Cannot switch to `" + desiredChildDomainOfParameter + "` domain because parent domain doesn't contain any reference.")
 			);
 
-			final String childEntityType = parentDataLocator.entityType();
+			final EntityTypePointer childEntityTypePointer = parentDataLocator.entityTypePointer();
 			final String childReferenceName = ((DataLocatorWithReference) parentDataLocator).referenceName();
 			return switch (desiredChildDomainOfParameter) {
 				case REFERENCE -> {
@@ -78,21 +78,21 @@ public class DataLocatorResolver {
 						childReferenceName != null,
 						() -> new ExternalApiInternalError("Child domain `" + ConstraintDomain.REFERENCE + "` requires explicit reference name.")
 					);
-					yield Optional.of(new ReferenceDataLocator(childEntityType, childReferenceName));
+					yield Optional.of(new ReferenceDataLocator(childEntityTypePointer, childReferenceName));
 				}
 				case INLINE_REFERENCE -> {
 					Assert.isPremiseValid(
 						childReferenceName != null,
 						() -> new ExternalApiInternalError("Child domain `" + ConstraintDomain.INLINE_REFERENCE + "` requires explicit reference name.")
 					);
-					yield Optional.of(new InlineReferenceDataLocator(childEntityType, childReferenceName));
+					yield Optional.of(new InlineReferenceDataLocator(childEntityTypePointer, childReferenceName));
 				}
 				case HIERARCHY -> {
 					Assert.isPremiseValid(
 						parentDataLocator instanceof HierarchyDataLocator,
 						() -> new ExternalApiInternalError("Cannot switch to `" + desiredChildDomainOfParameter + "` domain because parent domain doesn't locate any hierarchy.")
 					);
-					yield Optional.of(new HierarchyDataLocator(childEntityType, childReferenceName));
+					yield Optional.of(new HierarchyDataLocator(childEntityTypePointer, childReferenceName));
 				}
 				case HIERARCHY_TARGET -> {
 					Assert.isPremiseValid(
@@ -100,9 +100,9 @@ public class DataLocatorResolver {
 						() -> new ExternalApiInternalError("Cannot switch to `" + desiredChildDomainOfParameter + "` domain because parent domain doesn't locate any hierarchy.")
 					);
 					if (childReferenceName == null) {
-						yield Optional.of(new EntityDataLocator(childEntityType));
+						yield Optional.of(new EntityDataLocator(childEntityTypePointer));
 					} else {
-						yield Optional.of(new ReferenceDataLocator(childEntityType, childReferenceName));
+						yield Optional.of(new ReferenceDataLocator(childEntityTypePointer, childReferenceName));
 					}
 				}
 				case FACET -> {
@@ -110,7 +110,7 @@ public class DataLocatorResolver {
 						parentDataLocator instanceof FacetDataLocator,
 						() -> new ExternalApiInternalError("Cannot switch to `" + desiredChildDomainOfParameter + "` domain because parent domain doesn't locate any facets.")
 					);
-					yield Optional.of(new FacetDataLocator(childEntityType, childReferenceName));
+					yield Optional.of(new FacetDataLocator(childEntityTypePointer, childReferenceName));
 				}
 				default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 			};
@@ -118,9 +118,10 @@ public class DataLocatorResolver {
 			if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
 				if (dataLocatorWithReference.referenceName() == null) {
 					return switch (desiredChildDomainOfParameter) {
-						case GENERIC -> Optional.of(new GenericDataLocator(dataLocatorWithReference.entityType()));
-						case ENTITY -> Optional.of(new EntityDataLocator(dataLocatorWithReference.entityType()));
-						default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
+						case GENERIC -> Optional.of(new GenericDataLocator(dataLocatorWithReference.entityTypePointer()));
+						case ENTITY -> Optional.of(new EntityDataLocator(dataLocatorWithReference.entityTypePointer()));
+						default ->
+							throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 					};
 				} else {
 					final ReferenceSchemaContract referenceSchema = catalogSchema.getEntitySchemaOrThrowException(dataLocatorWithReference.entityType())
@@ -128,39 +129,37 @@ public class DataLocatorResolver {
 
 					final String referencedEntityType = referenceSchema.getReferencedEntityType();
 					return switch (desiredChildDomainOfParameter) {
-						case GENERIC -> Optional.of(new GenericDataLocator(referencedEntityType));
-						case ENTITY -> {
-							if (referenceSchema.isReferencedEntityTypeManaged()) {
-								yield Optional.of(new EntityDataLocator(referencedEntityType));
-							} else {
-								yield Optional.of(new ExternalEntityDataLocator(referencedEntityType));
-							}
-						}
+						case GENERIC -> Optional.of(new GenericDataLocator(
+							referenceSchema.isReferencedEntityTypeManaged()
+								? new ManagedEntityTypePointer(referencedEntityType)
+								: new ExternalEntityTypePointer(referencedEntityType)
+						));
+						case ENTITY -> Optional.of(new EntityDataLocator(
+							referenceSchema.isReferencedEntityTypeManaged()
+								? new ManagedEntityTypePointer(referencedEntityType)
+								: new ExternalEntityTypePointer(referencedEntityType)
+						));
 						case GROUP_ENTITY -> {
 							final String referencedGroupType = referenceSchema.getReferencedGroupType();
 							if (referencedGroupType == null) {
 								// we can logically do this switch, but we don't have data for it
 								yield Optional.empty();
 							}
-							if (referenceSchema.isReferencedGroupTypeManaged()) {
-								yield Optional.of(new EntityDataLocator(referencedGroupType));
-							} else {
-								yield Optional.of(new ExternalEntityDataLocator(referencedGroupType));
-							}
+							yield Optional.of(new EntityDataLocator(
+								referenceSchema.isReferencedGroupTypeManaged()
+									? new ManagedEntityTypePointer(referencedEntityType)
+									: new ExternalEntityTypePointer(referencedEntityType)
+							));
 						}
-						default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
+						default ->
+							throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 					};
 				}
-			} else if (parentDataLocator instanceof ExternalEntityDataLocator) {
-				return switch (desiredChildDomainOfParameter) {
-					case GENERIC -> Optional.of(new GenericDataLocator(parentDataLocator.entityType()));
-					case ENTITY -> Optional.of(new ExternalEntityDataLocator(parentDataLocator.entityType()));
-					default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
-				};
 			} else {
 				return switch (desiredChildDomainOfParameter) {
-					case GENERIC -> Optional.of(new GenericDataLocator(parentDataLocator.entityType()));
-					case ENTITY -> Optional.of(new EntityDataLocator(parentDataLocator.entityType()));
+					case GENERIC -> Optional.of(new GenericDataLocator(parentDataLocator.entityTypePointer()));
+					case ENTITY -> Optional.of(new EntityDataLocator(parentDataLocator.entityTypePointer()));
+					case SEGMENT -> Optional.of(new SegmentDataLocator(parentDataLocator.entityTypePointer()));
 					default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 				};
 			}
@@ -184,20 +183,19 @@ public class DataLocatorResolver {
 			case ENTITY -> {
 				if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
 					if (dataLocatorWithReference.referenceName() == null) {
-						yield new EntityDataLocator(dataLocatorWithReference.entityType());
+						// should point to itself, so we just pass the existing pointer
+						yield new EntityDataLocator(dataLocatorWithReference.entityTypePointer());
 					} else {
 						final ReferenceSchemaContract referenceSchema = catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType())
 							.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
 						if (referenceSchema.isReferencedEntityTypeManaged()) {
-							yield new EntityDataLocator(referenceSchema.getReferencedEntityType());
+							yield new EntityDataLocator(new ManagedEntityTypePointer(referenceSchema.getReferencedEntityType()));
 						} else {
-							yield new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
+							yield new EntityDataLocator(new ExternalEntityTypePointer(referenceSchema.getReferencedEntityType()));
 						}
 					}
-				} else if (parentDataLocator instanceof ExternalEntityDataLocator) {
-					yield parentDataLocator;
 				} else {
-					yield new EntityDataLocator(parentDataLocator.entityType());
+					yield new EntityDataLocator(parentDataLocator.entityTypePointer());
 				}
 			}
 			case REFERENCE, HIERARCHY, FACET -> {
@@ -211,9 +209,9 @@ public class DataLocatorResolver {
 						throw new ExternalApiInternalError("Missing required classifier.");
 					}
 					yield switch (constraintDescriptor.propertyType()) {
-						case REFERENCE -> new ReferenceDataLocator(parentDataLocator.entityType(), classifier.orElse(null));
-						case HIERARCHY -> new HierarchyDataLocator(parentDataLocator.entityType(), classifier.orElse(null));
-						case FACET -> new FacetDataLocator(parentDataLocator.entityType(), classifier.orElse(null));
+						case REFERENCE -> new ReferenceDataLocator(parentDataLocator.entityTypePointer(), classifier.orElse(null));
+						case HIERARCHY -> new HierarchyDataLocator(parentDataLocator.entityTypePointer(), classifier.orElse(null));
+						case FACET -> new FacetDataLocator(parentDataLocator.entityTypePointer(), classifier.orElse(null));
 						default -> throw new ExternalApiInternalError("Unexpected property type `" + constraintDescriptor.propertyType() + "`.");
 					};
 				} else {
@@ -230,7 +228,7 @@ public class DataLocatorResolver {
 						}
 						if (parentDataLocator instanceof EntityDataLocator &&
 							catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType()).isWithHierarchy()) {
-							yield new HierarchyDataLocator(parentDataLocator.entityType());
+							yield new HierarchyDataLocator(parentDataLocator.entityTypePointer());
 						}
 						throw new ExternalApiInternalError("Hierarchy constraints must have specified hierarchy");
 					} else if (constraintDescriptor.propertyType().equals(ConstraintPropertyType.FACET)) {

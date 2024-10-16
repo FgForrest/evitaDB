@@ -338,7 +338,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	/**
 	 * Adds a request for histogram computation passing all data necessary for the computation.
 	 * Method doesn't compute the histogram - just registers the requirement to be resolved later
-	 * in the {@link ExtraResultProducer#fabricate(QueryExecutionContext, List)} )}  method.
+	 * in the {@link ExtraResultProducer#fabricate(QueryExecutionContext)} )}  method.
 	 */
 	public void addAttributeHistogramRequest(
 		@Nonnull AttributeSchemaContract attributeSchema,
@@ -366,7 +366,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 
 	@Nullable
 	@Override
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context, @Nonnull List<T> entities) {
+	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
 		// create optimized formula that offers best memoized intermediate results reuse
 		final Formula optimizedFormula = FilterFormulaAttributeOptimizeVisitor.optimize(filterFormula, histogramRequests.keySet());
 

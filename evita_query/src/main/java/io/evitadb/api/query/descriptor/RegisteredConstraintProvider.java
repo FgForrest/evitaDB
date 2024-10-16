@@ -121,6 +121,10 @@ class RegisteredConstraintProvider {
 		PriceDiscount.class,
 		// reference
 		ReferenceProperty.class,
+		// segments
+		Segments.class,
+		Segment.class,
+		SegmentLimit.class,
 
 		// --- require constraints ---
 		// generic
@@ -129,6 +133,9 @@ class RegisteredConstraintProvider {
 		Strip.class,
 		DataInLocales.class,
 		QueryTelemetry.class,
+		// spacing,
+		Spacing.class,
+		SpacingGap.class,
 		// entity
 		EntityFetch.class,
 		EntityGroupFetch.class,

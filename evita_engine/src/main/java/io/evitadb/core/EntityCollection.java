@@ -356,8 +356,7 @@ public final class EntityCollection implements
 			Query.query(collection(entityType)),
 			OffsetDateTime.MIN, // we don't care about the time
 			EntityReference.class,
-			null,
-			EvitaRequest.CONVERSION_NOT_SUPPORTED
+			null
 		);
 	}
 
@@ -397,8 +396,7 @@ public final class EntityCollection implements
 			Query.query(collection(this.entityType)),
 			OffsetDateTime.MIN, // we don't care about the time
 			EntityReference.class,
-			null,
-			EvitaRequest.CONVERSION_NOT_SUPPORTED
+			null
 		);
 	}
 
@@ -642,8 +640,7 @@ public final class EntityCollection implements
 				),
 				OffsetDateTime.now(),
 				EntityReference.class,
-				null,
-				EvitaRequest.CONVERSION_NOT_SUPPORTED
+				null
 			),
 			session
 		).deletedEntities();
@@ -1218,7 +1215,7 @@ public final class EntityCollection implements
 	public QueryPlanningContext createQueryContext(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull EvitaSessionContract session
+		@Nonnull EvitaSession session
 	) {
 		return new QueryPlanningContext(
 			queryContext,

@@ -28,6 +28,7 @@ import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.GraphQLScalarType;
 import io.evitadb.dataType.*;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.dataType.GenericObject;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
@@ -91,6 +92,7 @@ public class DataTypesConverter {
         SCALAR_MAPPINGS.put(ReferencedEntityPredecessor.class, REFERENCED_ENTITY_PREDECESSOR);
         SCALAR_MAPPINGS.put(Any.class, ANY);
         SCALAR_MAPPINGS.put(GenericObject.class, OBJECT);
+        SCALAR_MAPPINGS.put(Expression.class, EXPRESSION);
     }
 
     /**

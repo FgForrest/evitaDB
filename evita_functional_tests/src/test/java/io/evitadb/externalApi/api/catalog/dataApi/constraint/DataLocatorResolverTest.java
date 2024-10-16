@@ -149,44 +149,45 @@ public class DataLocatorResolverTest {
 		return Stream.of(
 			// 1. parent data locator; 2. desired child domain; 3. expected child data locator
 
-			Arguments.of(new EntityDataLocator(Entities.PRODUCT), ConstraintDomain.DEFAULT, new EntityDataLocator(Entities.PRODUCT)),
-			Arguments.of(new EntityDataLocator(Entities.PRODUCT), ConstraintDomain.ENTITY, new EntityDataLocator(Entities.PRODUCT)),
-			Arguments.of(new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY, new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY)),
+			Arguments.of(new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)), ConstraintDomain.DEFAULT, new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))),
+			Arguments.of(new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)), ConstraintDomain.ENTITY, new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))),
+			Arguments.of(new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)), ConstraintDomain.SEGMENT, new SegmentDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))),
+			Arguments.of(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.HIERARCHY, new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY)),
 
 			// from basic reference to entity
-			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.ENTITY, new EntityDataLocator(Entities.CATEGORY)),
-			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, EXTERNAL_ENTITY_TAG), ConstraintDomain.ENTITY, new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG)),
+			Arguments.of(new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.ENTITY, new EntityDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))),
+			Arguments.of(new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), EXTERNAL_ENTITY_TAG), ConstraintDomain.ENTITY, new EntityDataLocator(new ExternalEntityTypePointer(EXTERNAL_ENTITY_TAG))),
 
 			// from basic inline reference to entity
-			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.ENTITY, new EntityDataLocator(Entities.CATEGORY)),
-			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, EXTERNAL_ENTITY_TAG), ConstraintDomain.ENTITY, new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG)),
+			Arguments.of(new InlineReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.ENTITY, new EntityDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))),
+			Arguments.of(new InlineReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), EXTERNAL_ENTITY_TAG), ConstraintDomain.ENTITY, new EntityDataLocator(new ExternalEntityTypePointer(EXTERNAL_ENTITY_TAG))),
 
 			// from hierarchy to entity
-			Arguments.of(new HierarchyDataLocator(Entities.CATEGORY), ConstraintDomain.ENTITY, new EntityDataLocator(Entities.CATEGORY)),
-			Arguments.of(new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.ENTITY, new EntityDataLocator(Entities.CATEGORY)),
+			Arguments.of(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY)), ConstraintDomain.ENTITY, new EntityDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))),
+			Arguments.of(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.ENTITY, new EntityDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))),
 
 			// from hierarchy to hierarchy target
-			Arguments.of(new HierarchyDataLocator(Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET, new EntityDataLocator(Entities.CATEGORY)),
-			Arguments.of(new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET, new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY)),
+			Arguments.of(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY)), ConstraintDomain.HIERARCHY_TARGET, new EntityDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))),
+			Arguments.of(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET, new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY)),
 
 			// from facet to entity
-			Arguments.of(new FacetDataLocator(Entities.PARAMETER), ConstraintDomain.ENTITY, new EntityDataLocator(Entities.PARAMETER)),
-			Arguments.of(new FacetDataLocator(Entities.PRODUCT, Entities.PARAMETER), ConstraintDomain.ENTITY, new EntityDataLocator(Entities.PARAMETER)),
+			Arguments.of(new FacetDataLocator(new ManagedEntityTypePointer(Entities.PARAMETER)), ConstraintDomain.ENTITY, new EntityDataLocator(new ManagedEntityTypePointer(Entities.PARAMETER))),
+			Arguments.of(new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER), ConstraintDomain.ENTITY, new EntityDataLocator(new ManagedEntityTypePointer(Entities.PARAMETER))),
 
 			// switch between data locators with references
-			Arguments.of(new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.REFERENCE, new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY)),
-			Arguments.of(new FacetDataLocator(Entities.PRODUCT, Entities.PARAMETER), ConstraintDomain.REFERENCE, new ReferenceDataLocator(Entities.PRODUCT, Entities.PARAMETER)),
+			Arguments.of(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.REFERENCE, new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY)),
+			Arguments.of(new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER), ConstraintDomain.REFERENCE, new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER)),
 
 			// generic can be created from any parent
-			Arguments.of(new GenericDataLocator(Entities.PRODUCT), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.PRODUCT)),
-			Arguments.of(new EntityDataLocator(Entities.PRODUCT), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.PRODUCT)),
-			Arguments.of(new ExternalEntityDataLocator(Entities.PRODUCT), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.PRODUCT)),
-			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.CATEGORY)),
-			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.CATEGORY)),
-			Arguments.of(new HierarchyDataLocator(Entities.CATEGORY), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.CATEGORY)),
-			Arguments.of(new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.CATEGORY)),
-			Arguments.of(new FacetDataLocator(Entities.PARAMETER), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.PARAMETER)),
-			Arguments.of(new FacetDataLocator(Entities.PRODUCT, Entities.PARAMETER), ConstraintDomain.GENERIC, new GenericDataLocator(Entities.PARAMETER))
+			Arguments.of(new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)), ConstraintDomain.GENERIC, new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))),
+			Arguments.of(new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)), ConstraintDomain.GENERIC, new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))),
+			Arguments.of(new EntityDataLocator(new ExternalEntityTypePointer(Entities.PRODUCT)), ConstraintDomain.GENERIC, new GenericDataLocator(new ExternalEntityTypePointer(Entities.PRODUCT))),
+			Arguments.of(new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.GENERIC, new GenericDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))),
+			Arguments.of(new InlineReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.GENERIC, new GenericDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))),
+			Arguments.of(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY)), ConstraintDomain.GENERIC, new GenericDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))),
+			Arguments.of(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.GENERIC, new GenericDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))),
+			Arguments.of(new FacetDataLocator(new ManagedEntityTypePointer(Entities.PARAMETER)), ConstraintDomain.GENERIC, new GenericDataLocator(new ManagedEntityTypePointer(Entities.PARAMETER))),
+			Arguments.of(new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER), ConstraintDomain.GENERIC, new GenericDataLocator(new ManagedEntityTypePointer(Entities.PARAMETER)))
 		);
 	}
 
@@ -205,44 +206,44 @@ public class DataLocatorResolverTest {
 			// 1. parent data locator; 2. desired child domain
 
 			// there is no hierarchy in parent
-			Arguments.of(new GenericDataLocator(Entities.PRODUCT), ConstraintDomain.HIERARCHY_TARGET),
-			Arguments.of(new EntityDataLocator(Entities.PRODUCT), ConstraintDomain.HIERARCHY_TARGET),
-			Arguments.of(new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG), ConstraintDomain.HIERARCHY_TARGET),
-			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET),
-			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET),
-			Arguments.of(new FacetDataLocator(Entities.PRODUCT), ConstraintDomain.HIERARCHY_TARGET),
-			Arguments.of(new FacetDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET),
+			Arguments.of(new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)), ConstraintDomain.HIERARCHY_TARGET),
+			Arguments.of(new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)), ConstraintDomain.HIERARCHY_TARGET),
+			Arguments.of(new EntityDataLocator(new ExternalEntityTypePointer(EXTERNAL_ENTITY_TAG)), ConstraintDomain.HIERARCHY_TARGET),
+			Arguments.of(new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET),
+			Arguments.of(new InlineReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET),
+			Arguments.of(new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)), ConstraintDomain.HIERARCHY_TARGET),
+			Arguments.of(new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.HIERARCHY_TARGET),
 
 			// there is no reference specified in parent
-			Arguments.of(new EntityDataLocator(Entities.PRODUCT), ConstraintDomain.REFERENCE),
+			Arguments.of(new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)), ConstraintDomain.REFERENCE),
 			// there is no hierarchy specified in parent
-			Arguments.of(new EntityDataLocator(Entities.CATEGORY), ConstraintDomain.HIERARCHY),
+			Arguments.of(new EntityDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY)), ConstraintDomain.HIERARCHY),
 			// there is no facet specified in parent
-			Arguments.of(new EntityDataLocator(Entities.PARAMETER), ConstraintDomain.FACET),
+			Arguments.of(new EntityDataLocator(new ManagedEntityTypePointer(Entities.PARAMETER)), ConstraintDomain.FACET),
 			// there is no reference specified in parent
-			Arguments.of(new GenericDataLocator(Entities.PRODUCT), ConstraintDomain.REFERENCE),
+			Arguments.of(new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)), ConstraintDomain.REFERENCE),
 			// there is no hierarchy specified in parent
-			Arguments.of(new GenericDataLocator(Entities.CATEGORY), ConstraintDomain.HIERARCHY),
+			Arguments.of(new GenericDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY)), ConstraintDomain.HIERARCHY),
 			// there is no facet specified in parent
-			Arguments.of(new GenericDataLocator(Entities.PARAMETER), ConstraintDomain.FACET),
+			Arguments.of(new GenericDataLocator(new ManagedEntityTypePointer(Entities.PARAMETER)), ConstraintDomain.FACET),
 			// there is no reference specified in parent
-			Arguments.of(new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG), ConstraintDomain.REFERENCE),
+			Arguments.of(new EntityDataLocator(new ExternalEntityTypePointer(EXTERNAL_ENTITY_TAG)), ConstraintDomain.REFERENCE),
 			// there is no hierarchy specified in parent
-			Arguments.of(new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG), ConstraintDomain.HIERARCHY),
+			Arguments.of(new EntityDataLocator(new ExternalEntityTypePointer(EXTERNAL_ENTITY_TAG)), ConstraintDomain.HIERARCHY),
 			// there is no facet specified in parent
-			Arguments.of(new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG), ConstraintDomain.FACET),
+			Arguments.of(new EntityDataLocator(new ExternalEntityTypePointer(EXTERNAL_ENTITY_TAG)), ConstraintDomain.FACET),
 			// we don't know if hierarchy is faceted
-			Arguments.of(new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.FACET),
+			Arguments.of(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.FACET),
 			// we don't know if facet is hierarchical
-			Arguments.of(new FacetDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY),
+			Arguments.of(new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.HIERARCHY),
 			// we don't know if reference is facet
-			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.FACET),
+			Arguments.of(new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.FACET),
 			// we don't know if reference is facet
-			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.FACET),
+			Arguments.of(new InlineReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.FACET),
 			// we don't know if reference is hierarchy
-			Arguments.of(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY),
+			Arguments.of(new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.HIERARCHY),
 			// we don't know if reference is hierarchy
-			Arguments.of(new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY), ConstraintDomain.HIERARCHY)
+			Arguments.of(new InlineReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.HIERARCHY)
 		);
 	}
 
@@ -264,126 +265,138 @@ public class DataLocatorResolverTest {
 
 			// should inherit parent's data locator
 			Arguments.of(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraint(And.class),
 				null,
-				new EntityDataLocator(Entities.PRODUCT)
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))
 			),
 			Arguments.of(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraint(AttributeEquals.class),
 				ATTRIBUTE_CODE,
-				new EntityDataLocator(Entities.PRODUCT)
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))
 			),
 			Arguments.of(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraints(AssociatedDataContent.class)
 					.stream()
 					.filter(it -> it.fullName().equals("content"))
 					.findFirst()
 					.orElseThrow(),
 				null,
-				new EntityDataLocator(Entities.PRODUCT)
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))
 			),
 			Arguments.of(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraint(PriceBetween.class),
 				null,
-				new EntityDataLocator(Entities.PRODUCT)
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))
+			),
+			Arguments.of(
+				new SegmentDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+				ConstraintDescriptorProvider.getConstraint(And.class),
+				null,
+				new SegmentDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))
 			),
 
 			// should change data locator to reference
 			Arguments.of(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraint(ReferenceHaving.class),
 				Entities.BRAND,
-				new ReferenceDataLocator(Entities.PRODUCT, Entities.BRAND)
+				new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.BRAND)
 			),
 			Arguments.of(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraint(FacetHaving.class),
 				Entities.PARAMETER,
-				new FacetDataLocator(Entities.PRODUCT, Entities.PARAMETER)
+				new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER)
 			),
 			Arguments.of(
-				new GenericDataLocator(Entities.PRODUCT),
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraint(FacetGroupsConjunction.class),
 				Entities.PARAMETER,
-				new FacetDataLocator(Entities.PRODUCT, Entities.PARAMETER)
+				new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER)
+			),
+			Arguments.of(
+				new SegmentDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+				ConstraintDescriptorProvider.getConstraint(ReferenceHaving.class),
+				Entities.BRAND,
+				new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.BRAND)
 			),
 
 			// should change data locator to hierarchy
 			Arguments.of(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraints(HierarchyWithin.class)
 					.stream()
 					.filter(it -> it.fullName().equals("within"))
 					.findFirst()
 					.orElseThrow(),
 				Entities.CATEGORY,
-				new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY)
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY)
 			),
 			Arguments.of(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraints(HierarchyWithin.class)
 					.stream()
 					.filter(it -> it.fullName().equals("withinSelf"))
 					.findFirst()
 					.orElseThrow(),
 				null,
-				new HierarchyDataLocator(Entities.PRODUCT)
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))
 			),
 
 			// should inherit hierarchy data locator
 			Arguments.of(
-				new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY),
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY),
 				ConstraintDescriptorProvider.getConstraint(HierarchyExcluding.class),
 				null,
-				new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY)
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY)
 			),
 
 			// should switch from reference to entity
 			Arguments.of(
-				new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY),
+				new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY),
 				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
 				null,
-				new EntityDataLocator(Entities.CATEGORY)
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))
 			),
 			Arguments.of(
-				new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY),
+				new InlineReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY),
 				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
 				null,
-				new EntityDataLocator(Entities.CATEGORY)
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))
 			),
 			Arguments.of(
-				new ReferenceDataLocator(Entities.PRODUCT, EXTERNAL_ENTITY_TAG),
+				new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), EXTERNAL_ENTITY_TAG),
 				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
 				null,
-				new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG)
+				new EntityDataLocator(new ExternalEntityTypePointer(EXTERNAL_ENTITY_TAG))
 			),
 			Arguments.of(
-				new InlineReferenceDataLocator(Entities.PRODUCT, EXTERNAL_ENTITY_TAG),
+				new InlineReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), EXTERNAL_ENTITY_TAG),
 				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
 				null,
-				new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG)
+				new EntityDataLocator(new ExternalEntityTypePointer(EXTERNAL_ENTITY_TAG))
 			),
 			Arguments.of(
-				new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY),
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY),
 				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
 				null,
-				new EntityDataLocator(Entities.CATEGORY)
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))
 			),
 			Arguments.of(
-				new FacetDataLocator(Entities.PRODUCT, Entities.PARAMETER),
+				new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER),
 				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
 				null,
-				new EntityDataLocator(Entities.PARAMETER)
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PARAMETER))
 			),
 			Arguments.of(
-				new FacetDataLocator(Entities.PRODUCT, EXTERNAL_ENTITY_TAG),
+				new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), EXTERNAL_ENTITY_TAG),
 				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
 				null,
-				new ExternalEntityDataLocator(EXTERNAL_ENTITY_TAG)
+				new EntityDataLocator(new ExternalEntityTypePointer(EXTERNAL_ENTITY_TAG))
 			)
 		);
 	}
@@ -405,29 +418,29 @@ public class DataLocatorResolverTest {
 
 			// cannot have another reference in other reference
 			Arguments.of(
-				new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY),
+				new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY),
 				ConstraintDescriptorProvider.getConstraint(ReferenceHaving.class),
 				Entities.BRAND
 			),
 			Arguments.of(
-				new InlineReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY),
+				new InlineReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY),
 				ConstraintDescriptorProvider.getConstraint(ReferenceHaving.class),
 				Entities.BRAND
 			),
 			Arguments.of(
-				new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY),
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY),
 				ConstraintDescriptorProvider.getConstraint(ReferenceHaving.class),
 				Entities.BRAND
 			),
 			Arguments.of(
-				new FacetDataLocator(Entities.PRODUCT, Entities.CATEGORY),
+				new FacetDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY),
 				ConstraintDescriptorProvider.getConstraint(ReferenceHaving.class),
 				Entities.BRAND
 			),
 
 			// missing required classifier
 			Arguments.of(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraints(HierarchyWithin.class)
 					.stream()
 					.filter(it -> it.fullName().equals("within"))
@@ -436,7 +449,7 @@ public class DataLocatorResolverTest {
 				null
 			),
 			Arguments.of(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				ConstraintDescriptorProvider.getConstraint(FacetHaving.class),
 				null
 			)

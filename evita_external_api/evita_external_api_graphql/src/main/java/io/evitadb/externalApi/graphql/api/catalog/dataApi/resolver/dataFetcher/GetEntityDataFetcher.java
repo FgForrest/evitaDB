@@ -93,8 +93,14 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 	                            @Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
 		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
-		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
-		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(catalogSchema, new AtomicReference<>(filterConstraintResolver));
+		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintResolver)
+		);
+		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintResolver)
+		);
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
 			filterConstraintResolver,

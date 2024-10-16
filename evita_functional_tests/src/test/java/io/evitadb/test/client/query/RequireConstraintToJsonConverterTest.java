@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.PriceType;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -96,7 +97,7 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 		assertEquals(
 			new JsonConstraint("facetBrandGroupsConjunction", facetBrandGroupsConjunction),
 			limitedConverter.convert(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				facetGroupsConjunction(Entities.BRAND, filterBy(entityPrimaryKeyInSet(1, 2)))
 			).get()
 		);
@@ -120,8 +121,8 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 		assertEquals(
 			new JsonConstraint("stopAt", stopAt),
 			baseConverter.convert(
-				new HierarchyDataLocator(Entities.PRODUCT),
-				new HierarchyDataLocator(Entities.PRODUCT),
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				stopAt(
 					node(
 						filterBy(

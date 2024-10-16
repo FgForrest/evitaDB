@@ -23,7 +23,10 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.order.Segments;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HistogramBehavior;
@@ -100,6 +103,7 @@ import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -112,8 +116,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
-
-	private static final int SEED = 40;
 
 	private static final String PRODUCT_QUERY_PATH = "data.queryProduct";
 	public static final String PRODUCT_QUERY_DATA_PATH = PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name();
@@ -5926,6 +5928,311 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			);
 	}
 
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_PRODUCTS_FOR_SEGMENTS)
+	@DisplayName("Should return entities in manually crafter segmented order")
+	void shouldReturnDifferentlySortedSegments(Evita evita, GraphQLTester tester) {
+		final Segments evitaQLSegments = segments(
+			segment(
+				orderBy(
+					attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+				),
+				limit(5)
+			),
+			segment(
+				orderBy(
+					attributeNatural(ATTRIBUTE_EAN, OrderDirection.DESC)
+				),
+				limit(2)
+			),
+			segment(
+				orderBy(
+					attributeNatural(ATTRIBUTE_QUANTITY, OrderDirection.ASC)
+				),
+				limit(2)
+			)
+		);
+		final String graphQLSegments = """
+			segments: [
+			  {
+			    segment: {
+			      orderBy: {
+			        attributeNameNatural: DESC
+			      },
+			      limit: 5
+			    }
+			  },
+			  {
+			    segment: {
+			      orderBy: {
+			        attributeEanNatural: DESC
+			      },
+			      limit: 2
+			    }
+			  },
+			  {
+			    segment: {
+			      orderBy: {
+			        attributeQuantityNatural: ASC
+			      },
+			      limit: 2
+			    }
+			  }
+			]
+			""";
+
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Predicate<Integer> expectedEntitiesCountValidator = size -> size == 5;
+
+				compareGraphQLResultPksToEvitaDBResultPks(
+					"First page must be sorted by name in descending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(1, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(1, 5, graphQLSegments),
+					expectedEntitiesCountValidator
+				);
+
+				compareGraphQLResultPksToEvitaDBResultPks(
+					"Second page must be sorted by ean in descending order and quantity in asceding order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(2, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(2, 5, graphQLSegments),
+					expectedEntitiesCountValidator
+				);
+
+				compareGraphQLResultPksToEvitaDBResultPks(
+					"Third page must be sorted by PK in ascending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(3, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(3, 5, graphQLSegments),
+					expectedEntitiesCountValidator
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_PRODUCTS_FOR_SEGMENTS)
+	@DisplayName("Should return filtered entities in manually crafter segmented order")
+	void shouldReturnDifferentlySortedAndFilteredSegments(Evita evita, GraphQLTester tester) {
+		final Segments evitaQLSegments = segments(
+			segment(
+				entityHaving(
+					attributeLessThanEquals(ATTRIBUTE_NAME, "L")
+				),
+				orderBy(
+					attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+				),
+				limit(10)
+			),
+			segment(
+				entityHaving(
+					attributeLessThanEquals(ATTRIBUTE_NAME, "P")
+				),
+				orderBy(
+					attributeNatural(ATTRIBUTE_EAN, OrderDirection.DESC)
+				),
+				limit(8)
+			),
+			segment(
+				entityHaving(
+					attributeLessThanEquals(ATTRIBUTE_NAME, "T")
+				),
+				orderBy(
+					attributeNatural(ATTRIBUTE_QUANTITY, OrderDirection.ASC)
+				),
+				limit(6)
+			)
+		);
+		final String graphQLSegments = """
+			segments: [
+			  {
+			    segment: {
+			      entityHaving: {
+			        attributeNameLessThanEquals: "L"
+			      },
+			      orderBy: {
+			        attributeNameNatural: DESC
+			      },
+			      limit: 10
+			    }
+			  },
+			  {
+			    segment: {
+			      entityHaving: {
+			        attributeNameLessThanEquals: "P"
+			      },
+			      orderBy: {
+			        attributeEanNatural: DESC
+			      },
+			      limit: 8
+			    }
+			  },
+			  {
+			    segment: {
+			      entityHaving: {
+			        attributeNameLessThanEquals: "T"
+			      },
+			      orderBy: {
+			        attributeQuantityNatural: ASC
+			      },
+			      limit: 6
+			    }
+			  }
+			]
+			""";
+
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Predicate<Integer> expectedEntitiesCountValidator = size -> size == 5;
+
+				compareGraphQLResultPksToEvitaDBResultPks(
+					"First page must be sorted by name in descending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(1, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(1, 5, graphQLSegments),
+					expectedEntitiesCountValidator
+				);
+
+				compareGraphQLResultPksToEvitaDBResultPks(
+					"Second page must be sorted by name in descending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(2, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(2, 5, graphQLSegments),
+					expectedEntitiesCountValidator
+				);
+
+				compareGraphQLResultPksToEvitaDBResultPks(
+					"Third page must be sorted by EAN in descending order (excluding items on first two pages).",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(3, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(3, 5, graphQLSegments),
+					expectedEntitiesCountValidator
+				);
+
+				compareGraphQLResultPksToEvitaDBResultPks(
+					"Fourth page contains 3 entities sorted according to EAN in descending order and ends with first 2 entities sorted according to quantity in ascending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(4, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(4, 5, graphQLSegments),
+					expectedEntitiesCountValidator
+				);
+
+				compareGraphQLResultPksToEvitaDBResultPks(
+					"Fifth page must have only 4 entities be sorted by quantity in ascending order and must end with first entity sorted by PK in ascending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(5, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(5, 5, graphQLSegments),
+					expectedEntitiesCountValidator
+				);
+
+				compareGraphQLResultPksToEvitaDBResultPks(
+					"Sixth page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(6, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(6, 5, graphQLSegments),
+					expectedEntitiesCountValidator
+				);
+
+				compareGraphQLResultPksToEvitaDBResultPks(
+					"Seventh page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(7, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(7, 5, graphQLSegments),
+					expectedEntitiesCountValidator
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should insert spaces into paginated results")
+	@UseDataSet(GRAPHQL_HUNDRED_PRODUCTS_FOR_SEGMENTS)
+	@Test
+	void shouldInsertSpaces(Evita evita, GraphQLTester tester) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (int i = 1; i <= 10; i++) {
+					compareGraphQLResultPksToEvitaDBResultPks(
+						"Page " + i,
+						session, tester,
+						fabricateEvitaQLSpacingQuery(i, 10),
+						fabricateGraphQLSpacingQuery(i, 10),
+						size -> size > 0
+					);
+				}
+			}
+		);
+	}
+
+	/**
+	 * Creates a query for retrieving paginated product entities with specified spacing conditions.
+	 *
+	 * @param pageNumber the page number to retrieve, must be greater than 0
+	 * @param pageSize the number of items per page, must be greater than 0
+	 * @return a constructed Query object with the specified pagination and spacing conditions
+	 */
+	@Nonnull
+	private static Query fabricateEvitaQLSpacingQuery(int pageNumber, int pageSize) {
+		return query(
+			collection(Entities.PRODUCT),
+			require(
+				page(
+					pageNumber, pageSize,
+					spacing(
+						gap(2, "(($pageNumber - 1) % 2 == 0) && $pageNumber <= 6"),
+						gap(1, "($pageNumber % 2 == 0) && $pageNumber <= 6")
+					)
+				),
+				debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+			)
+		);
+	}
+
+	@Nonnull
+	private static String fabricateGraphQLSpacingQuery(int pageNumber, int pageSize) {
+		return String.format(
+			"""
+				{
+					queryProduct {
+						recordPage(
+							number: %d,
+							size: %d,
+							spacing: [
+								{
+									gap: {
+										size: 2,
+										onPage: "(($pageNumber - 1) %%%% 2 == 0) && $pageNumber <= 6"
+									}
+								},
+								{
+									gap: {
+										size: 1,
+										onPage: "($pageNumber %%%% 2 == 0) && $pageNumber <= 6"
+									}
+								}
+							]
+						) {
+							data {
+								primaryKey
+							}
+						}
+					}
+				}
+				""",
+			pageNumber,
+			pageSize
+		);
+	}
 
 	@Nonnull
 	private List<SealedEntity> findEntities(@Nonnull List<SealedEntity> originalProductEntities,
@@ -6232,6 +6539,32 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 	}
 
+	private void compareGraphQLResultPksToEvitaDBResultPks(@Nonnull String message,
+	                                                       @Nonnull EvitaSessionContract session,
+	                                                       @Nonnull GraphQLTester tester,
+	                                                       @Nonnull Query sampleEvitaQLQuery,
+	                                                       @Nonnull String targetGraphQLQuery,
+	                                                       @Nonnull Predicate<Integer> entitiesCountValidator) {
+		final int[] expectedEntities = session.query(sampleEvitaQLQuery, EntityReference.class)
+			.getRecordData()
+			.stream()
+			.mapToInt(EntityReference::getPrimaryKey)
+			.toArray();
+		assertTrue(entitiesCountValidator.test(expectedEntities.length));
+		final List<Integer> actualEntities = tester.test(TEST_CATALOG)
+			.document(targetGraphQLQuery)
+			.executeAndExpectOkAndThen()
+			.extract()
+			.body()
+			.jsonPath()
+			.getList(resultPath(PRODUCT_QUERY_DATA_PATH, EntityDescriptor.PRIMARY_KEY.name()), Integer.class);
+		assertSortedResultEquals(
+			message,
+			actualEntities,
+			expectedEntities
+		);
+	}
+
 	@Nonnull
 	private static String getHierarchyStatisticsBaseArgument(@Nonnull StatisticsBase base) {
 		return "statisticsBase: " + base.name();
@@ -6260,6 +6593,46 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				""",
 			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name() : "",
 			statisticsTypes.contains(StatisticsType.CHILDREN_COUNT) ? LevelInfoDescriptor.CHILDREN_COUNT.name() : ""
+		);
+	}
+
+	@Nonnull
+	private static Query fabricateEvitaQLSegmentedQuery(int pageNumber, int pageSize, @Nonnull Segments segments) {
+		return query(
+			collection(Entities.PRODUCT),
+			filterBy(entityLocaleEquals(Locale.ENGLISH)),
+			orderBy(segments),
+			require(
+				page(pageNumber, pageSize),
+				debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+			)
+		);
+	}
+
+	@Nonnull
+	private static String fabricateGraphQLSegmentedQuery(int pageNumber, int pageSize, @Nonnull String segments) {
+		return String.format(
+			"""
+			{
+			  queryProduct(
+			    filterBy: {
+			      entityLocaleEquals: en
+			    }
+			    orderBy: {
+			      %s
+			    }
+			  ) {
+			    recordPage(number: %d, size: %d) {
+			      data {
+			        primaryKey
+			      }
+			    }
+			  }
+			}
+			""",
+			segments,
+			pageNumber,
+			pageSize
 		);
 	}
 }

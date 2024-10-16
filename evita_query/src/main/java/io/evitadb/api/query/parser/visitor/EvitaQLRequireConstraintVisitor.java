@@ -26,12 +26,13 @@ package io.evitadb.api.query.parser.visitor;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.parser.EnumWrapper;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.api.query.require.*;
@@ -49,6 +50,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -139,11 +141,55 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 	@Override
 	public RequireConstraint visitPageConstraint(@Nonnull PageConstraintContext ctx) {
+		final int pageNumber = ctx.args.pageNumber.accept(intValueTokenVisitor).asInt();
+		final int pageSize = ctx.args.pageSize.accept(intValueTokenVisitor).asInt();
+		final Spacing spacing = ctx.args.requireConstraint() == null ?
+			null :
+			of(ctx.args.requireConstraint().accept(this))
+				.map(it -> {
+					if (it instanceof final Spacing theSpacing) {
+						return theSpacing;
+					} else {
+						throw new EvitaSyntaxException(ctx, "Only `spacing` is accepted as third parameter of `page` require constraint!");
+					}
+				})
+				.orElseThrow(() -> new EvitaSyntaxException(ctx, "Only `spacing` is accepted as third parameter of `page` require constraint!"));
 		return parse(
 			ctx,
 			() -> new Page(
-				ctx.args.pageNumber.accept(intValueTokenVisitor).asInt(),
-				ctx.args.pageSize.accept(intValueTokenVisitor).asInt()
+				pageNumber,
+				pageSize,
+				spacing
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitSpacingConstraint(SpacingConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new Spacing(
+				ctx.args.constraints.stream()
+					.map(it -> it.accept(this))
+					.map(it -> {
+						if (it instanceof SpacingGap theGap) {
+							return theGap;
+						} else {
+							throw new EvitaSyntaxException(ctx, "Only `gap` is accepted as parameter of `spacing` require constraint!");
+						}
+					})
+					.toArray(SpacingGap[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitGapConstraint(GapConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new SpacingGap(
+				ctx.args.size.accept(intValueTokenVisitor).asInt(),
+				ExpressionFactory.parse(ctx.args.expression.accept(stringValueTokenVisitor).asString())
 			)
 		);
 	}
@@ -683,7 +729,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
 				Assert.isTrue(
 					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaQLInvalidQueryError(ctx, "Each requirement must be of a different type.")
+					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
 				);
 
 				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
@@ -699,7 +745,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 						managedReferencesBehaviour, attributeContent, null, entityGroupFetch
 					);
 				} else {
-					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
+					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
 				}
 			}
 		);
@@ -785,7 +831,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
 				Assert.isTrue(
 					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaQLInvalidQueryError(ctx, "Each requirement must be of a different type.")
+					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
 				);
 
 				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
@@ -801,7 +847,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 						managedReferencesBehaviour, classifier, null, null, attributeContent, null, entityGroupFetch
 					);
 				} else {
-					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
+					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
 				}
 			}
 		);
@@ -901,7 +947,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
 				Assert.isTrue(
 					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaQLInvalidQueryError(ctx, "Each requirement must be of a different type.")
+					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
 				);
 
 				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
@@ -917,7 +963,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 						managedReferencesBehaviour, classifier, filterBy, null, attributeContent, null, entityGroupFetch
 					);
 				} else {
-					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
+					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
 				}
 			}
 		);
@@ -1019,7 +1065,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
 				Assert.isTrue(
 					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaQLInvalidQueryError(ctx, "Each requirement must be of a different type.")
+					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
 				);
 
 				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
@@ -1035,7 +1081,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 						managedReferencesBehaviour, classifier, null, orderBy, attributeContent, null, entityGroupFetch
 					);
 				} else {
-					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
+					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
 				}
 			}
 		);
@@ -1139,7 +1185,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class);
 				Assert.isTrue(
 					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaQLInvalidQueryError(ctx, "Each requirement must be of a different type.")
+					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
 				);
 
 				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
@@ -1155,7 +1201,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 						managedReferencesBehaviour, classifier, filterBy, orderBy, attributeContent, null, entityGroupFetch
 					);
 				} else {
-					throw new EvitaQLInvalidQueryError(ctx, "Invalid combination of requirements.");
+					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
 				}
 			}
 		);
@@ -1207,7 +1253,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				} else if (requirement instanceof final EntityFetch entityFetch) {
 					return new HierarchyContent(entityFetch);
 				} else {
-					throw new EvitaQLInvalidQueryError(ctx, "Unsupported requirement constraint. Only `stopAt` and `entityFetch` are supported.");
+					throw new EvitaSyntaxException(ctx, "Unsupported requirement constraint. Only `stopAt` and `entityFetch` are supported.");
 				}
 			}
 		);
@@ -1335,7 +1381,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		if (filterBy2 != null) {
 			Assert.isTrue(
 				filterBy1 instanceof FilterBy,
-				() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
+				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
 			);
 		}
 
@@ -1350,7 +1396,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		if (orderBy2 != null) {
 			Assert.isTrue(
 				orderBy1 instanceof OrderBy,
-				() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
+				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
 			);
 		}
 
@@ -1395,7 +1441,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				if (filterBy2 != null) {
 					Assert.isTrue(
 						filterBy1 instanceof FilterBy,
-						() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
+						() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
 					);
 				}
 
@@ -1410,7 +1456,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				if (orderBy2 != null) {
 					Assert.isTrue(
 						orderBy1 instanceof OrderBy,
-						() -> new EvitaQLInvalidQueryError(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
+						() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
 					);
 				}
 
@@ -1980,7 +2026,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			} else if (requirement instanceof final EntityGroupFetch groupEntityRequirement) {
 				return new EntityRequire[]{groupEntityRequirement};
 			} else {
-				throw new EvitaQLInvalidQueryError(ctx, "Unsupported requirement constraint.");
+				throw new EvitaSyntaxException(ctx, "Unsupported requirement constraint.");
 			}
 		}
 		return new EntityRequire[]{

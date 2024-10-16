@@ -1,0 +1,18 @@
+{
+  queryProduct(
+    orderBy: [
+      {
+        randomWithSeed: "42"
+      }
+    ]
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

@@ -28,7 +28,7 @@ import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.require.QueryPriceMode;
 import org.junit.jupiter.api.Test;
 
@@ -378,30 +378,30 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseQueryString() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery("query(filterBy(attributeEquals('a','b')))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery("query(collection(?))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery("query(collection(@collection))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery("query(collection(@collection))", Map.of("attr", "some")));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery(""));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery("'b'"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery("attributeEqualsTrue('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery("query(collection('a')) query(collection('b'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(filterBy(attributeEquals('a','b')))"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(collection(?))"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(collection(@collection))"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(collection(@collection))", Map.of("attr", "some")));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery(""));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("'b'"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("attributeEqualsTrue('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(collection('a')) query(collection('b'))"));
     }
 
     @Test
     void shouldNotParseQueryUnsafeString() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe("query(collection(?))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe("query(collection(@collection))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe("query(collection(@collection))", Map.of("attr", "some")));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe(""));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe("'b'"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe("attributeEqualsTrue('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe("query(collection('a')) query(collection('b'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("query(collection(?))"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("query(collection(@collection))"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("query(collection(@collection))", Map.of("attr", "some")));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe(""));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("'b'"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("attributeEqualsTrue('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("query(collection('a')) query(collection('b'))"));
     }
 
     @Test
     void shouldParseQueryWithIncorrectQuotationMarks() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe("query(collection('a\"))"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("query(collection('a\"))"));
     }
 
     @Test
@@ -440,8 +440,8 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseHeadConstraintList() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseHeadConstraintList("attributeEqualsTrue('code')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseHeadConstraintList("collection('product'),attributeEqualsTrue('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseHeadConstraintList("attributeEqualsTrue('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseHeadConstraintList("collection('product'),attributeEqualsTrue('code')"));
     }
 
     @Test
@@ -455,8 +455,8 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseHeadConstraintUnsafeList() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseHeadConstraintListUnsafe("attributeEqualsTrue('code')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseHeadConstraintListUnsafe("collection('product'),attributeEqualsTrue('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseHeadConstraintListUnsafe("attributeEqualsTrue('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseHeadConstraintListUnsafe("collection('product'),attributeEqualsTrue('code')"));
     }
 
     @Test
@@ -495,9 +495,9 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseFilterConstraintList() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseFilterConstraintList("collection('code')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseFilterConstraintList("attributeEqualsTrue('product'),collection('code')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseFilterConstraintList("attributeEquals('code',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseFilterConstraintList("collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseFilterConstraintList("attributeEqualsTrue('product'),collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseFilterConstraintList("attributeEquals('code',2)"));
     }
 
     @Test
@@ -511,8 +511,8 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseFilterConstraintUnsafeList() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseFilterConstraintListUnsafe("collection('code')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseFilterConstraintListUnsafe("attributeEqualsTrue('product'),collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseFilterConstraintListUnsafe("collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseFilterConstraintListUnsafe("attributeEqualsTrue('product'),collection('code')"));
     }
 
     @Test
@@ -551,9 +551,9 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseOrderConstraintList() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseOrderConstraintList("collection('code')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseOrderConstraintList("attributeNatural('product'),collection('code')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseOrderConstraintList("attributeNatural('code',DESC)"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseOrderConstraintList("collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseOrderConstraintList("attributeNatural('product'),collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseOrderConstraintList("attributeNatural('code',DESC)"));
     }
 
     @Test
@@ -567,8 +567,8 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseOrderConstraintListUnsafe() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseOrderConstraintListUnsafe("collection('code')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseOrderConstraintListUnsafe("attributeNatural('product'),collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseOrderConstraintListUnsafe("collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseOrderConstraintListUnsafe("attributeNatural('product'),collection('code')"));
     }
 
     @Test
@@ -607,9 +607,9 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseRequireConstraintList() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseRequireConstraintList("collection('product')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseRequireConstraintList("attributeContent('code'),collection('product')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseRequireConstraintList("priceType(WITH_TAX)"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseRequireConstraintList("collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseRequireConstraintList("attributeContent('code'),collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseRequireConstraintList("priceType(WITH_TAX)"));
     }
 
     @Test
@@ -623,8 +623,8 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseRequireConstraintListUnsafe() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseRequireConstraintListUnsafe("collection('product')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseRequireConstraintListUnsafe("attributeContent('code'),collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseRequireConstraintListUnsafe("collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseRequireConstraintListUnsafe("attributeContent('code'),collection('product')"));
     }
 
     @Test
@@ -638,13 +638,13 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseValueString() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseValue("?"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseValue("@name"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseValue("@name", Map.of("col", "some")));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseValue(""));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseValue("_"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseValue("attributeEqualsTrue('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseValue("12 24"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseValue("query(collection('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("?"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("@name"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("@name", Map.of("col", "some")));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue(""));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("_"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("attributeEqualsTrue('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("12 24"));
+        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("query(collection('a'))"));
     }
 }

@@ -26,7 +26,7 @@ package io.evitadb.api.query.parser.visitor;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.parser.Value;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeInRangeNowConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
@@ -375,7 +375,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 				} else if (OffsetDateTime.class.isAssignableFrom(attributeValue.getType())) {
 					return new AttributeInRange(attributeName, attributeValue.asOffsetDateTime());
 				} else {
-					throw new EvitaQLInvalidQueryError(
+					throw new EvitaSyntaxException(
 						ctx,
 						"Filter constraint `attributeInRange` requires arguments!");
 				}

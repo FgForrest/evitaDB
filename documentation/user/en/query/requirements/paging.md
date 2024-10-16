@@ -67,7 +67,8 @@ The pagination in this case has two versions - `page` (`recordPage` field) and `
 ```evitaql-syntax
 page(
     argument:int!,
-    argument:int!
+    argument:int!,
+    requireConstraint:spacing?
 )
 ```
 
@@ -79,6 +80,11 @@ page(
     <dt>argument:int</dt>
     <dd>
         a mandatory size of the page to be returned, positive integer
+    </dd>
+    <dt>requireConstraint:spacing?</dt>
+    <dd>
+        an optional constraint that specifies rules for leaving spaces on certain pages of the query result
+        (see [spacing constraint](#spacing) chapter for more details)
     </dd>
 </dl>
 
@@ -166,6 +172,7 @@ To get the second page of the query result, use the following query:
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Second page of results retrieval example](/documentation/user/en/query/requirements/examples/paging/page.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -321,3 +328,160 @@ no order was specified in the query.
 </LS>
 
 </Note>
+
+### Spacing
+
+```evitaql-syntax
+spacing(
+    requireConstraint:gap+   
+)
+```
+
+<dl>
+    <dt>requireConstraint:gap+</dt>
+    <dd>
+        one or more constraints that specify rules for leaving spaces on certain pages of the query result
+    </dd>
+</dl>
+
+The `spacing` requirement is a container for one or more `gap` constraints that specify rules for leaving spaces on
+particular pages of the query result. It modifies the default behavior of the [`page`](#page) constraint, reducing
+the number of records returned on certain pages. It also affects the number of pages (the `lastPageNumber` property
+of the <LS to="e,j,r"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/DataTypes/PaginatedList.cs</SourceClass></LS>). The [`gap`](#gap) rules are 
+additive, and the gap sizes are the sum of all gap rules that apply to the given page.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Performance considerations
+
+</NoteTitle>
+
+To avoid having to recalculate the rule for every page in the result set, you can limit the scope by adding a constant 
+expression to the rule. For example, the rule `$pageNumber % 2 == 0 && $pageNumber <= 10` will only be recalculated for 
+the first 10 pages of the query result, because the interpreter knows that the rule will never be satisfied for 
+the remaining pages.
+</Note>
+
+Spacing constraints are useful when you need to make room for additional content on certain pages of the query result, 
+such as advertisements, banners, blog posts, or other external content that you want to display between records. 
+For example, let's say you want to display an ad on every even page up to the 10th page, and you also want to display
+a blog post on the 1st and 4th page. To accomplish this, you would use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Inserted spacing example](/documentation/user/en/query/requirements/examples/paging/spacing_page1.evitaql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of requested page with inserted spacing example
+</NoteTitle>
+
+The first page contains 9 records (one slot left for the blog post), the second page contains 9 records (one slot left 
+for the advertisement, because the page number is even), and the fourth page contains only 8 records (one slot left for 
+the blog post and one slot left for the advertisement, because the page number is even), the last page number is 
+recalculated because a total of 7 records were left on the front pages.
+
+**First page:**
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page1.evitaql.json.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page1.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page1.rest.json.md)</MDInclude>
+
+</LS>
+
+**Second page:**
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Inserted spacing example](/documentation/user/en/query/requirements/examples/paging/spacing_page2.evitaql)
+
+</SourceCodeTabs>
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page2.evitaql.json.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page2.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page2.rest.json.md)</MDInclude>
+
+</LS>
+
+**Fourth page:**
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Inserted spacing example](/documentation/user/en/query/requirements/examples/paging/spacing_page4.evitaql)
+
+</SourceCodeTabs>
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page4.evitaql.json.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page4.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page4.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+### Gap
+
+```evitaql-syntax
+gap(
+    argument:int!,
+    argument:expression!
+)
+```
+
+<dl>
+    <dt>argument:int</dt>
+    <dd>
+        a mandatory number specifying the size of the gap to leave empty on the page (i.e., the number of records to 
+        skip on the page)
+    </dd>
+    <dt>argument:expression</dt>
+    <dd>
+        <p>a mandatory [expression](../expression-language.md) that must be evaluated to a boolean value, indicating 
+        whether the gap should be applied to the given page or not.</p>
+        <p>the expression can use the following variables:
+            <ul>
+                <li>`int`: `pageNumber` - the number of the page to be evaluated</li>
+            </ul>
+        </p>
+    </dd>
+</dl>
+
+The `gap` requirement specifies a single rule for leaving a gap of a given size on a given page, identified by 
+the expression for each page. Detailed usage is documented in the [spacing constraint](#spacing) chapter.

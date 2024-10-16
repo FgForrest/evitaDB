@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,27 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.parser.error;
+package io.evitadb.externalApi.api.catalog.dataApi.constraint;
 
-import org.antlr.v4.runtime.BaseErrorListener;
-import org.antlr.v4.runtime.RecognitionException;
-import org.antlr.v4.runtime.Recognizer;
+import javax.annotation.Nonnull;
 
 /**
- * Error listener which throws {@link EvitaQLInvalidQueryError} on each syntax error.
+ * Pointer to an entity collection managed by evitaDB.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public class EvitaQLErrorReporter extends BaseErrorListener {
-
-	private static final EvitaQLErrorReporter INSTANCE = new EvitaQLErrorReporter();
-
-	public static EvitaQLErrorReporter getInstance() {
-		return INSTANCE;
-	}
-
-	@Override
-	public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
-		throw new EvitaQLInvalidQueryError(line, charPositionInLine, "Syntax error: " + msg);
-	}
+public record ManagedEntityTypePointer(@Nonnull String entityType) implements EntityTypePointer {
 }

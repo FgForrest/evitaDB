@@ -119,7 +119,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		this.constraintContext = new GraphQLConstraintSchemaBuildingContext(buildingContext);
 
 		this.filterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintContext);
-		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(constraintContext);
+		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(
+			constraintContext,
+			new AtomicReference<>(filterConstraintSchemaBuilder)
+		);
 		this.mainRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forMainRequire(
 			constraintContext,
 			new AtomicReference<>(filterConstraintSchemaBuilder)

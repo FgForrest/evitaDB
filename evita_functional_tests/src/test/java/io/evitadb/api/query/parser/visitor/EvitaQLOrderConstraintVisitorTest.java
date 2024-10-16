@@ -29,7 +29,7 @@ import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -66,9 +66,9 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParseOrderByConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderBy"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("orderBy(attributeNatural('a'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderBy(attributeEquals('a',1))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("orderBy(attributeNatural('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(attributeEquals('a',1))"));
     }
 
     @Test
@@ -88,9 +88,9 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParseOrderGroupByConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderGroupBy"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("orderGroupBy(attributeEquals('a',1))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("orderGroupBy(attributeNatural('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderGroupBy"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderGroupBy(attributeEquals('a',1))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("orderGroupBy(attributeNatural('a'))"));
     }
 
     @Test
@@ -116,14 +116,14 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeNaturalConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeNatural('a',DESC)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeNatural('a',?)", DESC));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeNatural('a',?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeNatural('a',@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeNatural"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeNatural()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeNatural(10)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeNatural('a', 'b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("attributeNatural('a',DESC)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("attributeNatural('a',?)", DESC));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("attributeNatural('a',?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("attributeNatural('a',@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("attributeNatural"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("attributeNatural()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("attributeNatural(10)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("attributeNatural('a', 'b')"));
     }
 
     @Test
@@ -155,13 +155,13 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeSetExactConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeSetExact"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeSetExact()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeSetExact('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeSetExact('a',1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeSetExact('a',?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeSetExact('a',?)", 1));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeSetExact('a',@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("attributeSetExact"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("attributeSetExact()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("attributeSetExact('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("attributeSetExact('a',1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("attributeSetExact('a',?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("attributeSetExact('a',?)", 1));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("attributeSetExact('a',@b)"));
     }
 
     @Test
@@ -175,10 +175,10 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeSetInFilterConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeSetInFilter"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeSetInFilter()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("attributeSetInFilter(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("attributeSetInFilter('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("attributeSetInFilter"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("attributeSetInFilter()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("attributeSetInFilter(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("attributeSetInFilter('a')"));
     }
 
     @Test
@@ -204,12 +204,12 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParsePriceNaturalConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("priceNatural(DESC)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("priceNatural(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("priceNatural(@a)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceNatural"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceNatural('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceNatural('a', 'b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("priceNatural(DESC)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("priceNatural(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("priceNatural(@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("priceNatural"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("priceNatural('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("priceNatural('a', 'b')"));
     }
 
     @Test
@@ -235,11 +235,11 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParsePriceDiscountConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceDiscount(DESC)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("priceDiscount(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("priceDiscount(@a)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceDiscount"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("priceDiscount()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("priceDiscount(DESC)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("priceDiscount(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("priceDiscount(@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("priceDiscount"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("priceDiscount()"));
     }
 
     @Test
@@ -249,12 +249,20 @@ class EvitaQLOrderConstraintVisitorTest {
 
         final OrderConstraint constraint2 = parseOrderConstraint("random (  )");
         assertEquals(random(), constraint2);
+
+        final OrderConstraint constraint3 = parseOrderConstraintUnsafe("randomWithSeed(42)");
+        assertEquals(randomWithSeed(42), constraint3);
+
+        final OrderConstraint constraint4 = parseOrderConstraintUnsafe("randomWithSeed(  42 )");
+        assertEquals(randomWithSeed(42), constraint4);
     }
 
     @Test
     void shouldNotParseRandomConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("random"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("random('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("random"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("random('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("randomWithSeed()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("randomWithSeed(42, 4)"));
     }
 
     @Test
@@ -318,13 +326,13 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParseReferencePropertyConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("referenceProperty(?,attributeNatural('b'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("referenceProperty(@a,attributeNatural('b'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("referenceProperty"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("referenceProperty()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("referenceProperty('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("referenceProperty('a',1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("referenceProperty('a',attributeNatural('b'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("referenceProperty(?,attributeNatural('b'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("referenceProperty(@a,attributeNatural('b'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("referenceProperty"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("referenceProperty()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("referenceProperty('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("referenceProperty('a',1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("referenceProperty('a',attributeNatural('b'))"));
     }
 
     @Test
@@ -350,12 +358,12 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParseEntityPrimaryKeyExactConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyExact"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyExact()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyExact('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("entityPrimaryKeyExact(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("entityPrimaryKeyExact(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("entityPrimaryKeyExact(@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyExact"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyExact()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyExact('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("entityPrimaryKeyExact(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("entityPrimaryKeyExact(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("entityPrimaryKeyExact(@b)"));
     }
 
     @Test
@@ -366,9 +374,9 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParseEntityPrimaryKeyInFilterConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyInFilter"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyInFilter(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("entityPrimaryKeyInFilter(DESC)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyInFilter"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyInFilter(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("entityPrimaryKeyInFilter(DESC)"));
     }
 
     @Test
@@ -388,9 +396,9 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParseEntityPrimaryKeyNaturalConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyNatural"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyNatural(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("entityPrimaryKeyNatural(DESC)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyNatural"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyNatural(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("entityPrimaryKeyNatural(DESC)"));
     }
 
     @Test
@@ -427,15 +435,60 @@ class EvitaQLOrderConstraintVisitorTest {
 
     @Test
     void shouldNotParseEntityPropertyConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityProperty"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityProperty()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityProperty('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityProperty('a',priceNatural())"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityProperty(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityProperty(and())"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("entityProperty(attributeNatural('b'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityProperty"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityProperty()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityProperty('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityProperty('a',priceNatural())"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityProperty(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("entityProperty(and())"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("entityProperty(attributeNatural('b'))"));
     }
 
+    @Test
+    void shouldParseSegmentConstraint() {
+        final OrderConstraint constraint1 = parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()))))");
+        assertEquals(orderBy(segments(segment(orderBy(random())))), constraint1);
+
+        final OrderConstraint constraint2 = parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random())),segment(orderBy(random()))))");
+        assertEquals(orderBy(segments(segment(orderBy(random())), segment(orderBy(random())))), constraint2);
+
+        final OrderConstraint constraint3 = parseOrderConstraintUnsafe("orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()))))");
+        assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random())))), constraint3);
+
+        final OrderConstraint constraint4 = parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()), limit(5))))");
+        assertEquals(orderBy(segments(segment(orderBy(random()), limit(5)))), constraint4);
+
+        final OrderConstraint constraint5 = parseOrderConstraintUnsafe("orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()), limit(5))))");
+        assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()), limit(5)))), constraint5);
+
+        final OrderConstraint constraint6 = parseOrderConstraintUnsafe("orderBy( segments ( segment(   entityHaving( entityPrimaryKeyInSet( 1)), orderBy (random()), limit(5)), segment ( orderBy ( randomWithSeed(8 )) ) ) ))");
+        assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()), limit(5)), segment(orderBy(randomWithSeed(8L))))), constraint6);
+
+        final OrderConstraint constraint7 = parseOrderConstraint(
+            "orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(?)),orderBy(random()),limit(?)),segment(orderBy(randomWithSeed(?))))))",
+            1, 5, 8L
+        );
+        assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1)), orderBy(random()), limit(5)), segment(orderBy(randomWithSeed(8L))))), constraint7);
+
+        final OrderConstraint constraint8 = parseOrderConstraint(
+            "orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(@pk)),orderBy(random()),limit(@limit)),segment(orderBy(randomWithSeed(@seed))))))",
+            Map.of("pk", 10, "limit", 20, "seed", 8L)
+        );
+        assertEquals(orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(10)), orderBy(random()), limit(20)), segment(orderBy(randomWithSeed(8L))))), constraint8);
+    }
+
+    @Test
+    void shouldNotParseSegmentConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments())"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment()))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(attributeEquals('a', 1)))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(entityHaving(entityPrimaryKeyInSet(1))))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(limit(5)))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(random()))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()), random()))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()), limit(?))))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("orderBy(segments(segment(orderBy(random()), limit(5))))"));
+    }
 
     /**
      * Using generated EvitaQL parser tries to parse string as grammar rule "orderConstraint"

@@ -99,6 +99,7 @@ import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.ResponseConverter;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
+import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter.TypeConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
@@ -149,6 +150,7 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toOff
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toTaskStatus;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter.toGrpcChangeCaptureRequest;
+import static io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter.SEALED_ENTITY_TYPE_CONVERTER;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -509,10 +511,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			query,
 			OffsetDateTime.now(),
 			expectedType,
-			extractEntityTypeFromClass(expectedType, reflectionLookup).orElse(null),
-			this::createEntityProxy
+			extractEntityTypeFromClass(expectedType, reflectionLookup).orElse(null)
 		);
-		return queryOneInternal(query, expectedType, evitaRequest);
+		return queryOneInternal(query, expectedType, evitaRequest, this::createEntityProxy);
 	}
 
 	@Nonnull
@@ -522,10 +523,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			query,
 			OffsetDateTime.now(),
 			expectedType,
-			extractEntityTypeFromClass(expectedType, reflectionLookup).orElse(null),
-			this::createEntityProxy
+			extractEntityTypeFromClass(expectedType, reflectionLookup).orElse(null)
 		);
-		return queryListInternal(query, expectedType, evitaRequest);
+		return queryListInternal(query, expectedType, evitaRequest, this::createEntityProxy);
 	}
 
 	@Nonnull
@@ -562,8 +562,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						finalQuery,
 						OffsetDateTime.now(),
 						EntityReference.class,
-						null,
-						this::createEntityProxy
+						null
 					)
 				)
 			);
@@ -583,13 +582,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 							finalQuery,
 							OffsetDateTime.now(),
 							expectedType,
-							expectedEntityType,
-							this::createEntityProxy
+							expectedEntityType
 						),
 						(entityType, schemaVersion) -> schemaCache.getEntitySchemaOrThrowException(
 							entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
 						),
-						expectedType
+						expectedType,
+						this::createEntityProxy
 					)
 				);
 			} else {
@@ -614,8 +613,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						finalQuery,
 						OffsetDateTime.now(),
 						expectedType,
-						expectedEntityType,
-						this::createEntityProxy
+						expectedEntityType
 					)
 				)
 			);
@@ -634,10 +632,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			SealedEntity.class,
-			null,
-			this::createEntityProxy
+			null
 		);
-		return getEntityInternal(entityType, SealedEntity.class, primaryKey, evitaRequest, require);
+		return getEntityInternal(entityType, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER, primaryKey, evitaRequest, require);
 	}
 
 	@Nonnull
@@ -654,10 +651,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
-			entityType,
-			this::createEntityProxy
+			entityType
 		);
-		return getEntityInternal(entityType, expectedType, primaryKey, evitaRequest, require);
+		return getEntityInternal(entityType, expectedType, this::createEntityProxy, primaryKey, evitaRequest, require);
 	}
 
 	@Nonnull
@@ -693,12 +689,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 			OffsetDateTime.now(),
 			expectedType,
 			extractEntityTypeFromClass(expectedType, reflectionLookup)
-				.orElse(null),
-			this::createEntityProxy
+				.orElse(null)
 		);
 
 		//noinspection unchecked
-		return (T) getEntityInternal(entityType, expectedType, entityPk, evitaRequest, require)
+		return (T) getEntityInternal(entityType, expectedType, this::createEntityProxy, entityPk, evitaRequest, require)
 			.orElseThrow(() -> new EntityAlreadyRemovedException(entityType, entityPk));
 	}
 
@@ -736,12 +731,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 			OffsetDateTime.now(),
 			expectedType,
 			extractEntityTypeFromClass(expectedType, reflectionLookup)
-				.orElse(null),
-			this::createEntityProxy
+				.orElse(null)
 		);
 
 		//noinspection unchecked
-		return (T) getEntityInternal(entityType, expectedType, entityPk, evitaRequest, require)
+		return (T) getEntityInternal(entityType, expectedType, this::createEntityProxy, entityPk, evitaRequest, require)
 			.orElseThrow(() -> new EntityAlreadyRemovedException(entityType, entityPk));
 	}
 
@@ -1135,11 +1129,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 					),
 					OffsetDateTime.now(),
 					SealedEntity.class,
-					null,
-					this::createEntityProxy
+					null
 				),
 				grpcResponse.getEntity(),
-				SealedEntity.class
+				SealedEntity.class,
+				SEALED_ENTITY_TYPE_CONVERTER
 			);
 		});
 	}
@@ -1174,7 +1168,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> deleteEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
-		return deleteEntityInternal(entityType, SealedEntity.class, primaryKey, require);
+		return deleteEntityInternal(entityType, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER, primaryKey, require);
 	}
 
 	@Nonnull
@@ -1183,7 +1177,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return deleteEntityInternal(
 			extractEntityTypeFromClass(modelClass, reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
-			modelClass, primaryKey, require
+			modelClass, this::createEntityProxy, primaryKey, require
 		);
 	}
 
@@ -1208,16 +1202,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public DeletedHierarchy<SealedEntity> deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
-		return deleteEntityHierarchyInternal(entityType, SealedEntity.class, primaryKey, require);
+		return deleteEntityHierarchyInternal(entityType, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER, primaryKey, require);
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EvitaInvalidUsageException, EntityClassInvalidException {
+	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EvitaInvalidUsageException {
 		return deleteEntityHierarchyInternal(
 			extractEntityTypeFromClass(modelClass, reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
-			modelClass, primaryKey, require
+			modelClass, this::createEntityProxy, primaryKey, require
 		);
 	}
 
@@ -1254,8 +1248,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				query,
 				OffsetDateTime.now(),
 				SealedEntity.class,
-				null,
-				this::createEntityProxy
+				null
 			);
 			final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
 			final GrpcDeleteEntitiesResponse grpcResponse = executeWithBlockingEvitaSessionService(
@@ -1282,7 +1275,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 						),
 						evitaRequest,
 						it,
-						SealedEntity.class
+						SealedEntity.class,
+						SEALED_ENTITY_TYPE_CONVERTER
 					)
 				)
 				.toArray(SealedEntity[]::new);
@@ -1550,6 +1544,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private <T> Optional<T> getEntityInternal(
 		@Nonnull String entityType,
 		@Nonnull Class<T> expectedType,
+		@Nonnull TypeConverter<T> typeConverter,
 		int primaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		EntityContentRequire... require
@@ -1577,13 +1572,14 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 		return grpcResponse.hasEntity() ?
 			Optional.of(
-				(T) EntityConverter.toEntity(
+				EntityConverter.toEntity(
 					entity -> schemaCache.getEntitySchemaOrThrowException(
 						entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 					),
 					evitaRequest,
 					grpcResponse.getEntity(),
-					expectedType
+					expectedType,
+					typeConverter
 				)
 			) : Optional.empty();
 	}
@@ -1592,7 +1588,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private <S extends Serializable> List<S> queryListInternal(
 		@Nonnull Query query,
 		@Nonnull Class<S> expectedType,
-		@Nonnull EvitaRequest evitaRequest
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull TypeConverter<S> typeConverter
 	) {
 		assertActive();
 		final Query finalQuery = assertRequestMakesSenseAndEntityTypeIsPresent(query, expectedType, reflectionLookup);
@@ -1624,7 +1621,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 					(entityType, schemaVersion) -> schemaCache.getEntitySchemaOrThrowException(
 						entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
 					),
-					expectedType
+					expectedType,
+					typeConverter
 				);
 			} else {
 				// parse the entities
@@ -1761,7 +1759,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private <S extends Serializable> Optional<S> queryOneInternal(
 		@Nonnull Query query,
 		@Nonnull Class<S> expectedType,
-		@Nonnull EvitaRequest evitaRequest
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull TypeConverter<S> typeConverter
 	) {
 		assertActive();
 		final Query finalQuery = assertRequestMakesSenseAndEntityTypeIsPresent(query, expectedType, reflectionLookup);
@@ -1806,14 +1805,21 @@ public class EvitaClientSession implements EvitaSessionContract {
 					),
 					evitaRequest,
 					sealedEntity,
-					expectedType
+					expectedType,
+					typeConverter
 				));
 			}
 		}
 	}
 
 	@Nonnull
-	private <T> Optional<T> deleteEntityInternal(@Nonnull String entityType, @Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire[] require) {
+	private <T> Optional<T> deleteEntityInternal(
+		@Nonnull String entityType,
+		@Nonnull Class<T> expectedType,
+		@Nonnull TypeConverter<T> typeConverter,
+		int primaryKey,
+		@Nonnull EntityContentRequire[] require
+	) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
@@ -1850,11 +1856,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 							OffsetDateTime.now(),
 							expectedType,
 							extractEntityTypeFromClass(expectedType, reflectionLookup)
-								.orElse(null),
-							this::createEntityProxy
+								.orElse(null)
 						),
 						grpcResponse.getEntity(),
-						expectedType
+						expectedType,
+						typeConverter
 					)
 				) : empty();
 		});
@@ -1864,8 +1870,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private <T> DeletedHierarchy<T> deleteEntityHierarchyInternal(
 		@Nonnull String entityType,
 		@Nonnull Class<T> expectedType,
+		@Nonnull TypeConverter<T> typeConverter,
 		int primaryKey,
-		EntityContentRequire... require
+		@Nonnull EntityContentRequire... require
 	) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
@@ -1904,11 +1911,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 							OffsetDateTime.now(),
 							expectedType,
 							extractEntityTypeFromClass(expectedType, reflectionLookup)
-								.orElse(null),
-							this::createEntityProxy
+								.orElse(null)
 						),
 						grpcResponse.getDeletedRootEntity(),
-						expectedType
+						expectedType,
+						typeConverter
 					) : null
 			);
 		});

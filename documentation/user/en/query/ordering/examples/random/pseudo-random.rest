@@ -1,0 +1,16 @@
+POST /rest/evita/Product/query
+
+{
+  "orderBy" : [
+    {
+      "randomWithSeed" : "42"
+    }
+  ],
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

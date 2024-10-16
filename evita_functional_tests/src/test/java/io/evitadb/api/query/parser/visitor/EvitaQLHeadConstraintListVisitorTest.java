@@ -28,7 +28,7 @@ import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -74,9 +74,9 @@ class EvitaQLHeadConstraintListVisitorTest {
 
     @Test
     void shouldNotParseHeadConstraintList() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraintList("attributeEqualsTrue('code')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraintList("collection('product'),attributeEqualsTrue('code')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraintList("collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraintList("attributeEqualsTrue('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraintList("collection('product'),attributeEqualsTrue('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraintList("collection('product')"));
     }
 
 

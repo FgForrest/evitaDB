@@ -4234,6 +4234,42 @@ public class EntityByAttributeFilteringFunctionalTest {
 		assertArrayEquals(results[0], results[1], "After sorting arrays should be equal.");
 	}
 
+	@DisplayName("Should return entities randomly in consistent way using seed")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldSortEntitiesRandomlyUsingProvidedSeed(Evita evita) {
+		final int[][] results = new int[2][];
+		for (int i = 0; i < 2; i++) {
+			results[i] = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReference> result = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							orderBy(
+								randomWithSeed(42)
+							),
+							require(
+								page(1, Integer.MAX_VALUE),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
+						),
+						EntityReference.class
+					);
+					return result
+						.getRecordData()
+						.stream()
+						.mapToInt(EntityReference::getPrimaryKey)
+						.toArray();
+				}
+			);
+		}
+		assertArrayEquals(results[0], results[1]);
+		Arrays.sort(results[0]);
+		// sorted array must differ from random one
+		assertArrayAreDifferent(results[0], results[1]);
+	}
+
 	@DisplayName("Should return entities sorted by String attribute (combined with filtering)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test

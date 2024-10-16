@@ -97,12 +97,12 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
     }
 
     public AttributeNatural(@Nonnull String attributeName) {
-        super(attributeName, OrderDirection.ASC);
+        super(new Serializable[] { attributeName, OrderDirection.ASC });
     }
 
     @Creator
     public AttributeNatural(@Nonnull @Classifier String attributeName, @Nonnull OrderDirection orderDirection) {
-        super(attributeName, orderDirection);
+        super(new Serializable[] { attributeName, orderDirection });
     }
 
     @Override

@@ -28,6 +28,8 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.SegmentDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
@@ -37,6 +39,7 @@ import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.ArgumentS
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Locale;
 
 /**
@@ -67,7 +70,7 @@ public class RecordsConverter extends RequireConverter {
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
 						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
-				getRecordPageArguments(page)
+				getRecordPageArguments(entityType, page)
 			);
 		} else if (strip != null) {
 			requireBuilder.addObjectField(
@@ -88,25 +91,42 @@ public class RecordsConverter extends RequireConverter {
 	}
 
 	@Nonnull
-	private ArgumentSupplier[] getRecordPageArguments(@Nonnull Page page) {
+	private ArgumentSupplier[] getRecordPageArguments(@Nonnull String entityType, @Nonnull Page page) {
 		if (page.getPageNumber() == 1 && page.getPageSize() == 20) {
 			// we can ignore defaults, to make the query simpler
 			return new ArgumentSupplier[0];
 		} else {
-			return new ArgumentSupplier[] {
+			final ArrayList<ArgumentSupplier> argumentSuppliers = new ArrayList<>(3);
+			argumentSuppliers.add(
 				(offset, multipleArguments) -> new Argument(
 					RecordPageFieldHeaderDescriptor.NUMBER,
 					offset,
 					multipleArguments,
 					page.getPageNumber()
-				),
+				)
+			);
+			argumentSuppliers.add(
 				(offset, multipleArguments) -> new Argument(
 					RecordPageFieldHeaderDescriptor.SIZE,
 					offset,
 					multipleArguments,
 					page.getPageSize()
 				)
+			);
+			if (page.getSpacing().isPresent()) {
+				argumentSuppliers.add(
+					(offset, multipleArguments) -> new Argument(
+						RecordPageFieldHeaderDescriptor.SPACING,
+						offset,
+						multipleArguments,
+						convertRequireConstraint(
+							new SegmentDataLocator(new ManagedEntityTypePointer(entityType)),
+							page.getSpacing().get()
+						).orElse(null)
+					)
+				);
 			};
+			return argumentSuppliers.toArray(new ArgumentSupplier[0]);
 		}
 	}
 

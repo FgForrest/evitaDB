@@ -24,11 +24,11 @@
 package io.evitadb.core.query.sort;
 
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntConsumer;
 
 /**
  * Sorter implementation allows to convert and slice result of the {@link Formula#compute()} to final slice of data
@@ -60,8 +60,17 @@ public interface Sorter {
 	Sorter getNextSorter();
 
 	/**
-	 * Method sorts output of the {@link AbstractFormula} input and extracts slice of the result data between `startIndex` (inclusive)
-	 * and `endIndex` (exclusive).
+	 * Sorts the data produced by the given {@link Formula}, slices the sorted data according to the provided
+	 * pagination parameters, and stores the result in the specified array.
+	 *
+	 * @param queryContext           The context of the query execution.
+	 * @param input                  The formula whose computed results need to be sorted.
+	 * @param startIndex             The starting index for the slicing (inclusive).
+	 * @param endIndex               The ending index for the slicing (exclusive).
+	 * @param result                 An array to store the sliced result.
+	 * @param peak                   A parameter to indicate last index of the result array where the data has been written.
+	 * @param skippedRecordsConsumer A consumer to handle the records that are skipped during the process.
+	 * @return The number of records that were processed and stored in the result array.
 	 */
 	int sortAndSlice(
 		@Nonnull QueryExecutionContext queryContext,
@@ -69,7 +78,39 @@ public interface Sorter {
 		int startIndex,
 		int endIndex,
 		@Nonnull int[] result,
-		int peak
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
 	);
+
+	/**
+	 * Sorts the data produced by the given {@link Formula}, slices the sorted data according to the provided
+	 * pagination parameters, and stores the result in the specified array.
+	 *
+	 * @param queryContext           The context of the query execution.
+	 * @param input                  The formula whose computed results need to be sorted.
+	 * @param startIndex             The starting index for the slicing (inclusive).
+	 * @param endIndex               The ending index for the slicing (exclusive).
+	 * @param result                 An array to store the sliced result.
+	 * @param peak                   A parameter to indicate last index of the result array where the data has been written.
+	 * @return The number of records that were processed and stored in the result array.
+	 */
+	default int sortAndSlice(
+		@Nonnull QueryExecutionContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak
+	) {
+		return sortAndSlice(
+			queryContext,
+			input,
+			startIndex,
+			endIndex,
+			result,
+			peak,
+			null
+		);
+	}
 
 }

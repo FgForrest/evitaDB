@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 
@@ -63,7 +64,7 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 	@Nullable
 	public FilterConstraint resolve(@Nonnull String key, @Nullable Object value) {
 		return resolve(
-			new EntityDataLocator(restHandlingContext.getEntityType()),
+			new EntityDataLocator(new ManagedEntityTypePointer(restHandlingContext.getEntityType())),
 			key,
 			value
 		);

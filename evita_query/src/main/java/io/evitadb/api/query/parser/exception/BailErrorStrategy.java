@@ -21,20 +21,19 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.parser.error;
+package io.evitadb.api.query.parser.exception;
 
-import org.antlr.v4.runtime.BailErrorStrategy;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.misc.ParseCancellationException;
 
 /**
- * Extension of {@link BailErrorStrategy} which generates descriptive {@link EvitaQLInvalidQueryError}s wrapped in {@link ParseCancellationException}.
+ * Extension of {@link org.antlr.v4.runtime.BailErrorStrategy} which generates descriptive {@link EvitaSyntaxException}s wrapped in {@link ParseCancellationException}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class EvitaQLBailErrorStrategy extends BailErrorStrategy {
+public class BailErrorStrategy extends org.antlr.v4.runtime.BailErrorStrategy {
 
 	@Override
 	public void recover(Parser recognizer, RecognitionException e) {
@@ -42,7 +41,7 @@ public class EvitaQLBailErrorStrategy extends BailErrorStrategy {
 			super.recover(recognizer, e);
 		} catch (ParseCancellationException ex) {
 			throw new ParseCancellationException(
-				new EvitaQLInvalidQueryError(e.getOffendingToken(), e.getMessage())
+				new EvitaSyntaxException(e.getOffendingToken(), e.getMessage())
 			);
 		}
 	}
@@ -53,7 +52,7 @@ public class EvitaQLBailErrorStrategy extends BailErrorStrategy {
 			return super.recoverInline(recognizer);
 		} catch (ParseCancellationException e) {
 			throw new ParseCancellationException(
-				new EvitaQLInvalidQueryError(
+				new EvitaSyntaxException(
 					recognizer.getCurrentToken(),
 					"Unexpected token, expected: " + recognizer.getExpectedTokens().toString(recognizer.getVocabulary())
 				)

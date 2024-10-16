@@ -166,8 +166,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				query,
 				OffsetDateTime.now(),
 				EntityClassifier.class,
-				null,
-				EvitaRequest.CONVERSION_NOT_SUPPORTED
+				null
 			);
 
 			final GrpcQueryOneResponse.Builder responseBuilder = GrpcQueryOneResponse.newBuilder();
@@ -207,8 +206,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				query,
 				OffsetDateTime.now(),
 				EntityClassifier.class,
-				null,
-				EvitaRequest.CONVERSION_NOT_SUPPORTED
+				null
 			);
 			final List<EntityClassifier> responseEntities = session.queryList(evitaRequest);
 			final GrpcQueryListResponse.Builder responseBuilder = GrpcQueryListResponse.newBuilder();
@@ -254,8 +252,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				query.normalizeQuery(),
 				OffsetDateTime.now(),
 				EntityClassifier.class,
-				null,
-				EvitaRequest.CONVERSION_NOT_SUPPORTED
+				null
 			);
 
 			final EvitaResponse<EntityClassifier> evitaResponse = session.query(evitaRequest);
@@ -273,7 +270,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			if (recordPage instanceof PaginatedList<?> paginatedList) {
 				dataChunkBuilder.getPaginatedListBuilder()
 					.setPageNumber(paginatedList.getPageNumber())
-					.setPageSize(paginatedList.getPageSize());
+					.setPageSize(paginatedList.getPageSize())
+					.setLastPageNumber(paginatedList.getLastPageNumber());
 			} else if (recordPage instanceof StripList<?> stripList) {
 				dataChunkBuilder.getStripListBuilder()
 					.setOffset(stripList.getOffset())
@@ -300,9 +298,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					recordPage.stream().forEach(e ->
 						sealedEntities.add(EntityConverter.toGrpcSealedEntity((SealedEntity) e))
 					);
-					entityBuilder.setRecordPage(dataChunkBuilder
-						.addAllSealedEntities(sealedEntities)
-						.build()
+					entityBuilder.setRecordPage(
+						dataChunkBuilder
+							.addAllSealedEntities(sealedEntities)
+							.build()
 					);
 				}
 			} else {
@@ -314,7 +313,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 							.setPrimaryKey(((EntityReference) e).getPrimaryKey())
 							.build())
 				);
-				entityBuilder.setRecordPage(dataChunkBuilder
+				entityBuilder.setRecordPage(
+					dataChunkBuilder
 						.addAllEntityReferences(entityReferences)
 						.build()
 					)

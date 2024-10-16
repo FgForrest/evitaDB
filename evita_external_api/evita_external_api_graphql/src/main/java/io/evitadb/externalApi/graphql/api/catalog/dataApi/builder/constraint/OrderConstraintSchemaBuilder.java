@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,9 +31,12 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -45,10 +48,11 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class OrderConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilder {
 
-	public OrderConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx) {
+	public OrderConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
+	                                    @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
 		super(
-			constraintSchemaBuildingCtx,
-			createHashMap(0), // currently, we don't support any order constraint with additional children
+			sharedContext,
+			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
 			Set.of(),
 			Set.of(OrderBy.class, OrderGroupBy.class)
 		);
@@ -56,7 +60,7 @@ public class OrderConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilder
 
 	@Nonnull
 	public GraphQLInputType build(@Nonnull String rootEntityType) {
-		return build(new EntityDataLocator(rootEntityType));
+		return build(new EntityDataLocator(new ManagedEntityTypePointer(rootEntityType)));
 	}
 
 	@Nonnull

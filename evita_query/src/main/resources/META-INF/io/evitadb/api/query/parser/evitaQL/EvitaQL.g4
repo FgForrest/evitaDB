@@ -92,12 +92,16 @@ orderConstraint
     | 'priceNatural'                        (emptyArgs | args = valueArgs)                                  # priceNaturalConstraint
     | 'priceDiscount'                       args = valueListArgs                                            # priceDiscountConstraint
     | 'random'                              emptyArgs                                                       # randomConstraint
+    | 'randomWithSeed'                      args = valueArgs                                                # randomWithSeedConstraint
     | 'referenceProperty'                   args = classifierWithOrderConstraintListArgs                    # referencePropertyConstraint
     | 'entityPrimaryKeyNatural'             (emptyArgs | args = valueArgs)                                  # entityPrimaryKeyExactNatural
     | 'entityPrimaryKeyExact'               args = valueListArgs                                            # entityPrimaryKeyExactConstraint
     | 'entityPrimaryKeyInFilter'            emptyArgs                                                       # entityPrimaryKeyInFilterConstraint
     | 'entityProperty'                      args = orderConstraintListArgs                                  # entityPropertyConstraint
     | 'entityGroupProperty'                 args = orderConstraintListArgs                                  # entityGroupPropertyConstraint
+    | 'segments'                            args = orderConstraintListArgs                                  # segmentsConstraint
+    | 'segment'                             args = segmentArgs                                              # segmentConstraint
+    | 'limit'                               args = valueArgs                                                # segmentLimitConstraint
     ;
 
 requireConstraint
@@ -169,6 +173,8 @@ requireConstraint
     | 'siblings'                            emptyArgs                                                       # emptyHierarchySiblingsConstraint
     | 'siblings'                            args = requireConstraintListArgs                                # basicHierarchySiblingsConstraint
     | 'siblings'                            args = hierarchyRequireConstraintArgs                           # fullHierarchySiblingsConstraint
+    | 'spacing'                             args = spacingRequireConstraintArgs                             # spacingConstraint
+    | 'gap'                                 args = gapRequireConstraintArgs                                 # gapConstraint
     | 'parents'                             args = hierarchyRequireConstraintArgs                           # hierarchyParentsConstraint
     | 'hierarchyOfSelf'                     args = requireConstraintListArgs                                # basicHierarchyOfSelfConstraint
     | 'hierarchyOfSelf'                     args = fullHierarchyOfSelfArgs                                  # fullHierarchyOfSelfConstraint
@@ -246,7 +252,7 @@ hierarchyWithinRootSelfConstraintArgs :             argsOpening constrains += fi
 
 attributeSetExactArgs :                             argsOpening attributeName = valueToken ARGS_DELIMITER attributeValues = variadicValueTokens argsClosing ;
 
-pageConstraintArgs :                                argsOpening pageNumber = valueToken ARGS_DELIMITER pageSize = valueToken argsClosing ;
+pageConstraintArgs :                                argsOpening pageNumber = valueToken ARGS_DELIMITER pageSize = valueToken (ARGS_DELIMITER constrain = requireConstraint)? argsClosing ;
 
 stripConstraintArgs :                               argsOpening offset = valueToken ARGS_DELIMITER limit = valueToken argsClosing ;
 
@@ -353,6 +359,11 @@ fullHierarchyOfReferenceArgs :                      argsOpening referenceName = 
 
 fullHierarchyOfReferenceWithBehaviourArgs :         argsOpening referenceName = valueToken ARGS_DELIMITER emptyHierarchicalEntityBehaviour = valueToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ argsClosing ;
 
+spacingRequireConstraintArgs :                      argsOpening constraints += requireConstraint (ARGS_DELIMITER constraints += requireConstraint)* argsClosing ;
+
+gapRequireConstraintArgs :                          argsOpening size = valueToken ARGS_DELIMITER expression = valueToken argsClosing ;
+
+segmentArgs:                                        argsOpening (entityHaving = filterConstraint ARGS_DELIMITER)? orderBy = orderConstraint (ARGS_DELIMITER limit = orderConstraint)? argsClosing ;
 
 /**
  * Parameters values
