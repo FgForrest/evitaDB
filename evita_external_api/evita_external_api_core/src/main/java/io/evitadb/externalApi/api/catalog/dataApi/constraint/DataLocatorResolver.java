@@ -147,8 +147,8 @@ public class DataLocatorResolver {
 							}
 							yield Optional.of(new EntityDataLocator(
 								referenceSchema.isReferencedGroupTypeManaged()
-									? new ManagedEntityTypePointer(referencedEntityType)
-									: new ExternalEntityTypePointer(referencedEntityType)
+									? new ManagedEntityTypePointer(referencedGroupType)
+									: new ExternalEntityTypePointer(referencedGroupType)
 							));
 						}
 						default ->
