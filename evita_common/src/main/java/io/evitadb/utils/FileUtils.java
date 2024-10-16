@@ -35,6 +35,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -192,7 +193,26 @@ public class FileUtils {
 	}
 
 	/**
+	 * Deletes the specified file.
+	 *
+	 * @param file The path to the file to be deleted.
+	 * @throws UnexpectedIOException If an I/O error occurs during file deletion.
+	 */
+	public static void deleteFile(@Nonnull Path file) {
+		try {
+			Files.delete(file);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Cannot delete file: " + file,
+				"Cannot delete file!",
+				e
+			);
+		}
+	}
+
+	/**
 	 * Returns the size of the specified directory in bytes.
+	 *
 	 * @param directory The path to the directory.
 	 * @return The size of the directory in bytes.
 	 */
@@ -228,6 +248,7 @@ public class FileUtils {
 
 	/**
 	 * Returns the extension of the file.
+	 *
 	 * @param fileName The name of the file.
 	 * @return The extension of the file.
 	 */
@@ -238,19 +259,52 @@ public class FileUtils {
 	}
 
 	/**
+	 * Returns the file name without its extension.
+	 *
+	 * @param name the full name of the file, including its extension
+	 * @return the name of the file without the extension
+	 */
+	@Nonnull
+	public static String getFileNameWithoutExtension(@Nonnull String name) {
+		final int i = name.lastIndexOf('.');
+		return i > 0 ? name.substring(0, i) : name;
+	}
+
+	/**
 	 * Converts name with potentially unsupported characters to a name that is supported by all file systems.
+	 *
 	 * @param name The name to convert.
 	 * @return The name with unsupported characters replaced by a dash.
 	 */
 	@Nonnull
 	public static String convertToSupportedName(@Nonnull String name) {
 		return Arrays.stream(
-			name.split("\\.", 2)
-		)
+				name.split("\\.", 2)
+			)
 			.map(String::trim)
 			.map(it -> WHITESPACE_FILE_NAME_CHARACTERS_PATTERN.matcher(it).replaceAll("_"))
 			.map(it -> UNSUPPORTED_FILE_NAME_CHARACTERS_PATTERN.matcher(it).replaceAll("-"))
 			.map(it -> COLLAPSE_PATTERN.matcher(it).replaceAll("-"))
 			.collect(Collectors.joining("."));
+	}
+
+	/**
+	 * Retrieves the last modified time of the specified file.
+	 *
+	 * @param pathToFile the path to the file
+	 * @return an Optional containing the last modified time of the file as an OffsetDateTime, or an empty Optional if an IOException occurs
+	 */
+	@Nonnull
+	public static Optional<OffsetDateTime> getFileLastModifiedTime(@Nonnull Path pathToFile) {
+		try {
+			return Optional.of(
+				OffsetDateTime.ofInstant(
+					Files.getLastModifiedTime(pathToFile).toInstant(),
+					OffsetDateTime.now().getOffset()
+				)
+			);
+		} catch (IOException e) {
+			return Optional.empty();
+		}
 	}
 }

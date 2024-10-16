@@ -35,6 +35,7 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.async.SequentialTask;
 import io.evitadb.core.file.ExportFileService;
@@ -103,10 +104,17 @@ public class EvitaManagement implements EvitaManagementContract {
 	public EvitaManagement(@Nonnull Evita evita) {
 		this.evita = evita;
 		this.serviceExecutor = evita.getServiceExecutor();
-		this.exportFileService = new ExportFileService(evita.getConfiguration().storage());
+		this.exportFileService = new ExportFileService(evita.getConfiguration().storage(), this.serviceExecutor);
 		this.started = OffsetDateTime.now();
 		this.configurationSupplier = evita.getConfiguration()::toString;
-		this.serviceExecutor.scheduleAtFixedRate(this::discardOldWaitingTasks, 5, 5, TimeUnit.MINUTES);
+		// schedule automatic purging task
+		new DelayedAsyncTask(
+			null,
+			"Management service clean-up task",
+			this.serviceExecutor,
+			this::discardOldWaitingTasks,
+			5, TimeUnit.MINUTES
+		).schedule();
 	}
 
 	/**
@@ -148,7 +156,7 @@ public class EvitaManagement implements EvitaManagementContract {
 	 * is older than the specified maximum waiting age. If a task is removed due to exceeding the maximum waiting age,
 	 * it marks the task as failed with a {@link CancellationException}.
 	 */
-	private void discardOldWaitingTasks() {
+	private long discardOldWaitingTasks() {
 		this.waitingTasks.values().removeIf(task -> {
 			if (task.getStatus().issued().isBefore(OffsetDateTime.now().minusMinutes(WAITING_TASK_MAX_AGE))) {
 				task.fail(new CancellationException("Task was waiting for too long."));
@@ -156,6 +164,8 @@ public class EvitaManagement implements EvitaManagementContract {
 			}
 			return false;
 		});
+
+		return 0L;
 	}
 
 	/**
