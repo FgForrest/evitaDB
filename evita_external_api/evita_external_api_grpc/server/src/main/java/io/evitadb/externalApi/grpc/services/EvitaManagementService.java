@@ -56,6 +56,7 @@ import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionIntercepto
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
+import io.evitadb.store.spi.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.ClassifierUtils.Keyword;
@@ -82,6 +83,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcTaskStatus;
@@ -154,6 +156,18 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				log.error("Failed to delete temporary " + purpose + " file: {}", backupFilePath, e);
 			}
 		}
+	}
+
+	/**
+	 * Creates a predicate to find a restore task based on a specific file ID.
+	 *
+	 * @param theFileId the UUID of the file to match against the file ID carrier within the server task.
+	 * @return a predicate that evaluates true if the server task's file ID matches the provided file ID.
+	 */
+	@Nonnull
+	private static Predicate<ServerTask<?, ?>> createRestoreTaskFindPredicate(@Nonnull UUID theFileId) {
+		return serverTask -> serverTask.getStatus().settings() instanceof FileIdCarrier fileIdCarrier &&
+			fileIdCarrier.fileId().equals(theFileId);
 	}
 
 	public EvitaManagementService(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer) {
@@ -418,14 +432,15 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 						backupFilePath = management.exportFileService().createTempFile(fileId + ".zip");
 						restorationTask = management.createRestorationTask(
 							catalogNameToRestore,
+							fileId,
 							backupFilePath,
 							request.getTotalSizeInBytes(),
 							true
 						);
-						this.management.registerWaitingTask(fileId, restorationTask);
+						this.management.registerWaitingTask(restorationTask);
 					} else {
 						backupFilePath = management.exportFileService().getTempFile(fileId + ".zip");
-						restorationTask = this.management.getWaitingTask(fileId)
+						restorationTask = this.management.getWaitingTask(createRestoreTaskFindPredicate(fileId))
 							.orElseThrow(() -> new UnexpectedIOException("Task not found for file: " + backupFilePath, "Task not found for file id!"));
 					}
 
@@ -437,7 +452,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					// we've reached the expected size of the file
 					final long actualSize = Files.size(backupFilePath);
 					if (actualSize == request.getTotalSizeInBytes()) {
-						this.management.submitWaitingTask(fileId);
+						this.management.submitWaitingTask(createRestoreTaskFindPredicate(fileId));
 					}
 
 					responseObserver.onNext(

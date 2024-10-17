@@ -32,6 +32,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.task.RestoreTask.RestoreSettings;
 import io.evitadb.store.spi.CatalogPersistenceService;
+import io.evitadb.store.spi.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CountingInputStream;
 import io.evitadb.utils.StringUtils;
@@ -46,6 +47,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -96,6 +98,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 
 	public RestoreTask(
 		@Nonnull String catalogName,
+		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,
 		long totalSizeInBytes,
 		boolean deleteAfterRestore,
@@ -106,6 +109,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			RestoreTask.class.getSimpleName(),
 			"Restore catalog `" + catalogName + "`",
 			new RestoreSettings(
+				fileId,
 				pathToFile,
 				totalSizeInBytes,
 				deleteAfterRestore
@@ -198,14 +202,17 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 	/**
 	 * Settings for this instance of restore task.
 	 *
-	 * @param pathToFile path to the file to be restored
-	 * @param totalSizeInBytes total size of the file in bytes
+	 * @param fileId             The ID of the file to be restored.
+	 * @param pathToFile         path to the file to be restored
+	 * @param totalSizeInBytes   total size of the file in bytes
+	 * @param deleteAfterRestore whether to delete the ZIP file after restore
 	 */
 	public record RestoreSettings(
+		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,
 		long totalSizeInBytes,
 		boolean deleteAfterRestore
-	) implements Serializable {
+	) implements Serializable, FileIdCarrier {
 
 		@Override
 		public String toString() {

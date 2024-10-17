@@ -105,7 +105,8 @@ message GrpcRestoreCatalogResponse {
   GrpcTaskStatus task = 3;
 }
 
-// Response to a catalog restore request.
+// Response to a catalog restore request (unary variant). This is used for gRPC/web.
+// We need to explicitly handle the fileId, because it gets repeatedly updated (appended) from the client.
 message GrpcRestoreCatalogUnaryResponse {
   // returns the number of bytes read from the backup file
   int64 read = 1;

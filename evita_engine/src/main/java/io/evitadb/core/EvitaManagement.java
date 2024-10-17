@@ -35,14 +35,12 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
-import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.async.SequentialTask;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
 import lombok.Setter;
@@ -58,15 +56,11 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * Main implementation of {@link EvitaManagementContract}.
@@ -83,7 +77,7 @@ public class EvitaManagement implements EvitaManagementContract {
 	/**
 	 * Contains reference to Evita service executor / scheduler.
 	 */
-	private final Scheduler serviceExecutor;
+	private final Scheduler scheduler;
 	/**
 	 * This variable represents the starting date and time.
 	 */
@@ -96,76 +90,41 @@ public class EvitaManagement implements EvitaManagementContract {
 	 * Supplier that provides the configuration.
 	 */
 	@Setter private Supplier<String> configurationSupplier;
-	/**
-	 * Map of waiting tasks that are waiting for the response to be completed.
-	 */
-	@Nonnull private final Map<Object, ServerTask<?, ?>> waitingTasks = CollectionUtils.createConcurrentHashMap(16);
 
 	public EvitaManagement(@Nonnull Evita evita) {
 		this.evita = evita;
-		this.serviceExecutor = evita.getServiceExecutor();
-		this.exportFileService = new ExportFileService(evita.getConfiguration().storage(), this.serviceExecutor);
+		this.scheduler = evita.getServiceExecutor();
+		this.exportFileService = new ExportFileService(evita.getConfiguration().storage(), this.scheduler);
 		this.started = OffsetDateTime.now();
 		this.configurationSupplier = evita.getConfiguration()::toString;
-		// schedule automatic purging task
-		new DelayedAsyncTask(
-			null,
-			"Management service clean-up task",
-			this.serviceExecutor,
-			this::discardOldWaitingTasks,
-			5, TimeUnit.MINUTES
-		).schedule();
 	}
 
 	/**
 	 * Registers a task to be kept in the waiting queue until it can be executed.
 	 *
-	 * @param registrationId The unique identifier for the task registration.
 	 * @param task The task to be registered and added to the waiting queue.
 	 */
-	public void registerWaitingTask(@Nonnull Object registrationId, @Nonnull ServerTask<?, ?> task) {
-		this.waitingTasks.put(registrationId, task);
-		this.waitingTasks.put(task.getStatus().taskId(), task);
+	public void registerWaitingTask(@Nonnull ServerTask<?, ?> task) {
+		this.scheduler.registerWaitingTask(task);
 	}
 
 	/**
 	 * Retrieves a task from the waiting queue based on the provided registration identifier.
 	 *
-	 * @param registrationId The unique identifier for the task registration.
+	 * @param taskPredicate predicate to filter the task
 	 * @return An {@link Optional} containing the {@link ServerTask} if found, otherwise an empty {@link Optional}.
 	 */
-	public Optional<ServerTask<?, ?>> getWaitingTask(@Nonnull Object registrationId) {
-		return ofNullable(this.waitingTasks.get(registrationId));
+	public Optional<ServerTask<?, ?>> getWaitingTask(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
+		return this.scheduler.findTask(taskPredicate);
 	}
 
 	/**
 	 * Submits a task from the waiting queue based on the provided registration identifier.
 	 *
-	 * @param registrationId The unique identifier for the task registration.
+	 * @param taskPredicate predicate to filter the task
 	 */
-	public void submitWaitingTask(@Nonnull Object registrationId) {
-		ofNullable(this.waitingTasks.remove(registrationId))
-			.ifPresent(it -> {
-				this.waitingTasks.remove(it.getStatus().taskId());
-				this.serviceExecutor.submit(it);
-			});
-	}
-
-	/**
-	 * This method iterates over the tasks in the waiting queue and removes any task whose initial issue time
-	 * is older than the specified maximum waiting age. If a task is removed due to exceeding the maximum waiting age,
-	 * it marks the task as failed with a {@link CancellationException}.
-	 */
-	private long discardOldWaitingTasks() {
-		this.waitingTasks.values().removeIf(task -> {
-			if (task.getStatus().issued().isBefore(OffsetDateTime.now().minusMinutes(WAITING_TASK_MAX_AGE))) {
-				task.fail(new CancellationException("Task was waiting for too long."));
-				return true;
-			}
-			return false;
-		});
-
-		return 0L;
+	public void submitWaitingTask(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
+		this.scheduler.submitWaitingTask(taskPredicate);
 	}
 
 	/**
@@ -210,7 +169,8 @@ public class EvitaManagement implements EvitaManagementContract {
 	) throws UnexpectedIOException {
 		this.evita.assertActiveAndWritable();
 		// if the file is not a locally stored export file, store it to the export directory first
-		final Path tempFile = exportFileService.createTempFile(UUIDUtil.randomUUID() + ".zip");
+		final UUID fileId = UUIDUtil.randomUUID();
+		final Path tempFile = exportFileService.createTempFile(fileId + ".zip");
 		try {
 			final long bytesCopied = Files.copy(
 				inputStream, tempFile,
@@ -227,8 +187,8 @@ public class EvitaManagement implements EvitaManagementContract {
 				e
 			);
 		}
-		final SequentialTask<Void> task = createRestorationTask(catalogName, tempFile, totalBytesExpected, true);
-		this.serviceExecutor.submit(task);
+		final SequentialTask<Void> task = createRestorationTask(catalogName, fileId, tempFile, totalBytesExpected, true);
+		this.scheduler.submit(task);
 		return task;
 	}
 
@@ -238,8 +198,11 @@ public class EvitaManagement implements EvitaManagementContract {
 		this.evita.assertActiveAndWritable();
 		final FileForFetch file = this.exportFileService.getFile(fileId)
 			.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-		final SequentialTask<Void> task = createRestorationTask(catalogName, this.exportFileService.getPathOf(file), file.totalSizeInBytes(), false);
-		this.serviceExecutor.submit(task);
+		final SequentialTask<Void> task = createRestorationTask(
+			catalogName, file.fileId(), this.exportFileService.getPathOf(file),
+			file.totalSizeInBytes(), false
+		);
+		this.scheduler.submit(task);
 		return task;
 	}
 
@@ -248,6 +211,7 @@ public class EvitaManagement implements EvitaManagementContract {
 	 * restoring the catalog from a backup and loading the catalog. This method does not submit the task to the executor.
 	 *
 	 * @param catalogName          The name of the catalog to be restored.
+	 * @param fileId			   The ID of the file to be restored.
 	 * @param pathToFile		   The path to the ZIP file containing the backup.
 	 * @param totalBytesExpected total bytes expected to be read from the input stream
 	 * @param deleteAfterRestore whether to delete the ZIP file after restore
@@ -256,6 +220,7 @@ public class EvitaManagement implements EvitaManagementContract {
 	@Nonnull
 	public SequentialTask<Void> createRestorationTask(
 		@Nonnull String catalogName,
+		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,
 		long totalBytesExpected,
 		boolean deleteAfterRestore
@@ -264,7 +229,8 @@ public class EvitaManagement implements EvitaManagementContract {
 			catalogName,
 			"Restore catalog " + catalogName + " from backup.",
 			Catalog.createRestoreCatalogTask(
-				catalogName, this.evita.getConfiguration().storage(), pathToFile, totalBytesExpected, deleteAfterRestore
+				catalogName, this.evita.getConfiguration().storage(),
+				fileId, pathToFile, totalBytesExpected, deleteAfterRestore
 			),
 			this.evita.createLoadCatalogTask(catalogName)
 		);
@@ -279,7 +245,7 @@ public class EvitaManagement implements EvitaManagementContract {
 	@Nonnull
 	public <T extends ServerTask<?, ?>> Collection<T> getTaskStatuses(@Nonnull Class<T> taskType) {
 		this.evita.assertActive();
-		return this.serviceExecutor.getTasks(taskType);
+		return this.scheduler.getTasks(taskType);
 	}
 
 	@Nonnull
@@ -291,32 +257,27 @@ public class EvitaManagement implements EvitaManagementContract {
 		@Nonnull TaskSimplifiedState... states
 	) {
 		this.evita.assertActive();
-		return this.serviceExecutor.listTaskStatuses(page, pageSize, taskType, states);
+		return this.scheduler.listTaskStatuses(page, pageSize, taskType, states);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<TaskStatus<?, ?>> getTaskStatus(@Nonnull UUID jobId) {
 		this.evita.assertActive();
-		final ServerTask<?, ?> waitingTask = this.waitingTasks.get(jobId);
-		if (waitingTask == null) {
-			return this.serviceExecutor.getTaskStatus(jobId);
-		} else {
-			return Optional.of(waitingTask.getStatus());
-		}
+		return this.scheduler.getTaskStatus(jobId);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<TaskStatus<?, ?>> getTaskStatuses(@Nonnull UUID... jobId) {
 		this.evita.assertActive();
-		return this.serviceExecutor.getTaskStatuses(jobId);
+		return this.scheduler.getTaskStatuses(jobId);
 	}
 
 	@Override
 	public boolean cancelTask(@Nonnull UUID jobId) {
 		this.evita.assertActiveAndWritable();
-		return this.serviceExecutor.cancelTask(jobId);
+		return this.scheduler.cancelTask(jobId);
 	}
 
 	@Nonnull
