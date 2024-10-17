@@ -29,7 +29,7 @@
 #-Dcom.sun.management.jmxremote.ssl=false \
 
 java \
-        -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:8005 \
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8005 \
         --add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
         -javaagent:target/evita-server.jar \
         -jar "target/evita-server.jar" \
@@ -44,4 +44,4 @@ java \
         "api.endpoints.lab.tlsMode=RELAXED" \
         "api.endpoints.gRPC.tlsMode=RELAXED" \
         "api.endpoints.gRPC.exposeDocsService=true" \
-        "api.endpoints.gRPC.mTLS.enabled=true"
+        "api.endpoints.gRPC.mTLS.enabled=false"
