@@ -200,7 +200,7 @@ public class FileUtils {
 	 */
 	public static void deleteFile(@Nonnull Path file) {
 		try {
-			Files.delete(file);
+			Files.deleteIfExists(file);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Cannot delete file: " + file,

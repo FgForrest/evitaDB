@@ -259,7 +259,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	@Override
 	public <T> Future<T> submit(@Nonnull Callable<T> task) {
-		if (task instanceof ServerTask<?,?> st) {
+		if (task instanceof ServerTask<?, ?> st) {
 			st.transitionToIssued();
 		}
 		final Future<T> future = executorService.submit(task);
@@ -270,7 +270,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	@Override
 	public <T> Future<T> submit(@Nonnull Runnable task, T result) {
-		if (task instanceof ServerTask<?,?> st) {
+		if (task instanceof ServerTask<?, ?> st) {
 			st.transitionToIssued();
 		}
 		final Future<T> future = executorService.submit(task, result);
@@ -281,7 +281,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	@Override
 	public Future<?> submit(@Nonnull Runnable task) {
-		if (task instanceof ServerTask<?,?> st) {
+		if (task instanceof ServerTask<?, ?> st) {
 			st.transitionToIssued();
 		}
 		final Future<?> future = executorService.submit(task);
@@ -293,7 +293,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Override
 	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks) throws InterruptedException {
 		for (Callable<T> task : tasks) {
-			if (task instanceof ServerTask<?,?> st) {
+			if (task instanceof ServerTask<?, ?> st) {
 				st.transitionToIssued();
 			}
 		}
@@ -306,7 +306,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Override
 	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
 		for (Callable<T> task : tasks) {
-			if (task instanceof ServerTask<?,?> st) {
+			if (task instanceof ServerTask<?, ?> st) {
 				st.transitionToIssued();
 			}
 		}
@@ -319,7 +319,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
 		for (Callable<T> task : tasks) {
-			if (task instanceof ServerTask<?,?> st) {
+			if (task instanceof ServerTask<?, ?> st) {
 				st.transitionToIssued();
 			}
 		}
@@ -331,7 +331,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
 		for (Callable<T> task : tasks) {
-			if (task instanceof AbstractServerTask<?,?> ast) {
+			if (task instanceof AbstractServerTask<?, ?> ast) {
 				ast.transitionToIssued();
 			}
 		}
@@ -343,15 +343,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	public <T> CompletableFuture<T> submit(@Nonnull ServerTask<?, T> task) {
 		addTaskToQueue(task);
-		task.transitionToIssued();
-		if (task.getClass().isAnnotationPresent(InternallyScheduledTask.class)) {
-			// if the task is internally scheduled, we can execute it immediately
-			task.execute();
-		} else {
-			this.executorService.submit(task::execute);
-		}
-		this.submittedTaskCount.incrementAndGet();
-		return task.getFutureResult();
+		return submitTaskInQueue(task);
 	}
 
 	/**
@@ -382,7 +374,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		return new PaginatedList<>(
 			page, pageSize, tasks.size(),
 			tasks.stream()
-				.sorted((o1, o2) -> o2.getStatus().issued().compareTo(o1.getStatus().issued()))
+				.sorted((o1, o2) -> o2.getStatus().created().compareTo(o1.getStatus().created()))
 				.skip(PaginatedList.getFirstItemNumberForPage(page, pageSize))
 				.limit(pageSize)
 				.map(Task::getStatus)
@@ -476,8 +468,26 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * @param taskPredicate predicate to filter the task
 	 */
 	public void submitWaitingTask(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
-		this.queue.stream().filter(taskPredicate).findFirst()
-			.ifPresent(task -> submit(task::execute));
+		this.queue.stream().filter(task -> task.matches(taskPredicate)).findFirst()
+			.ifPresent(this::submitTaskInQueue);
+	}
+
+	/**
+	 * Submits a given server task to the internal queue for execution.
+	 *
+	 * @param task The server task to be submitted. Must not be null.
+	 * @return A CompletableFuture representing the result of the submitted task.
+	 */
+	private <T> @Nonnull CompletableFuture<T> submitTaskInQueue(@Nonnull ServerTask<?, T> task) {
+		task.transitionToIssued();
+		if (task.getClass().isAnnotationPresent(InternallyScheduledTask.class)) {
+			// if the task is internally scheduled, we can execute it immediately
+			task.execute();
+		} else {
+			this.executorService.submit(task::execute);
+		}
+		this.submittedTaskCount.incrementAndGet();
+		return task.getFutureResult();
 	}
 
 	/**

@@ -294,8 +294,8 @@ public class ExportFileService {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
 			if (this.files.remove(file)) {
-				Files.delete(file.metadataPath(storageOptions.exportDirectory()));
-				Files.delete(file.path(storageOptions.exportDirectory()));
+				Files.deleteIfExists(file.metadataPath(storageOptions.exportDirectory()));
+				Files.deleteIfExists(file.path(storageOptions.exportDirectory()));
 			}
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
