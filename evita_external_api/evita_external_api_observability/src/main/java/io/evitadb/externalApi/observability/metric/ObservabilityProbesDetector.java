@@ -155,46 +155,53 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 		final Readiness currentReadiness;
 		if (readinessWithTimestamp == null ||
 			(OffsetDateTime.now().minus(HEALTH_CHECK_READINESS_RENEW_INTERVAL).isAfter(readinessWithTimestamp.timestamp()) ||
-				readinessWithTimestamp.result().state() != ReadinessState.READY) && !HEALTH_CHECK_RUNNING.compareAndSet(false, true)
+				readinessWithTimestamp.result().state() != ReadinessState.READY)
 		) {
-			// enforce renewal of readiness check
-			final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
-			// check the end-points availability
-			//noinspection rawtypes
-			final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
-			final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
-			final CompletableFuture<?>[] futures = new CompletableFuture[apiCodes.length];
-			for (int i = 0; i < apiCodes.length; i++) {
-				final String apiCode = apiCodes[i];
-				futures[i] = CompletableFuture.runAsync(
-					() -> {
-						final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
-						final boolean ready = apiProvider.isReady();
-						synchronized (readiness) {
-							readiness.put(apiProvider.getCode(), ready);
-						}
-						theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), ready));
-					},
-					getInternalExecutor(availableExternalApis.size())
-				);
-			}
+			if (HEALTH_CHECK_RUNNING.compareAndSet(false, true)) {
+				try {
+					// enforce renewal of readiness check
+					final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
+					// check the end-points availability
+					//noinspection rawtypes
+					final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
+					final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
+					final CompletableFuture<?>[] futures = new CompletableFuture[apiCodes.length];
+					for (int i = 0; i < apiCodes.length; i++) {
+						final String apiCode = apiCodes[i];
+						futures[i] = CompletableFuture.runAsync(
+							() -> {
+								final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
+								final boolean ready = apiProvider.isReady();
+								synchronized (readiness) {
+									readiness.put(apiProvider.getCode(), ready);
+								}
+								theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), ready));
+							},
+							getInternalExecutor(availableExternalApis.size())
+						);
+					}
 
-			// run all checks in parallel
-			CompletableFuture.allOf(futures).join();
-			final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
-			if (ready) {
-				this.seenReady.set(true);
+					// run all checks in parallel
+					CompletableFuture.allOf(futures).join();
+					final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
+					if (ready) {
+						this.seenReady.set(true);
+					}
+					currentReadiness = new Readiness(
+						ready ? ReadinessState.READY : (this.seenReady.get() ? ReadinessState.STALLING : ReadinessState.STARTING),
+						readiness.entrySet().stream()
+							.map(entry -> new ApiState(entry.getKey(), entry.getValue()))
+							.toArray(ApiState[]::new)
+					);
+					this.lastReadinessSeen.set(
+						new ReadinessWithTimestamp(currentReadiness, OffsetDateTime.now())
+					);
+				} finally {
+					HEALTH_CHECK_RUNNING.compareAndSet(true, false);
+				}
+			} else {
+				currentReadiness = this.lastReadinessSeen.get().result();
 			}
-			currentReadiness = new Readiness(
-				ready ? ReadinessState.READY : (this.seenReady.get() ? ReadinessState.STALLING : ReadinessState.STARTING),
-				readiness.entrySet().stream()
-					.map(entry -> new ApiState(entry.getKey(), entry.getValue()))
-					.toArray(ApiState[]::new)
-			);
-			this.lastReadinessSeen.set(
-				new ReadinessWithTimestamp(currentReadiness, OffsetDateTime.now())
-			);
-			HEALTH_CHECK_RUNNING.set(false);
 		} else {
 			currentReadiness = readinessWithTimestamp.result();
 		}
