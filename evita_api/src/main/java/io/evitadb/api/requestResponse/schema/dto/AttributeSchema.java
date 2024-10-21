@@ -72,6 +72,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static AttributeSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> type,
@@ -92,6 +93,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static <T extends Serializable> AttributeSchema _internalBuild(
 		@Nonnull String name,
 		@Nullable AttributeUniquenessType unique,
@@ -122,6 +124,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static <T extends Serializable> AttributeSchema _internalBuild(
 		@Nonnull String name,
 		@Nullable String description,
@@ -150,6 +153,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static <T extends Serializable> AttributeSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,

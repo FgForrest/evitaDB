@@ -57,6 +57,7 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
+import io.evitadb.api.requestResponse.data.annotation.ReflectedReference;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -929,7 +930,12 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
+	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
+	 *
+	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
+	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(String, int)} method.
 	 *
 	 * @return true if entity existed and was removed
 	 */
@@ -937,7 +943,12 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
+	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
+	 *
+	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
+	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(Class, int)} method.
 	 *
 	 * @return true if entity existed and was removed
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
@@ -946,12 +957,64 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
+	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
+	 *
+	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
+	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(String, int, EntityContentRequire...)} method.
 	 *
 	 * @return removed entity fetched according to `require` definition
 	 */
 	@Nonnull
 	Optional<SealedEntity> deleteEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
+	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
+	 *
+	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
+	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(Class, int, EntityContentRequire...)} method.
+	 *
+	 * @return removed entity fetched according to `require` definition
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	<T extends Serializable> Optional<T> deleteEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+		throws EntityClassInvalidException;
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
+	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
+	 *
+	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
+	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(String, int)} method.
+	 *
+	 * @return true if entity existed and was removed
+	 */
+	boolean archiveEntity(@Nonnull String entityType, int primaryKey);
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return true if entity existed and was removed
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	boolean archiveEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException;
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return removed entity fetched according to `require` definition
+	 */
+	@Nonnull
+	Optional<SealedEntity> archiveEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
 
 	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
@@ -961,7 +1024,44 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
-	<T extends Serializable> Optional<T> deleteEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+	<T extends Serializable> Optional<T> archiveEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+		throws EntityClassInvalidException;
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return true if entity existed and was removed
+	 */
+	boolean restoreEntity(@Nonnull String entityType, int primaryKey);
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return true if entity existed and was removed
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	boolean restoreEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException;
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return removed entity fetched according to `require` definition
+	 */
+	@Nonnull
+	Optional<SealedEntity> restoreEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return removed entity fetched according to `require` definition
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	<T extends Serializable> Optional<T> restoreEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
 		throws EntityClassInvalidException;
 
 	/**
