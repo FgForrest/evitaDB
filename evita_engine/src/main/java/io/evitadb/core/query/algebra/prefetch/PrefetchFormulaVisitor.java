@@ -222,7 +222,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	/**
 	 * Returns set of requirements to fetch entities with.
 	 */
-	@Nonnull
+	@Nullable
 	protected EntityFetchRequire getRequirements() {
 		return this.requirements.getEntityFetch();
 	}
