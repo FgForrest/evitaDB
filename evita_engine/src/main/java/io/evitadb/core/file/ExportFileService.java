@@ -406,7 +406,7 @@ public class ExportFileService {
 				.filter(it -> FileUtils.getFileLastModifiedTime(it).map(lastModifiedDate -> lastModifiedDate.isBefore(thresholdDate)).orElse(true))
 				.forEach(it -> {
 					log.info("Purging temporary file, because it has been last modified before {}: {}", thresholdDate, it);
-					FileUtils.deleteFile(it);
+					FileUtils.deleteFileIfExists(it);
 				});
 		} catch (IOException e) {
 			log.error("Failed to list files in the directory: {}", this.storageOptions.exportDirectory(), e);

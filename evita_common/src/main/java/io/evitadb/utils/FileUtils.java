@@ -198,7 +198,7 @@ public class FileUtils {
 	 * @param file The path to the file to be deleted.
 	 * @throws UnexpectedIOException If an I/O error occurs during file deletion.
 	 */
-	public static void deleteFile(@Nonnull Path file) {
+	public static void deleteFileIfExists(@Nonnull Path file) {
 		try {
 			Files.deleteIfExists(file);
 		} catch (IOException e) {
