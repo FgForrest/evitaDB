@@ -74,7 +74,8 @@ public class ObservabilityProviderRegistrar implements ExternalApiProviderRegist
 			observabilityConfig,
 			observabilityManager,
 			Arrays.stream(observabilityConfig.getBaseUrls())
-				.toArray(String[]::new)
+				.toArray(String[]::new),
+			apiOptions.requestTimeoutInMillis()
 		);
 	}
 }

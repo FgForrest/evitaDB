@@ -5,6 +5,7 @@ module evita.external.api.core {
 
 	uses io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 	uses io.evitadb.externalApi.utils.ExternalApiTracingContext;
+	uses io.evitadb.externalApi.api.system.ProbesProvider;
 
 	opens io.evitadb.externalApi.configuration;
 	opens io.evitadb.externalApi.api.catalog.dataApi.dto to com.fasterxml.jackson.databind;

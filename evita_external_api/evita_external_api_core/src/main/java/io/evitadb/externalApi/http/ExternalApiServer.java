@@ -37,6 +37,8 @@ import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.api.system.ProbesMaintainer;
+import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
@@ -115,6 +117,7 @@ public class ExternalApiServer implements AutoCloseable {
 	private final Server server;
 	@Getter private final ApiOptions apiOptions;
 	private final Map<String, ExternalApiProvider<?>> registeredApiProviders;
+	private final ProbesMaintainer probesMaintainer = new ProbesMaintainer();
 	private CompletableFuture<Void> stopFuture;
 
 	/**
@@ -479,6 +482,16 @@ public class ExternalApiServer implements AutoCloseable {
 	}
 
 	/**
+	 * Retrieves a list of probe providers from the probes maintainer.
+	 *
+	 * @return a non-null list of ProbesProvider objects.
+	 */
+	@Nonnull
+	public List<ProbesProvider> getProbeProviders() {
+		return probesMaintainer.getProbes();
+	}
+
+	/**
 	 * Stops this running HTTP server and its registered APIs.
 	 */
 	@Override
@@ -503,8 +516,11 @@ public class ExternalApiServer implements AutoCloseable {
 				final long start = System.nanoTime();
 				this.stopFuture = this.server.stop()
 					.thenAccept(
-						unused -> ConsoleWriter.write(
-							"External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n")
+						unused -> {
+							ConsoleWriter.write(
+								"External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n");
+							probesMaintainer.closeProbes();
+						}
 					);
 			}
 		}

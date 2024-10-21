@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql;
 
+import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
@@ -30,7 +31,6 @@ import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -46,23 +46,40 @@ import static io.evitadb.externalApi.graphql.io.GraphQLRouter.SYSTEM_PREFIX;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-@RequiredArgsConstructor
 public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
 
     public static final String CODE = "graphQL";
 
-    @Nonnull
+
+	@Nonnull
     @Getter
     private final GraphQLConfig configuration;
-    @Nonnull
+
+	@Nonnull
     private final GraphQLManager graphQLManager;
+
+	/**
+	 * Timeout taken from {@link ApiOptions#requestTimeoutInMillis()} that will be used in {@link #isReady()}
+	 * method.
+	 */
+	private final long requestTimeout;
 
     /**
      * Contains url that was at least once found reachable.
      */
     private String reachableUrl;
 
-    @Nonnull
+	public GraphQLProvider(
+		@Nonnull GraphQLConfig configuration,
+		@Nonnull GraphQLManager graphQLManager,
+		long requestTimeoutInMillis
+	) {
+		this.configuration = configuration;
+		this.graphQLManager = graphQLManager;
+		this.requestTimeout = requestTimeoutInMillis;
+	}
+
+	@Nonnull
     @Override
     public String getCode() {
         return CODE;
@@ -87,6 +104,7 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
 	        final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
 			final Optional<String> post = NetworkUtils.fetchContent(
 				url, "POST", "application/json", "{\"query\":\"{liveness}\"}",
+				this.requestTimeout,
 				error -> {
 					log.error("Error while checking readiness of GraphQL API: {}", error);
 					readinessEvent.finish(Result.ERROR);
