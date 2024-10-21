@@ -30,6 +30,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFactory;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
+import io.evitadb.core.query.fetch.FetchRequirementCollector;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.slice.DefaultSlicer;
@@ -53,7 +54,7 @@ import static java.util.Optional.ofNullable;
  * be used for filtering/sorting instead of accessing the indexes.
  */
 @RequiredArgsConstructor
-public class QueryPlanBuilder implements PrefetchRequirementCollector {
+public class QueryPlanBuilder implements FetchRequirementCollector {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */

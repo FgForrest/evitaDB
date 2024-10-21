@@ -47,9 +47,11 @@ module evita.engine {
 	exports io.evitadb.core.query.algebra.price.termination;
 	exports io.evitadb.core.query.algebra;
 	exports io.evitadb.core.query.extraResult.translator.histogram.cache;
+	exports io.evitadb.core.query.fetch;
 	exports io.evitadb.core.sequence;
 	exports io.evitadb.core.transaction;
 	exports io.evitadb.core.transaction.memory;
+	exports io.evitadb.core.transaction.stage.mutation;
 	exports io.evitadb.index;
 	exports io.evitadb.index.bool;
 	exports io.evitadb.index.cardinality;
@@ -97,5 +99,5 @@ module evita.engine {
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	opens io.evitadb.core.metric.event.storage to jdk.jfr;
-	exports io.evitadb.core.transaction.stage.mutation;
+
 }

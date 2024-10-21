@@ -112,6 +112,11 @@ public class AssociatedDataContent extends AbstractRequireConstraintLeaf
 		return isAllRequested() ? of(SUFFIX) : empty();
 	}
 
+	@Override
+	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
+		return anotherRequirement instanceof AssociatedDataContent;
+	}
+
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override

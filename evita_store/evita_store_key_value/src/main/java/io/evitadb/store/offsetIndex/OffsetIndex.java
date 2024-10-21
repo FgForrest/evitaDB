@@ -1754,13 +1754,9 @@ public class OffsetIndex {
 					for (int ix = startIndex; ix >= 0; ix--) {
 						final NonFlushedValueSet nfvs = nvSet.get(nv[ix]);
 						if (nfvs != null) {
-							if (nfvs.removedKeys.contains(key)) {
-								return empty();
-							} else {
-								final Optional<VersionedValue> versionedValue = ofNullable(nfvs.get(key));
-								if (versionedValue.isPresent()) {
-									return versionedValue;
-								}
+							final Optional<VersionedValue> versionedValue = ofNullable(nfvs.get(key));
+							if (versionedValue.isPresent()) {
+								return versionedValue;
 							}
 						}
 					}

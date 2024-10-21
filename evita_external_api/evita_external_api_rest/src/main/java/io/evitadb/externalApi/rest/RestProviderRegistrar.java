@@ -59,6 +59,6 @@ public class RestProviderRegistrar implements ExternalApiProviderRegistrar<RestC
 	                                                @Nonnull RestConfig restConfiguration) {
 		final RestManager restManager = new RestManager(evita, restConfiguration);
 		evita.registerStructuralChangeObserver(new CatalogRestRefreshingObserver(restManager));
-		return new RestProvider(restConfiguration, restManager);
+		return new RestProvider(restConfiguration, restManager, apiOptions.requestTimeoutInMillis());
 	}
 }

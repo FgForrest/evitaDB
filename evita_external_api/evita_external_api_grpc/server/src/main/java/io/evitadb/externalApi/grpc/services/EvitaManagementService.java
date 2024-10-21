@@ -43,7 +43,6 @@ import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
-import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.api.system.ProbesProvider.ApiState;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
@@ -74,11 +73,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.ServiceLoader;
-import java.util.ServiceLoader.Provider;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -187,13 +183,9 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		executeWithClientContext(
 			() -> {
 				final SystemStatus systemStatus = management.getSystemStatus();
-				final List<ProbesProvider> probes = ServiceLoader.load(ProbesProvider.class)
-					.stream()
-					.map(Provider::get)
-					.toList();
 
 				final String[] enabledApiEndpoints = externalApiServer.getApiOptions().getEnabledApiEndpoints();
-				final Optional<Readiness> readiness = probes.stream()
+				final Optional<Readiness> readiness = externalApiServer.getProbeProviders().stream()
 					.findFirst()
 					.map(it -> it.getReadiness(evita, externalApiServer, enabledApiEndpoints));
 
@@ -208,7 +200,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					.setReadiness(toGrpcReadinessState(readiness.map(Readiness::state).orElse(ReadinessState.UNKNOWN)))
 					.setReadOnly(evita.getConfiguration().server().readOnly());
 
-				probes.stream()
+				externalApiServer.getProbeProviders().stream()
 					.flatMap(probe -> probe.getHealthProblems(evita, externalApiServer, enabledApiEndpoints).stream())
 					.distinct()
 					.forEach(problem -> responseBuilder.addHealthProblems(toGrpcHealthProblem(problem)));

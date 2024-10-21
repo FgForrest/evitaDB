@@ -22,8 +22,6 @@
  */
 
 import io.evitadb.api.observability.trace.TracingContext;
-import io.evitadb.externalApi.api.system.ProbesProvider;
-import io.evitadb.externalApi.grpc.GrpcProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
@@ -37,7 +35,6 @@ module evita.external.api.grpc {
 	uses ExternalApiProviderRegistrar;
 	uses TracingContext;
 	uses ExternalApiTracingContext;
-	uses ProbesProvider;
 
 	provides ExternalApiProviderRegistrar with GrpcProviderRegistrar;
 

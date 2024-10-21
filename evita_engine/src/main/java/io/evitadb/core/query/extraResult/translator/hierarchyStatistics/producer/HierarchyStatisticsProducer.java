@@ -38,10 +38,10 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.AttributeSchemaAccessor;
-import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
+import io.evitadb.core.query.fetch.FetchRequirementCollector;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.IntBiFunction;
@@ -160,7 +160,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nullable HierarchyFilterConstraint hierarchyWithin,
 		@Nonnull GlobalEntityIndex targetIndex,
-		@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
+		@Nullable FetchRequirementCollector fetchRequirementCollector,
 		@Nonnull IntBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
 		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nonnull EmptyHierarchicalEntityBehaviour behaviour,
@@ -177,7 +177,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 					attributeSchemaAccessor,
 					hierarchyWithin,
 					targetIndex,
-					prefetchRequirementCollector,
+					fetchRequirementCollector,
 					directlyQueriedEntitiesFormulaProducer,
 					hierarchyFilterPredicateProducer,
 					behaviour == EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY
