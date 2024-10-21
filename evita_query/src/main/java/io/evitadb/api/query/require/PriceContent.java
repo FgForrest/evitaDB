@@ -142,6 +142,11 @@ public class PriceContent extends AbstractRequireConstraintLeaf
 			getFetchMode() != PriceContentMode.NONE;
 	}
 
+	@Override
+	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
+		return anotherRequirement instanceof PriceContent;
+	}
+
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override

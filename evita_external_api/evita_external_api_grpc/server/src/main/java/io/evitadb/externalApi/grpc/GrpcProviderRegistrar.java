@@ -67,7 +67,12 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<GrpcConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig grpcAPIConfig) {
+	public ExternalApiProvider<GrpcConfig> register(
+		@Nonnull Evita evita,
+		@Nonnull ExternalApiServer externalApiServer,
+		@Nonnull ApiOptions apiOptions,
+		@Nonnull GrpcConfig grpcAPIConfig
+	) {
 		final GrpcServiceBuilder grpcServiceBuilder = GrpcService.builder()
 			.addService(new EvitaService(evita))
 			.addService(new EvitaManagementService(evita, externalApiServer))
@@ -100,7 +105,9 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 
 		return new GrpcProvider(
 			grpcAPIConfig,
-			corsBuilder.build(grpcService)
+			corsBuilder.build(grpcService),
+			apiOptions.requestTimeoutInMillis(),
+			apiOptions.idleTimeoutInMillis()
 		);
 	}
 }

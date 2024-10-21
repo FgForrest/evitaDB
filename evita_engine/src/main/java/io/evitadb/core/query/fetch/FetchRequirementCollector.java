@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query;
+package io.evitadb.core.query.fetch;
 
 import io.evitadb.api.query.require.EntityContentRequire;
 
@@ -34,7 +34,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @FunctionalInterface
-public interface PrefetchRequirementCollector {
+public interface FetchRequirementCollector {
 
 	/**
 	 * Registers new requirement that should be taken into an account when/if the prefetch of the entities occur.

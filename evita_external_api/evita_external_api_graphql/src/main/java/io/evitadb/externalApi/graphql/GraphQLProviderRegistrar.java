@@ -58,6 +58,6 @@ public class GraphQLProviderRegistrar implements ExternalApiProviderRegistrar<Gr
     public ExternalApiProvider<GraphQLConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull GraphQLConfig graphQLConfig) {
         final GraphQLManager graphQLManager = new GraphQLManager(evita, graphQLConfig);
         evita.registerStructuralChangeObserver(new CatalogGraphQLRefreshingObserver(graphQLManager));
-        return new GraphQLProvider(graphQLConfig, graphQLManager);
+        return new GraphQLProvider(graphQLConfig, graphQLManager, apiOptions.requestTimeoutInMillis());
     }
 }
