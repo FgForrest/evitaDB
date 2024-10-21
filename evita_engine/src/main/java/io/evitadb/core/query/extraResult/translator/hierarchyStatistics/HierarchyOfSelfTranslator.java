@@ -107,7 +107,7 @@ public class HierarchyOfSelfTranslator
 				extraResultPlanner.getAttributeSchemaAccessor(),
 				hierarchyWithin,
 				globalIndex,
-				extraResultPlanner.getPrefetchRequirementCollector(),
+				extraResultPlanner.getFetchRequirementCollector(),
 				(nodeId, statisticsBase) -> {
 					final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
 						extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :

@@ -127,6 +127,11 @@ public class AttributeContent extends AbstractRequireConstraintLeaf
 		return isAllRequested() ? of(SUFFIX) : empty();
 	}
 
+	@Override
+	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
+		return anotherRequirement instanceof AttributeContent;
+	}
+
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
