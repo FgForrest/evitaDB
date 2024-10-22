@@ -36,6 +36,7 @@ import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.Scope;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import org.junit.jupiter.api.Test;
@@ -2955,6 +2956,33 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("queryTelemetry('a','b')"));
 	}
 
+	@Test
+	void shouldParseScopeConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("scope(LIVE)");
+		assertEquals(scope(Scope.LIVE), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("scope ( LIVE )");
+		assertEquals(scope(Scope.LIVE), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("scope ( ARCHIVED )");
+		assertEquals(scope(Scope.ARCHIVED), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraintUnsafe("scope ( ARCHIVED,    LIVE )");
+		assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), constraint4);
+
+		final RequireConstraint constraint5 = parseRequireConstraint("scope ( ?,    ? )", Scope.ARCHIVED, Scope.LIVE);
+		assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), constraint5);
+
+		final RequireConstraint constraint = parseRequireConstraint("scope ( @a,    @b )", Map.of("a", Scope.ARCHIVED, "b", Scope.LIVE));
+		assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), constraint);
+	}
+
+	@Test
+	void shouldNotParseScopeConstraint() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("scope"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("scope(LIVE)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("scope('a','b')"));
+	}
 
 	/**
 	 * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"
@@ -2963,7 +2991,7 @@ class EvitaQLRequireConstraintVisitorTest {
 	 * @param positionalArguments positional arguments to substitute
 	 * @return parsed constraint
 	 */
-	private RequireConstraint parseRequireConstraint(@Nonnull String string, @Nonnull Object... positionalArguments) {
+	private static RequireConstraint parseRequireConstraint(@Nonnull String string, @Nonnull Object... positionalArguments) {
 		return ParserExecutor.execute(
 			new ParseContext(positionalArguments),
 			() -> ParserFactory.getParser(string).requireConstraint().accept(new EvitaQLRequireConstraintVisitor())
@@ -2977,7 +3005,7 @@ class EvitaQLRequireConstraintVisitorTest {
 	 * @param namedArguments named arguments to substitute
 	 * @return parsed constraint
 	 */
-	private RequireConstraint parseRequireConstraint(@Nonnull String string, @Nonnull Map<String, Object> namedArguments) {
+	private static RequireConstraint parseRequireConstraint(@Nonnull String string, @Nonnull Map<String, Object> namedArguments) {
 		return ParserExecutor.execute(
 			new ParseContext(namedArguments),
 			() -> ParserFactory.getParser(string).requireConstraint().accept(new EvitaQLRequireConstraintVisitor())
@@ -2990,7 +3018,7 @@ class EvitaQLRequireConstraintVisitorTest {
 	 * @param string string to parse
 	 * @return parsed constraint
 	 */
-	private RequireConstraint parseRequireConstraintUnsafe(@Nonnull String string) {
+	private static RequireConstraint parseRequireConstraintUnsafe(@Nonnull String string) {
 		final ParseContext context = new ParseContext();
 		context.setMode(ParseMode.UNSAFE);
 		return ParserExecutor.execute(

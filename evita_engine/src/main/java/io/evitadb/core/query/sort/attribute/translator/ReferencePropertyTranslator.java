@@ -60,8 +60,8 @@ import static io.evitadb.utils.Assert.isTrue;
  */
 public class ReferencePropertyTranslator implements OrderingConstraintTranslator<ReferenceProperty>, SelfTraversingTranslator {
 	private static final Comparator<EntityIndex> DEFAULT_COMPARATOR = (o1, o2) -> {
-		final int o1pk = ((ReferenceKey) o1.getIndexKey().getDiscriminator()).primaryKey();
-		final int o2pk = ((ReferenceKey) o2.getIndexKey().getDiscriminator()).primaryKey();
+		final int o1pk = ((ReferenceKey) o1.getIndexKey().discriminator()).primaryKey();
+		final int o2pk = ((ReferenceKey) o2.getIndexKey().discriminator()).primaryKey();
 		return Integer.compare(o1pk, o2pk);
 	};
 	private static final EntityIndex[] EMPTY_INDEXES = new EntityIndex[0];
@@ -131,7 +131,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			.map(EntityIndex.class::cast)
 			.filter(it -> !(it instanceof ReferencedTypeEntityIndex))
 			.filter(
-				it -> it.getIndexKey().getDiscriminator() instanceof ReferenceKey referenceKey &&
+				it -> it.getIndexKey().discriminator() instanceof ReferenceKey referenceKey &&
 					referenceKey.referenceName().equals(referenceName)
 			)
 			.sorted(indexComparator)
@@ -146,8 +146,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	private static Comparator<EntityIndex> getHierarchyComparator(@Nonnull GlobalEntityIndex entityIndex) {
 		final Comparator<Integer> comparator = entityIndex.getHierarchyComparator();
 		return (o1, o2) -> comparator.compare(
-			((ReferenceKey) o1.getIndexKey().getDiscriminator()).primaryKey(),
-			((ReferenceKey) o2.getIndexKey().getDiscriminator()).primaryKey()
+			((ReferenceKey) o1.getIndexKey().discriminator()).primaryKey(),
+			((ReferenceKey) o2.getIndexKey().discriminator()).primaryKey()
 		);
 	}
 

@@ -25605,7 +25605,15 @@ public interface QueryConstraints {
 
 	/**
 	 * This `debug` require is targeted for internal purposes only and is not exposed in public evitaDB API.
-	*/
+	 */
+	@Nullable
+	static EntityScope scope(@Nullable Scope... scope) {
+		return ArrayUtils.isEmptyOrItsValuesNull(scope) ? null : new EntityScope(scope);
+	}
+
+	/**
+	 * This `debug` require is targeted for internal purposes only and is not exposed in public evitaDB API.
+	 */
 	@Nullable
 	static Debug debug(@Nullable DebugMode... debugMode) {
 		return ArrayUtils.isEmptyOrItsValuesNull(debugMode) ? null : new Debug(debugMode);

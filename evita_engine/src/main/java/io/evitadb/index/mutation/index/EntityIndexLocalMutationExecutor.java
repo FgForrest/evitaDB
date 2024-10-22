@@ -566,7 +566,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				index -> {
 					// removal mutations happen before indexes are created and thus the created indexes will not have
 					// the language set (entity already lacks the language) - so we cannot remove it for those indexes
-					if (this.createdReferences == null || !this.createdReferences.contains((ReferenceKey) index.getIndexKey().getDiscriminator())) {
+					if (this.createdReferences == null || !this.createdReferences.contains((ReferenceKey) index.getIndexKey().discriminator())) {
 						final boolean removedInTargetIndex = removeEntityLanguageInTargetIndex(
 							epk, locale, index, this.undoActionsAppender
 						);
@@ -606,7 +606,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				undoActionConsumer
 			);
 			final EntityIndexKey indexKey = targetIndex.getIndexKey();
-			if (indexKey.getDiscriminator() instanceof ReferenceKey referenceKey) {
+			if (indexKey.discriminator() instanceof ReferenceKey referenceKey) {
 				AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
 					targetIndex,
 					locale,
@@ -648,7 +648,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				undoActionConsumer
 			);
 			final EntityIndexKey indexKey = targetIndex.getIndexKey();
-			if (indexKey.getDiscriminator() instanceof ReferenceKey referenceKey) {
+			if (indexKey.discriminator() instanceof ReferenceKey referenceKey) {
 				AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
 					targetIndex,
 					locale,
@@ -672,7 +672,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * this is altered in {@link #updateReferences(ReferenceMutation, EntityIndex)} method.
 	 */
 	private void updateReferencesInReferenceIndex(@Nonnull ReferenceMutation<?> referenceMutation, @Nonnull EntityIndex targetIndex) {
-		final EntityIndexType targetIndexType = targetIndex.getIndexKey().getType();
+		final EntityIndexType targetIndexType = targetIndex.getIndexKey().type();
 		final int theEntityPrimaryKey;
 		if (targetIndexType == EntityIndexType.REFERENCED_HIERARCHY_NODE) {
 			theEntityPrimaryKey = getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX);

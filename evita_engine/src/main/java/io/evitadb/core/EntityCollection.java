@@ -37,6 +37,7 @@ import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.Scope;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
@@ -725,7 +726,66 @@ public final class EntityCollection implements
 
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 		return applyReferenceFetcher(removedEntities, referenceFetcher).toArray(SealedEntity[]::new);
+	}
 
+	@Override
+	public boolean archiveEntity(int primaryKey) {
+		if (this.getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
+			archiveEntityInternal(primaryKey, null);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	@Nonnull
+	@Override
+	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
+		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
+		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
+			final EntityWithFetchCount removedEntity = archiveEntityInternal(primaryKeys[0], evitaRequest);
+			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+			//noinspection unchecked
+			return of(
+				(T) applyReferenceFetcher(
+					wrapToDecorator(evitaRequest, removedEntity, false),
+					referenceFetcher
+				)
+			);
+		} else {
+			return empty();
+		}
+	}
+
+	@Override
+	public boolean restoreEntity(int primaryKey) {
+		if (this.getGlobalArchiveIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
+			restoreEntityInternal(primaryKey, null);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	@Nonnull
+	@Override
+	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
+		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
+		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
+			final EntityWithFetchCount removedEntity = restoreEntityInternal(primaryKeys[0], evitaRequest);
+			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+			//noinspection unchecked
+			return of(
+				(T) applyReferenceFetcher(
+					wrapToDecorator(evitaRequest, removedEntity, false),
+					referenceFetcher
+				)
+			);
+		} else {
+			return empty();
+		}
 	}
 
 	@Override
@@ -1193,13 +1253,32 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Method returns {@link GlobalEntityIndex} or throws an exception if it hasn't yet exist.
+	 * Method returns {@link GlobalEntityIndex} or returns empty result if missing.
 	 */
 	@Nonnull
 	public Optional<GlobalEntityIndex> getGlobalIndexIfExists() {
 		final Optional<EntityIndex> globalIndex = ofNullable(getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL)));
-		return globalIndex.map(it -> {
-				Assert.isPremiseValid(it instanceof GlobalEntityIndex, "Global index not found in entity collection of `" + getSchema().getName() + "`.");
+		return globalIndex
+			.map(it -> {
+				Assert.isPremiseValid(
+					it instanceof GlobalEntityIndex,
+					() -> "Invalid type of the global index (`" + it.getClass() + "`) in entity collection of `" + getSchema().getName() + "`.");
+				return ofNullable((GlobalEntityIndex) it);
+			})
+			.orElse(empty());
+	}
+
+	/**
+	 * Method returns {@link GlobalEntityIndex} of archived entities or returns empty result if missing.
+	 */
+	@Nonnull
+	public Optional<GlobalEntityIndex> getGlobalArchiveIndexIfExists() {
+		final Optional<EntityIndex> globalIndex = ofNullable(getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, Scope.ARCHIVED)));
+		return globalIndex
+			.map(it -> {
+				Assert.isPremiseValid(
+					it instanceof GlobalEntityIndex,
+					() -> "Invalid type of the archive global index (`" + it.getClass() + "`) in entity collection of `" + getSchema().getName() + "`.");
 				return ofNullable((GlobalEntityIndex) it);
 			})
 			.orElse(empty());
@@ -1422,6 +1501,28 @@ public final class EntityCollection implements
 			EnumSet.allOf(ImplicitMutationBehavior.class),
 			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
 		);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 */
+	@Nullable
+	private EntityWithFetchCount archiveEntityInternal(
+		int primaryKey,
+		@Nullable EvitaRequest returnDeletedEntity
+	) {
+		throw new UnsupportedOperationException("Not implemented yet!");
+	}
+
+	/**
+	 * TODO JNO - document me
+	 */
+	@Nullable
+	private EntityWithFetchCount restoreEntityInternal(
+		int primaryKey,
+		@Nullable EvitaRequest returnDeletedEntity
+	) {
+		throw new UnsupportedOperationException("Not implemented yet!");
 	}
 
 	/**
@@ -1971,7 +2072,7 @@ public final class EntityCollection implements
 						eikAgain -> {
 							final EntityIndex entityIndex;
 							// if index doesn't exist even there create new one
-							if (eikAgain.getType() == EntityIndexType.GLOBAL) {
+							if (eikAgain.type() == EntityIndexType.GLOBAL) {
 								entityIndex = new GlobalEntityIndex(indexPkSequence.incrementAndGet(), entityType, eikAgain);
 							} else {
 								final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
@@ -1979,7 +2080,7 @@ public final class EntityCollection implements
 									globalIndex instanceof GlobalEntityIndex,
 									"When reduced index is created global one must already exist!"
 								);
-								if (eikAgain.getType() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+								if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
 									entityIndex = new ReferencedTypeEntityIndex(
 										indexPkSequence.incrementAndGet(), entityType, eikAgain
 									);
@@ -2059,7 +2160,7 @@ public final class EntityCollection implements
 			return EntityCollection.this.indexes
 				.values()
 				.stream()
-				.filter(it -> it.getIndexKey().getType() != EntityIndexType.GLOBAL)
+				.filter(it -> it.getIndexKey().type() != EntityIndexType.GLOBAL)
 				.map(EntityIndex::getPrimaryKey)
 				.collect(Collectors.toList());
 		}

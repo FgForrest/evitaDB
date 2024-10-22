@@ -1769,6 +1769,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterEntityScopeConstraint(EvitaQLParser.EntityScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitEntityScopeConstraint(EvitaQLParser.EntityScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterHeadConstraintList(EvitaQLParser.HeadConstraintListContext ctx) { }
 	/**
 	 * {@inheritDoc}

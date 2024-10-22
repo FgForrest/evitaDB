@@ -183,6 +183,7 @@ requireConstraint
     | 'hierarchyOfReference'                args = fullHierarchyOfReferenceArgs                             # fullHierarchyOfReferenceConstraint
     | 'hierarchyOfReference'                args = fullHierarchyOfReferenceWithBehaviourArgs                # fullHierarchyOfReferenceWithBehaviourConstraint
     | 'queryTelemetry'                      emptyArgs                                                       # queryTelemetryConstraint
+    | 'scope'                               args = valueListArgs                                            # entityScopeConstraint
     ;
 
 headConstraintList : constraints += headConstraint (ARGS_DELIMITER constraints += headConstraint)* ;

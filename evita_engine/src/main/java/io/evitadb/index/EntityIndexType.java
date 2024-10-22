@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.index;
 
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 
 /**
  * EntityIndexType enumeration keeps constants for all types of {@link EntityIndex EntityIndexes} that are used to
@@ -53,7 +54,7 @@ public enum EntityIndexType {
 	REFERENCED_ENTITY,
 	/**
 	 * Index that contains the similar data as {@link #GLOBAL} index but only for those entities that are referencing
-	 * entity with {@link HierarchicalPlacementContract} defined.
+	 * entity with {@link EntitySchemaContract#isWithHierarchy()} defined.
 	 */
 	REFERENCED_HIERARCHY_NODE
 }

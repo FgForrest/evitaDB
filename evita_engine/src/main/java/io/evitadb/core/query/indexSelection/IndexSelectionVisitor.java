@@ -85,7 +85,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 			final EntityIndex eix = entityIndex.get();
 			this.targetIndexes.add(
 				new TargetIndexes<>(
-					eix.getIndexKey().getType().name(),
+					eix.getIndexKey().type().name(),
 					EntityIndex.class,
 					Collections.singletonList(eix)
 				)

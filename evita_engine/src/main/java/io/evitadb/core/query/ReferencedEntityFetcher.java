@@ -510,7 +510,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				Formula lastIndexFormula = null;
 				Bitmap lastResult = null;
 				for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
-					final ReferenceKey indexDiscriminator = (ReferenceKey) referencedEntityIndex.getIndexKey().getDiscriminator();
+					final ReferenceKey indexDiscriminator = (ReferenceKey) referencedEntityIndex.getIndexKey().discriminator();
 					final int referencedPrimaryKey = indexDiscriminator.primaryKey();
 					foundReferencedIds.add(referencedPrimaryKey);
 

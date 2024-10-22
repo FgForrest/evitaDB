@@ -1177,6 +1177,98 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
+	@Interruptible
+	@Traced
+	@RepresentsMutation
+	@Override
+	public boolean archiveEntity(@Nonnull String entityType, int primaryKey) {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final EntityCollectionContract collection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
+			return collection.archiveEntity(primaryKey);
+		});
+	}
+
+	@Interruptible
+	@Traced
+	@RepresentsMutation
+	@Override
+	public boolean archiveEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
+		return archiveEntity(
+			extractEntityTypeFromClass(modelClass, reflectionLookup)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
+			primaryKey
+		);
+	}
+
+	@Interruptible
+	@Traced
+	@RepresentsMutation
+	@Nonnull
+	@Override
+	public Optional<SealedEntity> archiveEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
+		return archiveEntityInternal(entityType, SealedEntity.class, primaryKey, require);
+	}
+
+	@Interruptible
+	@Traced
+	@RepresentsMutation
+	@Nonnull
+	@Override
+	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
+		return archiveEntityInternal(
+			extractEntityTypeFromClass(modelClass, reflectionLookup)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
+			modelClass, primaryKey, require
+		);
+	}
+
+	@Interruptible
+	@Traced
+	@RepresentsMutation
+	@Override
+	public boolean restoreEntity(@Nonnull String entityType, int primaryKey) {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final EntityCollectionContract collection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
+			return collection.restoreEntity(primaryKey);
+		});
+	}
+
+	@Interruptible
+	@Traced
+	@RepresentsMutation
+	@Override
+	public boolean restoreEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
+		return restoreEntity(
+			extractEntityTypeFromClass(modelClass, reflectionLookup)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
+			primaryKey
+		);
+	}
+
+	@Interruptible
+	@Traced
+	@RepresentsMutation
+	@Nonnull
+	@Override
+	public Optional<SealedEntity> restoreEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
+		return restoreEntityInternal(entityType, SealedEntity.class, primaryKey, require);
+	}
+
+	@Interruptible
+	@Traced
+	@RepresentsMutation
+	@Nonnull
+	@Override
+	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
+		return restoreEntityInternal(
+			extractEntityTypeFromClass(modelClass, reflectionLookup)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
+			modelClass, primaryKey, require
+		);
+	}
+
 	@Nonnull
 	@Override
 	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
@@ -1498,6 +1590,78 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				"Entity type " + entityType + " doesn't represent a hierarchical entity!"
 			);
 			return collection.deleteEntityAndItsHierarchy(
+				new EvitaRequest(
+					Query.query(
+						collection(entityType),
+						filterBy(entityPrimaryKeyInSet(primaryKey)),
+						require(
+							entityFetch(require)
+						)
+					),
+					OffsetDateTime.now(),
+					expectedType,
+					extractEntityTypeFromClass(expectedType, reflectionLookup)
+						.orElse(null)
+				),
+				this
+			);
+		});
+	}
+
+	/**
+	 * Internal implementation for archiving of the entity.
+	 *
+	 * @see #archiveEntity(String, int)
+	 * @see #archiveEntity(Class, int)
+	 */
+	@Nonnull
+	private <T> Optional<T> archiveEntityInternal(
+		@Nonnull String entityType,
+		@Nonnull Class<T> expectedType,
+		int primaryKey,
+		EntityContentRequire... require
+	) {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final EntityCollectionContract collection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
+			//noinspection unchecked
+			return (Optional<T>) collection.archiveEntity(
+				new EvitaRequest(
+					Query.query(
+						collection(entityType),
+						filterBy(entityPrimaryKeyInSet(primaryKey)),
+						require(
+							entityFetch(require)
+						)
+					),
+					OffsetDateTime.now(),
+					expectedType,
+					extractEntityTypeFromClass(expectedType, reflectionLookup)
+						.orElse(null)
+				),
+				this
+			);
+		});
+	}
+
+	/**
+	 * Internal implementation for restoring of the entity.
+	 *
+	 * @see #restoreEntity(String, int)
+	 * @see #restoreEntity(Class, int)
+	 */
+	@Nonnull
+	private <T> Optional<T> restoreEntityInternal(
+		@Nonnull String entityType,
+		@Nonnull Class<T> expectedType,
+		int primaryKey,
+		EntityContentRequire... require
+	) {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final EntityCollectionContract collection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
+			//noinspection unchecked
+			return (Optional<T>) collection.restoreEntity(
 				new EvitaRequest(
 					Query.query(
 						collection(entityType),

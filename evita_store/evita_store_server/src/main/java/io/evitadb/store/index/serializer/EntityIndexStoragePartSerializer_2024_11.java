@@ -27,7 +27,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.require.Scope;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
@@ -59,8 +58,9 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated
 @RequiredArgsConstructor
-public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStoragePart> {
+public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityIndexStoragePart> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
@@ -70,7 +70,6 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 
 		final EntityIndexKey entityIndexKey = entityIndex.getEntityIndexKey();
 		kryo.writeObject(output, entityIndexKey.type());
-		kryo.writeObject(output, entityIndexKey.scope());
 		if (entityIndexKey.discriminator() == null) {
 			output.writeBoolean(false);
 		} else {
@@ -132,10 +131,9 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final int version = input.readVarInt(true);
 
 		final EntityIndexType entityIndexType = kryo.readObject(input, EntityIndexType.class);
-		final Scope entityIndexScope = kryo.readObject(input, Scope.class);
 		final Serializable discriminator = input.readBoolean() ? (Serializable) kryo.readClassAndObject(input) : null;
 		final EntityIndexKey entityIndexKey = discriminator == null ?
-			new EntityIndexKey(entityIndexType, entityIndexScope) : new EntityIndexKey(entityIndexType, entityIndexScope, discriminator);
+			new EntityIndexKey(entityIndexType) : new EntityIndexKey(entityIndexType, discriminator);
 
 		final TransactionalBitmap entityIds = kryo.readObject(input, TransactionalBitmap.class);
 

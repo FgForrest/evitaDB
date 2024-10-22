@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,9 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.query.require.Scope;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexKeyAccessor;
-import lombok.Data;
+import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -36,29 +37,34 @@ import static java.util.Optional.ofNullable;
 /**
  * This class is key for accessing {@link EntityIndex} that is the most optimal for the client query.
  *
+ * @param type         type of the index
+ * @param scope        scope of the index (archive or living data set)
+ * @param discriminator additional object that distinguishes multiple indexes of same {@link #type}
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Data
-public class EntityIndexKey implements IndexKey, Comparable<EntityIndexKey>, EntityIndexKeyAccessor {
-	@Serial private static final long serialVersionUID = 3548327054604327542L;
-
-	/**
-	 * Index by type classification.
-	 */
-	private final EntityIndexType type;
-
-	/**
-	 * Additional object that distinguishes multiple indexes of same {@link #type}.
-	 */
-	private final Serializable discriminator;
+public record EntityIndexKey(
+	@Nonnull EntityIndexType type,
+	@Nonnull Scope scope,
+	Serializable discriminator
+) implements IndexKey, Comparable<EntityIndexKey>, EntityIndexKeyAccessor {
+	@Serial private static final long serialVersionUID = -3243859875585872256L;
 
 	public EntityIndexKey(@Nonnull EntityIndexType type) {
-		this.type = type;
-		this.discriminator = null;
+		this(type, Scope.LIVE, null);
+	}
+
+	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Scope scope) {
+		this(type, scope, null);
 	}
 
 	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Serializable discriminator) {
+		this(type, Scope.LIVE, discriminator);
+	}
+
+	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Scope scope, @Nonnull Serializable discriminator) {
 		this.type = type;
+		this.scope = scope;
 		this.discriminator = discriminator;
 	}
 
@@ -70,23 +76,28 @@ public class EntityIndexKey implements IndexKey, Comparable<EntityIndexKey>, Ent
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Override
 	public int compareTo(EntityIndexKey o) {
-		final int firstComparison = type.compareTo(o.type);
-		if (firstComparison == 0 && discriminator != null) {
-			if (discriminator instanceof Comparable) {
-				return o.discriminator != null ? ((Comparable) discriminator).compareTo(o.discriminator) : -1;
-			} else if (Objects.equals(discriminator, o.discriminator)) {
-				return 0;
-			} else {
-				return o.discriminator != null ? Integer.compare(System.identityHashCode(discriminator), System.identityHashCode(o.discriminator)) : -1;
-			}
+		if (this.scope != o.scope) {
+			return Integer.compare(this.scope.ordinal(), o.scope.ordinal());
 		} else {
-			return firstComparison;
+			final int typeComparison = this.type.compareTo(o.type);
+			if (typeComparison == 0 && this.discriminator != null) {
+				if (this.discriminator instanceof Comparable) {
+					return o.discriminator != null ? ((Comparable) this.discriminator).compareTo(o.discriminator) : -1;
+				} else if (Objects.equals(this.discriminator, o.discriminator)) {
+					return 0;
+				} else {
+					return o.discriminator != null ? Integer.compare(System.identityHashCode(this.discriminator), System.identityHashCode(o.discriminator)) : -1;
+				}
+			} else {
+				return typeComparison;
+			}
 		}
 	}
 
 	@Override
 	public String toString() {
-		return "Index:" + type + ofNullable(discriminator).map(it -> " (" + it + ')').orElse("");
+		return StringUtils.capitalize(this.scope.name().toLowerCase()) + " index: " +
+			this.type + ofNullable(this.discriminator).map(it -> " (" + it + ')').orElse("");
 	}
 
 }

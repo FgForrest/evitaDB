@@ -1745,6 +1745,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitQueryTelemetryConstraint(EvitaQLParser.QueryTelemetryConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code entityScopeConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterEntityScopeConstraint(EvitaQLParser.EntityScopeConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code entityScopeConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitEntityScopeConstraint(EvitaQLParser.EntityScopeConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#headConstraintList}.
 	 * @param ctx the parse tree
 	 */

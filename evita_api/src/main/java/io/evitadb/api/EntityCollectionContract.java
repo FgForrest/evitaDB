@@ -242,6 +242,48 @@ public interface EntityCollectionContract {
 	SealedEntity[] deleteEntitiesAndReturnThem(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
+	 * TODO JNO - update documentation
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return true if entity existed and was removed
+	 */
+	boolean archiveEntity(int primaryKey);
+
+	/**
+	 * TODO JNO - update documentation
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @param evitaRequest allowing to propagate instructions for fetching the deleted entity
+	 * @param session      that connect this request with an opened session
+	 * @return removed entity fetched according to `require` definition
+	 */
+	@Nonnull
+	<T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+
+	/**
+	 * TODO JNO - update documentation
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return true if entity existed and was removed
+	 */
+	boolean restoreEntity(int primaryKey);
+
+	/**
+	 * TODO JNO - update documentation
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @param evitaRequest allowing to propagate instructions for fetching the deleted entity
+	 * @param session      that connect this request with an opened session
+	 * @return removed entity fetched according to `require` definition
+	 */
+	@Nonnull
+	<T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+
+	/**
 	 * Method returns true if there is no single entity in the collection.
 	 */
 	boolean isEmpty();

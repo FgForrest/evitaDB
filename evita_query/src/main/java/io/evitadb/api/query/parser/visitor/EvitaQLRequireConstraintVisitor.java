@@ -108,6 +108,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		String[].class,
 		Iterable.class
 	);
+	protected final EvitaQLValueTokenVisitor scopeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(Scope.class);
 
 	@Nonnull
 	private static ManagedReferencesBehaviour toManagedReferencesBehaviour(@Nonnull Serializable arg) {
@@ -1994,6 +1995,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	@Override
 	public RequireConstraint visitQueryTelemetryConstraint(@Nonnull QueryTelemetryConstraintContext ctx) {
 		return parse(ctx, QueryTelemetry::new);
+	}
+
+	@Override
+	public RequireConstraint visitEntityScopeConstraint(EntityScopeConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new EntityScope(ctx.args.variadicValueTokens().accept(scopeValueTokenVisitor).asEnumArray(Scope.class))
+		);
 	}
 
 	@Nonnull

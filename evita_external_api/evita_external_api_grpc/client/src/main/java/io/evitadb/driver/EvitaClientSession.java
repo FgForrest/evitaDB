@@ -1283,6 +1283,92 @@ public class EvitaClientSession implements EvitaSessionContract {
 		});
 	}
 
+	@Override
+	public boolean archiveEntity(@Nonnull String entityType, int primaryKey) {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final GrpcArchiveEntityResponse grpcResponse = executeWithBlockingEvitaSessionService(
+				evitaSessionService ->
+					evitaSessionService.archiveEntity(
+						GrpcArchiveEntityRequest
+							.newBuilder()
+							.setEntityType(entityType)
+							.setPrimaryKey(Int32Value.newBuilder().setValue(primaryKey).build())
+							.build()
+					)
+			);
+			return grpcResponse.hasEntity() || grpcResponse.hasEntityReference();
+		});
+	}
+
+	@Override
+	public boolean archiveEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
+		return archiveEntity(
+			extractEntityTypeFromClass(modelClass, reflectionLookup)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
+			primaryKey
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SealedEntity> archiveEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
+		return archiveEntityInternal(entityType, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER, primaryKey, require);
+	}
+
+	@Nonnull
+	@Override
+	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
+		return archiveEntityInternal(
+			extractEntityTypeFromClass(modelClass, reflectionLookup)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
+			modelClass, this::createEntityProxy, primaryKey, require
+		);
+	}
+
+	@Override
+	public boolean restoreEntity(@Nonnull String entityType, int primaryKey) {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final GrpcRestoreEntityResponse grpcResponse = executeWithBlockingEvitaSessionService(
+				evitaSessionService ->
+					evitaSessionService.restoreEntity(
+						GrpcRestoreEntityRequest
+							.newBuilder()
+							.setEntityType(entityType)
+							.setPrimaryKey(Int32Value.newBuilder().setValue(primaryKey).build())
+							.build()
+					)
+			);
+			return grpcResponse.hasEntity() || grpcResponse.hasEntityReference();
+		});
+	}
+
+	@Override
+	public boolean restoreEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
+		return restoreEntity(
+			extractEntityTypeFromClass(modelClass, reflectionLookup)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
+			primaryKey
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SealedEntity> restoreEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
+		return restoreEntityInternal(entityType, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER, primaryKey, require);
+	}
+
+	@Nonnull
+	@Override
+	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
+		return restoreEntityInternal(
+			extractEntityTypeFromClass(modelClass, reflectionLookup)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
+			modelClass, this::createEntityProxy, primaryKey, require
+		);
+	}
+
 	@Nonnull
 	@Override
 	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
@@ -1827,6 +1913,114 @@ public class EvitaClientSession implements EvitaSessionContract {
 				evitaSessionService ->
 					evitaSessionService.deleteEntity(
 						GrpcDeleteEntityRequest
+							.newBuilder()
+							.setEntityType(entityType)
+							.setPrimaryKey(Int32Value.newBuilder().setValue(primaryKey).build())
+							.setRequire(stringWithParameters.query())
+							.addAllPositionalQueryParams(
+								stringWithParameters.parameters()
+									.stream()
+									.map(QueryConverter::convertQueryParam)
+									.toList()
+							)
+							.build()
+					)
+			);
+			return grpcResponse.hasEntity() ?
+				of(
+					EntityConverter.toEntity(
+						entity -> schemaCache.getEntitySchemaOrThrowException(
+							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
+						),
+						new EvitaRequest(
+							Query.query(
+								collection(entityType),
+								require(
+									entityFetch(require)
+								)
+							),
+							OffsetDateTime.now(),
+							expectedType,
+							extractEntityTypeFromClass(expectedType, reflectionLookup)
+								.orElse(null)
+						),
+						grpcResponse.getEntity(),
+						expectedType,
+						typeConverter
+					)
+				) : empty();
+		});
+	}
+
+	@Nonnull
+	private <T> Optional<T> archiveEntityInternal(
+		@Nonnull String entityType,
+		@Nonnull Class<T> expectedType,
+		@Nonnull TypeConverter<T> typeConverter,
+		int primaryKey,
+		@Nonnull EntityContentRequire[] require
+	) {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
+			final GrpcArchiveEntityResponse grpcResponse = executeWithBlockingEvitaSessionService(
+				evitaSessionService ->
+					evitaSessionService.archiveEntity(
+						GrpcArchiveEntityRequest
+							.newBuilder()
+							.setEntityType(entityType)
+							.setPrimaryKey(Int32Value.newBuilder().setValue(primaryKey).build())
+							.setRequire(stringWithParameters.query())
+							.addAllPositionalQueryParams(
+								stringWithParameters.parameters()
+									.stream()
+									.map(QueryConverter::convertQueryParam)
+									.toList()
+							)
+							.build()
+					)
+			);
+			return grpcResponse.hasEntity() ?
+				of(
+					EntityConverter.toEntity(
+						entity -> schemaCache.getEntitySchemaOrThrowException(
+							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
+						),
+						new EvitaRequest(
+							Query.query(
+								collection(entityType),
+								require(
+									entityFetch(require)
+								)
+							),
+							OffsetDateTime.now(),
+							expectedType,
+							extractEntityTypeFromClass(expectedType, reflectionLookup)
+								.orElse(null)
+						),
+						grpcResponse.getEntity(),
+						expectedType,
+						typeConverter
+					)
+				) : empty();
+		});
+	}
+
+	@Nonnull
+	private <T> Optional<T> restoreEntityInternal(
+		@Nonnull String entityType,
+		@Nonnull Class<T> expectedType,
+		@Nonnull TypeConverter<T> typeConverter,
+		int primaryKey,
+		@Nonnull EntityContentRequire[] require
+	) {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
+			final GrpcRestoreEntityResponse grpcResponse = executeWithBlockingEvitaSessionService(
+				evitaSessionService ->
+					evitaSessionService.restoreEntity(
+						GrpcRestoreEntityRequest
 							.newBuilder()
 							.setEntityType(entityType)
 							.setPrimaryKey(Int32Value.newBuilder().setValue(primaryKey).build())

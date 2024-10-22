@@ -986,6 +986,69 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		throws EntityClassInvalidException;
 
 	/**
+	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
+	 * of the same type that are transitively referencing the removed entity as its parent. All entities of other entity
+	 * types that reference removed entities in their {@link SealedEntity#getReference(String, int)} still keep
+	 * the data untouched.
+	 *
+	 * @return number of removed entities
+	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
+	 */
+	int deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey)
+		throws EvitaInvalidUsageException;
+
+	/**
+	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
+	 * of the same type that are transitively referencing the removed entity as its parent. All entities of other entity
+	 * types that reference removed entities in their {@link SealedEntity#getReference(String, int)} still keep
+	 * the data untouched.
+	 *
+	 * @return number of removed entities and the body of the deleted root entity
+	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
+	 */
+	@Nonnull
+	DeletedHierarchy<SealedEntity> deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require)
+		throws EvitaInvalidUsageException;
+
+	/**
+	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
+	 * of the same type that are transitively referencing the removed entity as its parent. All entities of other entity
+	 * types that reference removed entities in their {@link SealedEntity#getReference(String, int)} still keep
+	 * the data untouched.
+	 *
+	 * @return number of removed entities and the body of the deleted root entity
+	 * @throws EvitaInvalidUsageException  when entity type has not hierarchy support enabled in schema
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	<T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+		throws EvitaInvalidUsageException, EntityClassInvalidException;
+
+	/**
+	 * Method removes all entities that match passed query. All entities of other entity types that reference removed
+	 * entities in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * Beware: you need to provide {@link Page} or {@link Strip} in the query to control the maximum number of removed
+	 * entities. Otherwise, the default value of maximum of `20` entities to remove will be used.
+	 *
+	 * @return number of deleted entities
+	 */
+	int deleteEntities(@Nonnull Query query);
+
+	/**
+	 * Method removes all entities that match passed query. All entities of other entity types that reference removed
+	 * entities in their {@link SealedEntity#getReference(String, int)} still keep the data untouched. This variant of
+	 * the delete by query method allows returning partial of full bodies of the removed entities.
+	 *
+	 * Beware: you need to provide {@link Page} or {@link Strip} in the query to control the maximum number of removed
+	 * entities. Otherwise, the default value of maximum of `20` entities to remove will be used.
+	 *
+	 * @return bodies of deleted entities according to {@link Query#getRequire() requirements}
+	 */
+	@Nonnull
+	SealedEntity[] deleteSealedEntitiesAndReturnBodies(@Nonnull Query query);
+
+	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
 	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
 	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
@@ -1063,69 +1126,6 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	@Nonnull
 	<T extends Serializable> Optional<T> restoreEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
 		throws EntityClassInvalidException;
-
-	/**
-	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
-	 * of the same type that are transitively referencing the removed entity as its parent. All entities of other entity
-	 * types that reference removed entities in their {@link SealedEntity#getReference(String, int)} still keep
-	 * the data untouched.
-	 *
-	 * @return number of removed entities
-	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
-	 */
-	int deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey)
-		throws EvitaInvalidUsageException;
-
-	/**
-	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
-	 * of the same type that are transitively referencing the removed entity as its parent. All entities of other entity
-	 * types that reference removed entities in their {@link SealedEntity#getReference(String, int)} still keep
-	 * the data untouched.
-	 *
-	 * @return number of removed entities and the body of the deleted root entity
-	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
-	 */
-	@Nonnull
-	DeletedHierarchy<SealedEntity> deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require)
-		throws EvitaInvalidUsageException;
-
-	/**
-	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
-	 * of the same type that are transitively referencing the removed entity as its parent. All entities of other entity
-	 * types that reference removed entities in their {@link SealedEntity#getReference(String, int)} still keep
-	 * the data untouched.
-	 *
-	 * @return number of removed entities and the body of the deleted root entity
-	 * @throws EvitaInvalidUsageException  when entity type has not hierarchy support enabled in schema
-	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
-	 */
-	@Nonnull
-	<T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
-		throws EvitaInvalidUsageException, EntityClassInvalidException;
-
-	/**
-	 * Method removes all entities that match passed query. All entities of other entity types that reference removed
-	 * entities in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
-	 *
-	 * Beware: you need to provide {@link Page} or {@link Strip} in the query to control the maximum number of removed
-	 * entities. Otherwise, the default value of maximum of `20` entities to remove will be used.
-	 *
-	 * @return number of deleted entities
-	 */
-	int deleteEntities(@Nonnull Query query);
-
-	/**
-	 * Method removes all entities that match passed query. All entities of other entity types that reference removed
-	 * entities in their {@link SealedEntity#getReference(String, int)} still keep the data untouched. This variant of
-	 * the delete by query method allows returning partial of full bodies of the removed entities.
-	 *
-	 * Beware: you need to provide {@link Page} or {@link Strip} in the query to control the maximum number of removed
-	 * entities. Otherwise, the default value of maximum of `20` entities to remove will be used.
-	 *
-	 * @return bodies of deleted entities according to {@link Query#getRequire() requirements}
-	 */
-	@Nonnull
-	SealedEntity[] deleteSealedEntitiesAndReturnBodies(@Nonnull Query query);
 
 	/**
 	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
