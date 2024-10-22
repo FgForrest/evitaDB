@@ -86,7 +86,11 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
         final Predicate<String> isReady = url -> {
 	        final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
 			final Optional<String> post = NetworkUtils.fetchContent(
-				url, "POST", "application/json", "{\"query\":\"{liveness}\"}",
+				url,
+				"POST",
+				"application/json",
+				Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
+				"{\"query\":\"{liveness}\"}",
 				error -> {
 					log.error("Error while checking readiness of GraphQL API: {}", error);
 					readinessEvent.finish(Result.ERROR);

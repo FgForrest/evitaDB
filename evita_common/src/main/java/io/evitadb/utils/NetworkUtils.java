@@ -103,22 +103,24 @@ public class NetworkUtils {
 	 * Returns true if the URL is reachable and returns some content
 	 *
 	 * @param url URL to check
+	 * @param origin request origin to use
 	 * @return true if the URL is reachable and returns some content
 	 */
 	public static boolean isReachable(
 		@Nonnull String url,
+		@Nullable String origin,
 		@Nullable Consumer<String> errorConsumer,
 		@Nullable Consumer<String> timeoutConsumer
 	) {
 		try {
-			try (
-				final Response response = getHttpClient().newCall(
-					new Builder()
-						.url(url)
-						.get()
-						.build()
-				).execute()
-			) {
+			final Builder requestBuilder = new Builder()
+				.url(url)
+				.get();
+			if (origin != null) {
+				requestBuilder.addHeader("Origin", origin);
+			}
+
+			try (final Response response = getHttpClient().newCall(requestBuilder.build()).execute()) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
 						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code() + " - " + response.message()));
@@ -152,6 +154,7 @@ public class NetworkUtils {
 		@Nonnull String url,
 		@Nullable String method,
 		@Nonnull String contentType,
+		@Nullable String origin,
 		@Nullable String body,
 		@Nullable Consumer<String> errorConsumer,
 		@Nullable Consumer<String> timeoutConsumer
@@ -160,16 +163,17 @@ public class NetworkUtils {
 			final RequestBody requestBody = ofNullable(body)
 				.map(theBody -> RequestBody.create(theBody, MediaType.parse(contentType)))
 				.orElse(null);
-			try (
-				final Response response = getHttpClient().newCall(
-					new Request.Builder()
-						.url(url)
-						.addHeader("Accept", contentType)
-						.addHeader("Content-Type", contentType)
-						.method(method != null ? method : "GET", requestBody)
-						.build()
-				).execute()
-			) {
+
+			final Request.Builder requestBuilder = new Request.Builder()
+				.url(url)
+				.method(method != null ? method : "GET", requestBody)
+				.addHeader("Accept", contentType)
+				.addHeader("Content-Type", contentType);
+			if (origin != null) {
+				requestBuilder.addHeader("Origin", origin);
+			}
+
+			try (final Response response = getHttpClient().newCall(requestBuilder.build()).execute()) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
 						.ifPresent(it -> it.accept(

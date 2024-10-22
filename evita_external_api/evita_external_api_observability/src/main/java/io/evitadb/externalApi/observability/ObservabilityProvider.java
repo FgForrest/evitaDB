@@ -34,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.observability.ObservabilityManager.LIVENESS_SUFFIX;
@@ -87,7 +88,11 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 		final Predicate<String> isReady = url -> {
 			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
 			return NetworkUtils.fetchContent(
-					url, "GET", "text/plain", null,
+					url,
+					"GET",
+					"text/plain",
+					Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
+					null,
 					error -> {
 						log.error("Error while checking readiness of Observability API: {}", error);
 						readinessEvent.finish(Result.ERROR);

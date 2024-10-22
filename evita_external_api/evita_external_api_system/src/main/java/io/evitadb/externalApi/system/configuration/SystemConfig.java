@@ -89,6 +89,7 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 					Assert.isTrue(matcher.matches(), "Invalid origin definition: " + origin);
 				})
 				.toArray(String[]::new);
+			Assert.isTrue(this.allowedOrigins.length > 0, "At least one allowed origin must be specified.");
 		}
 	}
 }

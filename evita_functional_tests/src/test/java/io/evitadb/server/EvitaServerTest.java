@@ -255,6 +255,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
+				null,
 				error -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
@@ -266,6 +267,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"https://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name",
 				"GET",
 				"text/plain",
+				null,
 				null,
 				error -> assertEquals("Error fetching content from URL: https://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name HTTP status 403: This endpoint requires TLS.", error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
@@ -279,6 +281,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
+				null,
 				error -> assertTrue(error.contains("Error fetching content from URL: https://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name")),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
@@ -290,6 +293,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"http://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name",
 				"GET",
 				"text/plain",
+				null,
 				null,
 				error -> fail("The system API should be accessible via correct scheme and port: " + error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
@@ -303,6 +307,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
+				null,
 				error -> fail("The system API should be accessible via Lab scheme and port: " + error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
@@ -314,6 +319,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"https://localhost:" + servicePorts.get(LabProvider.CODE) + "/system/server-name",
 				"GET",
 				"text/plain",
+				null,
 				null,
 				error -> fail("The system API should be accessible via Lab scheme and port: " + error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
@@ -490,6 +496,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					"GET",
 					"application/json",
 					null,
+					null,
 					error -> log.error("Error while checking readiness of API: {}", error),
 					timeout -> log.error("Error while checking readiness of API: {}", timeout)
 				);
@@ -522,6 +529,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"application/json",
 				null,
+				null,
 				error -> log.error("Error while checking readiness of API: {}", error),
 				timeout -> log.error("Error while checking readiness of API: {}", timeout)
 			);
@@ -536,6 +544,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				baseUrls[0] + "status",
 				"GET",
 				"application/json",
+				null,
 				null,
 				error -> log.error("Error while checking readiness of API: {}", error),
 				timeout -> log.error("Error while checking readiness of API: {}", timeout)
