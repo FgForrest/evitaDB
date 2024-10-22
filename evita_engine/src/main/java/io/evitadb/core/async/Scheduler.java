@@ -68,7 +68,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	/**
 	 * Java based scheduled executor service.
 	 */
-	private final ScheduledExecutorService executorService;
+	private final ScheduledThreadPoolExecutor executorService;
 	/**
 	 * Counter monitoring the number of tasks submitted to the executor service.
 	 */
@@ -143,11 +143,22 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 *
 	 * @param executorService to be used for scheduling tasks
 	 */
-	public Scheduler(@Nonnull ScheduledExecutorService executorService) {
+	public Scheduler(@Nonnull ScheduledThreadPoolExecutor executorService) {
 		this.executorService = executorService;
 		this.queue = new ArrayBlockingQueue<>(64);
 		this.queueCapacity = 64;
 		this.rejectingExecutorHandler = null;
+	}
+
+	/**
+	 * Returns the internal executor service used by the scheduler. This method is intended for observability purposes
+	 * and should not be used for task scheduling.
+	 *
+	 * @return the internal executor service
+	 */
+	@Nonnull
+	public ScheduledThreadPoolExecutor getExecutorServiceInternal() {
+		return executorService;
 	}
 
 	@Nonnull

@@ -21,29 +21,20 @@
  *   limitations under the License.
  */
 
-import io.evitadb.api.observability.trace.TracingContext;
-import io.evitadb.externalApi.api.system.ProbesProvider;
-import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-import io.evitadb.externalApi.observability.ObservabilityProviderRegistrar;
-import io.evitadb.externalApi.observability.metric.ObservabilityProbesDetector;
-import io.evitadb.externalApi.observability.trace.DelegateExternalApiTracingContext;
-import io.evitadb.externalApi.observability.trace.ObservabilityTracingContext;
-import io.evitadb.externalApi.utils.ExternalApiTracingContext;
-import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 /**
  * Module contains Observability API for evitaDB.
  */
 module evita.external.api.observability {
 
-	uses CatalogPersistenceServiceFactory;
-	uses ExternalApiProviderRegistrar;
-	uses TracingContext;
-	uses ExternalApiTracingContext;
+	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+	uses io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+	uses io.evitadb.api.observability.trace.TracingContext;
+	uses io.evitadb.externalApi.utils.ExternalApiTracingContext;
 
-	provides TracingContext with ObservabilityTracingContext;
-	provides ExternalApiTracingContext with DelegateExternalApiTracingContext;
-	provides ExternalApiProviderRegistrar with ObservabilityProviderRegistrar;
-	provides ProbesProvider with ObservabilityProbesDetector;
+	provides io.evitadb.api.observability.trace.TracingContext with io.evitadb.externalApi.observability.trace.ObservabilityTracingContext;
+	provides io.evitadb.externalApi.utils.ExternalApiTracingContext with io.evitadb.externalApi.observability.trace.DelegateExternalApiTracingContext;
+	provides io.evitadb.externalApi.http.ExternalApiProviderRegistrar with io.evitadb.externalApi.observability.ObservabilityProviderRegistrar;
+	provides io.evitadb.externalApi.api.system.ProbesProvider with io.evitadb.externalApi.observability.metric.ObservabilityProbesDetector;
 
 	opens io.evitadb.externalApi.observability.configuration to com.fasterxml.jackson.databind;
 
