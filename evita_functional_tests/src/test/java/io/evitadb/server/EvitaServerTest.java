@@ -521,12 +521,12 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					{
 						"status": "READY",
 						"apis": {
-							"rest": "ready",
-							"system": "ready",
+							"gRPC": "ready",
 							"graphQL": "ready",
 							"lab": "ready",
 							"observability": "ready",
-							"gRPC": "ready"
+							"rest": "ready",
+							"system": "ready"
 						}
 					}""",
 				readiness.get().trim()
@@ -575,27 +575,15 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					   "healthProblems": [],
 					   "apis": [
 					      {
-					         "system": [
-					            "http://VARIABLE/system/",
-					            "http://VARIABLE/system/"
+					         "gRPC": [
+					            "https://VARIABLE/",
+					            "https://VARIABLE/"
 					         ]
 					      },
 					      {
 					         "graphQL": [
 					            "https://VARIABLE/gql/",
 					            "https://VARIABLE/gql/"
-					         ]
-					      },
-					      {
-					         "rest": [
-					            "https://VARIABLE/rest/",
-					            "https://VARIABLE/rest/"
-					         ]
-					      },
-					      {
-					         "gRPC": [
-					            "https://VARIABLE/",
-					            "https://VARIABLE/"
 					         ]
 					      },
 					      {
@@ -608,6 +596,18 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					         "observability": [
 					            "http://VARIABLE/observability/",
 					            "http://VARIABLE/observability/"
+					         ]
+					      },
+					      {
+					         "rest": [
+					            "https://VARIABLE/rest/",
+					            "https://VARIABLE/rest/"
+					         ]
+					      },
+					      {
+					         "system": [
+					            "http://VARIABLE/system/",
+					            "http://VARIABLE/system/"
 					         ]
 					      }
 					   ]
@@ -673,12 +673,12 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					{
 						"status": "READY",
 						"apis": {
-							"rest": "ready",
-							"system": "ready",
+							"gRPC": "ready",
 							"graphQL": "ready",
 							"lab": "ready",
 							"observability": "ready",
-							"gRPC": "ready"
+							"rest": "ready",
+							"system": "ready"
 						}
 					}""",
 				readiness.get().trim()
@@ -727,27 +727,15 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					   "healthProblems": [],
 					   "apis": [
 					      {
-					         "system": [
-					            "http://VARIABLE/system/",
-					            "http://VARIABLE/system/"
+					         "gRPC": [
+					            "https://VARIABLE/",
+					            "https://VARIABLE/"
 					         ]
 					      },
 					      {
 					         "graphQL": [
 					            "https://VARIABLE/gql/",
 					            "https://VARIABLE/gql/"
-					         ]
-					      },
-					      {
-					         "rest": [
-					            "https://VARIABLE/rest/",
-					            "https://VARIABLE/rest/"
-					         ]
-					      },
-					      {
-					         "gRPC": [
-					            "https://VARIABLE/",
-					            "https://VARIABLE/"
 					         ]
 					      },
 					      {
@@ -760,6 +748,18 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					         "observability": [
 					            "http://VARIABLE/observability/",
 					            "http://VARIABLE/observability/"
+					         ]
+					      },
+					      {
+					         "rest": [
+					            "https://VARIABLE/rest/",
+					            "https://VARIABLE/rest/"
+					         ]
+					      },
+					      {
+					         "system": [
+					            "http://VARIABLE/system/",
+					            "http://VARIABLE/system/"
 					         ]
 					      }
 					   ]

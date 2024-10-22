@@ -36,6 +36,7 @@ import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.api.system.ProbesProvider.ApiState;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
@@ -57,7 +58,9 @@ import javax.annotation.Nonnull;
 import java.io.File;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -88,6 +91,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			"\t\"status\": \"" + readiness.state().name() + "\",\n" +
 			"\t\"apis\": {\n" +
 			Arrays.stream(readiness.apiStates())
+				.sorted(Comparator.comparing(ApiState::apiCode))
 				.map(entry -> "\t\t\"" + entry.apiCode() + "\": \"" + (entry.isReady() ? "ready" : "not ready") + "\"")
 				.collect(Collectors.joining(",\n")) + "\n" +
 			"\t}\n" +
@@ -155,6 +159,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 								.entrySet()
 								.stream()
 								.filter(entry -> Arrays.stream(enabledEndPoints).anyMatch(it -> it.equals(entry.getKey())))
+								.sorted(Map.Entry.comparingByKey())
 								.map(
 									entry -> "      {\n         \"" + entry.getKey() + "\": " +
 										"[\n" + Arrays.stream(entry.getValue().getBaseUrls())
