@@ -628,6 +628,158 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Test
+	void shouldSignalizeReadinessAndHealthinessCorrectlyWithCustomOrigins() {
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-with-custom-origins.yaml",
+			"evita-configuration-with-custom-origins.yaml"
+		);
+
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments()
+		);
+		try {
+			evitaServer.run();
+			final String[] baseUrls = evitaServer.getExternalApiServer().getExternalApiProviderByCode(SystemProvider.CODE)
+				.getConfiguration()
+				.getBaseUrls();
+
+			Optional<String> readiness;
+			final long start = System.currentTimeMillis();
+			do {
+				final String url = baseUrls[0] + "readiness";
+				log.info("Checking readiness at {}", url);
+				readiness = NetworkUtils.fetchContent(
+					url,
+					"GET",
+					"application/json",
+					"http://evitadb.dev",
+					null,
+					TIMEOUT_IN_MILLIS,
+					error -> log.error("Error while checking readiness of API: {}", error),
+					timeout -> log.error("Error while checking readiness of API: {}", timeout)
+				);
+
+				if (readiness.isPresent() && readiness.get().contains("\"status\": \"READY\"")) {
+					break;
+				}
+
+			} while (System.currentTimeMillis() - start < 20000);
+
+			assertTrue(readiness.isPresent());
+			assertEquals(
+				"""
+					{
+						"status": "READY",
+						"apis": {
+							"rest": "ready",
+							"system": "ready",
+							"graphQL": "ready",
+							"lab": "ready",
+							"observability": "ready",
+							"gRPC": "ready"
+						}
+					}""",
+				readiness.get().trim()
+			);
+
+			final Optional<String> liveness = NetworkUtils.fetchContent(
+				baseUrls[0] + "liveness",
+				"GET",
+				"application/json",
+				"http://evitadb.dev",
+				null,
+				TIMEOUT_IN_MILLIS,
+				error -> log.error("Error while checking readiness of API: {}", error),
+				timeout -> log.error("Error while checking readiness of API: {}", timeout)
+			);
+
+			assertTrue(liveness.isPresent());
+			assertEquals(
+				"{\"status\": \"healthy\"}",
+				liveness.get().trim()
+			);
+
+			final Optional<String> status = NetworkUtils.fetchContent(
+				baseUrls[0] + "status",
+				"GET",
+				"application/json",
+				"http://evitadb.dev",
+				null,
+				TIMEOUT_IN_MILLIS,
+				error -> log.error("Error while checking readiness of API: {}", error),
+				timeout -> log.error("Error while checking readiness of API: {}", timeout)
+			);
+
+			assertTrue(status.isPresent());
+			final String output = replaceVariables(status.get());
+			assertEquals(
+				"""
+					{
+					   "serverName": "evitaDB-RANDOM",
+					   "version": "VARIABLE",
+					   "startedAt": "VARIABLE",
+					   "uptime": VARIABLE,
+					   "uptimeForHuman": "VARIABLE",
+					   "catalogsCorrupted": 0,
+					   "catalogsOk": 0,
+					   "healthProblems": [],
+					   "apis": [
+					      {
+					         "system": [
+					            "http://VARIABLE/system/",
+					            "http://VARIABLE/system/"
+					         ]
+					      },
+					      {
+					         "graphQL": [
+					            "https://VARIABLE/gql/",
+					            "https://VARIABLE/gql/"
+					         ]
+					      },
+					      {
+					         "rest": [
+					            "https://VARIABLE/rest/",
+					            "https://VARIABLE/rest/"
+					         ]
+					      },
+					      {
+					         "gRPC": [
+					            "https://VARIABLE/",
+					            "https://VARIABLE/"
+					         ]
+					      },
+					      {
+					         "lab": [
+					            "https://VARIABLE/lab/",
+					            "https://VARIABLE/lab/"
+					         ]
+					      },
+					      {
+					         "observability": [
+					            "http://VARIABLE/observability/",
+					            "http://VARIABLE/observability/"
+					         ]
+					      }
+					   ]
+					}""",
+				output,
+				"Original output: " + status.get()
+			);
+
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			try {
+				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
+			} catch (Exception ex) {
+				fail(ex.getMessage(), ex);
+			}
+		}
+	}
+
+	@Test
 	void shouldMergeMultipleYamlConfigurationTogether() {
 		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
 			DIR_EVITA_SERVER_TEST,
