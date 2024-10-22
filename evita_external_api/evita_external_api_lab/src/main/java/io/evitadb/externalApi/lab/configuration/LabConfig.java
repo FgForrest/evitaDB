@@ -95,6 +95,7 @@ public class LabConfig extends AbstractApiConfiguration implements ApiWithSpecif
 					Assert.isTrue(matcher.matches(), "Invalid origin definition: " + origin);
 				})
 				.toArray(String[]::new);
+			Assert.isTrue(this.allowedOrigins.length > 0, "At least one allowed origin must be specified.");
 		}
 		this.gui = ofNullable(gui).orElse(new GuiConfig());
 	}

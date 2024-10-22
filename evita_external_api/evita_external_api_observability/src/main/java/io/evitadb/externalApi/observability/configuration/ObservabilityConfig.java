@@ -98,6 +98,7 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 					Assert.isTrue(matcher.matches(), "Invalid origin definition: " + origin);
 				})
 				.toArray(String[]::new);
+			Assert.isTrue(this.allowedOrigins.length > 0, "At least one allowed origin must be specified.");
 		}
 		this.tracing = Optional.ofNullable(tracing).orElse(new TracingConfig());
 		this.allowedEvents = allowedEvents;

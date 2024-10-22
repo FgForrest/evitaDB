@@ -35,6 +35,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 /**
@@ -91,7 +92,11 @@ public class LabProvider implements ProxyingEndpointProvider<LabConfig> {
 		final Predicate<String> isReady = url -> {
 			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
 			return NetworkUtils.fetchContent(
-					url, null, "text/html", null,
+					url,
+					null,
+					"text/html",
+					Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
+					null,
 					this.requestTimeout,
 					error -> {
 						log.error("Error while checking readiness of Lab API: {}", error);

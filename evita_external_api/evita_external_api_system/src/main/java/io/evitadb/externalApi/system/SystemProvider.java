@@ -43,6 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SERVER_NAME;
@@ -119,6 +120,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
 			final boolean reachable = NetworkUtils.isReachable(
 				url,
+				Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
 				this.requestTimeout,
 				error -> {
 					log.error("Error while checking readiness of System API: {}", error);
