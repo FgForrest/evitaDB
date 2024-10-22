@@ -27,17 +27,12 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiConfigurationWithMutualTls;
-import io.evitadb.externalApi.configuration.ApiWithOriginControl;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
-import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static java.util.Optional.ofNullable;
 
@@ -49,8 +44,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigurationWithMutualTls, ApiWithOriginControl {
-	private static final Pattern ORIGIN_PATTERN = Pattern.compile("([a-z]+)://([\\w.]+)(:(\\d+))?");
+public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigurationWithMutualTls {
 
 	private static final String BASE_GRPC_PATH = "";
 	/**
@@ -62,7 +56,6 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 	 */
 	@Getter private final boolean exposeDocsService;
 
-	@Getter private final String[] allowedOrigins;
 	/**
 	 * Wrapper that contains a part of configuration file that is related to mTLS settings.
 	 */
@@ -80,7 +73,6 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 		this.exposeDocsService = false;
 		this.mtlsConfiguration = new MtlsConfiguration(false, List.of());
 		this.prefix = BASE_GRPC_PATH;
-		this.allowedOrigins = null;
 	}
 
 	public GrpcConfig(@Nonnull String host) {
@@ -88,7 +80,6 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 		this.exposeDocsService = false;
 		this.mtlsConfiguration = new MtlsConfiguration(false, List.of());
 		this.prefix = BASE_GRPC_PATH;
-		this.allowedOrigins = null;
 	}
 
 	@JsonCreator
@@ -98,23 +89,11 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 					  @Nullable @JsonProperty("tlsMode") String tlsMode,
 					  @Nullable @JsonProperty("exposeDocsService") Boolean exposeDocsService,
 	                  @Nullable @JsonProperty("prefix") String prefix,
-	                  @Nullable @JsonProperty("allowedOrigins") String allowedOrigins,
 	                  @Nonnull @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration) {
 		super(enabled, host, exposeOn, tlsMode);
 		this.exposeDocsService = ofNullable(exposeDocsService).orElse(false);
 		this.mtlsConfiguration = mtlsConfiguration;
 		this.prefix = ofNullable(prefix).orElse(BASE_GRPC_PATH);
-		if (allowedOrigins == null) {
-			this.allowedOrigins = null;
-		} else {
-			this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
-				.peek(origin -> {
-					final Matcher matcher = ORIGIN_PATTERN.matcher(origin);
-					Assert.isTrue(matcher.matches(), "Invalid origin definition: " + origin);
-				})
-				.toArray(String[]::new);
-			Assert.isTrue(this.allowedOrigins.length > 0, "At least one allowed origin must be specified.");
-		}
 	}
 
 	@Override

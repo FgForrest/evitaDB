@@ -108,7 +108,6 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 					url,
 					"GET",
 					"text/plain",
-					Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
 					null,
 					this.requestTimeout,
 					error -> {

@@ -84,27 +84,23 @@ api:                                              # [see API configuration](#api
     host: ":5555"
     exposeOn: "localhost:5555"
     tlsMode: FORCE_TLS
-    allowedOrigins: null
   endpoints:
     system:                                       # [see System API configuration](#system-api-configuration)
       enabled: null
       host: null
       exposeOn: null
       tlsMode: FORCE_NO_TLS
-      allowedOrigins: null
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
       enabled: null
       host: null
       exposeOn: null
       tlsMode: null
-      allowedOrigins: null
       parallelize: true
     rest:                                         # [see REST API configuration](#rest-api-configuration)
       enabled: null
       host: null
       exposeOn: null
       tlsMode: null
-      allowedOrigins: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
       enabled: null
       host: null
@@ -119,7 +115,6 @@ api:                                              # [see API configuration](#api
       host: null
       exposeOn: null
       tlsMode: null
-      allowedOrigins: null
       gui:
         enabled: true
         readOnly: false
@@ -129,7 +124,6 @@ api:                                              # [see API configuration](#api
       host: null
       exposeOn: null
       tlsMode: null
-      allowedOrigins: null
       tracing:
         endpoint: null
         protocol: grpc
@@ -779,13 +773,6 @@ This allows you to set common settings for all endpoints in one place.
             <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
         </ol>
     </dd>
-    <dt>allowedOrigins</dt>
-    <dd>
-        <p>**Default:** `null`</p>
-        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
-        that are allowed to consume a particular web API. If no origins are specified, i.e. `null`, all origins are 
-        allowed automatically.</p>
-    </dd>
 </dl>
 
 ### GraphQL API configuration
@@ -809,11 +796,6 @@ This allows you to set common settings for all endpoints in one place.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
-        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
-    </dd>
-    <dt>allowedOrigins</dt>
-    <dd>
-        <p>**Default:** `null`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>parallelize</dt>
@@ -846,11 +828,6 @@ This allows you to set common settings for all endpoints in one place.
         <p>**Default:** `FORCE_TLS`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
-    <dt>allowedOrigins</dt>
-    <dd>
-        <p>**Default:** `null`</p>
-        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
-    </dd>
 </dl>
 
 ### gRPC API configuration
@@ -874,11 +851,6 @@ This allows you to set common settings for all endpoints in one place.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
-        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
-    </dd>
-    <dt>allowedOrigins</dt>
-    <dd>
-        <p>**Default:** `null`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>exposeDocsService</dt>
@@ -936,11 +908,6 @@ more information.
         <p>**Default:** `FORCE_NO_TLS`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
-    <dt>allowedOrigins</dt>
-    <dd>
-        <p>**Default:** `null`</p>
-        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
-    </dd>
 </dl>
 
 ### evitaLab configuration
@@ -969,11 +936,6 @@ of other APIs.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
-        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
-    </dd>
-    <dt>allowedOrigins</dt>
-    <dd>
-        <p>**Default:** `null`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>gui</dt>
@@ -1052,11 +1014,6 @@ pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>
-        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
-    </dd>
-    <dt>allowedOrigins</dt>
-    <dd>
-        <p>**Default:** `null`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>tracing.endpoint</dt>

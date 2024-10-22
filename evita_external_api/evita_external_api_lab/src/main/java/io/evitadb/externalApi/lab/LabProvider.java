@@ -95,7 +95,6 @@ public class LabProvider implements ProxyingEndpointProvider<LabConfig> {
 					url,
 					null,
 					"text/html",
-					Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
 					null,
 					this.requestTimeout,
 					error -> {

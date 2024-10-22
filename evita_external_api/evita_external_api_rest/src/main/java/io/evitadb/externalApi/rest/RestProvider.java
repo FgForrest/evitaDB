@@ -99,7 +99,6 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 					url,
 					"GET",
 					"application/json",
-					Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
 					null,
 					this.requestTimeout,
 					error -> {
