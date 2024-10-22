@@ -1043,7 +1043,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					)
 				);
 
-		final DefaultPrefetchRequirementCollector globalPrefetchCollector = new DefaultPrefetchRequirementCollector(null);
+		final DefaultPrefetchRequirementCollector globalPrefetchCollector = new DefaultPrefetchRequirementCollector();
 		this.fetchedEntities = collectedRequirements
 			.filter(it -> it.getValue().requiresInit())
 			.collect(
@@ -1053,12 +1053,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						final String referenceName = it.getKey();
 						final RequirementContext requirements = it.getValue();
 						final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-						final DefaultPrefetchRequirementCollector localPrefetchCollector = new DefaultPrefetchRequirementCollector(requirements.entityFetch());
+						// initialize requirements with requested attributes
+						if (requirements.attributeContent() != null) {
+							globalPrefetchCollector.addRequirementToPrefetch(requirements.attributeContent());
+						}
 
 						final Optional<OrderingDescriptor> orderingDescriptor = ofNullable(requirements.orderBy())
 							.map(ob -> ReferenceOrderByVisitor.getComparator(
 								executionContext.getQueryContext(),
-								localPrefetchCollector,
+								globalPrefetchCollector,
 								ob,
 								entitySchema,
 								referenceSchema
@@ -1126,17 +1129,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									)
 								);
 
-							final EntityFetch entityFetch = localPrefetchCollector.getEntityFetch();
-							if (entityFetch != null && !ArrayUtils.isEmpty(filteredReferencedEntityIds)) {
-								// collect global requirements
-								globalPrefetchCollector.addRequirementToPrefetch(entityFetch.getRequirements());
+							if (requirements.entityFetch() != null && !ArrayUtils.isEmpty(filteredReferencedEntityIds)) {
 								// if so, fetch them
 								entityIndex = fetchReferencedEntities(
 									executionContext,
 									referenceSchema,
 									referenceSchema.getReferencedEntityType(),
 									pk -> existingEntityRetriever.getExistingEntity(referenceName, pk),
-									entityFetch,
+									requirements.entityFetch(),
 									filteredReferencedEntityIds
 								);
 							} else {

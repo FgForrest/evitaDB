@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.AttributeRequest;
@@ -65,7 +66,7 @@ class ReferenceContractSerializablePredicateTest {
 			.stream()
 			.collect(Collectors.toMap(
 					Function.identity(),
-					it -> new RequirementContext(ManagedReferencesBehaviour.ANY, AttributeRequest.EMPTY, null, null, null, null)
+					it -> new RequirementContext(ManagedReferencesBehaviour.ANY, null, null, null, null, null)
 				)
 			);
 	}
@@ -85,7 +86,7 @@ class ReferenceContractSerializablePredicateTest {
 	@Nonnull
 	private static RequirementContext createRequirementContext(String... attributes) {
 		return new RequirementContext(
-			ManagedReferencesBehaviour.ANY, new AttributeRequest(Set.of(attributes), true),
+			ManagedReferencesBehaviour.ANY, new AttributeContent(attributes),
 			null, null, null, null
 		);
 	}

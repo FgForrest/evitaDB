@@ -132,10 +132,7 @@ public class EvitaRequest {
 	) {
 		return new RequirementContext(
 			referenceContent.getManagedReferencesBehaviour(),
-			new AttributeRequest(
-				attributeContent == null ? Collections.emptySet() : attributeContent.getAttributeNamesAsSet(),
-				attributeContent != null
-			),
+			attributeContent,
 			referenceContent.getEntityRequirement().orElse(null),
 			referenceContent.getGroupEntityRequirement().orElse(null),
 			referenceContent.getFilterBy().orElse(null),
@@ -957,7 +954,7 @@ public class EvitaRequest {
 	 * and group entity for fast access in this evita request instance.
 	 *
 	 * @param managedReferencesBehaviour controls behaviour of excluding missing managed references
-	 * @param attributeRequest           requested attributes for the entity reference
+	 * @param attributeContent           requested attributes for the entity reference
 	 * @param entityFetch                requirements related to fetching related entity
 	 * @param entityGroupFetch           requirements related to fetching related entity group
 	 * @param filterBy                   filtering constraints for entities
@@ -965,12 +962,27 @@ public class EvitaRequest {
 	 */
 	public record RequirementContext(
 		@Nonnull ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nonnull AttributeRequest attributeRequest,
+		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy
 	) {
+
+		/**
+		 * Generates an AttributeRequest based on the current attributeContent.
+		 * If attributeContent is null, an empty set of attributes is created.
+		 * Otherwise, the attribute names from attributeContent are used.
+		 *
+		 * @return an AttributeRequest instance containing the set of attribute names and whether any attributes are required
+		 */
+		@Nonnull
+		public AttributeRequest attributeRequest() {
+			return new AttributeRequest(
+				attributeContent == null ? Collections.emptySet() : attributeContent.getAttributeNamesAsSet(),
+				attributeContent != null
+			);
+		}
 
 		/**
 		 * Returns true if the settings require initialization of referenced entities.
