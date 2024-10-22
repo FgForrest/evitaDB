@@ -47,6 +47,8 @@ class ClientCallableTaskTest implements TestConstants {
 		final ClientCallableTask<Void, Integer> task1 = new ClientCallableTask<>("task1", "task1", null, task -> 1);
 		final ClientCallableTask<Void, Integer> task2 = new ClientCallableTask<>("task2", "task2", null, task -> 2);
 		final CompletableFuture<Integer> result = task1.getFutureResult().thenCombine(task2.getFutureResult(), Integer::sum);
+		task1.transitionToIssued();
+		task2.transitionToIssued();
 
 		assertEquals(1, task1.execute());
 		assertEquals(2, task2.execute());
@@ -58,6 +60,8 @@ class ClientCallableTaskTest implements TestConstants {
 		final ClientCallableTask<Void, Integer> task1 = new ClientCallableTask<>("task1", "task1", null, task -> 1);
 		final ClientCallableTask<Void, Integer> task2 = new ClientCallableTask<>("task2", "task2", null, task -> 2);
 		final CompletableFuture<Integer> result = task1.getFutureResult().thenCombine(task2.getFutureResult(), Integer::sum);
+		task1.transitionToIssued();
+		task2.transitionToIssued();
 
 		ForkJoinPool.commonPool().invokeAll(Arrays.asList(task1, task2));
 
@@ -74,6 +78,7 @@ class ClientCallableTaskTest implements TestConstants {
 
 		final CompletableFuture<Integer> finalFuture = CompletableFuture.supplyAsync(() -> {
 			try {
+				task.transitionToIssued();
 				return task.call();
 			} catch (Exception e) {
 				throw new RuntimeException(e);

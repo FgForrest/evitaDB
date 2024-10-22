@@ -29,6 +29,7 @@ import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.docs.DocService;
 import com.linecorp.armeria.server.docs.DocServiceFilter;
+import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.event.ReadinessEvent;
@@ -40,7 +41,6 @@ import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -52,7 +52,6 @@ import javax.annotation.Nonnull;
  * @see GrpcProviderRegistrar
  */
 @Slf4j
-@RequiredArgsConstructor
 public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 
 	public static final String CODE = "gRPC";
@@ -65,20 +64,32 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	@Getter
 	private final HttpService apiHandler;
 	/**
+	 * Timeout taken from {@link ApiOptions#requestTimeoutInMillis()} that will be used in {@link #checkReachable(String)}
+	 * method.
+	 */
+	private final long requestTimeout;
+	/**
 	 * Contains url that was at least once found reachable.
 	 */
 	private String reachableUrl;
 	/**
 	 * Builder for gRPC client factory.
 	 */
-	private final ClientFactory clientFactory = ClientFactory.builder()
-		.useHttp1Pipelining(true)
-		// 1 second timeout for connection establishment
-		.connectTimeoutMillis(1000)
-		// 1 second timeout for idle connections
-		.idleTimeoutMillis(1000)
-		.tlsNoVerify()
-		.build();
+	private final ClientFactory clientFactory;
+
+	public GrpcProvider(@Nonnull GrpcConfig configuration, @Nonnull HttpService apiHandler, long requestTimeout, long idleTimeout) {
+		this.configuration = configuration;
+		this.apiHandler = apiHandler;
+		this.requestTimeout = requestTimeout;
+		this.clientFactory = ClientFactory.builder()
+			.useHttp1Pipelining(true)
+			// 1 second timeout for connection establishment
+			.connectTimeoutMillis(requestTimeout)
+			// 1 second timeout for idle connections
+			.idleTimeoutMillis(idleTimeout)
+			.tlsNoVerify()
+			.build();
+	}
 
 	@Override
 	public void beforeStop() {
@@ -139,7 +150,8 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 		try {
 			final EvitaServiceBlockingStub evitaService = GrpcClients.builder(uri)
 				.factory(this.clientFactory)
-				.responseTimeoutMillis(100)
+				.responseTimeoutMillis(this.requestTimeout)
+				.writeTimeoutMillis(this.requestTimeout)
 				.build(EvitaServiceBlockingStub.class);
 			if (evitaService.isReady(Empty.newBuilder().build()).getReady()) {
 				this.reachableUrl = uri;

@@ -106,6 +106,7 @@ import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+import io.evitadb.store.spi.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
@@ -126,8 +127,8 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.io.InputStream;
 import java.io.Serializable;
+import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.Map.Entry;
@@ -270,19 +271,23 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 *
 	 * @param catalogName        the name of the catalog
 	 * @param storageOptions     the storage options
-	 * @param totalBytesExpected the total bytes expected to be read from the input stream
-	 * @param inputStream        the input stream with the catalog data
+	 * @param fileId			   The ID of the file to be restored.
+	 * @param pathToFile 	   the path to the ZIP file with the catalog content
+	 * @param totalBytesExpected total bytes expected to be read from the input stream
+	 * @param deleteAfterRestore whether to delete the ZIP file after restore
 	 * @return future that will be completed with path where the content of the catalog was restored
 	 */
-	public static ServerTask<?, Void> createRestoreCatalogTask(
+	public static ServerTask<? extends FileIdCarrier, Void> createRestoreCatalogTask(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
+		@Nonnull UUID fileId,
+		@Nonnull Path pathToFile,
 		long totalBytesExpected,
-		@Nonnull InputStream inputStream
+		boolean deleteAfterRestore
 	) {
 		return ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.restoreCatalogTo(catalogName, storageOptions, totalBytesExpected, inputStream))
+			.map(it -> it.restoreCatalogTo(catalogName, storageOptions, fileId, pathToFile, totalBytesExpected, deleteAfterRestore))
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
 	}
 

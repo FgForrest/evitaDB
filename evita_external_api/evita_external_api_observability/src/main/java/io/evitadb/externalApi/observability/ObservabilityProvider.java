@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.observability;
 
+import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
@@ -30,10 +31,10 @@ import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.observability.ObservabilityManager.LIVENESS_SUFFIX;
@@ -45,7 +46,6 @@ import static io.evitadb.externalApi.observability.ObservabilityManager.LIVENESS
  * @see ObservabilityProviderRegistrar
  */
 @Slf4j
-@RequiredArgsConstructor
 public class ObservabilityProvider implements ExternalApiProvider<ObservabilityConfig> {
 	public static final String CODE = "observability";
 
@@ -62,9 +62,27 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 	private final String[] serverNameUrls;
 
 	/**
+	 * Timeout taken from {@link ApiOptions#requestTimeoutInMillis()} that will be used in {@link #isReady()}
+	 * method.
+	 */
+	private final long requestTimeout;
+
+	/**
 	 * Contains url that was at least once found reachable.
 	 */
 	private String reachableUrl;
+
+	public ObservabilityProvider(
+		@Nonnull ObservabilityConfig configuration,
+		@Nonnull ObservabilityManager observabilityManager,
+		@Nonnull String[] serverNameUrls,
+		long requestTimeout
+	) {
+		this.configuration = configuration;
+		this.observabilityManager = observabilityManager;
+		this.serverNameUrls = serverNameUrls;
+		this.requestTimeout = requestTimeout;
+	}
 
 	@Nonnull
 	@Override
@@ -87,7 +105,12 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 		final Predicate<String> isReady = url -> {
 			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
 			return NetworkUtils.fetchContent(
-					url, "GET", "text/plain", null,
+					url,
+					"GET",
+					"text/plain",
+					Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
+					null,
+					this.requestTimeout,
 					error -> {
 						log.error("Error while checking readiness of Observability API: {}", error);
 						readinessEvent.finish(Result.ERROR);

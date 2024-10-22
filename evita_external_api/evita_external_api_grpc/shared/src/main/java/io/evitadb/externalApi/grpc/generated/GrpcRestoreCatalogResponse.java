@@ -80,7 +80,7 @@ private static final long serialVersionUID = 0L;
             read_ = input.readInt64();
             break;
           }
-          case 18: {
+          case 26: {
             io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder subBuilder = null;
             if (task_ != null) {
               subBuilder = task_.toBuilder();
@@ -140,14 +140,14 @@ private static final long serialVersionUID = 0L;
     return read_;
   }
 
-  public static final int TASK_FIELD_NUMBER = 2;
+  public static final int TASK_FIELD_NUMBER = 3;
   private io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task_;
   /**
    * <pre>
    * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
    * @return Whether the task field is set.
    */
   @java.lang.Override
@@ -159,7 +159,7 @@ private static final long serialVersionUID = 0L;
    * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
    * @return The task.
    */
   @java.lang.Override
@@ -171,7 +171,7 @@ private static final long serialVersionUID = 0L;
    * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskOrBuilder() {
@@ -196,7 +196,7 @@ private static final long serialVersionUID = 0L;
       output.writeInt64(1, read_);
     }
     if (task_ != null) {
-      output.writeMessage(2, getTask());
+      output.writeMessage(3, getTask());
     }
     unknownFields.writeTo(output);
   }
@@ -213,7 +213,7 @@ private static final long serialVersionUID = 0L;
     }
     if (task_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(2, getTask());
+        .computeMessageSize(3, getTask());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -538,7 +538,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setRead(long value) {
-      
+
       read_ = value;
       onChanged();
       return this;
@@ -552,7 +552,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearRead() {
-      
+
       read_ = 0L;
       onChanged();
       return this;
@@ -566,7 +566,7 @@ private static final long serialVersionUID = 0L;
      * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
      * @return Whether the task field is set.
      */
     public boolean hasTask() {
@@ -577,7 +577,7 @@ private static final long serialVersionUID = 0L;
      * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
      * @return The task.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTask() {
@@ -592,7 +592,7 @@ private static final long serialVersionUID = 0L;
      * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
      */
     public Builder setTask(io.evitadb.externalApi.grpc.generated.GrpcTaskStatus value) {
       if (taskBuilder_ == null) {
@@ -612,7 +612,7 @@ private static final long serialVersionUID = 0L;
      * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
      */
     public Builder setTask(
         io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder builderForValue) {
@@ -630,7 +630,7 @@ private static final long serialVersionUID = 0L;
      * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
      */
     public Builder mergeTask(io.evitadb.externalApi.grpc.generated.GrpcTaskStatus value) {
       if (taskBuilder_ == null) {
@@ -652,7 +652,7 @@ private static final long serialVersionUID = 0L;
      * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
      */
     public Builder clearTask() {
       if (taskBuilder_ == null) {
@@ -670,10 +670,10 @@ private static final long serialVersionUID = 0L;
      * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder getTaskBuilder() {
-      
+
       onChanged();
       return getTaskFieldBuilder().getBuilder();
     }
@@ -682,7 +682,7 @@ private static final long serialVersionUID = 0L;
      * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskOrBuilder() {
       if (taskBuilder_ != null) {
@@ -697,10 +697,10 @@ private static final long serialVersionUID = 0L;
      * the task that is used to restore the catalog and getting its progress
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder>
         getTaskFieldBuilder() {
       if (taskBuilder_ == null) {
         taskBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

@@ -72,9 +72,9 @@ import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaManagementServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest.Builder;
+import io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatus;
 import io.evitadb.externalApi.grpc.generated.GrpcUuid;
 import io.evitadb.externalApi.system.SystemProvider;
@@ -1064,7 +1064,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				if (fileId != null) {
 					builder.setFileId(fileId);
 				}
-				final GrpcRestoreCatalogResponse response = internalStub.restoreCatalogUnary(
+				final GrpcRestoreCatalogUnaryResponse response = internalStub.restoreCatalogUnary(
 					builder.build()
 				).get();
 

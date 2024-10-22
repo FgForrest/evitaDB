@@ -777,6 +777,7 @@ public class EntityConverter {
 		private final EntityClassifierWithParent parentEntity;
 		private final Map<EntityReference, SealedEntity> entityIndex;
 		private final Map<EntityReference, SealedEntity> groupIndex;
+		private final EvitaRequest evitaRequest;
 
 		public ClientReferenceFetcher(
 			@Nullable EntityClassifierWithParent parentEntity,
@@ -816,6 +817,7 @@ public class EntityConverter {
 						(sealedEntity, sealedEntity2) -> sealedEntity
 					)
 				);
+			this.evitaRequest = evitaRequest;
 		}
 
 		@Nonnull
@@ -828,6 +830,12 @@ public class EntityConverter {
 		@Override
 		public <T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection) {
 			throw new UnsupportedOperationException("Unexpected call!");
+		}
+
+		@Nonnull
+		@Override
+		public EvitaRequest getEnvelopingEntityRequest() {
+			return this.evitaRequest;
 		}
 
 		@Nullable

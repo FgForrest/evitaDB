@@ -390,7 +390,7 @@ public final class GrpcEvitaDataTypes {
       "eInBytes\030\005 \001(\003\022J\n\007created\030\006 \001(\01329.io.evi" +
       "tadb.externalApi.grpc.generated.GrpcOffs" +
       "etDateTime\022,\n\006origin\030\007 \001(\0132\034.google.prot" +
-      "obuf.StringValue\"\226\006\n\016GrpcTaskStatus\022\020\n\010t" +
+      "obuf.StringValue\"\342\006\n\016GrpcTaskStatus\022\020\n\010t" +
       "askType\030\001 \001(\t\022\020\n\010taskName\030\002 \001(\t\022?\n\006taskI" +
       "d\030\003 \001(\0132/.io.evitadb.externalApi.grpc.ge" +
       "nerated.GrpcUuid\0221\n\013catalogName\030\004 \001(\0132\034." +
@@ -409,25 +409,27 @@ public final class GrpcEvitaDataTypes {
       "adb.externalApi.grpc.generated.GrpcFileH" +
       "\000\022/\n\texception\030\r \001(\0132\034.google.protobuf.S" +
       "tringValue\022C\n\005trait\030\016 \003(\01624.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcTaskTraitB" +
-      "\010\n\006result\"\232\003\n\025GrpcCatalogStatistics\022B\n\tc" +
-      "atalogId\030\001 \001(\0132/.io.evitadb.externalApi." +
-      "grpc.generated.GrpcUuid\022\023\n\013catalogName\030\002" +
-      " \001(\t\022\021\n\tcorrupted\030\003 \001(\010\022M\n\014catalogState\030" +
-      "\004 \001(\01627.io.evitadb.externalApi.grpc.gene" +
-      "rated.GrpcCatalogState\022\026\n\016catalogVersion" +
-      "\030\005 \001(\003\022\024\n\014totalRecords\030\006 \001(\003\022\022\n\nindexCou" +
-      "nt\030\007 \001(\003\022\031\n\021sizeOnDiskInBytes\030\010 \001(\003\022i\n\032e" +
-      "ntityCollectionStatistics\030\t \003(\0132E.io.evi" +
-      "tadb.externalApi.grpc.generated.GrpcEnti" +
-      "tyCollectionStatistics\"y\n\036GrpcEntityColl" +
-      "ectionStatistics\022\022\n\nentityType\030\001 \001(\t\022\024\n\014" +
-      "totalRecords\030\002 \001(\005\022\022\n\nindexCount\030\003 \001(\005\022\031" +
-      "\n\021sizeOnDiskInBytes\030\004 \001(\003\"v\n\017GrpcNameVar" +
-      "iant\022U\n\020namingConvention\030\001 \001(\0162;.io.evit" +
-      "adb.externalApi.grpc.generated.GrpcNamin" +
-      "gConvention\022\014\n\004name\030\002 \001(\tB\014P\001\252\002\007EvitaDBb" +
-      "\006proto3"
+      "xternalApi.grpc.generated.GrpcTaskTrait\022" +
+      "J\n\007created\030\017 \001(\01329.io.evitadb.externalAp" +
+      "i.grpc.generated.GrpcOffsetDateTimeB\010\n\006r" +
+      "esult\"\232\003\n\025GrpcCatalogStatistics\022B\n\tcatal" +
+      "ogId\030\001 \001(\0132/.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcUuid\022\023\n\013catalogName\030\002 \001(\t" +
+      "\022\021\n\tcorrupted\030\003 \001(\010\022M\n\014catalogState\030\004 \001(" +
+      "\01627.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcCatalogState\022\026\n\016catalogVersion\030\005 \001" +
+      "(\003\022\024\n\014totalRecords\030\006 \001(\003\022\022\n\nindexCount\030\007" +
+      " \001(\003\022\031\n\021sizeOnDiskInBytes\030\010 \001(\003\022i\n\032entit" +
+      "yCollectionStatistics\030\t \003(\0132E.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcEntityCo" +
+      "llectionStatistics\"y\n\036GrpcEntityCollecti" +
+      "onStatistics\022\022\n\nentityType\030\001 \001(\t\022\024\n\014tota" +
+      "lRecords\030\002 \001(\005\022\022\n\nindexCount\030\003 \001(\005\022\031\n\021si" +
+      "zeOnDiskInBytes\030\004 \001(\003\"v\n\017GrpcNameVariant" +
+      "\022U\n\020namingConvention\030\001 \001(\0162;.io.evitadb." +
+      "externalApi.grpc.generated.GrpcNamingCon" +
+      "vention\022\014\n\004name\030\002 \001(\tB\014P\001\252\002\007EvitaDBb\006pro" +
+      "to3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -651,7 +653,7 @@ public final class GrpcEvitaDataTypes {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcTaskStatus_descriptor,
-        new java.lang.String[] { "TaskType", "TaskName", "TaskId", "CatalogName", "Issued", "Started", "Finished", "SimplifiedState", "Progress", "Settings", "Text", "File", "Exception", "Trait", "Result", });
+        new java.lang.String[] { "TaskType", "TaskName", "TaskId", "CatalogName", "Issued", "Started", "Finished", "SimplifiedState", "Progress", "Settings", "Text", "File", "Exception", "Trait", "Created", "Result", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStatistics_descriptor =
       getDescriptor().getMessageTypes().get(36);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStatistics_fieldAccessorTable = new

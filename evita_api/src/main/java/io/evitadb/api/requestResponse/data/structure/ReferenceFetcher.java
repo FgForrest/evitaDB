@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.EntityCollectionContract;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -54,6 +55,12 @@ public interface ReferenceFetcher {
 		@Override
 		public <T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection) {
 			return entities;
+		}
+
+		@Nonnull
+		@Override
+		public EvitaRequest getEnvelopingEntityRequest() {
+			throw new UnsupportedOperationException("No implementation");
 		}
 
 		@Nullable
@@ -171,5 +178,14 @@ public interface ReferenceFetcher {
 	 */
 	@Nullable
 	BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema);
+
+	/**
+	 * Returns evita request that should be used to fetch top-level (enveloping) entity. The request may contain
+	 * extended requirements so that the comparators have all the necessary data.
+	 *
+	 * @return request that should be used to fetch top-level entity
+	 */
+	@Nonnull
+	EvitaRequest getEnvelopingEntityRequest();
 
 }

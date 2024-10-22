@@ -1196,8 +1196,9 @@ public class OffsetIndex {
 					if (currentRecordLength > workingMaxRecordSize) {
 						workingMaxRecordSize = currentRecordLength;
 					}
+					final FileLocation previousValue = newKeyToLocations.put(recordKey, recordLocation);
 					Assert.isPremiseValid(
-						newKeyToLocations.put(recordKey, recordLocation) == null,
+						previousValue == null,
 						"Record was already present!"
 					);
 					count = 1;
@@ -1736,7 +1737,7 @@ public class OffsetIndex {
 		}
 
 		/**
-		 * Retrieves the non-flushed versioned value associated with the given catalog version and key.
+		 * Retrieves the non-flushed versioned value associated with the given catalog version (or lesser) and key.
 		 *
 		 * @param catalogVersion the catalog version to check against
 		 * @param key            the record key
@@ -1748,13 +1749,15 @@ public class OffsetIndex {
 			final long[] nv = this.nonFlushedVersions;
 			if (nv != null) {
 				int index = Arrays.binarySearch(nv, catalogVersion);
-				if (index != -1) {
-					final int startIndex = index >= 0 ? index - 1 : -index - 2;
-					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
-						final Optional<VersionedValue> versionedValue = ofNullable(nvSet.get(nv[ix]))
-							.map(it -> it.get(key));
-						if (versionedValue.isPresent()) {
-							return versionedValue;
+				final int startIndex = index >= 0 ? index : -index - 2;
+				if (startIndex >= 0) {
+					for (int ix = startIndex; ix >= 0; ix--) {
+						final NonFlushedValueSet nfvs = nvSet.get(nv[ix]);
+						if (nfvs != null) {
+							final Optional<VersionedValue> versionedValue = ofNullable(nfvs.get(key));
+							if (versionedValue.isPresent()) {
+								return versionedValue;
+							}
 						}
 					}
 				}
@@ -1843,7 +1846,7 @@ public class OffsetIndex {
 		 * @param create          whether the record was created or not (affects the histogram)
 		 */
 		public void putValue(long catalogVersion, @Nonnull RecordKey key, @Nonnull VersionedValue nonFlushedValue, boolean create) {
-			getNonFlushedValues(catalogVersion).put(key, nonFlushedValue, create);
+			getNonFlushedValues(catalogVersion).put(key, nonFlushedValue, create && !contains(key));
 		}
 
 		/**
@@ -2029,6 +2032,24 @@ public class OffsetIndex {
 							ZoneId.systemDefault()
 						);
 				});
+		}
+
+		/**
+		 * Returns true if the non-flushed values contain the non-removed specified key.
+		 * @param key the record key
+		 * @return true if the non-flushed values contain the non-removed specified key, false otherwise
+		 */
+		public boolean contains(@Nonnull RecordKey key) {
+			for (int i = nonFlushedVersions.length - 1; i >= 0; i--) {
+				long nonFlushedVersion = nonFlushedVersions[i];
+				final NonFlushedValueSet nfSet = nonFlushedValues.get(nonFlushedVersion);
+				if (nfSet.removedKeys.contains(key)) {
+					return false;
+				} else if (nfSet.addedKeys.contains(key)) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 		/**

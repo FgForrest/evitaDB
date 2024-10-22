@@ -152,36 +152,45 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 
 	@Override
 	public int compare(ReferenceContract o1, ReferenceContract o2) {
-		final ReferenceKey referenceKey1 = o1.getReferenceKey();
-		final ReferenceKey referenceKey2 = o2.getReferenceKey();
-		// first test whether both references relate to the same entity
-		if (this.comparabilityResolver.test(referenceKey1, referenceKey2)) {
-			final int position1 = getRecordPosition(referenceKey1);
-			final int position2 = getRecordPosition(referenceKey2);
-			// if both positions are negative, add both references to the non-sorted references set (they were not found)
-			if (position1 < 0 && position2 < 0) {
-				final IntHashSet nsr = getNonSortedReferences();
-				nsr.add(referenceKey1.primaryKey());
-				nsr.add(referenceKey2.primaryKey());
-				// sort by primary key if both references are non-sorted
-				return Integer.compare(referenceKey1.primaryKey(), referenceKey2.primaryKey());
-			} else if (position1 < 0) {
-				// if the first reference is non-sorted, add it to the non-sorted references set
-				final IntHashSet nsr = getNonSortedReferences();
-				nsr.add(referenceKey1.primaryKey());
-				return -1;
-			} else if (position2 < 0) {
-				// if the second reference is non-sorted, add it to the non-sorted references set
-				final IntHashSet nsr = getNonSortedReferences();
-				nsr.add(referenceKey2.primaryKey());
-				return 1;
-			} else {
-				// if both references are found, compare their positions
-				return Integer.compare(position1, position2);
-			}
+		// nulls are sorted at the end of the list
+		if (o1 == null && o2 == null) {
+			return 0;
+		} else if (o1 == null) {
+			return -1;
+		} else if (o2 == null) {
+			return 1;
 		} else {
-			// if the references relate to different entities, compare the primary keys of the references
-			return referenceKey1.compareTo(referenceKey2);
+			final ReferenceKey referenceKey1 = o1.getReferenceKey();
+			final ReferenceKey referenceKey2 = o2.getReferenceKey();
+			// first test whether both references relate to the same entity
+			if (this.comparabilityResolver.test(referenceKey1, referenceKey2)) {
+				final int position1 = getRecordPosition(referenceKey1);
+				final int position2 = getRecordPosition(referenceKey2);
+				// if both positions are negative, add both references to the non-sorted references set (they were not found)
+				if (position1 < 0 && position2 < 0) {
+					final IntHashSet nsr = getNonSortedReferences();
+					nsr.add(referenceKey1.primaryKey());
+					nsr.add(referenceKey2.primaryKey());
+					// sort by primary key if both references are non-sorted
+					return Integer.compare(referenceKey1.primaryKey(), referenceKey2.primaryKey());
+				} else if (position1 < 0) {
+					// if the first reference is non-sorted, add it to the non-sorted references set
+					final IntHashSet nsr = getNonSortedReferences();
+					nsr.add(referenceKey1.primaryKey());
+					return -1;
+				} else if (position2 < 0) {
+					// if the second reference is non-sorted, add it to the non-sorted references set
+					final IntHashSet nsr = getNonSortedReferences();
+					nsr.add(referenceKey2.primaryKey());
+					return 1;
+				} else {
+					// if both references are found, compare their positions
+					return Integer.compare(position1, position2);
+				}
+			} else {
+				// if the references relate to different entities, compare the primary keys of the references
+				return referenceKey1.compareTo(referenceKey2);
+			}
 		}
 	}
 

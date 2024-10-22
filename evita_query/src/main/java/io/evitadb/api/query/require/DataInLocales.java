@@ -96,6 +96,11 @@ public class DataInLocales extends AbstractRequireConstraintLeaf
 		super(locales);
 	}
 
+	@Override
+	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
+		return anotherRequirement instanceof DataInLocales;
+	}
+
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override

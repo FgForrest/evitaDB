@@ -68,10 +68,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_FAILED;
-import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_FINISHED;
-import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_QUEUED;
-import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.TASK_RUNNING;
+import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.*;
 
 /**
  * Class contains static methods for converting enums from and to gRPC representation.
@@ -1021,6 +1018,7 @@ public class EvitaEnumConverter {
 			case RUNNING -> TASK_RUNNING;
 			case FAILED -> TASK_FAILED;
 			case FINISHED -> TASK_FINISHED;
+			case WAITING_FOR_PRECONDITION -> TASK_WAITING_FOR_PRECONDITION;
 		};
 	}
 
@@ -1037,6 +1035,7 @@ public class EvitaEnumConverter {
 			case TASK_RUNNING -> TaskSimplifiedState.RUNNING;
 			case TASK_FAILED -> TaskSimplifiedState.FAILED;
 			case TASK_FINISHED -> TaskSimplifiedState.FINISHED;
+			case TASK_WAITING_FOR_PRECONDITION -> TaskSimplifiedState.WAITING_FOR_PRECONDITION;
 			case UNRECOGNIZED ->
 				throw new GenericEvitaInternalError("Unrecognized task simplified state: " + grpcState);
 		};

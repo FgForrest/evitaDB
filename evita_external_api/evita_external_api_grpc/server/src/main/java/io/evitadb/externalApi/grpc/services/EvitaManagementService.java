@@ -33,6 +33,7 @@ import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -42,7 +43,6 @@ import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
-import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.api.system.ProbesProvider.ApiState;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
@@ -55,6 +55,7 @@ import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionIntercepto
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
+import io.evitadb.store.spi.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.ClassifierUtils.Keyword;
@@ -72,18 +73,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.ServiceLoader;
-import java.util.ServiceLoader.Provider;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcTaskStatus;
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcHealthProblem;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcReadinessState;
@@ -154,6 +154,18 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		}
 	}
 
+	/**
+	 * Creates a predicate to find a restore task based on a specific file ID.
+	 *
+	 * @param theFileId the UUID of the file to match against the file ID carrier within the server task.
+	 * @return a predicate that evaluates true if the server task's file ID matches the provided file ID.
+	 */
+	@Nonnull
+	private static Predicate<ServerTask<?, ?>> createRestoreTaskFindPredicate(@Nonnull UUID theFileId) {
+		return serverTask -> serverTask.getStatus().settings() instanceof FileIdCarrier fileIdCarrier &&
+			fileIdCarrier.fileId().equals(theFileId);
+	}
+
 	public EvitaManagementService(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer) {
 		this.evita = evita;
 		this.externalApiServer = externalApiServer;
@@ -171,13 +183,9 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		executeWithClientContext(
 			() -> {
 				final SystemStatus systemStatus = management.getSystemStatus();
-				final List<ProbesProvider> probes = ServiceLoader.load(ProbesProvider.class)
-					.stream()
-					.map(Provider::get)
-					.toList();
 
 				final String[] enabledApiEndpoints = externalApiServer.getApiOptions().getEnabledApiEndpoints();
-				final Optional<Readiness> readiness = probes.stream()
+				final Optional<Readiness> readiness = externalApiServer.getProbeProviders().stream()
 					.findFirst()
 					.map(it -> it.getReadiness(evita, externalApiServer, enabledApiEndpoints));
 
@@ -192,7 +200,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					.setReadiness(toGrpcReadinessState(readiness.map(Readiness::state).orElse(ReadinessState.UNKNOWN)))
 					.setReadOnly(evita.getConfiguration().server().readOnly());
 
-				probes.stream()
+				externalApiServer.getProbeProviders().stream()
 					.flatMap(probe -> probe.getHealthProblems(evita, externalApiServer, enabledApiEndpoints).stream())
 					.distinct()
 					.forEach(problem -> responseBuilder.addHealthProblems(toGrpcHealthProblem(problem)));
@@ -394,7 +402,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 * @see EvitaManagementContract#restoreCatalog(String, long, InputStream)
 	 */
 	@Override
-	public void restoreCatalogUnary(GrpcRestoreCatalogUnaryRequest request, StreamObserver<GrpcRestoreCatalogResponse> responseObserver) {
+	public void restoreCatalogUnary(GrpcRestoreCatalogUnaryRequest request, StreamObserver<GrpcRestoreCatalogUnaryResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
 				UUID fileId = request.hasFileId() ? toUuid(request.getFileId()) : null;
@@ -402,16 +410,30 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 
 				try {
 					final Path workDirectory = evita.getConfiguration().transaction().transactionWorkDirectory();
-					Path backupFilePath;
+					final String catalogNameToRestore = request.getCatalogName();
+					Assert.isPremiseValid(catalogNameToRestore != null, "Catalog name to restore must be provided.");
+
+					final ServerTask<?, ?> restorationTask;
+					final Path backupFilePath;
 					if (fileId == null) {
 						if (!workDirectory.toFile().exists()) {
 							Assert.isTrue(workDirectory.toFile().mkdirs(), "Failed to create work directory for catalog restore.");
 						}
+
 						fileId = UUIDUtil.randomUUID();
-						backupFilePath = Files.createFile(workDirectory.resolve("catalog_backup_for_restore-" + fileId + ".zip"));
-						backupFilePath.toFile().deleteOnExit();
+						backupFilePath = management.exportFileService().createTempFile(fileId + ".zip");
+						restorationTask = management.createRestorationTask(
+							catalogNameToRestore,
+							fileId,
+							backupFilePath,
+							request.getTotalSizeInBytes(),
+							true
+						);
+						this.management.registerWaitingTask(restorationTask);
 					} else {
-						backupFilePath = workDirectory.resolve("catalog_backup_for_restore-" + fileId + ".zip");
+						backupFilePath = management.exportFileService().getTempFile(fileId + ".zip");
+						restorationTask = this.management.getWaitingTask(createRestoreTaskFindPredicate(fileId))
+							.orElseThrow(() -> new UnexpectedIOException("Task not found for file: " + backupFilePath, "Task not found for file id!"));
 					}
 
 					try (final OutputStream outputStream = Files.newOutputStream(backupFilePath, StandardOpenOption.APPEND)) {
@@ -421,22 +443,19 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 
 					// we've reached the expected size of the file
 					final long actualSize = Files.size(backupFilePath);
-					if (actualSize == totalSizeInBytes) {
-						final String catalogNameToRestore = request.getCatalogName();
-						Assert.isPremiseValid(catalogNameToRestore != null, "Catalog name to restore must be provided.");
-						final Task<?, Void> restorationTask = management.restoreCatalog(
-							catalogNameToRestore,
-							Files.size(backupFilePath),
-							Files.newInputStream(backupFilePath, StandardOpenOption.READ)
-						);
-						responseObserver.onNext(
-							GrpcRestoreCatalogResponse.newBuilder()
-								.setTask(toGrpcTaskStatus(restorationTask.getStatus()))
-								.setRead(actualSize)
-								.build()
-						);
-						responseObserver.onCompleted();
+					if (actualSize == request.getTotalSizeInBytes()) {
+						this.management.submitWaitingTask(createRestoreTaskFindPredicate(fileId));
 					}
+
+					responseObserver.onNext(
+						GrpcRestoreCatalogUnaryResponse.newBuilder()
+							.setTask(toGrpcTaskStatus(restorationTask.getStatus()))
+							.setRead(actualSize)
+							.setFileId(toGrpcUuid(fileId))
+							.build()
+					);
+					responseObserver.onCompleted();
+
 					if (actualSize > totalSizeInBytes) {
 						deleteFileIfExists(backupFilePath, "restore");
 						throw new UnexpectedIOException(

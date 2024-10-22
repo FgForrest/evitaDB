@@ -33,6 +33,9 @@ import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
@@ -48,6 +51,7 @@ import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
+import io.evitadb.core.query.fetch.FetchRequirementCollector;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityGroupPropertyTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
@@ -59,6 +63,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.attribute.ChainIndex;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -80,7 +85,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class ReferenceOrderByVisitor implements ConstraintVisitor {
+public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirementCollector {
 	private static final Map<Class<? extends OrderConstraint>, ReferenceOrderingConstraintTranslator<? extends OrderConstraint>> TRANSLATORS;
 
 	/* initialize list of all OrderConstraints handlers once for a lifetime */
@@ -96,6 +101,10 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
 	@Delegate private final QueryPlanningContext queryContext;
+	/**
+	 * Reference to the collector of requirements for entity (pre)fetch phase.
+	 */
+	private final FetchRequirementCollector fetchRequirementCollector;
 	/**
 	 * Entity schema of the entity being fetched.
 	 */
@@ -136,12 +145,14 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public static OrderingDescriptor getComparator(
 		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull FetchRequirementCollector fetchRequirementCollector,
 		@Nonnull OrderConstraint orderBy,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema
 		) {
 		final ReferenceOrderByVisitor orderVisitor = new ReferenceOrderByVisitor(
 			queryContext,
+			fetchRequirementCollector,
 			entitySchema,
 			referenceSchema,
 			new AttributeSchemaAccessor(
@@ -152,6 +163,60 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 		);
 		orderBy.accept(orderVisitor);
 		return orderVisitor.getComparator();
+	}
+
+	@Override
+	public void visit(@Nonnull Constraint<?> constraint) {
+		final OrderConstraint orderConstraint = (OrderConstraint) constraint;
+
+		@SuppressWarnings("unchecked") final ReferenceOrderingConstraintTranslator<OrderConstraint> translator =
+			(ReferenceOrderingConstraintTranslator<OrderConstraint>) TRANSLATORS.get(orderConstraint.getClass());
+		isPremiseValid(
+			translator != null,
+			"No translator found for constraint `" + orderConstraint.getClass() + "`!"
+		);
+
+		// if query is a container query
+		if (orderConstraint instanceof ConstraintContainer) {
+			@SuppressWarnings("unchecked") final ConstraintContainer<OrderConstraint> container = (ConstraintContainer<OrderConstraint>) orderConstraint;
+			// process children constraints
+			if (!(translator instanceof SelfTraversingTranslator)) {
+				for (OrderConstraint subConstraint : container) {
+					subConstraint.accept(this);
+				}
+			}
+			// process the container query itself
+			translator.createComparator(orderConstraint, this);
+		} else if (orderConstraint instanceof ConstraintLeaf) {
+			// process the leaf query
+			translator.createComparator(orderConstraint, this);
+		} else {
+			// sanity check only
+			throw new GenericEvitaInternalError("Should never happen");
+		}
+	}
+
+	@Override
+	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
+		AttributeContent attributeContent = null;
+		for (EntityContentRequire entityContentRequire : require) {
+			if (entityContentRequire instanceof AttributeContent attributeContentRequire) {
+				attributeContent = attributeContentRequire;
+				break;
+			} else {
+				throw new GenericEvitaInternalError("Should never happen");
+			}
+		}
+		Assert.isPremiseValid(
+			attributeContent != null,
+			"Attribute content requirement not found in the provided requirements."
+		);
+		this.fetchRequirementCollector.addRequirementToPrefetch(
+			new ReferenceContent(
+				referenceSchema.getName(),
+				attributeContent
+			)
+		);
 	}
 
 	/**
@@ -188,37 +253,6 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 			this.comparator = comparator;
 		} else {
 			this.comparator = this.comparator.andThen(comparator);
-		}
-	}
-
-	@Override
-	public void visit(@Nonnull Constraint<?> constraint) {
-		final OrderConstraint orderConstraint = (OrderConstraint) constraint;
-
-		@SuppressWarnings("unchecked") final ReferenceOrderingConstraintTranslator<OrderConstraint> translator =
-			(ReferenceOrderingConstraintTranslator<OrderConstraint>) TRANSLATORS.get(orderConstraint.getClass());
-		isPremiseValid(
-			translator != null,
-			"No translator found for constraint `" + orderConstraint.getClass() + "`!"
-		);
-
-		// if query is a container query
-		if (orderConstraint instanceof ConstraintContainer) {
-			@SuppressWarnings("unchecked") final ConstraintContainer<OrderConstraint> container = (ConstraintContainer<OrderConstraint>) orderConstraint;
-			// process children constraints
-			if (!(translator instanceof SelfTraversingTranslator)) {
-				for (OrderConstraint subConstraint : container) {
-					subConstraint.accept(this);
-				}
-			}
-			// process the container query itself
-			translator.createComparator(orderConstraint, this);
-		} else if (orderConstraint instanceof ConstraintLeaf) {
-			// process the leaf query
-			translator.createComparator(orderConstraint, this);
-		} else {
-			// sanity check only
-			throw new GenericEvitaInternalError("Should never happen");
 		}
 	}
 

@@ -41,6 +41,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Represents a task that is executed in the background. This is a thin wrapper around {@link Runnable} that emits
@@ -81,6 +82,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				OffsetDateTime.now(),
 				null,
 				null,
+				null,
 				0,
 				settings,
 				null,
@@ -102,6 +104,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				UUIDUtil.randomUUID(),
 				catalogName,
 				OffsetDateTime.now(),
+				null,
 				null,
 				null,
 				0,
@@ -127,6 +130,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				OffsetDateTime.now(),
 				null,
 				null,
+				null,
 				0,
 				settings,
 				null,
@@ -148,6 +152,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				UUIDUtil.randomUUID(),
 				catalogName,
 				OffsetDateTime.now(),
+				null,
 				null,
 				null,
 				0,
@@ -261,6 +266,20 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 				currentStatus -> currentStatus.updateTaskNameAndTraits(taskName)
 			);
 		}
+	}
+
+	@Override
+	public void transitionToIssued() {
+		if (!(this.future.isDone() || this.future.isCancelled())) {
+			this.status.updateAndGet(
+				TaskStatus::transitionToIssued
+			);
+		}
+	}
+
+	@Override
+	public boolean matches(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
+		return taskPredicate.test(this);
 	}
 
 	/**

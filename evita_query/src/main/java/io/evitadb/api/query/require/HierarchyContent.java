@@ -141,6 +141,11 @@ public class HierarchyContent extends AbstractRequireConstraintContainer impleme
 		return new HierarchyContent(children);
 	}
 
+	@Override
+	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
+		return anotherRequirement instanceof HierarchyContent;
+	}
+
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override

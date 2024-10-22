@@ -25,6 +25,7 @@ package io.evitadb.api.task;
 
 import io.evitadb.exception.EvitaError;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -58,7 +59,8 @@ public record TaskStatus<S, T>(
 	@Nonnull String taskName,
 	@Nonnull UUID taskId,
 	@Nullable String catalogName,
-	@Nonnull OffsetDateTime issued,
+	@Nonnull OffsetDateTime created,
+	@Nullable OffsetDateTime issued,
 	@Nullable OffsetDateTime started,
 	@Nullable OffsetDateTime finished,
 	int progress,
@@ -82,8 +84,10 @@ public record TaskStatus<S, T>(
 			return TaskSimplifiedState.FINISHED;
 		} else if (started != null) {
 			return TaskSimplifiedState.RUNNING;
-		} else {
+		} else if (issued != null) {
 			return TaskSimplifiedState.QUEUED;
+		} else {
+			return TaskSimplifiedState.WAITING_FOR_PRECONDITION;
 		}
 	}
 
@@ -101,6 +105,7 @@ public record TaskStatus<S, T>(
 				this.taskName,
 				this.taskId,
 				this.catalogName,
+				this.created,
 				this.issued,
 				this.started,
 				this.finished,
@@ -132,6 +137,7 @@ public record TaskStatus<S, T>(
 				taskName,
 				this.taskId,
 				this.catalogName,
+				this.created,
 				this.issued,
 				this.started,
 				this.finished,
@@ -149,6 +155,32 @@ public record TaskStatus<S, T>(
 	}
 
 	/**
+	 * Returns new instance of {@link TaskStatus} with updated issue time.
+	 *
+	 * @return The new instance of {@link TaskStatus} with updated issue time.
+	 */
+	@Nonnull
+	public TaskStatus<S, T> transitionToIssued() {
+		Assert.isTrue(this.issued == null, "Task is already issued.");
+		return new TaskStatus<>(
+			this.taskType,
+			this.taskName,
+			this.taskId,
+			this.catalogName,
+			this.created,
+			OffsetDateTime.now(),
+			null,
+			null,
+			0,
+			this.settings,
+			this.result,
+			this.publicExceptionMessage,
+			this.exceptionWithStackTrace,
+			this.traits
+		);
+	}
+
+	/**
 	 * Returns new instance of {@link TaskStatus} with updated started time and progress.
 	 *
 	 * @return The new instance of {@link TaskStatus} with updated started time and progress.
@@ -160,6 +192,7 @@ public record TaskStatus<S, T>(
 			this.taskName,
 			this.taskId,
 			this.catalogName,
+			this.created,
 			this.issued,
 			OffsetDateTime.now(),
 			null,
@@ -185,6 +218,7 @@ public record TaskStatus<S, T>(
 			this.taskName,
 			this.taskId,
 			this.catalogName,
+			this.created,
 			this.issued,
 			this.started,
 			OffsetDateTime.now(),
@@ -223,6 +257,7 @@ public record TaskStatus<S, T>(
 			this.taskName,
 			this.taskId,
 			this.catalogName,
+			this.created,
 			this.issued,
 			this.started,
 			OffsetDateTime.now(),
@@ -239,6 +274,10 @@ public record TaskStatus<S, T>(
 	 * State aggregates the possible states of a task into a simple enumeration.
 	 */
 	public enum TaskSimplifiedState {
+		/**
+		 * Task is waiting in for precondition to be fulfilled.
+		 */
+		WAITING_FOR_PRECONDITION,
 		/**
 		 * Task is waiting in the queue to be executed.
 		 */

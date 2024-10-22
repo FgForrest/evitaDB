@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.SessionProtocol;
 import com.linecorp.armeria.common.util.EventLoopGroups;
@@ -37,6 +38,8 @@ import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.api.system.ProbesMaintainer;
+import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
@@ -115,6 +118,7 @@ public class ExternalApiServer implements AutoCloseable {
 	private final Server server;
 	@Getter private final ApiOptions apiOptions;
 	private final Map<String, ExternalApiProvider<?>> registeredApiProviders;
+	private final ProbesMaintainer probesMaintainer = new ProbesMaintainer();
 	private CompletableFuture<Void> stopFuture;
 
 	/**
@@ -136,8 +140,6 @@ public class ExternalApiServer implements AutoCloseable {
 	) {
 		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate())
 			.orElseThrow(() -> new GenericEvitaInternalError("Either certificate path or its private key path is not set"));
-		final File certificateFile = new File(certificatePath.certificate());
-		final File certificateKeyFile = new File(certificatePath.privateKey());
 		if (apiOptions.certificate().generateAndUseSelfSigned()) {
 			final CertificateType[] certificateTypes = apiOptions.endpoints()
 				.values()
@@ -150,6 +152,24 @@ public class ExternalApiServer implements AutoCloseable {
 				)
 				.distinct()
 				.toArray(CertificateType[]::new);
+			final List<File> necessaryFiles = Arrays.stream(certificateTypes)
+				.flatMap(
+					it -> switch (it) {
+						case SERVER -> Stream.of(
+							serverCertificateManager.getRootCaCertificatePath().toFile(),
+							new File(certificatePath.certificate()),
+							new File(certificatePath.privateKey())
+						);
+						case CLIENT -> {
+							final Path certificateFolder = Path.of(apiOptions.certificate().folderPath());
+							yield Stream.of(
+								certificateFolder.resolve(CertificateUtils.getGeneratedClientCertificateFileName()).toFile(),
+								certificateFolder.resolve(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()).toFile()
+							);
+						}
+					}
+				)
+				.toList();
 
 			// if no end-point requires any certificate skip generation
 			if (ArrayUtils.isEmpty(certificateTypes)) {
@@ -162,8 +182,8 @@ public class ExternalApiServer implements AutoCloseable {
 						() -> "Cannot create certificate folder path: `" + certificateFolderPath + "`"
 					);
 				}
-				final File rootCaFile = serverCertificateManager.getRootCaCertificatePath().toFile();
-				if (!certificateFile.exists() && !certificateKeyFile.exists() && !rootCaFile.exists()) {
+
+				if (necessaryFiles.stream().noneMatch(File::exists)) {
 					try {
 						serverCertificateManager.generateSelfSignedCertificate(certificateTypes);
 					} catch (Exception e) {
@@ -173,7 +193,7 @@ public class ExternalApiServer implements AutoCloseable {
 							e
 						);
 					}
-				} else if (!certificateFile.exists() || !certificateKeyFile.exists() || !rootCaFile.exists()) {
+				} else if (!necessaryFiles.stream().allMatch(File::exists)) {
 					throw new EvitaInvalidUsageException("One of the essential certificate files is missing. Please either " +
 						"provide all of these files or delete all files in the configured certificate folder and try again."
 					);
@@ -188,7 +208,7 @@ public class ExternalApiServer implements AutoCloseable {
 				});
 
 		} else {
-			if (!certificateFile.exists() || !certificateKeyFile.exists()) {
+			if (!new File(certificatePath.certificate()).exists() || !new File(certificatePath.privateKey()).exists()) {
 				throw new GenericEvitaInternalError("Certificate or its private key file does not exist");
 			}
 		}
@@ -479,6 +499,16 @@ public class ExternalApiServer implements AutoCloseable {
 	}
 
 	/**
+	 * Retrieves a list of probe providers from the probes maintainer.
+	 *
+	 * @return a non-null list of ProbesProvider objects.
+	 */
+	@Nonnull
+	public List<ProbesProvider> getProbeProviders() {
+		return probesMaintainer.getProbes();
+	}
+
+	/**
 	 * Stops this running HTTP server and its registered APIs.
 	 */
 	@Override
@@ -503,8 +533,11 @@ public class ExternalApiServer implements AutoCloseable {
 				final long start = System.nanoTime();
 				this.stopFuture = this.server.stop()
 					.thenAccept(
-						unused -> ConsoleWriter.write(
-							"External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n")
+						unused -> {
+							ConsoleWriter.write(
+								"External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n");
+							probesMaintainer.closeProbes();
+						}
 					);
 			}
 		}
@@ -615,6 +648,7 @@ public class ExternalApiServer implements AutoCloseable {
 					}
 
 					// now provide implementation for the host services
+					boolean defaultServiceConfigured = false;
 					for (HttpServiceDefinition httpServiceDefinition : registeredApiProvider.getHttpServiceDefinitions()) {
 						final String basePath = configuration instanceof ApiWithSpecificPrefix apiWithSpecificPrefix ?
 							apiWithSpecificPrefix.getPrefix() : "";
@@ -647,6 +681,17 @@ public class ExternalApiServer implements AutoCloseable {
 								dynamicPathHandlingService = new PathHandlingService();
 							}
 							dynamicPathHandlingService.addPrefixPath(servicePath, service);
+
+							if (httpServiceDefinition.defaultService()) {
+								Assert.isPremiseValid(
+									!defaultServiceConfigured,
+									"Multiple default services found. Only one service can be default."
+								);
+								dynamicPathHandlingService.addExactPath(
+									"/", (reqCtx, req) -> HttpResponse.ofRedirect(servicePath)
+								);
+								defaultServiceConfigured = true;
+							}
 						}
 					}
 				}

@@ -66,6 +66,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.TraversalDirection;
+import io.evitadb.core.query.fetch.DefaultPrefetchRequirementCollector;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
@@ -75,6 +76,7 @@ import io.evitadb.core.query.sort.ReferenceOrderByVisitor.OrderingDescriptor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -168,6 +170,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * is either {@link EntityReferenceWithParent} if bodies were not requested, or full {@link SealedEntity} otherwise.
 	 */
 	@Nullable private IntObjectMap<EntityClassifierWithParent> parentEntities;
+	/**
+	 * This request is used to extend the original request on top-level entity. It solves the scenario, when the nested
+	 * references are ordered by reference attribute. In that case we need to extend the original request with additional
+	 * requirements to fetch the reference attribute for ordering comparator.
+	 */
+	private EvitaRequest envelopingEntityRequest;
 
 	/**
 	 * Utility function that fetches and returns filtered map of {@link SealedEntity} indexed by their primary key
@@ -811,7 +819,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			);
 		}
 		// prefetch the entities
-		prefetchEntities(
+		this.envelopingEntityRequest = prefetchEntities(
 			this.requirementContext,
 			this.defaultRequirementContext,
 			this.executionContext,
@@ -901,7 +909,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 
 		// prefetch the entities
-		prefetchEntities(
+		this.envelopingEntityRequest = prefetchEntities(
 			this.requirementContext,
 			this.defaultRequirementContext,
 			this.executionContext,
@@ -929,6 +937,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 
 		return richEnoughEntities;
+	}
+
+	@Nonnull
+	@Override
+	public EvitaRequest getEnvelopingEntityRequest() {
+		Assert.isPremiseValid(
+			this.envelopingEntityRequest != null,
+			() -> new GenericEvitaInternalError("Enveloping entity request must be initialized before it's accessed.")
+		);
+		return this.envelopingEntityRequest;
 	}
 
 	@Nullable
@@ -1000,7 +1018,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param referencedEntityGroupIdsFormula the formula containing superset of all possible referenced entity groups
 	 * @param entityPrimaryKey                the array of top entity primary keys for which the references are being fetched
 	 */
-	private void prefetchEntities(
+	@Nonnull
+	private EvitaRequest prefetchEntities(
 		@Nonnull Map<String, RequirementContext> requirementContext,
 		@Nullable RequirementContext defaultRequirementContext,
 		@Nonnull QueryExecutionContext executionContext,
@@ -1024,6 +1043,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					)
 				);
 
+		final DefaultPrefetchRequirementCollector globalPrefetchCollector = new DefaultPrefetchRequirementCollector();
 		this.fetchedEntities = collectedRequirements
 			.filter(it -> it.getValue().requiresInit())
 			.collect(
@@ -1033,9 +1053,20 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						final String referenceName = it.getKey();
 						final RequirementContext requirements = it.getValue();
 						final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+						// initialize requirements with requested attributes
+						if (requirements.attributeContent() != null) {
+							globalPrefetchCollector.addRequirementToPrefetch(requirements.attributeContent());
+						}
 
 						final Optional<OrderingDescriptor> orderingDescriptor = ofNullable(requirements.orderBy())
-							.map(ob -> ReferenceOrderByVisitor.getComparator(executionContext.getQueryContext(), ob, entitySchema, referenceSchema));
+							.map(ob -> ReferenceOrderByVisitor.getComparator(
+								executionContext.getQueryContext(),
+								globalPrefetchCollector,
+								ob,
+								entitySchema,
+								referenceSchema
+							)
+						);
 
 						final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(entityPrimaryKey.length);
 
@@ -1128,6 +1159,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					}
 				)
 			);
+
+		return ofNullable(globalPrefetchCollector.getEntityFetch())
+			.map(it -> executionContext.getEvitaRequest().deriveCopyWith(executionContext.getSchema().getName(), it))
+			.orElse(executionContext.getEvitaRequest());
 	}
 
 	/**
@@ -1524,4 +1559,5 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			return memoizedResult;
 		}
 	}
+
 }

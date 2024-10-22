@@ -450,8 +450,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/use/api/query-data.md"),
+			Environment.LOCALHOST,
+			getRootDirectory().resolve("documentation/user/en/query/requirements/price.md"),
 			new ExampleFilter[]{
 				ExampleFilter.CSHARP,
 				ExampleFilter.JAVA,
