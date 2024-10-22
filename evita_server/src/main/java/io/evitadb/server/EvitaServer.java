@@ -564,8 +564,8 @@ public class EvitaServer {
 	 */
 	@Nonnull
 	public CompletableFuture<Void> stop() {
-		if (this.stopFuture == null) {
-			this.stopFuture = externalApiServer.closeAsynchronously()
+		if (this.stopFuture == null && this.externalApiServer != null) {
+			this.stopFuture = this.externalApiServer.closeAsynchronously()
 				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n\n"));
 		}
 		return this.stopFuture;

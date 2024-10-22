@@ -30,14 +30,17 @@ import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.core.Evita;
 import io.evitadb.core.async.ObservableThreadExecutor;
+import io.evitadb.utils.CollectionUtils;
 import io.prometheus.metrics.core.metrics.Gauge;
 import io.prometheus.metrics.exporter.common.PrometheusScrapeHandler;
+import io.prometheus.metrics.model.registry.Collector;
 import io.prometheus.metrics.model.snapshots.Unit;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Function;
@@ -54,9 +57,150 @@ import java.util.stream.Stream;
 public class PrometheusMetricsHttpService implements HttpService {
 	private static final Unit UNIT_TASKS = new Unit("tasks");
 	private static final Unit UNIT_THREADS = new Unit("threads");
+	private static final Map<String, Collector> REGISTERED_THREAD_POOL_METRICS = CollectionUtils.createHashMap(256);
 	private final Evita evita;
 	private final PrometheusScrapeHandler prometheusScrapeHandler;
 	private final List<Runnable> metricActuators;
+
+	/**
+	 * Monitors various metrics of a given ThreadPoolExecutor and returns a stream of
+	 * Runnable tasks that can be used to update these metrics.
+	 *
+	 * @param metricPrefix The prefix to use for the metric names.
+	 * @param tp           The ThreadPoolExecutor to monitor.
+	 * @return A stream of Runnables that update the metrics when executed.
+	 */
+	@Nonnull
+	private static Stream<Runnable> monitor(@Nonnull String metricPrefix, @Nonnull ThreadPoolExecutor tp) {
+		final Gauge completed = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+			metricPrefix + "executor_completed",
+			name -> Gauge.builder()
+				.name(name)
+				.help("The approximate total number of tasks that have completed execution")
+				.unit(UNIT_TASKS)
+				.register()
+		);
+
+		final Gauge active = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+			metricPrefix + "executor_active",
+			name -> Gauge.builder()
+				.name(name)
+				.help("The approximate number of threads that are actively executing tasks")
+				.unit(UNIT_THREADS)
+				.register()
+		);
+
+		final Gauge queued = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+			metricPrefix + "executor_queued",
+			name -> Gauge.builder()
+				.name(name)
+				.help("The approximate number of tasks that are queued for execution")
+				.unit(UNIT_TASKS)
+				.register()
+		);
+
+		final Gauge queueRemaining = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+			metricPrefix + "executor_queue_remaining",
+			name -> Gauge.builder()
+				.name(name)
+				.help("The number of additional elements that this queue can ideally accept without blocking")
+				.unit(UNIT_TASKS)
+				.register()
+		);
+
+		final Gauge poolSize = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+			metricPrefix + "executor_pool_size",
+			name -> Gauge.builder()
+				.name(name)
+				.help("The current number of threads in the pool")
+				.unit(UNIT_THREADS)
+				.register()
+		);
+
+		final Gauge poolCore = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+			metricPrefix + "executor_pool_core",
+			name -> Gauge.builder()
+				.name(name)
+				.help("The core number of threads for the pool")
+				.unit(UNIT_THREADS)
+				.register()
+		);
+
+		final Gauge poolMax = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+			metricPrefix + "executor_pool_max",
+			name -> Gauge.builder()
+				.name(name)
+				.help("The maximum allowed number of threads in the pool")
+				.unit(UNIT_THREADS)
+				.register()
+		);
+
+		return Stream.of(
+			() -> completed.set(tp.getCompletedTaskCount()),
+			() -> active.set(tp.getActiveCount()),
+			() -> queued.set(tp.getQueue().size()),
+			() -> queueRemaining.set(tp.getQueue().remainingCapacity()),
+			() -> poolSize.set(tp.getPoolSize()),
+			() -> poolCore.set(tp.getCorePoolSize()),
+			() -> poolMax.set(tp.getMaximumPoolSize())
+		);
+	}
+
+	/**
+	 * Monitors various metrics of a given ForkJoinPool and returns a stream of
+	 * Runnable tasks that can be used to update these metrics.
+	 *
+	 * @param metricPrefix The prefix to use for the metric names.
+	 * @param fj           The ForkJoinPool to monitor.
+	 * @return A stream of Runnables that update the metrics when executed.
+	 */
+	@Nonnull
+	private static Stream<Runnable> monitor(@Nonnull String metricPrefix, @Nonnull ForkJoinPool fj) {
+		final Gauge steals = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+			metricPrefix + "executor_steals",
+			name -> Gauge.builder()
+				.name(name)
+				.help(
+					"Estimate of the total number of tasks stolen from one thread's work queue by another. The reported value " +
+						"underestimates the actual total number of steals when the pool is not quiescent")
+				.unit(UNIT_TASKS)
+				.register()
+		);
+		final Gauge queued = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+			metricPrefix + "executor_queued",
+			name -> Gauge.builder()
+				.name(name)
+				.help("An estimate of the total number of tasks currently held in queues by worker threads")
+				.unit(UNIT_TASKS)
+				.register()
+		);
+		final Gauge active = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+			metricPrefix + "executor_active",
+			name -> Gauge.builder()
+				.name(name)
+				.help("An estimate of the number of threads that are currently stealing or executing tasks")
+				.unit(UNIT_THREADS)
+				.register()
+		);
+		final Gauge running = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+			metricPrefix + "executor_running",
+			name -> Gauge.builder()
+				.name(name)
+				.help(
+					"An estimate of the number of worker threads that are not blocked waiting to join tasks or for other managed" +
+						" synchronization threads"
+				)
+				.unit(UNIT_THREADS)
+				.register()
+		);
+
+		return Stream.of(
+			() -> steals.set(fj.getStealCount()),
+			() -> queued.set(fj.getQueuedTaskCount()),
+			() -> active.set(fj.getActiveThreadCount()),
+			() -> running.set(fj.getRunningThreadCount())
+		);
+	}
 
 	public PrometheusMetricsHttpService(@Nonnull Evita evita) {
 		this.evita = evita;
@@ -89,113 +233,6 @@ public class PrometheusMetricsHttpService implements HttpService {
 				}
 			)
 		);
-	}
-
-	/**
-	 * Monitors various metrics of a given ThreadPoolExecutor and returns a stream of
-	 * Runnable tasks that can be used to update these metrics.
-	 *
-	 * @param metricPrefix The prefix to use for the metric names.
-	 * @param tp The ThreadPoolExecutor to monitor.
-	 * @return A stream of Runnables that update the metrics when executed.
-	 */
-	@Nonnull
-	private static Stream<Runnable> monitor(@Nonnull String metricPrefix, @Nonnull ThreadPoolExecutor tp) {
-		final Gauge completed = Gauge.builder()
-			.name(metricPrefix + "executor_completed")
-			.help("The approximate total number of tasks that have completed execution")
-			.unit(UNIT_TASKS)
-			.register();
-
-		final Gauge active = Gauge.builder()
-			.name(metricPrefix + "executor_active")
-			.help("The approximate number of threads that are actively executing tasks")
-			.unit(UNIT_THREADS)
-			.register();
-
-		final Gauge queued = Gauge.builder()
-			.name(metricPrefix + "executor_queued")
-			.help("The approximate number of tasks that are queued for execution")
-			.unit(UNIT_TASKS)
-			.register();
-
-		final Gauge queueRemaining = Gauge.builder()
-			.name(metricPrefix + "executor_queue_remaining")
-			.help("The number of additional elements that this queue can ideally accept without blocking")
-			.unit(UNIT_TASKS)
-			.register();
-
-		final Gauge poolSize = Gauge.builder()
-			.name(metricPrefix + "executor_pool_size")
-			.help("The current number of threads in the pool")
-			.unit(UNIT_THREADS)
-			.register();
-
-		final Gauge poolCore = Gauge.builder()
-			.name(metricPrefix + "executor_pool_core")
-			.help("The core number of threads for the pool")
-			.unit(UNIT_THREADS)
-			.register();
-
-		final Gauge poolMax = Gauge.builder()
-			.name(metricPrefix + "executor_pool_max")
-			.help("The maximum allowed number of threads in the pool")
-			.unit(UNIT_THREADS)
-			.register();
-
-		return Stream.of(
-			() -> completed.set(tp.getCompletedTaskCount()),
-			() -> active.set(tp.getActiveCount()),
-			() -> queued.set(tp.getQueue().size()),
-			() -> queueRemaining.set(tp.getQueue().remainingCapacity()),
-			() -> poolSize.set(tp.getPoolSize()),
-			() -> poolCore.set(tp.getCorePoolSize()),
-			() -> poolMax.set(tp.getMaximumPoolSize())
-		);
-	}
-
-	/**
-	 * Monitors various metrics of a given ForkJoinPool and returns a stream of
-	 * Runnable tasks that can be used to update these metrics.
-	 *
-	 * @param metricPrefix The prefix to use for the metric names.
-	 * @param fj The ForkJoinPool to monitor.
-	 * @return A stream of Runnables that update the metrics when executed.
-	 */
-	@Nonnull
-	private static Stream<Runnable> monitor(@Nonnull String metricPrefix, @Nonnull ForkJoinPool fj) {
-	final Gauge steals = Gauge.builder()
-		.name(metricPrefix + "executor_steals")
-		.help(
-			"Estimate of the total number of tasks stolen from one thread's work queue by another. The reported value " +
-			"underestimates the actual total number of steals when the pool is not quiescent")
-		.unit(UNIT_TASKS)
-		.register();
-	final Gauge queued = Gauge.builder()
-		.name(metricPrefix + "executor_queued")
-		.help("An estimate of the total number of tasks currently held in queues by worker threads")
-		.unit(UNIT_TASKS)
-		.register();
-	final Gauge active = Gauge.builder()
-		.name(metricPrefix + "executor_active")
-		.help("An estimate of the number of threads that are currently stealing or executing tasks")
-		.unit(UNIT_THREADS)
-		.register();
-	final Gauge running = Gauge.builder()
-		.name(metricPrefix + "executor_running")
-		.help(
-			"An estimate of the number of worker threads that are not blocked waiting to join tasks or for other managed" +
-				" synchronization threads"
-		)
-		.unit(UNIT_THREADS)
-		.register();
-
-	return Stream.of(
-		() -> steals.set(fj.getStealCount()),
-		() -> queued.set(fj.getQueuedTaskCount()),
-		() -> active.set(fj.getActiveThreadCount()),
-		() -> running.set(fj.getRunningThreadCount())
-	);
 	}
 
 }
