@@ -124,6 +124,15 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 		}
 	}
 
+	/**
+	 * Returns the internal fork join pool. This method is intended for observability purposes only.
+	 * @return the internal fork join pool
+	 */
+	@Nonnull
+	public ForkJoinPool getForkJoinPoolInternal() {
+		return forkJoinPool;
+	}
+
 	@Override
 	public long getSubmittedTaskCount() {
 		return this.submittedTaskCount.get();
