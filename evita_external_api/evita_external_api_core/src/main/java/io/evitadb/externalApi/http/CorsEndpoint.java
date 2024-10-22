@@ -26,12 +26,10 @@ package io.evitadb.externalApi.http;
 import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.server.HttpService;
-import io.evitadb.externalApi.configuration.ApiWithOriginControl;
 
 import io.netty.util.AsciiString;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createHashSet;
@@ -43,13 +41,10 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  */
 public class CorsEndpoint {
 
-	@Nullable private final Set<String> allowedOrigins;
 	@Nonnull private final Set<HttpMethod> allowedMethods = createHashSet(HttpMethod.values().length);
 	@Nonnull private final Set<AsciiString> allowedHeaders = createHashSet(4);
 
-	public CorsEndpoint(@Nonnull ApiWithOriginControl apiConfig) {
-		this.allowedOrigins = apiConfig.getAllowedOrigins() == null ? null : Set.of(apiConfig.getAllowedOrigins());
-
+	public CorsEndpoint() {
 		// default headers for tracing that are allowed on every endpoint by default
 		this.allowedHeaders.add(AdditionalHttpHeaderNames.OPENTELEMETRY_TRACEPARENT_STRING);
 		this.allowedHeaders.add(AdditionalHttpHeaderNames.EVITADB_CLIENTID_HEADER_STRING);
@@ -83,28 +78,13 @@ public class CorsEndpoint {
 	 * Creates CORS preflight handler
 	 */
 	public HttpService toHandler() {
-		return new CorsFilter(
-			new CorsPreflightHandler(
-				allowedOrigins,
-				allowedMethods,
-				allowedHeaders
-			),
-			allowedOrigins
-		);
+		return CorsService.preflightHandler(allowedMethods, allowedHeaders);
 	}
 
 	/**
 	 * Creates CORS preflight handler. Non-preflight requests are delegated to the passed delegate.
 	 */
 	public HttpService toHandler(@Nonnull HttpService delegate) {
-		return new CorsFilter(
-			new CorsPreflightHandler(
-				delegate,
-				allowedOrigins,
-				allowedMethods,
-				allowedHeaders
-			),
-			allowedOrigins
-		);
+		return CorsService.filter(delegate, allowedMethods, allowedHeaders);
 	}
 }

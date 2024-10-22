@@ -30,7 +30,7 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.externalApi.http.CorsEndpoint;
-import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
@@ -99,7 +99,7 @@ public class RestRouter implements HttpService {
 		final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
 		api.endpoints().forEach(endpoint -> {
-			final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpoint.path(), p -> new CorsEndpoint(restConfig));
+			final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpoint.path(), p -> new CorsEndpoint());
 			registerEndpoint(apiRouter, corsEndpoint, endpoint);
 		});
 		corsEndpoints.forEach((path, endpoint) -> apiRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler()));
@@ -129,10 +129,9 @@ public class RestRouter implements HttpService {
 		apiRouter.add(
 			endpoint.method(),
 			endpoint.path().toString(),
-			new CorsFilter(
+			CorsService.standaloneFilter(
 				endpoint.handler()
-					.decorate(service -> new RestExceptionHandler(objectMapper, service)),
-				restConfig.getAllowedOrigins()
+					.decorate(service -> new RestExceptionHandler(objectMapper, service))
 			)
 		);
 	}

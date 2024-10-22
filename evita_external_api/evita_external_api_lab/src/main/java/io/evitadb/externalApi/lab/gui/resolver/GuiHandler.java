@@ -189,7 +189,7 @@ public class GuiHandler implements HttpService {
 				final EvitaDBConnection selfConnection = new EvitaDBConnection(
 					null,
 					serverName,
-					labConfig.getBaseApiAccessUrl()
+					labConfig.getResolvedExposeOnUrl()
 				);
 				preconfiguredConnections = List.of(selfConnection);
 			}

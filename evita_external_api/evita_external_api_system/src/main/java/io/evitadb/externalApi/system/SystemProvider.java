@@ -120,7 +120,6 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
 			final boolean reachable = NetworkUtils.isReachable(
 				url,
-				Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
 				this.requestTimeout,
 				error -> {
 					log.error("Error while checking readiness of System API: {}", error);
