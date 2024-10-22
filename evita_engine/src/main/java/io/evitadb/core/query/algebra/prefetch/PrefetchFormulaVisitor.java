@@ -71,7 +71,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	/**
 	 * Contains set of requirements collected from all {@link SelectionFormula} in the tree.
 	 */
-	protected final DefaultPrefetchRequirementCollector requirements = new DefaultPrefetchRequirementCollector(null);
+	protected final DefaultPrefetchRequirementCollector requirements = new DefaultPrefetchRequirementCollector();
 	/**
 	 * Indexes that were used when visitor was created.
 	 */
