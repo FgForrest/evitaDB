@@ -44,6 +44,10 @@ import java.util.Map;
 public class DefaultPrefetchRequirementCollector implements FetchRequirementCollector {
 	private Map<Class<? extends EntityContentRequire>, EntityContentRequire[]> requirements;
 
+	public DefaultPrefetchRequirementCollector() {
+		this(null);
+	}
+
 	public DefaultPrefetchRequirementCollector(@Nullable EntityFetch entityFetch) {
 		if (entityFetch != null) {
 			this.requirements = CollectionUtils.createHashMap(8);
