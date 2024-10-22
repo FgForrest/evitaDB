@@ -85,13 +85,7 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 			.enableHttpJsonTranscoding(true)
 			.enableUnframedRequests(true);
 
-		final CorsServiceBuilder corsBuilder;
-		if (grpcAPIConfig.getAllowedOrigins() == null) {
-			corsBuilder = CorsService.builderForAnyOrigin();
-		} else {
-			corsBuilder = CorsService.builder(grpcAPIConfig.getAllowedOrigins());
-		}
-		corsBuilder
+		final CorsServiceBuilder corsBuilder = CorsService.builderForAnyOrigin()
 			.allowRequestMethods(HttpMethod.POST) // Allow POST method.
 			// Allow all request headers to ensure proper Metadata to HTTP headers conversion in gRPC-Web.
 			// Because of the variability of such headers, it is not wise to list them all and maintain it.

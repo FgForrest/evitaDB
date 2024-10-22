@@ -99,25 +99,21 @@ public class NetworkUtils {
 	 * Returns true if the URL is reachable and returns some content
 	 *
 	 * @param url URL to check
-	 * @param origin request origin to use
 	 * @return true if the URL is reachable and returns some content
 	 */
 	public static boolean isReachable(
 		@Nonnull String url,
-		@Nullable String origin,
 		long timeoutInMillis,
 		@Nullable Consumer<String> errorConsumer,
 		@Nullable Consumer<String> timeoutConsumer
 	) {
 		try {
-			final Builder requestBuilder = new Builder()
+			final Request request = new Builder()
 				.url(url)
-				.get();
-			if (origin != null) {
-				requestBuilder.addHeader("Origin", origin);
-			}
+				.get()
+				.build();
 
-			try (final Response response = getHttpClient(timeoutInMillis).newCall(requestBuilder.build()).execute()) {
+			try (final Response response = getHttpClient(timeoutInMillis).newCall(request).execute()) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
 						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code() + " - " + response.message()));
@@ -152,7 +148,6 @@ public class NetworkUtils {
 		@Nonnull String url,
 		@Nullable String method,
 		@Nonnull String contentType,
-		@Nullable String origin,
 		@Nullable String body,
 		long timeoutInMillis,
 		@Nullable Consumer<String> errorConsumer,
@@ -163,16 +158,14 @@ public class NetworkUtils {
 				.map(theBody -> RequestBody.create(theBody, MediaType.parse(contentType)))
 				.orElse(null);
 
-			final Request.Builder requestBuilder = new Request.Builder()
+			final Request request = new Request.Builder()
 				.url(url)
 				.method(method != null ? method : "GET", requestBody)
 				.addHeader("Accept", contentType)
-				.addHeader("Content-Type", contentType);
-			if (origin != null) {
-				requestBuilder.addHeader("Origin", origin);
-			}
+				.addHeader("Content-Type", contentType)
+				.build();
 
-			try (final Response response = getHttpClient(timeoutInMillis).newCall(requestBuilder.build()).execute()) {
+			try (final Response response = getHttpClient(timeoutInMillis).newCall(request).execute()) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
 						.ifPresent(it -> it.accept(

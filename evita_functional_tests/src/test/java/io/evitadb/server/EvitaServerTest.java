@@ -256,7 +256,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
-				null,
 				TIMEOUT_IN_MILLIS,
 				error -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
@@ -269,7 +268,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"https://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name",
 				"GET",
 				"text/plain",
-				null,
 				null,
 				TIMEOUT_IN_MILLIS,
 				error -> assertEquals("Error fetching content from URL: https://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name HTTP status 403: This endpoint requires TLS.", error),
@@ -284,7 +282,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
-				null,
 				TIMEOUT_IN_MILLIS,
 				error -> assertTrue(error.contains("Error fetching content from URL: https://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name")),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
@@ -297,7 +294,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"http://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name",
 				"GET",
 				"text/plain",
-				null,
 				null,
 				TIMEOUT_IN_MILLIS,
 				error -> fail("The system API should be accessible via correct scheme and port: " + error),
@@ -312,7 +308,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"text/plain",
 				null,
-				null,
 				TIMEOUT_IN_MILLIS,
 				error -> fail("The system API should be accessible via Lab scheme and port: " + error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
@@ -325,7 +320,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"https://localhost:" + servicePorts.get(LabProvider.CODE) + "/system/server-name",
 				"GET",
 				"text/plain",
-				null,
 				null,
 				TIMEOUT_IN_MILLIS,
 				error -> fail("The system API should be accessible via Lab scheme and port: " + error),
@@ -503,7 +497,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					"GET",
 					"application/json",
 					null,
-					null,
 					TIMEOUT_IN_MILLIS,
 					error -> log.error("Error while checking readiness of API: {}", error),
 					timeout -> log.error("Error while checking readiness of API: {}", timeout)
@@ -537,7 +530,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"GET",
 				"application/json",
 				null,
-				null,
 				TIMEOUT_IN_MILLIS,
 				error -> log.error("Error while checking readiness of API: {}", error),
 				timeout -> log.error("Error while checking readiness of API: {}", timeout)
@@ -553,159 +545,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				baseUrls[0] + "status",
 				"GET",
 				"application/json",
-				null,
-				null,
-				TIMEOUT_IN_MILLIS,
-				error -> log.error("Error while checking readiness of API: {}", error),
-				timeout -> log.error("Error while checking readiness of API: {}", timeout)
-			);
-
-			assertTrue(status.isPresent());
-			final String output = replaceVariables(status.get());
-			assertEquals(
-				"""
-					{
-					   "serverName": "evitaDB-RANDOM",
-					   "version": "VARIABLE",
-					   "startedAt": "VARIABLE",
-					   "uptime": VARIABLE,
-					   "uptimeForHuman": "VARIABLE",
-					   "catalogsCorrupted": 0,
-					   "catalogsOk": 0,
-					   "healthProblems": [],
-					   "apis": [
-					      {
-					         "gRPC": [
-					            "https://VARIABLE/",
-					            "https://VARIABLE/"
-					         ]
-					      },
-					      {
-					         "graphQL": [
-					            "https://VARIABLE/gql/",
-					            "https://VARIABLE/gql/"
-					         ]
-					      },
-					      {
-					         "lab": [
-					            "https://VARIABLE/lab/",
-					            "https://VARIABLE/lab/"
-					         ]
-					      },
-					      {
-					         "observability": [
-					            "http://VARIABLE/observability/",
-					            "http://VARIABLE/observability/"
-					         ]
-					      },
-					      {
-					         "rest": [
-					            "https://VARIABLE/rest/",
-					            "https://VARIABLE/rest/"
-					         ]
-					      },
-					      {
-					         "system": [
-					            "http://VARIABLE/system/",
-					            "http://VARIABLE/system/"
-					         ]
-					      }
-					   ]
-					}""",
-				output,
-				"Original output: " + status.get()
-			);
-
-		} catch (Exception ex) {
-			fail(ex);
-		} finally {
-			try {
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
-		}
-	}
-
-	@Test
-	void shouldSignalizeReadinessAndHealthinessCorrectlyWithCustomOrigins() {
-		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
-			DIR_EVITA_SERVER_TEST,
-			"/testData/evita-configuration-with-custom-origins.yaml",
-			"evita-configuration-with-custom-origins.yaml"
-		);
-
-		final EvitaServer evitaServer = new EvitaServer(
-			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
-			constructTestArguments()
-		);
-		try {
-			evitaServer.run();
-			final String[] baseUrls = evitaServer.getExternalApiServer().getExternalApiProviderByCode(SystemProvider.CODE)
-				.getConfiguration()
-				.getBaseUrls();
-
-			Optional<String> readiness;
-			final long start = System.currentTimeMillis();
-			do {
-				final String url = baseUrls[0] + "readiness";
-				log.info("Checking readiness at {}", url);
-				readiness = NetworkUtils.fetchContent(
-					url,
-					"GET",
-					"application/json",
-					"http://evitadb.dev",
-					null,
-					TIMEOUT_IN_MILLIS,
-					error -> log.error("Error while checking readiness of API: {}", error),
-					timeout -> log.error("Error while checking readiness of API: {}", timeout)
-				);
-
-				if (readiness.isPresent() && readiness.get().contains("\"status\": \"READY\"")) {
-					break;
-				}
-
-			} while (System.currentTimeMillis() - start < 20000);
-
-			assertTrue(readiness.isPresent());
-			assertEquals(
-				"""
-					{
-						"status": "READY",
-						"apis": {
-							"gRPC": "ready",
-							"graphQL": "ready",
-							"lab": "ready",
-							"observability": "ready",
-							"rest": "ready",
-							"system": "ready"
-						}
-					}""",
-				readiness.get().trim()
-			);
-
-			final Optional<String> liveness = NetworkUtils.fetchContent(
-				baseUrls[0] + "liveness",
-				"GET",
-				"application/json",
-				"http://evitadb.dev",
-				null,
-				TIMEOUT_IN_MILLIS,
-				error -> log.error("Error while checking readiness of API: {}", error),
-				timeout -> log.error("Error while checking readiness of API: {}", timeout)
-			);
-
-			assertTrue(liveness.isPresent());
-			assertEquals(
-				"{\"status\": \"healthy\"}",
-				liveness.get().trim()
-			);
-
-			final Optional<String> status = NetworkUtils.fetchContent(
-				baseUrls[0] + "status",
-				"GET",
-				"application/json",
-				"http://evitadb.dev",
 				null,
 				TIMEOUT_IN_MILLIS,
 				error -> log.error("Error while checking readiness of API: {}", error),

@@ -93,7 +93,7 @@ public class GraphQLManager {
 		 * Common object mapper for endpoints
 		 */
 		ObjectMapper objectMapper = new ObjectMapper();
-		this.graphQLRouter = new GraphQLRouter(objectMapper, evita, graphQLConfig);
+		this.graphQLRouter = new GraphQLRouter(objectMapper, evita);
 
 		final long buildingStartTime = System.currentTimeMillis();
 

@@ -28,9 +28,8 @@ import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsEndpoint;
-import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.lab.api.LabApiBuilder;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
@@ -105,16 +104,15 @@ public class LabManager {
 	private void registerLabApiEndpoint(@Nonnull Rest.Endpoint endpoint) {
 		final UriPath path = UriPath.of("/", LAB_API_URL_PREFIX, endpoint.path());
 
-		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path, p -> new CorsEndpoint(labConfig));
+		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path, p -> new CorsEndpoint());
 		corsEndpoint.addMetadataFromEndpoint(endpoint.handler());
 
 		labRouter.add(
 			endpoint.method(),
 			path.toString(),
-			new CorsFilter(
+			CorsService.standaloneFilter(
 				endpoint.handler()
-					.decorate(service -> new LabExceptionHandler(objectMapper, service)),
-				labConfig.getAllowedOrigins()
+					.decorate(service -> new LabExceptionHandler(objectMapper, service))
 			)
 		);
 	}
@@ -125,17 +123,16 @@ public class LabManager {
 	private void registerLabGui() {
 		final UriPath endpointPath = UriPath.of("/", "*");
 
-		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpointPath, p -> new CorsEndpoint(labConfig));
+		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpointPath, p -> new CorsEndpoint());
 		corsEndpoint.addMetadata(Set.of(HttpMethod.GET), true, true);
 
 		final EvitaConfiguration configuration = evita.getConfiguration();
 		labRouter.add(
 			HttpMethod.GET,
 			endpointPath.toString(),
-			new CorsFilter(
+			CorsService.standaloneFilter(
 				GuiHandler.create(labConfig, configuration.name(), objectMapper)
-					.decorate(service -> new LabExceptionHandler(objectMapper, service)),
-				labConfig.getAllowedOrigins()
+					.decorate(service -> new LabExceptionHandler(objectMapper, service))
 			)
 		);
 	}

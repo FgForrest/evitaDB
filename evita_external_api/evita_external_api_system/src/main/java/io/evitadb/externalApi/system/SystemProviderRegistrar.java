@@ -44,8 +44,7 @@ import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
-import io.evitadb.externalApi.http.CorsFilter;
-import io.evitadb.externalApi.http.CorsPreflightHandler;
+import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
@@ -279,7 +278,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			HttpMethod.GET,
 			"/" + ENDPOINT_SERVER_NAME,
 			createCorsWrapper(
-				systemConfig,
 				(ctx, req) -> {
 					new ReadinessEvent(SystemProvider.CODE, Prospective.SERVER).finish(Result.READY);
 					return HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT, evita.getConfiguration().name());
@@ -292,7 +290,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_STATUS,
 			createCorsWrapper(
-				systemConfig,
 				(ctx, req) -> HttpResponse.of(
 					renderStatus(
 						evita,
@@ -308,7 +305,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_LIVENESS,
 			createCorsWrapper(
-				systemConfig,
 				(ctx, req) -> HttpResponse.of(renderLivenessResponse(evita, externalApiServer, enabledEndPoints))
 			)
 		);
@@ -317,7 +313,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_READINESS,
 			createCorsWrapper(
-				systemConfig,
 				(ctx, req) -> HttpResponse.of(renderReadinessResponse(evita, externalApiServer, enabledEndPoints))
 			)
 		);
@@ -349,7 +344,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				HttpMethod.GET,
 				"/" + fileName,
 				createCorsWrapper(
-					systemConfig,
 					(ctx, req) -> {
 						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
 						return HttpFile.of(new File(file, fileName)).asService().serve(ctx, req);
@@ -361,7 +355,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				HttpMethod.GET,
 				"/" + CertificateUtils.getGeneratedServerCertificateFileName(),
 				createCorsWrapper(
-					systemConfig,
 					(ctx, req) -> {
 						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedServerCertificateFileName() + "\"");
 						return HttpFile.of(new File(file, CertificateUtils.getGeneratedServerCertificateFileName())).asService().serve(ctx, req);
@@ -373,7 +366,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				HttpMethod.GET,
 				"/" + CertificateUtils.getGeneratedClientCertificateFileName(),
 				createCorsWrapper(
-					systemConfig,
 					(ctx, req) -> {
 						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificateFileName() + "\"");
 						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificateFileName())).asService().serve(ctx, req);
@@ -385,7 +377,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				HttpMethod.GET,
 				"/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName(),
 				createCorsWrapper(
-					systemConfig,
 					(ctx, req) -> {
 						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName() + "\"");
 						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())).asService().serve(ctx, req);
@@ -438,15 +429,11 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	}
 
 	@Nonnull
-	private static HttpService createCorsWrapper(@Nonnull SystemConfig config, @Nonnull HttpService delegate) {
-		return new CorsFilter(
-			new CorsPreflightHandler(
-				delegate,
-				config.getAllowedOrigins(),
-				Set.of(HttpMethod.GET),
-				Set.of()
-			),
-			config.getAllowedOrigins()
+	private static HttpService createCorsWrapper(@Nonnull HttpService delegate) {
+		return CorsService.filter(
+			delegate,
+			Set.of(HttpMethod.GET),
+			Set.of()
 		);
 	}
 }

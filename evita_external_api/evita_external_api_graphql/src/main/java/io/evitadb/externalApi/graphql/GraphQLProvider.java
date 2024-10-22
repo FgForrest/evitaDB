@@ -106,7 +106,6 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
 				url,
 				"POST",
 				"application/json",
-				Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
 				"{\"query\":\"{liveness}\"}",
 				this.requestTimeout,
 				error -> {

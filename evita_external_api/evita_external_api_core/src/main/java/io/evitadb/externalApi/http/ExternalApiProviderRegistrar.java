@@ -31,7 +31,7 @@ import javax.annotation.Nonnull;
 
 /**
  * Configures and registers provider of particular external API to HTTP server ({@link ExternalApiServer}).
- * Each provider have to have unique code and have to implement {@link #register(Evita, ExternalApiServer, ApiOptions, AbstractApiConfiguration)}
+ * Each provider have to have unique code and have to implement {@link #register(Evita, ExternalApiServer, ApiOptions, AbstractApiConfiguration, AbstractApiConfiguration[])}
  * method which registers provider to the server to be later started by the server.
  *
  * It is based on {@link java.util.ServiceLoader} which requires appropriate registration of implementation of this interface.
