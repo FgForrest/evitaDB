@@ -23,7 +23,6 @@
 
 package io.evitadb.utils;
 
-import io.evitadb.exception.UnexpectedIOException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -110,7 +109,7 @@ class FileUtilsTest {
 	}
 
 	@Test
-	void shouldDeleteFile() throws IOException {
+	void shouldDeleteFileIfExists() throws IOException {
 		// Create a file in the temp directory
 		Path testFile = directoryTest.resolve("testFile.txt");
 		Files.write(testFile, "test content".getBytes(), StandardOpenOption.CREATE);
@@ -119,22 +118,10 @@ class FileUtilsTest {
 		assertTrue(testFile.toFile().exists());
 
 		// Call the method under test
-		FileUtils.deleteFile(testFile);
+		FileUtils.deleteFileIfExists(testFile);
 
 		// Assert the file was deleted
 		assertFalse(testFile.toFile().exists());
-	}
-
-	@Test
-	void shouldThrowExceptionWhenDeletingNonExistentFile() {
-		// Create a path for a non-existent file
-		Path nonExistentFile = directoryTest.resolve("nonExistentFile.txt");
-
-		// Assert that the file does not exist
-		assertFalse(nonExistentFile.toFile().exists());
-
-		// Attempt to delete the non-existent file and expect an exception
-		assertThrows(UnexpectedIOException.class, () -> FileUtils.deleteFile(nonExistentFile));
 	}
 
 	/**

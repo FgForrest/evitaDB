@@ -62,7 +62,7 @@ class ClientTaskTrackerTest implements TestConstants {
 		final ClientTask<Void, Boolean> task = tested.createTask(
 			new TaskStatus<>(
 				"whatever", "whatever", UUIDUtil.randomUUID(), TEST_CATALOG,
-				OffsetDateTime.now(), null, null, null, 0,
+				OffsetDateTime.now(), OffsetDateTime.now(), null, null, 0,
 				null, null, null, null,
 				EnumSet.noneOf(TaskTrait.class)
 			)

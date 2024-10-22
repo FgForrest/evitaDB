@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.lab;
 
 import com.linecorp.armeria.server.HttpService;
+import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
@@ -31,7 +32,6 @@ import io.evitadb.externalApi.http.ProxyingEndpointProvider;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -44,7 +44,6 @@ import java.util.function.Predicate;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-@RequiredArgsConstructor
 public class LabProvider implements ProxyingEndpointProvider<LabConfig> {
 
 	public static final String CODE = "lab";
@@ -58,9 +57,21 @@ public class LabProvider implements ProxyingEndpointProvider<LabConfig> {
 	private final HttpService apiHandler;
 
 	/**
+	 * Timeout taken from {@link ApiOptions#requestTimeoutInMillis()} that will be used in {@link #isReady()}
+	 * method.
+	 */
+	private final long requestTimeout;
+
+	/**
 	 * Contains url that was at least once found reachable.
 	 */
 	private String reachableUrl;
+
+	public LabProvider(@Nonnull LabConfig configuration, @Nonnull HttpService apiHandler, long requestTimeout) {
+		this.configuration = configuration;
+		this.apiHandler = apiHandler;
+		this.requestTimeout = requestTimeout;
+	}
 
 	@Nonnull
 	@Override
@@ -86,6 +97,7 @@ public class LabProvider implements ProxyingEndpointProvider<LabConfig> {
 					"text/html",
 					Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
 					null,
+					this.requestTimeout,
 					error -> {
 						log.error("Error while checking readiness of Lab API: {}", error);
 						readinessEvent.finish(Result.ERROR);

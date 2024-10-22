@@ -36,7 +36,6 @@ import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
@@ -59,10 +58,7 @@ import java.io.File;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Optional;
-import java.util.ServiceLoader;
-import java.util.ServiceLoader.Provider;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -111,21 +107,19 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	 * @param evita             the evitaDB server
 	 * @param externalApiServer the external API server
 	 * @param apiOptions        the common settings shared among all the API endpoints
-	 * @param probes            the probes providers
 	 * @param enabledEndPoints  the enabled API endpoints
 	 */
 	private static CompletableFuture<HttpResponse> renderStatus(
 		@Nonnull Evita evita,
 		@Nonnull ExternalApiServer externalApiServer,
 		@Nonnull ApiOptions apiOptions,
-		@Nonnull List<ProbesProvider> probes,
 		@Nonnull String[] enabledEndPoints) {
 		return evita.executeAsyncInRequestThreadPool(
 			() -> {
 				if (evita.isActive()) {
 					final HttpResponseBuilder builder = HttpResponse.builder();
 					builder.status(HttpStatus.OK);
-					final Set<HealthProblem> healthProblems = probes
+					final Set<HealthProblem> healthProblems = externalApiServer.getProbeProviders()
 						.stream()
 						.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
 						.collect(Collectors.toSet());
@@ -183,20 +177,18 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	 *
 	 * @param evita             the evitaDB server
 	 * @param externalApiServer the external API server
-	 * @param probes            the probes providers
 	 * @param enabledEndPoints  the enabled API endpoints
 	 */
 	private static CompletableFuture<HttpResponse> renderReadinessResponse(
 		@Nonnull Evita evita,
 		@Nonnull ExternalApiServer externalApiServer,
-		@Nonnull List<ProbesProvider> probes,
 		@Nonnull String[] enabledEndPoints
 	) {
 		return evita.executeAsyncInRequestThreadPool(
 			() -> {
 				final HttpResponseBuilder builder = HttpResponse.builder();
 				if (evita.isActive()) {
-					final Optional<Readiness> readiness = probes
+					final Optional<Readiness> readiness = externalApiServer.getProbeProviders()
 						.stream()
 						.map(it -> it.getReadiness(evita, externalApiServer, enabledEndPoints))
 						.findFirst();
@@ -222,19 +214,17 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	 *
 	 * @param evita             the evitaDB server
 	 * @param externalApiServer the external API server
-	 * @param probes            the probes providers
 	 * @param enabledEndPoints  the enabled API endpoints
 	 */
 	private static CompletableFuture<HttpResponse> renderLivenessResponse(
 		@Nonnull Evita evita,
 		@Nonnull ExternalApiServer externalApiServer,
-		@Nonnull List<ProbesProvider> probes,
 		@Nonnull String[] enabledEndPoints
 	) {
 		return evita.executeAsyncInRequestThreadPool(
 			() -> {
 				if (evita.isActive()) {
-					final Set<HealthProblem> healthProblems = probes
+					final Set<HealthProblem> healthProblems = externalApiServer.getProbeProviders()
 						.stream()
 						.flatMap(it -> it.getHealthProblems(evita, externalApiServer, enabledEndPoints).stream())
 						.collect(Collectors.toSet());
@@ -293,11 +283,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		);
 
 		final String[] enabledEndPoints = apiOptions.getEnabledApiEndpoints();
-		final List<ProbesProvider> probes = ServiceLoader.load(ProbesProvider.class)
-			.stream()
-			.map(Provider::get)
-			.toList();
-
 		router.add(
 			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_STATUS,
@@ -308,7 +293,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 						evita,
 						externalApiServer,
 						apiOptions,
-						probes,
 						enabledEndPoints
 					)
 				)
@@ -320,7 +304,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			"/" + ENDPOINT_SYSTEM_LIVENESS,
 			createCorsWrapper(
 				systemConfig,
-				(ctx, req) -> HttpResponse.of(renderLivenessResponse(evita, externalApiServer, probes, enabledEndPoints))
+				(ctx, req) -> HttpResponse.of(renderLivenessResponse(evita, externalApiServer, enabledEndPoints))
 			)
 		);
 
@@ -329,7 +313,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			"/" + ENDPOINT_SYSTEM_READINESS,
 			createCorsWrapper(
 				systemConfig,
-				(ctx, req) -> HttpResponse.of(renderReadinessResponse(evita, externalApiServer, probes, enabledEndPoints))
+				(ctx, req) -> HttpResponse.of(renderReadinessResponse(evita, externalApiServer, enabledEndPoints))
 			)
 		);
 
@@ -445,7 +429,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					.toArray(String[]::new)
 			);
 		}
-		return new SystemProvider(systemConfig, router, endpoints);
+		return new SystemProvider(systemConfig, router, endpoints, apiOptions.requestTimeoutInMillis());
 	}
 
 	@Nonnull

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.system;
 
 import com.linecorp.armeria.server.HttpService;
+import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
@@ -37,7 +38,6 @@ import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.NetworkUtils;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -55,7 +55,6 @@ import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SER
  * @see SystemProviderRegistrar
  */
 @Slf4j
-@RequiredArgsConstructor
 public class SystemProvider implements ExternalApiProviderWithConsoleOutput<SystemConfig> {
 	public static final String CODE = "system";
 	public static final String ROOT_CERTIFICATE_URL = "rootCertificateUrl";
@@ -76,9 +75,27 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	private final LinkedHashMap<String, String[]> endpoints;
 
 	/**
+	 * Timeout taken from {@link ApiOptions#requestTimeoutInMillis()} that will be used in {@link #isReady()}
+	 * method.
+	 */
+	private final long requestTimeout;
+
+	/**
 	 * Contains url that was at least once found reachable.
 	 */
 	private String reachableUrl;
+
+	public SystemProvider(
+		@Nonnull SystemConfig configuration,
+		@Nonnull HttpService apiHandler,
+		@Nonnull LinkedHashMap<String, String[]> endpoints,
+		long requestTimeoutInMillis
+	) {
+		this.configuration = configuration;
+		this.apiHandler = apiHandler;
+		this.endpoints = endpoints;
+		this.requestTimeout = requestTimeoutInMillis;
+	}
 
 	@Nonnull
 	@Override
@@ -104,6 +121,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 			final boolean reachable = NetworkUtils.isReachable(
 				url,
 				Optional.ofNullable(configuration.getAllowedOrigins()).map(it -> it[0]).orElse(null),
+				this.requestTimeout,
 				error -> {
 					log.error("Error while checking readiness of System API: {}", error);
 					readinessEvent.finish(Result.ERROR);

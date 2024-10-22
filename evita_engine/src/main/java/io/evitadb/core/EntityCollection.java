@@ -716,7 +716,7 @@ public final class EntityCollection implements
 			.mapToInt(EntityCollection::getPrimaryKey)
 			.toArray();
 
-		final List<ServerEntityDecorator> removedEntities = new ArrayList<>(entitiesToRemove.length);
+		final List<SealedEntity> removedEntities = new ArrayList<>(entitiesToRemove.length);
 		for (int entityToRemove : entitiesToRemove) {
 			removedEntities.add(
 				wrapToDecorator(evitaRequest, deleteEntityInternal(entityToRemove, evitaRequest), false)
@@ -724,10 +724,7 @@ public final class EntityCollection implements
 		}
 
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-		return referenceFetcher.initReferenceIndex(removedEntities, this)
-			.stream()
-			.map(it -> applyReferenceFetcherInternal(it, referenceFetcher))
-			.toArray(SealedEntity[]::new);
+		return applyReferenceFetcher(removedEntities, referenceFetcher).toArray(SealedEntity[]::new);
 
 	}
 
@@ -1063,8 +1060,8 @@ public final class EntityCollection implements
 		if (referenceFetcher == ReferenceFetcher.NO_IMPLEMENTATION) {
 			return sealedEntities;
 		} else {
-			referenceFetcher.initReferenceIndex(sealedEntities, this);
-			return sealedEntities.stream()
+			return referenceFetcher.initReferenceIndex(sealedEntities, this)
+				.stream()
 				.map(it -> applyReferenceFetcherInternal((ServerEntityDecorator) it, referenceFetcher))
 				.map(SealedEntity.class::cast)
 				.toList();

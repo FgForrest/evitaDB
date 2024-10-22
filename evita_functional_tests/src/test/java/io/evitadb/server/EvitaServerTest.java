@@ -76,6 +76,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
+	public static final int TIMEOUT_IN_MILLIS = 30_000;
 
 	@Nonnull
 	private static String replaceVariables(@Nonnull String status) {
@@ -256,6 +257,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"text/plain",
 				null,
 				null,
+				TIMEOUT_IN_MILLIS,
 				error -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
@@ -269,6 +271,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"text/plain",
 				null,
 				null,
+				TIMEOUT_IN_MILLIS,
 				error -> assertEquals("Error fetching content from URL: https://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name HTTP status 403: This endpoint requires TLS.", error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
@@ -282,6 +285,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"text/plain",
 				null,
 				null,
+				TIMEOUT_IN_MILLIS,
 				error -> assertTrue(error.contains("Error fetching content from URL: https://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name")),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
@@ -295,6 +299,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"text/plain",
 				null,
 				null,
+				TIMEOUT_IN_MILLIS,
 				error -> fail("The system API should be accessible via correct scheme and port: " + error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
@@ -308,6 +313,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"text/plain",
 				null,
 				null,
+				TIMEOUT_IN_MILLIS,
 				error -> fail("The system API should be accessible via Lab scheme and port: " + error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
@@ -321,6 +327,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"text/plain",
 				null,
 				null,
+				TIMEOUT_IN_MILLIS,
 				error -> fail("The system API should be accessible via Lab scheme and port: " + error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
@@ -497,6 +504,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					"application/json",
 					null,
 					null,
+					TIMEOUT_IN_MILLIS,
 					error -> log.error("Error while checking readiness of API: {}", error),
 					timeout -> log.error("Error while checking readiness of API: {}", timeout)
 				);
@@ -530,6 +538,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"application/json",
 				null,
 				null,
+				TIMEOUT_IN_MILLIS,
 				error -> log.error("Error while checking readiness of API: {}", error),
 				timeout -> log.error("Error while checking readiness of API: {}", timeout)
 			);
@@ -546,6 +555,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"application/json",
 				null,
 				null,
+				TIMEOUT_IN_MILLIS,
 				error -> log.error("Error while checking readiness of API: {}", error),
 				timeout -> log.error("Error while checking readiness of API: {}", timeout)
 			);

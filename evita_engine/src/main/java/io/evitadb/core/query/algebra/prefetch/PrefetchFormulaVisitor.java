@@ -24,7 +24,6 @@
 package io.evitadb.core.query.algebra.prefetch;
 
 import io.evitadb.api.query.require.EntityContentRequire;
-import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -34,6 +33,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.fetch.DefaultPrefetchRequirementCollector;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.ReducedEntityIndex;
@@ -47,10 +47,8 @@ import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -73,7 +71,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	/**
 	 * Contains set of requirements collected from all {@link SelectionFormula} in the tree.
 	 */
-	protected final Map<Class<? extends EntityContentRequire>, EntityContentRequire> requirements = new HashMap<>();
+	protected final DefaultPrefetchRequirementCollector requirements = new DefaultPrefetchRequirementCollector(null);
 	/**
 	 * Indexes that were used when visitor was created.
 	 */
@@ -128,12 +126,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 * for its evaluation.
 	 */
 	public void addRequirement(@Nonnull EntityContentRequire... requirement) {
-		for (EntityContentRequire theRequirement : requirement) {
-			requirements.merge(
-				theRequirement.getClass(), theRequirement,
-				EntityContentRequire::combineWith
-			);
-		}
+		this.requirements.addRequirementToPrefetch(requirement);
 	}
 
 	@Override
@@ -229,11 +222,9 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	/**
 	 * Returns set of requirements to fetch entities with.
 	 */
-	@Nonnull
+	@Nullable
 	protected EntityFetchRequire getRequirements() {
-		return new EntityFetch(
-			requirements.values().toArray(new EntityContentRequire[0])
-		);
+		return this.requirements.getEntityFetch();
 	}
 
 	/**

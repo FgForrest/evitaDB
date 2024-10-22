@@ -21,25 +21,17 @@
  *   limitations under the License.
  */
 
-import io.evitadb.api.observability.trace.TracingContext;
-import io.evitadb.externalApi.api.system.ProbesProvider;
-import io.evitadb.externalApi.grpc.GrpcProviderRegistrar;
-import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-import io.evitadb.externalApi.utils.ExternalApiTracingContext;
-import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
-
 /**
  * Module contains gRPC API (server) for evitaDB.
  */
 module evita.external.api.grpc {
 
-	uses CatalogPersistenceServiceFactory;
-	uses ExternalApiProviderRegistrar;
-	uses TracingContext;
-	uses ExternalApiTracingContext;
-	uses ProbesProvider;
+	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+	uses io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+	uses io.evitadb.api.observability.trace.TracingContext;
+	uses io.evitadb.externalApi.utils.ExternalApiTracingContext;
 
-	provides ExternalApiProviderRegistrar with GrpcProviderRegistrar;
+	provides io.evitadb.externalApi.http.ExternalApiProviderRegistrar with io.evitadb.externalApi.grpc.GrpcProviderRegistrar;
 
 	opens io.evitadb.externalApi.grpc.configuration to com.fasterxml.jackson.databind;
 

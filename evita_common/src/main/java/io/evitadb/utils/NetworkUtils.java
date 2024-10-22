@@ -48,6 +48,7 @@ import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -63,12 +64,7 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public class NetworkUtils {
-	/**
-	 * This shouldn't be changed - only in tests which needs to extend this timeout for slower machines runnning
-	 * parallel tests and squeezing the resources.
-	 */
-	public static int DEFAULT_CLIENT_TIMEOUT = 1000;
-	private static OkHttpClient HTTP_CLIENT;
+	private static Map<Long, OkHttpClient> HTTP_CLIENT = CollectionUtils.createConcurrentHashMap(8);
 
 	/**
 	 * Returns human comprehensible host name of the given host.
@@ -109,6 +105,7 @@ public class NetworkUtils {
 	public static boolean isReachable(
 		@Nonnull String url,
 		@Nullable String origin,
+		long timeoutInMillis,
 		@Nullable Consumer<String> errorConsumer,
 		@Nullable Consumer<String> timeoutConsumer
 	) {
@@ -120,7 +117,7 @@ public class NetworkUtils {
 				requestBuilder.addHeader("Origin", origin);
 			}
 
-			try (final Response response = getHttpClient().newCall(requestBuilder.build()).execute()) {
+			try (final Response response = getHttpClient(timeoutInMillis).newCall(requestBuilder.build()).execute()) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
 						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code() + " - " + response.message()));
@@ -146,6 +143,7 @@ public class NetworkUtils {
 	 * @param method      HTTP method to use
 	 * @param contentType content type to use
 	 * @param body        body to send
+	 * @param timeoutInMillis	 timeout in milliseconds
 	 * @return the content of the URL as a string or empty optional if the URL is not reachable or
 	 * does not return any content
 	 */
@@ -156,6 +154,7 @@ public class NetworkUtils {
 		@Nonnull String contentType,
 		@Nullable String origin,
 		@Nullable String body,
+		long timeoutInMillis,
 		@Nullable Consumer<String> errorConsumer,
 		@Nullable Consumer<String> timeoutConsumer
 	) {
@@ -173,7 +172,7 @@ public class NetworkUtils {
 				requestBuilder.addHeader("Origin", origin);
 			}
 
-			try (final Response response = getHttpClient().newCall(requestBuilder.build()).execute()) {
+			try (final Response response = getHttpClient(timeoutInMillis).newCall(requestBuilder.build()).execute()) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
 						.ifPresent(it -> it.accept(
@@ -235,26 +234,28 @@ public class NetworkUtils {
 	 * @return the HTTP client instance
 	 */
 	@Nonnull
-	private static OkHttpClient getHttpClient() {
-		if (HTTP_CLIENT == null) {
-			try {
-				// Get a new SSL context
-				final SSLContext sc = SSLContext.getInstance("TLSv1.3");
-				sc.init(null, new TrustManager[]{TrustAllX509TrustManager.INSTANCE}, new java.security.SecureRandom());
+	private static OkHttpClient getHttpClient(long timeoutInMillis) {
+		try {
+			// Get a new SSL context
+			final SSLContext sc = SSLContext.getInstance("TLSv1.3");
+			sc.init(null, new TrustManager[]{TrustAllX509TrustManager.INSTANCE}, new java.security.SecureRandom());
 
-				HTTP_CLIENT = new OkHttpClient.Builder()
+			return HTTP_CLIENT.computeIfAbsent(
+				timeoutInMillis,
+				(t) -> new OkHttpClient.Builder()
 					.hostnameVerifier((hostname, session) -> true)
 					.sslSocketFactory(sc.getSocketFactory(), TrustAllX509TrustManager.INSTANCE)
 					.protocols(Arrays.asList(Protocol.HTTP_1_1, Protocol.HTTP_2))
-					.readTimeout(DEFAULT_CLIENT_TIMEOUT, TimeUnit.MILLISECONDS)
-					.callTimeout(DEFAULT_CLIENT_TIMEOUT, TimeUnit.MILLISECONDS)
+					.readTimeout(timeoutInMillis, TimeUnit.MILLISECONDS)
+					.callTimeout(timeoutInMillis, TimeUnit.MILLISECONDS)
+					.connectTimeout(timeoutInMillis, TimeUnit.MILLISECONDS)
+					.writeTimeout(timeoutInMillis, TimeUnit.MILLISECONDS)
 					.connectionPool(new ConnectionPool(0, 1, TimeUnit.MILLISECONDS))
-					.build();
-			} catch (NoSuchAlgorithmException | KeyManagementException e) {
-				throw new IllegalStateException("Failed to create HTTP client", e);
-			}
+					.build()
+			);
+		} catch (NoSuchAlgorithmException | KeyManagementException e) {
+			throw new IllegalStateException("Failed to create HTTP client", e);
 		}
-		return HTTP_CLIENT;
 	}
 
 	/**
