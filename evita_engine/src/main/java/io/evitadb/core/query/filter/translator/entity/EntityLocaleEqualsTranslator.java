@@ -65,20 +65,20 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 				LocaleOptimizingPostProcessor.class, LocaleOptimizingPostProcessor::new
 			);
 
-			if (filterByVisitor.isPrefetchPossible()) {
-				final boolean unsupportedIndex = filterByVisitor
-					.getEntityIndexStream()
-					.anyMatch(it -> it instanceof ReferencedTypeEntityIndex);
-				if (unsupportedIndex) {
-					return SkipFormula.INSTANCE;
-				} else {
-					return new SelectionFormula(
-						filterByVisitor.applyOnIndexes(
-							index -> index.getRecordsWithLanguageFormula(locale)
-						),
-						new LocaleEntityToBitmapFilter(locale)
-					);
-				}
+			// entity locale is not indexed in referenced type entity index
+			// (it would be hard to manage their insertions and removals there)
+			final boolean unsupportedIndex = filterByVisitor
+				.getEntityIndexStream()
+				.anyMatch(it -> it instanceof ReferencedTypeEntityIndex);
+			if (unsupportedIndex) {
+				return SkipFormula.INSTANCE;
+			} else if (filterByVisitor.isPrefetchPossible()) {
+				return new SelectionFormula(
+					filterByVisitor.applyOnIndexes(
+						index -> index.getRecordsWithLanguageFormula(locale)
+					),
+					new LocaleEntityToBitmapFilter(locale)
+				);
 			} else {
 				return filterByVisitor.applyOnIndexes(
 					index -> index.getRecordsWithLanguageFormula(locale)

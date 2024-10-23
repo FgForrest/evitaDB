@@ -23,9 +23,9 @@
 
 package io.evitadb.core.query.algebra.prefetch;
 
+import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -33,7 +33,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.fetch.DefaultPrefetchRequirementCollector;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.ReducedEntityIndex;
@@ -126,7 +125,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 * for its evaluation.
 	 */
 	public void addRequirement(@Nonnull EntityContentRequire... requirement) {
-		this.requirements.addRequirementToPrefetch(requirement);
+		this.requirements.addRequirementsToPrefetch(requirement);
 	}
 
 	@Override
@@ -199,7 +198,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 			expectedComputationalCosts += selectionFormula.getDelegate().getEstimatedCost();
 		}
 		if (formula instanceof final RequirementsDefiner requirementsDefiner) {
-			final EntityRequire entityRequire = requirementsDefiner.getEntityRequire();
+			final EntityFetchRequire entityRequire = requirementsDefiner.getEntityRequire();
 			final EntityContentRequire[] requirements = entityRequire == null ? new EntityContentRequire[0] : entityRequire.getRequirements();
 			for (EntityContentRequire requirement : requirements) {
 				addRequirement(requirement);

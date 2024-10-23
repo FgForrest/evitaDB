@@ -24,7 +24,7 @@
 package io.evitadb.core.query.algebra.attribute;
 
 import io.evitadb.api.query.require.AttributeHistogram;
-import io.evitadb.api.query.require.EntityRequire;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -160,7 +160,7 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 
 	@Nullable
 	@Override
-	public EntityRequire getEntityRequire() {
+	public EntityFetchRequire getEntityRequire() {
 		return entityFetch(attributeContent(attributeKey.attributeName()));
 	}
 

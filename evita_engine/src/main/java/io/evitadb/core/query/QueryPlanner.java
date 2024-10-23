@@ -353,7 +353,7 @@ public class QueryPlanner {
 				}
 				try {
 					final OrderByVisitor orderByVisitor = new OrderByVisitor(
-						queryContext, targetIndexes, builder,
+						queryContext, targetIndexes,
 						builder.getFilterByVisitor(),
 						builder.getFilterFormula()
 					);
@@ -438,7 +438,6 @@ public class QueryPlanner {
 						final ExtraResultPlanningVisitor extraResultPlanner = new ExtraResultPlanningVisitor(
 							queryContext,
 							builder.getTargetIndexes(),
-							builder,
 							builder.getFilterFormula(),
 							builder.getFilterByVisitor(),
 							builder.getSorter()

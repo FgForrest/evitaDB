@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,25 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.fetch;
+package io.evitadb.core.query;
 
-import io.evitadb.api.query.require.EntityContentRequire;
-
-import javax.annotation.Nonnull;
 
 /**
- * This interface allows to unify the process for registering new requirements for entity prefetching from multiple
- * places (filtering, ordering and requires).
+ * Interface allowing to exclude implementation of {@link #isPrefetchPossible()} from automatic delegation in query
+ * context. Provides information whether it's possible and safe to use prefetched entities (or prefetch them) in specific
+ * context.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@FunctionalInterface
-public interface FetchRequirementCollector {
+public interface PrefetchStrategyResolver {
 
 	/**
-	 * Registers new requirement that should be taken into an account when/if the prefetch of the entities occur.
-	 * The method call might be completely ignored if the visitor is not present.
+	 * Returns true if the prefetch is possible.
+	 *
+	 * @return true if the prefetch is possible
 	 */
-	void addRequirementToPrefetch(@Nonnull EntityContentRequire... require);
+	boolean isPrefetchPossible();
 
 }

@@ -24,13 +24,13 @@
 package io.evitadb.core.query;
 
 import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFactory;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
-import io.evitadb.core.query.fetch.FetchRequirementCollector;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.slice.DefaultSlicer;
@@ -112,8 +112,14 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	}
 
 	@Override
-	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
-		prefetchFormulaVisitor.addRequirement(require);
+	public void addRequirementsToPrefetch(@Nonnull EntityContentRequire... require) {
+		this.queryContext.addRequirementToPrefetch(require);
+	}
+
+	@Nonnull
+	@Override
+	public EntityContentRequire[] getRequirementsToPrefetch() {
+		return this.queryContext.getRequirementsToPrefetch();
 	}
 
 	/**
@@ -173,9 +179,15 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	public QueryPlan build() {
 		ofNullable(this.queryContext.getQueryFinishedEvent())
 			.ifPresent(FinishedEvent::startExecuting);
+		// propagate all collected requirements to the prefetch formula visitor
+		this.prefetchFormulaVisitor.addRequirement(
+			this.queryContext.getRequirementsToPrefetch()
+		);
 		return new QueryPlan(
 			this.queryContext,
-			this.targetIndexes.getIndexDescription(), filterFormula, prefetchFormulaVisitor,
+			this.targetIndexes.getIndexDescription(),
+			this.filterFormula,
+			this.prefetchFormulaVisitor,
 			this.sorter,
 			this.slicer,
 			this.extraResultProducers
