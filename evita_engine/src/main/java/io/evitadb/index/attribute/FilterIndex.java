@@ -57,6 +57,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.BitSet;
 import java.util.Comparator;
@@ -193,6 +194,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	public static Function<Object, Serializable> getNormalizer(@Nonnull Class<?> attributeType) {
 		if (OffsetDateTime.class.isAssignableFrom(attributeType)) {
 			return comparable -> comparable instanceof OffsetDateTime offsetDateTime ? offsetDateTime.toInstant() : (Serializable) comparable;
+		} else if (BigDecimal.class.isAssignableFrom(attributeType)) {
+			return comparable -> comparable instanceof BigDecimal bigDecimal ? bigDecimal.stripTrailingZeros() : (Serializable) comparable;
 		} else if (Currency.class.isAssignableFrom(attributeType)) {
 			return comparable -> comparable instanceof Currency currency ? new ComparableCurrency(currency) : (Serializable) comparable;
 		} else if (Locale.class.isAssignableFrom(attributeType)) {
