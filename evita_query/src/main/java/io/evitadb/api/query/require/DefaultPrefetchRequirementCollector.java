@@ -21,11 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.fetch;
+package io.evitadb.api.query.require;
 
 
-import io.evitadb.api.query.require.EntityContentRequire;
-import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 
@@ -42,6 +40,7 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class DefaultPrefetchRequirementCollector implements FetchRequirementCollector {
+	public static final EntityContentRequire[] EMPTY_REQUIREMENTS = new EntityContentRequire[0];
 	private Map<Class<? extends EntityContentRequire>, EntityContentRequire[]> requirements;
 
 	public DefaultPrefetchRequirementCollector() {
@@ -56,11 +55,22 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 	}
 
 	@Override
-	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
+	public void addRequirementsToPrefetch(@Nonnull EntityContentRequire... require) {
 		if (this.requirements == null) {
 			this.requirements = CollectionUtils.createHashMap(8);
 		}
 		addRequirementToPrefetchInternal(require);
+	}
+
+	@Nonnull
+	@Override
+	public EntityContentRequire[] getRequirementsToPrefetch() {
+		return this.requirements == null ?
+			EMPTY_REQUIREMENTS :
+			this.requirements.values()
+				.stream()
+				.flatMap(Arrays::stream)
+				.toArray(EntityContentRequire[]::new);
 	}
 
 	/**
@@ -70,13 +80,10 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 	 */
 	@Nullable
 	public EntityFetch getEntityFetch() {
-		return this.requirements == null ?
+		return isEmpty() ?
 			null :
 			new EntityFetch(
-				this.requirements.values()
-					.stream()
-					.flatMap(Arrays::stream)
-					.toArray(EntityContentRequire[]::new)
+				getRequirementsToPrefetch()
 			);
 	}
 
@@ -106,7 +113,9 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 					}
 					for (int i = 0; i < existing.length; i++) {
 						EntityContentRequire existingRequire = existing[i];
-						if (existingRequire.isCombinableWith(theRequirement)) {
+						if (theRequirement.isFullyContainedWithin(existingRequire)) {
+							return existing;
+						} else if (existingRequire.isCombinableWith(theRequirement)) {
 							existing[i] = existingRequire.combineWith(theRequirement);
 							return existing;
 						}

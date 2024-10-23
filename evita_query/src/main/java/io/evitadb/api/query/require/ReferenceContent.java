@@ -51,6 +51,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.require.EntityFetchRequire.combineRequirements;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -187,28 +188,6 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	private static final String SUFFIX_ALL = "all";
 	private static final String SUFFIX_WITH_ATTRIBUTES = "withAttributes";
 	private static final String SUFFIX_ALL_WITH_ATTRIBUTES = "allWithAttributes";
-
-	@Nullable
-	private static EntityFetch combineRequirements(@Nullable EntityFetch a, @Nullable EntityFetch b) {
-		if (a == null) {
-			return b;
-		} else if (b == null) {
-			return a;
-		} else {
-			return a.combineWith(b);
-		}
-	}
-
-	@Nullable
-	private static EntityGroupFetch combineRequirements(@Nullable EntityGroupFetch a, @Nullable EntityGroupFetch b) {
-		if (a == null) {
-			return b;
-		} else if (b == null) {
-			return a;
-		} else {
-			return a.combineWith(b);
-		}
-	}
 
 	private ReferenceContent(
 		@Nonnull ManagedReferencesBehaviour managedReferences,
@@ -605,6 +584,52 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			this.getReferenceName().equals(referenceContent.getReferenceName());
 	}
 
+	@Override
+	public <T extends EntityContentRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
+		if (anotherRequirement instanceof ReferenceContent referenceContent) {
+			final String[] thatReferenceNames = referenceContent.getReferenceNames();
+			if (thatReferenceNames.length > 0) {
+				for (String referenceName : getReferenceNames()) {
+					if (Arrays.stream(thatReferenceNames).noneMatch(referenceName::equals)) {
+						return false;
+					}
+				}
+			}
+			final Optional<AttributeContent> thatContent = referenceContent.getAttributeContent();
+			final Optional<AttributeContent> thisContent = getAttributeContent();
+			if (thisContent.isPresent()) {
+				if (thatContent.isEmpty() || !thisContent.get().isFullyContainedWithin(thatContent.get())) {
+					return false;
+				}
+			}
+			final Optional<EntityFetch> thatEntityRequirement = referenceContent.getEntityRequirement();
+			final Optional<EntityFetch> thisEntityRequirement = getEntityRequirement();
+			if (thisEntityRequirement.isPresent()) {
+				if (thatEntityRequirement.isEmpty() || !thisEntityRequirement.get().isFullyContainedWithin(thatEntityRequirement.get())) {
+					return false;
+				}
+			}
+			final Optional<EntityGroupFetch> thatGroupEntityRequirement = referenceContent.getGroupEntityRequirement();
+			final Optional<EntityGroupFetch> thisGroupEntityRequirement = getGroupEntityRequirement();
+			if (thisGroupEntityRequirement.isPresent()) {
+				if (thatGroupEntityRequirement.isEmpty() || !thisGroupEntityRequirement.get().isFullyContainedWithin(thatGroupEntityRequirement.get())) {
+					return false;
+				}
+			}
+			final Optional<FilterBy> thatFilterBy = referenceContent.getFilterBy();
+			final Optional<FilterBy> thisFilterBy = getFilterBy();
+			if (!Objects.equals(thisFilterBy.orElse(null), thatFilterBy.orElse(null))) {
+				return false;
+			}
+			final Optional<OrderBy> thatOrderBy = referenceContent.getOrderBy();
+			final Optional<OrderBy> thisOrderBy = getOrderBy();
+			if (!Objects.equals(thisOrderBy.orElse(null), thatOrderBy.orElse(null))) {
+				return false;
+			}
+		}
+		return false;
+	}
+
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
@@ -623,21 +648,71 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 					);
 				}
 			} else {
-				final EntityFetch combinedEntityRequirement = combineRequirements(getEntityRequirement().orElse(null), anotherReferenceContent.getEntityRequirement().orElse(null));
-				final EntityGroupFetch combinedGroupEntityRequirement = combineRequirements(getGroupEntityRequirement().orElse(null), anotherReferenceContent.getGroupEntityRequirement().orElse(null));
 				final ManagedReferencesBehaviour managedReferencesBehaviour = getManagedReferencesBehaviour() == anotherReferenceContent.getManagedReferencesBehaviour() ?
 					getManagedReferencesBehaviour() : ManagedReferencesBehaviour.EXISTING;
-				final String[] referenceNames = Stream.concat(
-						Arrays.stream(getReferenceNames()),
-						Arrays.stream(((ReferenceContent) anotherRequirement).getReferenceNames())
-					)
-					.distinct()
-					.toArray(String[]::new);
+				final String[] referenceNames = isAllRequested() || anotherReferenceContent.isAllRequested() ?
+					new String[0] :
+					Stream.concat(
+							Arrays.stream(getReferenceNames()),
+							Arrays.stream(((ReferenceContent) anotherRequirement).getReferenceNames())
+						)
+						.distinct()
+						.toArray(String[]::new);
+				final EntityFetch combinedEntityRequirement;
+				final EntityGroupFetch combinedGroupEntityRequirement;
+				final AttributeContent combinedAttributeRequirement;
+				if (referenceNames.length == 1) {
+					combinedAttributeRequirement = EntityContentRequire.combineRequirements(
+						getAttributeContent().orElse(null),
+						anotherReferenceContent.getAttributeContent().orElse(null)
+					);
+					combinedEntityRequirement = combineRequirements(
+						getEntityRequirement().orElse(null),
+						anotherReferenceContent.getEntityRequirement().orElse(null)
+					);
+					combinedGroupEntityRequirement = combineRequirements(
+						getGroupEntityRequirement().orElse(null),
+						anotherReferenceContent.getGroupEntityRequirement().orElse(null)
+					);
+				} else if (
+					!this.getAttributeContent().map(AttributeContent::isAllRequested).orElse(true) ||
+						!anotherReferenceContent.getAttributeContent().map(AttributeContent::isAllRequested).orElse(true)) {
+					throw new EvitaInvalidUsageException(
+						"Cannot combine multiple attribute content requirements: " + this + " and " + anotherRequirement,
+						"Cannot combine multiple attribute content requirements."
+					);
+				} else if (this.getFilterBy().isPresent() || anotherReferenceContent.getFilterBy().isPresent()) {
+					throw new EvitaInvalidUsageException(
+						"Cannot combine multiple filtered requirements: " + this + " and " + anotherRequirement,
+						"Cannot combine multiple filtered requirements."
+					);
+				} else if (this.getOrderBy().isPresent() || anotherReferenceContent.getOrderBy().isPresent()) {
+					throw new EvitaInvalidUsageException(
+						"Cannot combine multiple ordered requirements: " + this + " and " + anotherRequirement,
+						"Cannot combine multiple ordered requirements."
+					);
+				} else if (this.getEntityRequirement().isPresent() || anotherReferenceContent.getEntityRequirement().isPresent()) {
+					throw new EvitaInvalidUsageException(
+						"Cannot combine multiple requirements with entity fetch: " + this + " and " + anotherRequirement,
+						"Cannot combine multiple requirements with entity fetch."
+					);
+				} else if (this.getGroupEntityRequirement().isPresent() || anotherReferenceContent.getGroupEntityRequirement().isPresent()) {
+					throw new EvitaInvalidUsageException(
+						"Cannot combine multiple requirements with entity group fetch: " + this + " and " + anotherRequirement,
+						"Cannot combine multiple requirements with entity group fetch."
+					);
+				} else {
+					combinedAttributeRequirement = null;
+					combinedEntityRequirement = null;
+					combinedGroupEntityRequirement = null;
+				}
+
 				return (T) new ReferenceContent(
 					managedReferencesBehaviour,
 					referenceNames,
 					Arrays.stream(
-						new RequireConstraint[]{
+						new RequireConstraint[] {
+							combinedAttributeRequirement,
 							combinedEntityRequirement,
 							combinedGroupEntityRequirement
 						}

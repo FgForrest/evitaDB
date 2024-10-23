@@ -31,14 +31,18 @@ import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.PriceInPriceLists;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -77,10 +81,11 @@ import static java.util.Optional.of;
 )
 public class PriceContent extends AbstractRequireConstraintLeaf
 	implements PriceConstraint<RequireConstraint>, EntityContentRequire, ConstraintWithSuffix {
-	public static final String[] EMPTY_PRICE_LISTS = new String[0];
 	@Serial private static final long serialVersionUID = -8521118631539528009L;
 	private static final String SUFFIX_ALL = "all";
 	private static final String SUFFIX_FILTERED = "respectingFilter";
+	private LinkedHashSet<String> additionalPriceListsAsSet;
+	private String[] additionalPriceLists;
 
 	private PriceContent(Serializable... arguments) {
 		super(arguments);
@@ -106,9 +111,11 @@ public class PriceContent extends AbstractRequireConstraintLeaf
 	 * Returns fetch mode for prices. Controls whether only those that comply with the filter query
 	 * should be returned along with entity or all prices of the entity.
 	 */
+	@Nonnull
 	public PriceContentMode getFetchMode() {
 		final Serializable argument = getArguments()[0];
-		return argument instanceof PriceContentMode ? (PriceContentMode) argument : PriceContentMode.valueOf(argument.toString());
+		return argument instanceof PriceContentMode ?
+			(PriceContentMode) argument : PriceContentMode.valueOf(argument.toString());
 	}
 
 	/**
@@ -118,12 +125,25 @@ public class PriceContent extends AbstractRequireConstraintLeaf
 	@AliasForParameter("priceLists")
 	@Nonnull
 	public String[] getAdditionalPriceListsToFetch() {
-		final Serializable[] arguments = getArguments();
-		if (arguments.length > 1) {
-			return ArrayUtils.copyOf(arguments, String.class, 1, arguments.length);
-		} else {
-			return EMPTY_PRICE_LISTS;
+		if (this.additionalPriceLists == null) {
+			this.additionalPriceLists = getAdditionalPriceListsToFetchAsSet().toArray(String[]::new);
 		}
+		return this.additionalPriceLists;
+	}
+
+	/**
+	 * Returns set of price list names that should be fetched along with entities on top of prices that are fetched
+	 * due to {@link #getFetchMode()} or empty set.
+	 */
+	@Nonnull
+	public Set<String> getAdditionalPriceListsToFetchAsSet() {
+		if (this.additionalPriceListsAsSet == null) {
+			this.additionalPriceListsAsSet = Arrays.stream(getArguments())
+				.filter(String.class::isInstance)
+				.map(String.class::cast)
+				.collect(Collectors.toCollection(LinkedHashSet::new));
+		}
+		return this.additionalPriceListsAsSet;
 	}
 
 	@Nonnull
@@ -147,32 +167,52 @@ public class PriceContent extends AbstractRequireConstraintLeaf
 		return anotherRequirement instanceof PriceContent;
 	}
 
+	@Override
+	public <T extends EntityContentRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
+		if (anotherRequirement instanceof PriceContent anotherPriceContent) {
+			if (getFetchMode().ordinal() > anotherPriceContent.getFetchMode().ordinal()) {
+				return false;
+			}
+			return anotherPriceContent.getAdditionalPriceListsToFetchAsSet().containsAll(getAdditionalPriceListsToFetchAsSet());
+		}
+		return false;
+	}
+
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
-		Assert.isTrue(anotherRequirement instanceof PriceContent, "Only Prices requirement can be combined with this one!");
-		final PriceContent anotherPriceContent = (PriceContent) anotherRequirement;
-		if (anotherPriceContent.getFetchMode().ordinal() >= getFetchMode().ordinal()) {
-			final String[] additionalPriceListsToFetch = getAdditionalPriceListsToFetch();
-			if (ArrayUtils.isEmpty(additionalPriceListsToFetch)) {
-				return anotherRequirement;
+		if (anotherRequirement instanceof PriceContent anotherPriceContent) {
+			if (anotherPriceContent.getFetchMode().ordinal() >= getFetchMode().ordinal()) {
+				final Set<String> additionalPriceListsToFetch = getAdditionalPriceListsToFetchAsSet();
+				if (anotherPriceContent.getAdditionalPriceListsToFetchAsSet().containsAll(additionalPriceListsToFetch)) {
+					return anotherRequirement;
+				} else {
+					final Set<String> combinedPriceListsAsSet = new LinkedHashSet<>(additionalPriceListsToFetch);
+					combinedPriceListsAsSet.addAll(anotherPriceContent.getAdditionalPriceListsToFetchAsSet());
+					return (T) new PriceContent(
+						anotherPriceContent.getFetchMode(),
+						combinedPriceListsAsSet.toArray(String[]::new)
+					);
+				}
 			} else {
-				return (T) new PriceContent(
-					anotherPriceContent.getFetchMode(),
-					ArrayUtils.mergeArrays(additionalPriceListsToFetch, anotherPriceContent.getAdditionalPriceListsToFetch())
-				);
+				final Set<String> additionalPriceListsToFetch = anotherPriceContent.getAdditionalPriceListsToFetchAsSet();
+				if (getAdditionalPriceListsToFetchAsSet().containsAll(additionalPriceListsToFetch)) {
+					return (T) this;
+				} else {
+					final Set<String> combinedPriceListsAsSet = new LinkedHashSet<>(additionalPriceListsToFetch);
+					combinedPriceListsAsSet.addAll(getAdditionalPriceListsToFetchAsSet());
+					return (T) new PriceContent(
+						getFetchMode(),
+						combinedPriceListsAsSet.toArray(String[]::new)
+					);
+				}
 			}
 		} else {
-			final String[] additionalPriceListsToFetch = anotherPriceContent.getAdditionalPriceListsToFetch();
-			if (ArrayUtils.isEmpty(additionalPriceListsToFetch)) {
-				return (T) this;
-			} else {
-				return (T) new PriceContent(
-					getFetchMode(),
-					ArrayUtils.mergeArrays(additionalPriceListsToFetch, anotherPriceContent.getAdditionalPriceListsToFetch())
-				);
-			}
+			throw new GenericEvitaInternalError(
+				"Only price content requirement can be combined with this one - but got: " + anotherRequirement.getClass(),
+				"Only price content requirement can be combined with this one!"
+			);
 		}
 	}
 

@@ -38,6 +38,7 @@ import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
@@ -66,7 +67,6 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.TraversalDirection;
-import io.evitadb.core.query.fetch.DefaultPrefetchRequirementCollector;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
@@ -1055,7 +1055,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 						// initialize requirements with requested attributes
 						if (requirements.attributeContent() != null) {
-							globalPrefetchCollector.addRequirementToPrefetch(requirements.attributeContent());
+							globalPrefetchCollector.addRequirementsToPrefetch(requirements.attributeContent());
 						}
 
 						final Optional<OrderingDescriptor> orderingDescriptor = ofNullable(requirements.orderBy())

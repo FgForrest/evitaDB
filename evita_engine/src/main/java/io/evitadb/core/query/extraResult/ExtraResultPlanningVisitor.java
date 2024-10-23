@@ -73,7 +73,6 @@ import io.evitadb.core.query.extraResult.translator.reference.EntityGroupFetchTr
 import io.evitadb.core.query.extraResult.translator.reference.HierarchyContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.PriceContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceContentTranslator;
-import io.evitadb.core.query.fetch.FetchRequirementCollector;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.DeferredSorter;
@@ -148,11 +147,6 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Getter private final TargetIndexes<?> indexSetToUse;
 	/**
-	 * Reference to the collector of requirements for entity prefetch phase.
-	 */
-	@Delegate @Getter
-	private final FetchRequirementCollector fetchRequirementCollector;
-	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
 	 */
@@ -207,14 +201,12 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	public ExtraResultPlanningVisitor(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull TargetIndexes<?> indexSetToUse,
-		@Nonnull FetchRequirementCollector fetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nullable Sorter sorter
 	) {
 		this.queryContext = queryContext;
 		this.indexSetToUse = indexSetToUse;
-		this.fetchRequirementCollector = fetchRequirementCollector;
 		this.filteringFormula = filteringFormula;
 		this.filterByVisitor = filterByVisitor;
 		this.sorter = sorter;
@@ -413,7 +405,6 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				final OrderByVisitor orderByVisitor = new OrderByVisitor(
 					nestedQueryContext,
 					Collections.emptyList(),
-					this.fetchRequirementCollector,
 					this.filterByVisitor,
 					this.filteringFormula
 				);

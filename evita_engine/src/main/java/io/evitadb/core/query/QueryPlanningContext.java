@@ -32,10 +32,13 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
 import io.evitadb.api.query.require.FacetGroupsDisjunction;
 import io.evitadb.api.query.require.FacetGroupsNegation;
+import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
@@ -98,13 +101,18 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class QueryPlanningContext implements LocaleProvider {
+public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyResolver {
 	private static final EntityIndexKey GLOBAL_INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL);
 
 	/**
 	 * Contains reference to the parent context of this one. The reference is not NULL only for sub-queries.
 	 */
 	@Nullable private final QueryPlanningContext parentContext;
+	/**
+	 * Reference to the collector of requirements for entity prefetch phase.
+	 */
+	@Nonnull @Getter
+	private final FetchRequirementCollector fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
 	/**
 	 * Contains reference to the policy that controls the interaction with cache and drives the query planning strategy.
 	 */
@@ -286,19 +294,34 @@ public class QueryPlanningContext implements LocaleProvider {
 	}
 
 	/**
+	 * Delegates method to {@link FetchRequirementCollector#addRequirementsToPrefetch(EntityContentRequire...)}.
+	 *
+	 * @param require the requirement to prefetch
+	 */
+	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
+		this.fetchRequirementCollector.addRequirementsToPrefetch(require);
+	}
+
+	/**
+	 * Delegates method to {@link FetchRequirementCollector#getRequirementsToPrefetch()}.
+	 *
+	 * @return an array of {@link EntityContentRequire} representing the requirements to prefetch
+	 */
+	@Nonnull
+	public EntityContentRequire[] getRequirementsToPrefetch() {
+		return this.fetchRequirementCollector.getRequirementsToPrefetch();
+	}
+
+	/**
 	 * Returns true if the input {@link #evitaRequest} contains specification of the entity collection.
 	 */
 	public boolean isEntityTypeKnown() {
 		return entityType != null;
 	}
 
-	/**
-	 * Returns true if the prefetch is possible.
-	 *
-	 * @return true if the prefetch is possible
-	 */
+	@Override
 	public boolean isPrefetchPossible() {
-		return prefetchPossible && planningPolicy.getPrefetchPolicy() == PrefetchPolicy.ALLOW;
+		return this.prefetchPossible && this.planningPolicy.getPrefetchPolicy() == PrefetchPolicy.ALLOW;
 	}
 
 	/**

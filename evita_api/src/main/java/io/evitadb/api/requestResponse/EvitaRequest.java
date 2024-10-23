@@ -78,6 +78,7 @@ public class EvitaRequest {
 		throw new UnsupportedOperationException();
 	};
 	private static final int[] EMPTY_INTS = new int[0];
+	private static final String[] EMPTY_PRICE_LISTS = new String[0];
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
 	private final String entityType;
@@ -577,7 +578,7 @@ public class EvitaRequest {
 			final EntityFetch entityFetch = QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			if (entityFetch == null) {
 				this.entityPrices = PriceContentMode.NONE;
-				this.additionalPriceLists = PriceContent.EMPTY_PRICE_LISTS;
+				this.additionalPriceLists = EMPTY_PRICE_LISTS;
 			} else {
 				final Optional<PriceContent> priceContentRequirement = ofNullable(QueryUtils.findConstraint(entityFetch, PriceContent.class, SeparateEntityContentRequireContainer.class));
 				this.entityPrices = priceContentRequirement
@@ -585,7 +586,7 @@ public class EvitaRequest {
 					.orElse(PriceContentMode.NONE);
 				this.additionalPriceLists = priceContentRequirement
 					.map(PriceContent::getAdditionalPriceListsToFetch)
-					.orElse(PriceContent.EMPTY_PRICE_LISTS);
+					.orElse(EMPTY_PRICE_LISTS);
 			}
 		}
 		return this.entityPrices;

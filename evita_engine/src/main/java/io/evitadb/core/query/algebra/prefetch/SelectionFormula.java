@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.algebra.prefetch;
 
-import io.evitadb.api.query.require.EntityRequire;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -95,7 +95,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 
 	@Nullable
 	@Override
-	public EntityRequire getEntityRequire() {
+	public EntityFetchRequire getEntityRequire() {
 		return alternative.getEntityRequire();
 	}
 
