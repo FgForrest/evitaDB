@@ -30,7 +30,7 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.Map;
+import java.util.LinkedHashMap;
 
 /**
  * This implementation of {@link FetchRequirementCollector} is used to collect the requirements for fetching
@@ -41,7 +41,7 @@ import java.util.Map;
  */
 public class DefaultPrefetchRequirementCollector implements FetchRequirementCollector {
 	public static final EntityContentRequire[] EMPTY_REQUIREMENTS = new EntityContentRequire[0];
-	private Map<Class<? extends EntityContentRequire>, EntityContentRequire[]> requirements;
+	private LinkedHashMap<Class<? extends EntityContentRequire>, EntityContentRequire[]> requirements;
 
 	public DefaultPrefetchRequirementCollector() {
 		this(null);
@@ -49,7 +49,7 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 
 	public DefaultPrefetchRequirementCollector(@Nullable EntityFetch entityFetch) {
 		if (entityFetch != null) {
-			this.requirements = CollectionUtils.createHashMap(8);
+			this.requirements = CollectionUtils.createLinkedHashMap(8);
 			addRequirementToPrefetchInternal(entityFetch.getRequirements());
 		}
 	}
@@ -57,7 +57,7 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 	@Override
 	public void addRequirementsToPrefetch(@Nonnull EntityContentRequire... require) {
 		if (this.requirements == null) {
-			this.requirements = CollectionUtils.createHashMap(8);
+			this.requirements = CollectionUtils.createLinkedHashMap(8);
 		}
 		addRequirementToPrefetchInternal(require);
 	}
