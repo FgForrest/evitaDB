@@ -936,7 +936,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				.toArray()
 		);
 
-		return richEnoughEntities;
+		return entities;
 	}
 
 	@Nonnull
