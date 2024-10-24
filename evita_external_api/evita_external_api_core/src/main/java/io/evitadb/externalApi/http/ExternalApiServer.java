@@ -592,6 +592,8 @@ public class ExternalApiServer implements AutoCloseable {
 			.workerGroup(workerGroup, gracefulShutdown);
 
 		if (!apiOptions.keepAlive()) {
+			log.info("Keep-alive is disabled.");
+			System.out.println("Keep-alive is disabled.");
 			serverBuilder
 				.childChannelOption(ChannelOption.SO_REUSEADDR, true)
 				.childChannelOption(ChannelOption.SO_KEEPALIVE, true)
