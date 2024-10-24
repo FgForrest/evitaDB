@@ -553,8 +553,6 @@ public class ExternalApiServer implements AutoCloseable {
 		final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt());
 		serverBuilder
 			.blockingTaskExecutor(evita.getServiceExecutor(), gracefulShutdown)
-			.childChannelOption(ChannelOption.SO_REUSEADDR, true)
-			.childChannelOption(ChannelOption.SO_KEEPALIVE, apiOptions.keepAlive())
 			.decorator(DecodingService.newDecorator())
 			.decorator(EncodingService.builder()
 				.encodableContentTypes(
@@ -575,6 +573,14 @@ public class ExternalApiServer implements AutoCloseable {
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.verboseResponses(false)
 			.workerGroup(workerGroup, gracefulShutdown);
+
+		if (!apiOptions.keepAlive()) {
+			serverBuilder
+				.childChannelOption(ChannelOption.SO_REUSEADDR, true)
+				.childChannelOption(ChannelOption.SO_KEEPALIVE, true)
+				.maxConnectionAgeMillis(0)
+				.maxNumRequestsPerConnection(1);
+		}
 
 		if (apiOptions.accessLog()) {
 			serverBuilder

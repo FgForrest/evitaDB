@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
+import io.evitadb.core.query.PrefetchStrategyResolver;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.ReferencedEntityFetcher;
 import io.evitadb.core.query.algebra.Formula;
@@ -121,7 +122,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class FilterByVisitor implements ConstraintVisitor {
+public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResolver {
 	private static final Formula[] EMPTY_INTEGER_FORMULA = new Formula[0];
 	/**
 	 * Contains index of all {@link FilterConstraint} to {@link Formula} translators.
@@ -201,7 +202,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
 	@Nonnull
-	@Delegate @Getter private final QueryPlanningContext queryContext;
+	@Delegate(excludes = PrefetchStrategyResolver.class)
+	@Getter private final QueryPlanningContext queryContext;
 	/**
 	 * Collection contains all alternative {@link TargetIndexes} sets that might already contain precalculated information
 	 * related to {@link EntityIndex} that can be used to partially resolve input filter although the target index set
@@ -715,8 +717,15 @@ public class FilterByVisitor implements ConstraintVisitor {
 				suppressedConstraints
 			);
 		} finally {
-			stack.pop();
+			this.stack.pop();
 		}
+	}
+
+	@Override
+	public boolean isPrefetchPossible() {
+		// when we are in lower scopes, the indexes are exchanged and we cannot use the top-level prefetched entities
+		// and always prefer the provided indexes
+		return this.scope.size() == 1 && this.queryContext.isPrefetchPossible();
 	}
 
 	/**

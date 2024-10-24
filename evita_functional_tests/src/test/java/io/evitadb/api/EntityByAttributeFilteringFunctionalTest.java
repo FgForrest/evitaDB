@@ -548,7 +548,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 			.filter(it -> it.getAttribute(ATTRIBUTE_CODE) != null && it.getAttribute(ATTRIBUTE_QUANTITY) != null)
 			.filter(it -> rnd.nextInt(100) > 85)
 			.findFirst()
-			.get();
+			.orElseThrow();
 
 		evita.queryCatalog(
 			TEST_CATALOG,

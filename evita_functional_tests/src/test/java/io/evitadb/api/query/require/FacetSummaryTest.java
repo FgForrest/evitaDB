@@ -78,7 +78,7 @@ class FacetSummaryTest {
 	void shouldCreateFromRequirements() {
 		assertEquals(
 			facetSummary(FacetStatisticsDepth.COUNTS),
-			new FacetSummary(FacetStatisticsDepth.COUNTS, new EntityRequire[0])
+			new FacetSummary(FacetStatisticsDepth.COUNTS, new EntityFetchRequire[0])
 		);
 		assertEquals(
 			facetSummary(FacetStatisticsDepth.COUNTS, entityFetch(attributeContent("code"))),
@@ -101,7 +101,7 @@ class FacetSummaryTest {
 			EvitaInvalidUsageException.class,
 			() -> new FacetSummary(
 				FacetStatisticsDepth.COUNTS,
-				new EntityRequire[] { entityFetch(attributeContent("code")), entityFetch() }
+				new EntityFetchRequire[] { entityFetch(attributeContent("code")), entityFetch() }
 			)
 		);
 
@@ -109,7 +109,7 @@ class FacetSummaryTest {
 			EvitaInvalidUsageException.class,
 			() -> new FacetSummary(
 				FacetStatisticsDepth.COUNTS,
-				new EntityRequire[] { entityFetch(attributeContent("code")), entityGroupFetch(attributeContent("name")), entityFetch() }
+				new EntityFetchRequire[] { entityFetch(attributeContent("code")), entityGroupFetch(attributeContent("name")), entityFetch() }
 			)
 		);
 	}

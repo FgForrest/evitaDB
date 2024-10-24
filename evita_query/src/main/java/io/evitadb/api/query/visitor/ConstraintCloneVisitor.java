@@ -150,7 +150,7 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 		return levelConstraints.pop();
 	}
 
-	@Nonnull
+	@Nullable
 	public Constraint<?> getResult() {
 		return result;
 	}

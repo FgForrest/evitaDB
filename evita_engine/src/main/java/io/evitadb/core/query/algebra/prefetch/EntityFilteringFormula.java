@@ -24,7 +24,7 @@
 package io.evitadb.core.query.algebra.prefetch;
 
 import io.evitadb.api.exception.EntityCollectionRequiredException;
-import io.evitadb.api.query.require.EntityRequire;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -106,7 +106,7 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 
 	@Nullable
 	@Override
-	public EntityRequire getEntityRequire() {
+	public EntityFetchRequire getEntityRequire() {
 		return alternative.getEntityRequire();
 	}
 

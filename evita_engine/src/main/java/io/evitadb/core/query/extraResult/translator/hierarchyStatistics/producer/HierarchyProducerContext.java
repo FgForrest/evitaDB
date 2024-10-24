@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
+import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.StatisticsBase;
@@ -33,7 +34,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.fetch.FetchRequirementCollector;
 import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;

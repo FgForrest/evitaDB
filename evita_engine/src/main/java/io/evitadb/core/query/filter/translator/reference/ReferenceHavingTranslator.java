@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -70,6 +71,10 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		final Supplier<List<ReducedEntityIndex>> referencedEntityIndexesSupplier = () -> getTargetIndexes(
 			filterByVisitor, referenceHaving
 		);
+
+		// the reference content needs to be prefetched in order to bea able to apply the filter on prefetched data
+		// i.e. access the reference attributes
+		filterByVisitor.addRequirementToPrefetch(referenceContent(referenceName));
 
 		return applySearchOnIndexes(
 			referenceHaving, filterByVisitor, entitySchema, referenceSchema, referencedEntityIndexesSupplier
@@ -95,9 +100,12 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 			processingScope.getNestedQueryFormulaEnricher(),
 			processingScope.getEntityNestedQueryComparator(),
 			processingScope.withReferenceSchemaAccessor(referenceName),
-			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
-				.stream()
-				.map(it -> it.getAttributeValue(attributeName, locale)),
+			(entityContract, attributeName, locale) -> {
+				// this is the place for which we need to prefetch the reference content
+				return entityContract.getReferences(referenceName)
+					.stream()
+					.map(it -> it.getAttributeValue(attributeName, locale));
+			},
 			() -> {
 				getFilterByFormula(filterConstraint).ifPresent(it -> it.accept(filterByVisitor));
 				final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
