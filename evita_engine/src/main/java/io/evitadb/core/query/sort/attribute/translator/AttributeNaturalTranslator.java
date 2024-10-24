@@ -205,7 +205,7 @@ public class AttributeNaturalTranslator
 		}
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
-		orderByVisitor.addRequirementToPrefetch(attributeContent(attributeOrCompoundSchema.getName()));
+		orderByVisitor.addRequirementsToPrefetch(attributeContent(attributeOrCompoundSchema.getName()));
 
 		orderByVisitor.addComparator(comparator);
 	}

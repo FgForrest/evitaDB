@@ -22710,7 +22710,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
-	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
+	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
 		return statisticsDepth == null ?
 			new FacetSummary(FacetStatisticsDepth.COUNTS, requirements) :
 			new FacetSummary(statisticsDepth, requirements);
@@ -22803,7 +22803,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable OrderBy facetOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
 	}
@@ -22896,7 +22896,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
 	}
@@ -22989,7 +22989,7 @@ public interface QueryConstraints {
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
 	}
@@ -23082,7 +23082,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy, requirements);
 	}
@@ -23175,7 +23175,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null, requirements);
 	}
@@ -23267,7 +23267,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, facetGroupFilterBy, null, null, requirements);
 	}
@@ -23359,7 +23359,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, null, orderBy, facetGroupOrderBy, requirements);
 	}
@@ -23450,7 +23450,7 @@ public interface QueryConstraints {
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, null, null, null, requirements);
 	}
@@ -23541,7 +23541,7 @@ public interface QueryConstraints {
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, null, orderBy, null, requirements);
 	}
@@ -23632,7 +23632,7 @@ public interface QueryConstraints {
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, facetGroupFilterBy, null, null, requirements);
 	}
@@ -23723,7 +23723,7 @@ public interface QueryConstraints {
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, null, null, facetGroupOrderBy, requirements);
 	}
@@ -23815,7 +23815,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, facetGroupFilterBy, orderBy, null, requirements);
 	}
@@ -23907,7 +23907,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, null, null, facetGroupOrderBy, requirements);
 	}
@@ -23999,7 +23999,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
 	}
@@ -24093,7 +24093,7 @@ public interface QueryConstraints {
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;
@@ -24188,7 +24188,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable EntityRequire... requirements) {
+	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable EntityFetchRequire... requirements) {
 		return referenceName == null ? null : new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
 	}
 
@@ -24267,7 +24267,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
+	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
 		if (referenceName == null) {
 			return null;
 		}
@@ -24356,7 +24356,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable OrderBy facetOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
@@ -24443,7 +24443,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
@@ -24530,7 +24530,7 @@ public interface QueryConstraints {
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
@@ -24617,7 +24617,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy, requirements);
@@ -24704,7 +24704,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null, requirements);
@@ -24790,7 +24790,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, null, requirements);
@@ -24876,7 +24876,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, facetGroupOrderBy, requirements);
@@ -24961,7 +24961,7 @@ public interface QueryConstraints {
 		@Nullable String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, null, requirements);
@@ -25046,7 +25046,7 @@ public interface QueryConstraints {
 		@Nullable String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, null, requirements);
@@ -25131,7 +25131,7 @@ public interface QueryConstraints {
 		@Nullable String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, null, requirements);
@@ -25216,7 +25216,7 @@ public interface QueryConstraints {
 		@Nullable String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, null, null, facetGroupOrderBy, requirements);
@@ -25302,7 +25302,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, null, requirements);
@@ -25388,7 +25388,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, facetGroupOrderBy, requirements);
@@ -25474,7 +25474,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
@@ -25562,7 +25562,7 @@ public interface QueryConstraints {
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		if (referenceName == null) {
 			return null;

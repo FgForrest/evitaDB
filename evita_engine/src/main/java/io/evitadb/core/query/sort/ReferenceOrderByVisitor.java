@@ -35,6 +35,7 @@ import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -51,7 +52,6 @@ import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
-import io.evitadb.core.query.fetch.FetchRequirementCollector;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityGroupPropertyTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
@@ -197,7 +197,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	}
 
 	@Override
-	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
+	public void addRequirementsToPrefetch(@Nonnull EntityContentRequire... require) {
 		AttributeContent attributeContent = null;
 		for (EntityContentRequire entityContentRequire : require) {
 			if (entityContentRequire instanceof AttributeContent attributeContentRequire) {
@@ -211,12 +211,18 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 			attributeContent != null,
 			"Attribute content requirement not found in the provided requirements."
 		);
-		this.fetchRequirementCollector.addRequirementToPrefetch(
+		this.fetchRequirementCollector.addRequirementsToPrefetch(
 			new ReferenceContent(
 				referenceSchema.getName(),
 				attributeContent
 			)
 		);
+	}
+
+	@Nonnull
+	@Override
+	public EntityContentRequire[] getRequirementsToPrefetch() {
+		return this.fetchRequirementCollector.getRequirementsToPrefetch();
 	}
 
 	/**

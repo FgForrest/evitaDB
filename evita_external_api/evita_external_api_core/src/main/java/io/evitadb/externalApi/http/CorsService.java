@@ -73,8 +73,8 @@ public class CorsService extends SimpleDecoratingHttpService {
 	                    @Nonnull Set<AsciiString> allowedHeaders) {
 		super(delegate != null ? delegate : new NotFoundService());
 		this.preflightEnabled = preflightEnabled;
-		this.allowedMethods = allowedMethods.stream().map(HttpMethod::name).collect(Collectors.toSet());
-		this.allowedHeaders = allowedHeaders.stream().map(AsciiString::toString).collect(Collectors.toSet());
+		this.allowedMethods = allowedMethods.stream().map(HttpMethod::name).map(String::toLowerCase).collect(Collectors.toSet());
+		this.allowedHeaders = allowedHeaders.stream().map(AsciiString::toString).map(String::toLowerCase).collect(Collectors.toSet());
 	}
 
 	@Nonnull
@@ -147,7 +147,7 @@ public class CorsService extends SimpleDecoratingHttpService {
 			log.warn("Missing request method in preflight request.");
 			return false;
 		}
-		return allowedMethods.contains(requestMethod);
+		return allowedMethods.contains(requestMethod.toLowerCase());
 	}
 
 	private boolean isRequestHeaderAllowed(@Nullable String requestHeaders) {
@@ -157,6 +157,7 @@ public class CorsService extends SimpleDecoratingHttpService {
 		}
 		return Arrays.stream(requestHeaders.split(REQUEST_HEADERS_DELIMITER_PATTERN))
 			.map(String::trim)
+			.map(String::toLowerCase)
 			.allMatch(allowedHeaders::contains);
 	}
 

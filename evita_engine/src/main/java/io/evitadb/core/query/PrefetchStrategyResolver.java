@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,19 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.lab.api.model;
+package io.evitadb.core.query;
 
-import io.evitadb.externalApi.api.catalog.dataApi.model.RecordStripDescriptor;
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * Generic equivalent of {@link RecordStripDescriptor}.
+ * Interface allowing to exclude implementation of {@link #isPrefetchPossible()} from automatic delegation in query
+ * context. Provides information whether it's possible and safe to use prefetched entities (or prefetch them) in specific
+ * context.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface GenericRecordStripDescriptor extends RecordStripDescriptor {
+public interface PrefetchStrategyResolver {
 
-	ObjectDescriptor THIS = ObjectDescriptor.extend(RecordStripDescriptor.THIS)
-		.name("RecordStrip")
-		.build();
+	/**
+	 * Returns true if the prefetch is possible.
+	 *
+	 * @return true if the prefetch is possible
+	 */
+	boolean isPrefetchPossible();
+
 }

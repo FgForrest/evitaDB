@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.filter.translator.entity.alternative;
 
-import io.evitadb.api.query.require.EntityRequire;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.response.ServerEntityDecorator;
@@ -75,7 +75,7 @@ public class LocaleEntityToBitmapFilter implements EntityToBitmapFilter {
 
 	@Nonnull
 	@Override
-	public EntityRequire getEntityRequire() {
+	public EntityFetchRequire getEntityRequire() {
 		return entityFetch();
 	}
 }

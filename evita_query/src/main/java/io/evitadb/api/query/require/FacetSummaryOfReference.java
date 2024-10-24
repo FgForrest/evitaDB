@@ -173,7 +173,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	public FacetSummaryOfReference(
 		@Nonnull String referenceName,
 		@Nonnull FacetStatisticsDepth statisticsDepth,
-		@Nonnull EntityRequire... requirements
+		@Nonnull EntityFetchRequire... requirements
 	) {
 		this(new Serializable[]{referenceName, statisticsDepth}, requirements);
 	}
@@ -186,7 +186,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterGroupBy filterGroupBy,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) OrderGroupBy orderGroupBy,
-		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements
+		@Nonnull @Child(uniqueChildren = true) EntityFetchRequire... requirements
 	) {
 		super(
 			new Serializable[]{referenceName, Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)},

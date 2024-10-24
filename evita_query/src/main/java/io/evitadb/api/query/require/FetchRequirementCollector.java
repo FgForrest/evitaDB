@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,26 +23,30 @@
 
 package io.evitadb.api.query.require;
 
-import io.evitadb.api.query.EntityConstraint;
-import io.evitadb.api.query.RequireConstraint;
-
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
- * Ancestor for all requirement containers that serves as entity richness definers.
+ * This interface allows to unify the process for registering new requirements for entity prefetching from multiple
+ * places (filtering, ordering and requires).
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface EntityRequire extends EntityConstraint<RequireConstraint>, RequireConstraint {
-
-	@Nonnull
-	EntityContentRequire[] getRequirements();
+public interface FetchRequirementCollector {
 
 	/**
-	 * Method allows to combine two requirements of same type (that needs to be compatible with "this" type) into one
-	 * combining the arguments of both of them.
+	 * Registers new requirement that should be taken into an account when/if the prefetch of the entities occur.
+	 * The method call might be completely ignored if the visitor is not present.
+	 *
+	 * @param require the requirement to prefetch
+	 */
+	void addRequirementsToPrefetch(@Nonnull EntityContentRequire... require);
+
+	/**
+	 * Retrieves the list of entity content requirements that are scheduled for prefetching.
+	 *
+	 * @return an array of {@link EntityContentRequire} representing the requirements to prefetch
 	 */
 	@Nonnull
-	<T extends EntityRequire> T combineWith(@Nullable T anotherRequirement);
+	EntityContentRequire[] getRequirementsToPrefetch();
+
 }

@@ -31,15 +31,16 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
-import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -74,6 +75,8 @@ public class AssociatedDataContent extends AbstractRequireConstraintLeaf
 	implements AssociatedDataConstraint<RequireConstraint>, EntityContentRequire, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = 4863284278176575291L;
 	private static final String SUFFIX = "all";
+	private LinkedHashSet<String> associatedDataNamesAsSet;
+	private String[] associatedDataNames;
 
 	private AssociatedDataContent(Serializable... arguments) {
 		super(arguments);
@@ -94,16 +97,30 @@ public class AssociatedDataContent extends AbstractRequireConstraintLeaf
 	 */
 	@Nonnull
 	public String[] getAssociatedDataNames() {
-		return Arrays.stream(getArguments())
-			.map(String.class::cast)
-			.toArray(String[]::new);
+		if (this.associatedDataNames == null) {
+			this.associatedDataNames = getAssociatedDataNamesAsSet().toArray(String[]::new);
+		}
+		return this.associatedDataNames;
+	}
+
+	/**
+	 * Returns names of associated data that should be loaded along with entity.
+	 */
+	@Nonnull
+	public Set<String> getAssociatedDataNamesAsSet() {
+		if (this.associatedDataNamesAsSet == null) {
+			this.associatedDataNamesAsSet = Arrays.stream(getArguments())
+				.map(String.class::cast)
+				.collect(Collectors.toCollection(LinkedHashSet::new));
+		}
+		return this.associatedDataNamesAsSet;
 	}
 
 	/**
 	 * Returns TRUE if all available associated data were requested to load.
 	 */
 	public boolean isAllRequested() {
-		return ArrayUtils.isEmpty(getArguments());
+		return getAssociatedDataNamesAsSet().isEmpty();
 	}
 
 	@Nonnull
@@ -117,23 +134,38 @@ public class AssociatedDataContent extends AbstractRequireConstraintLeaf
 		return anotherRequirement instanceof AssociatedDataContent;
 	}
 
+	@Override
+	public <T extends EntityContentRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
+		if (anotherRequirement instanceof AssociatedDataContent anotherAssociatedDataContent) {
+			if (anotherAssociatedDataContent.isAllRequested()) {
+				return true;
+			} else if (!isAllRequested()) {
+				return anotherAssociatedDataContent.getAssociatedDataNamesAsSet().containsAll(getAssociatedDataNamesAsSet());
+			}
+		}
+		return false;
+	}
+
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
-		Assert.isTrue(anotherRequirement instanceof AssociatedDataContent, "Only AssociatedData requirement can be combined with this one!");
-		if (isAllRequested()) {
-			return (T) this;
-		} else if (((AssociatedDataContent) anotherRequirement).isAllRequested()) {
-			return anotherRequirement;
+		if (anotherRequirement instanceof AssociatedDataContent anotherAssociatedDataContent) {
+			if (isAllRequested()) {
+				return (T) this;
+			} else if (anotherAssociatedDataContent.isAllRequested()) {
+				return anotherRequirement;
+			} else {
+				final Set<String> associatedDataNamesAsSet = new LinkedHashSet<>(getAssociatedDataNamesAsSet());
+				associatedDataNamesAsSet.addAll(anotherAssociatedDataContent.getAssociatedDataNamesAsSet());
+				return (T) new AssociatedDataContent(
+					associatedDataNamesAsSet.toArray(String[]::new)
+				);
+			}
 		} else {
-			return (T) new AssociatedDataContent(
-				Stream.concat(
-						Arrays.stream(getArguments()).map(String.class::cast),
-						Arrays.stream(anotherRequirement.getArguments()).map(String.class::cast)
-					)
-					.distinct()
-					.toArray(String[]::new)
+			throw new GenericEvitaInternalError(
+				"Only associated data requirement can be combined with this one - but got: " + anotherRequirement.getClass(),
+				"Only associated data requirement can be combined with this one!"
 			);
 		}
 	}

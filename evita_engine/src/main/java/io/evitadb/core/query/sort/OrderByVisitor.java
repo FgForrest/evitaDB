@@ -41,7 +41,6 @@ import io.evitadb.core.query.LocaleProvider;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
-import io.evitadb.core.query.fetch.FetchRequirementCollector;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.attribute.translator.AttributeExtractor;
@@ -121,11 +120,6 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	@Getter @Nonnull
 	private final List<? extends TargetIndexes<?>> targetIndexes;
 	/**
-	 * Reference to the collector of requirements for entity prefetch phase.
-	 */
-	@Delegate
-	private final FetchRequirementCollector fetchRequirementCollector;
-	/**
 	 * Filter by visitor used for creating filtering formula.
 	 */
 	@Getter private final FilterByVisitor filterByVisitor;
@@ -146,12 +140,11 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	public OrderByVisitor(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
-		@Nonnull FetchRequirementCollector fetchRequirementCollector,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Formula filteringFormula
 	) {
 		this(
-			queryContext, targetIndexes, fetchRequirementCollector, filterByVisitor, filteringFormula,
+			queryContext, targetIndexes, filterByVisitor, filteringFormula,
 			new AttributeSchemaAccessor(queryContext)
 		);
 	}
@@ -159,13 +152,11 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	public OrderByVisitor(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
-		@Nonnull FetchRequirementCollector fetchRequirementCollector,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Formula filteringFormula,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor) {
 		this.queryContext = queryContext;
 		this.targetIndexes = targetIndexes;
-		this.fetchRequirementCollector = fetchRequirementCollector;
 		this.filterByVisitor = filterByVisitor;
 		this.filteringFormula = filteringFormula;
 		this.scope.push(

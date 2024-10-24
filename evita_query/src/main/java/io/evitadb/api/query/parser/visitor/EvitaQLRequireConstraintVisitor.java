@@ -321,7 +321,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					ctx.args.managedReferencesBehaviour
 				);
 				if (ctx.args.requirement != null) {
-					final EntityRequire require = visitChildConstraint(ctx.args.requirement, EntityRequire.class);
+					final EntityFetchRequire require = visitChildConstraint(ctx.args.requirement, EntityFetchRequire.class);
 					if (require instanceof final EntityFetch entityFetch) {
 						return new ReferenceContent(
 							managedReferencesBehaviour, entityFetch, null
@@ -368,7 +368,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				if (ctx.args.requirement == null && ctx.args.facetEntityRequirement == null && ctx.args.groupEntityRequirement == null) {
 					return new ReferenceContent(managedReferencesBehaviour, classifiers);
 				} else if (ctx.args.requirement != null) {
-					final EntityRequire require = visitChildConstraint(ctx.args.requirement, EntityRequire.class);
+					final EntityFetchRequire require = visitChildConstraint(ctx.args.requirement, EntityFetchRequire.class);
 					if (require instanceof final EntityFetch entityFetch) {
 						return new ReferenceContent(
 							managedReferencesBehaviour, classifiers, entityFetch, null
@@ -413,8 +413,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 						.accept(stringValueTokenVisitor)
 						.asString();
 
-				final EntityRequire requirement = ofNullable(ctx.args.requirement)
-					.map(c -> visitChildConstraint(c, EntityRequire.class))
+				final EntityFetchRequire requirement = ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityFetchRequire.class))
 					.orElse(null);
 
 				if (requirement == null) {
@@ -484,8 +484,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
-				final EntityRequire requirement = ofNullable(ctx.args.requirement)
-					.map(c -> visitChildConstraint(c, EntityRequire.class))
+				final EntityFetchRequire requirement = ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityFetchRequire.class))
 					.orElse(null);
 
 				if (requirement == null) {
@@ -553,8 +553,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
-				final EntityRequire requirement = ofNullable(ctx.args.requirement)
-					.map(c -> visitChildConstraint(c, EntityRequire.class))
+				final EntityFetchRequire requirement = ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityFetchRequire.class))
 					.orElse(null);
 
 				if (requirement == null) {
@@ -624,8 +624,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
-				final EntityRequire requirement = ofNullable(ctx.args.requirement)
-					.map(c -> visitChildConstraint(c, EntityRequire.class))
+				final EntityFetchRequire requirement = ofNullable(ctx.args.requirement)
+					.map(c -> visitChildConstraint(c, EntityFetchRequire.class))
 					.orElse(null);
 
 				if (requirement == null) {
@@ -2024,21 +2024,21 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Nonnull
-	private EntityRequire[] parseFacetSummaryRequirementsArgs(@Nullable FacetSummaryRequirementsArgsContext ctx) {
+	private EntityFetchRequire[] parseFacetSummaryRequirementsArgs(@Nullable FacetSummaryRequirementsArgsContext ctx) {
 		if (ctx == null) {
-			return new EntityRequire[0];
+			return new EntityFetchRequire[0];
 		}
 		if (ctx.requirement != null) {
-			final EntityRequire requirement = visitChildConstraint(ctx.requirement, EntityRequire.class);
+			final EntityFetchRequire requirement = visitChildConstraint(ctx.requirement, EntityFetchRequire.class);
 			if (requirement instanceof final EntityFetch facetEntityRequirement) {
-				return new EntityRequire[]{facetEntityRequirement};
+				return new EntityFetchRequire[]{facetEntityRequirement};
 			} else if (requirement instanceof final EntityGroupFetch groupEntityRequirement) {
-				return new EntityRequire[]{groupEntityRequirement};
+				return new EntityFetchRequire[]{groupEntityRequirement};
 			} else {
 				throw new EvitaSyntaxException(ctx, "Unsupported requirement constraint.");
 			}
 		}
-		return new EntityRequire[]{
+		return new EntityFetchRequire[]{
 			visitChildConstraint(ctx.facetEntityRequirement, EntityFetch.class),
 			visitChildConstraint(ctx.groupEntityRequirement, EntityGroupFetch.class)
 		};

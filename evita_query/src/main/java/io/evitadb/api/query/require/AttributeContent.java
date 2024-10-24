@@ -31,17 +31,17 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -79,6 +79,8 @@ public class AttributeContent extends AbstractRequireConstraintLeaf
 	@Serial private static final long serialVersionUID = 869775256765143926L;
 	public static final AttributeContent ALL_ATTRIBUTES = new AttributeContent();
 	private static final String SUFFIX = "all";
+	private LinkedHashSet<String> attributeNamesAsSet;
+	private String[] attributeNames;
 
 	private AttributeContent(Serializable... arguments) {
 		super(arguments);
@@ -99,9 +101,10 @@ public class AttributeContent extends AbstractRequireConstraintLeaf
 	 */
 	@Nonnull
 	public String[] getAttributeNames() {
-		return Arrays.stream(getArguments())
-				.map(String.class::cast)
-				.toArray(String[]::new);
+		if (this.attributeNames == null) {
+			this.attributeNames = getAttributeNamesAsSet().toArray(String[]::new);
+		}
+		return this.attributeNames;
 	}
 
 	/**
@@ -109,9 +112,12 @@ public class AttributeContent extends AbstractRequireConstraintLeaf
 	 */
 	@Nonnull
 	public Set<String> getAttributeNamesAsSet() {
-		return Arrays.stream(getArguments())
-			.map(String.class::cast)
-			.collect(Collectors.toSet());
+		if (this.attributeNamesAsSet == null) {
+			this.attributeNamesAsSet = Arrays.stream(getArguments())
+				.map(String.class::cast)
+				.collect(Collectors.toCollection(LinkedHashSet::new));
+		}
+		return this.attributeNamesAsSet;
 	}
 
 	/**
@@ -132,23 +138,38 @@ public class AttributeContent extends AbstractRequireConstraintLeaf
 		return anotherRequirement instanceof AttributeContent;
 	}
 
+	@Override
+	public <T extends EntityContentRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
+		if (anotherRequirement instanceof AttributeContent anotherAttributeContent) {
+			if (anotherAttributeContent.isAllRequested()) {
+				return true;
+			} else if (!isAllRequested()) {
+				return anotherAttributeContent.getAttributeNamesAsSet().containsAll(getAttributeNamesAsSet());
+			}
+		}
+		return false;
+	}
+
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
-		Assert.isTrue(anotherRequirement instanceof AttributeContent, "Only Attributes requirement can be combined with this one!");
-		if (isAllRequested()) {
-			return (T) this;
-		} else if (((AttributeContent) anotherRequirement).isAllRequested()) {
-			return anotherRequirement;
+		if (anotherRequirement instanceof AttributeContent anotherAttributeContent) {
+			if (isAllRequested()) {
+				return (T) this;
+			} else if (anotherAttributeContent.isAllRequested()) {
+				return anotherRequirement;
+			} else {
+				final Set<String> attributeNamesAsSet = new LinkedHashSet<>(getAttributeNamesAsSet());
+				attributeNamesAsSet.addAll(anotherAttributeContent.getAttributeNamesAsSet());
+				return (T) new AttributeContent(
+					attributeNamesAsSet.toArray(String[]::new)
+				);
+			}
 		} else {
-			return (T) new AttributeContent(
-					Stream.concat(
-									Arrays.stream(getArguments()).map(String.class::cast),
-									Arrays.stream(anotherRequirement.getArguments()).map(String.class::cast)
-							)
-							.distinct()
-							.toArray(String[]::new)
+			throw new GenericEvitaInternalError(
+				"Only attributes requirement can be combined with this one - but got: " + anotherRequirement.getClass(),
+				"Only attributes requirement can be combined with this one!"
 			);
 		}
 	}
