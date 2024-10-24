@@ -1,1 +1,1 @@
-GET /rest/evita/entity/get?url=/en/macbook-pro-13-2022&locale=en&fetchAll=true
+GET /rest/evita/entity/get?url=/en/macbook-pro-13-2022&locale=en&attributeContentAll=true
