@@ -1705,7 +1705,7 @@ public class OffsetIndex {
 					final int startIndex = index >= 0 ? index : -index - 1;
 					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
 						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
-						diff += nonFlushedValueSet.getCountFor(recordTypeId);
+						diff += nonFlushedValueSet == null ? 0 : nonFlushedValueSet.getCountFor(recordTypeId);
 					}
 				}
 			}
@@ -1727,7 +1727,7 @@ public class OffsetIndex {
 						final int startIndex = index >= 0 ? index : -index - 1;
 						for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
 							final PastMemory differenceSet = hvValues.get(hv[ix]);
-							diff -= differenceSet.getCountFor(recordTypeId);
+							diff -= differenceSet == null ? 0 : differenceSet.getCountFor(recordTypeId);
 						}
 					}
 				}
@@ -2040,13 +2040,16 @@ public class OffsetIndex {
 		 * @return true if the non-flushed values contain the non-removed specified key, false otherwise
 		 */
 		public boolean contains(@Nonnull RecordKey key) {
-			for (int i = nonFlushedVersions.length - 1; i >= 0; i--) {
-				long nonFlushedVersion = nonFlushedVersions[i];
-				final NonFlushedValueSet nfSet = nonFlushedValues.get(nonFlushedVersion);
-				if (nfSet.removedKeys.contains(key)) {
-					return false;
-				} else if (nfSet.addedKeys.contains(key)) {
-					return true;
+			final long[] nv = this.nonFlushedVersions;
+			for (int i = nv.length - 1; i >= 0; i--) {
+				long nonFlushedVersion = nv[i];
+				final NonFlushedValueSet nfSet = this.nonFlushedValues.get(nonFlushedVersion);
+				if (nfSet != null) {
+					if (nfSet.removedKeys.contains(key)) {
+						return false;
+					} else if (nfSet.addedKeys.contains(key)) {
+						return true;
+					}
 				}
 			}
 			return false;
