@@ -31,6 +31,7 @@ import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.core.Evita;
 import io.evitadb.core.async.ObservableThreadExecutor;
 import io.evitadb.utils.CollectionUtils;
+import io.prometheus.metrics.core.metrics.Counter;
 import io.prometheus.metrics.core.metrics.Gauge;
 import io.prometheus.metrics.exporter.common.PrometheusScrapeHandler;
 import io.prometheus.metrics.model.registry.Collector;
@@ -68,17 +69,17 @@ public class PrometheusMetricsHttpService implements HttpService {
 	 * Runnable tasks that can be used to update these metrics.
 	 *
 	 * @param metricPrefix The prefix to use for the metric names.
-	 * @param tp The ThreadPoolExecutor to monitor.
+	 * @param tp           The ThreadPoolExecutor to monitor.
 	 * @return A stream of Runnables that update the metrics when executed.
 	 */
 	@Nonnull
 	private static Stream<Runnable> monitor(@Nonnull String metricPrefix, @Nonnull ThreadPoolExecutor tp) {
-		final Gauge completed = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+		final Counter completed = (Counter) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
 			metricPrefix + "executor_completed",
-			name -> Gauge.builder()
+			name -> Counter.builder()
 				.name(name)
-			.help("The approximate total number of tasks that have completed execution")
-			.unit(UNIT_TASKS)
+				.help("The approximate total number of tasks that have completed execution")
+				.unit(UNIT_TASKS)
 				.register()
 		);
 
@@ -86,8 +87,8 @@ public class PrometheusMetricsHttpService implements HttpService {
 			metricPrefix + "executor_active",
 			name -> Gauge.builder()
 				.name(name)
-			.help("The approximate number of threads that are actively executing tasks")
-			.unit(UNIT_THREADS)
+				.help("The approximate number of threads that are actively executing tasks")
+				.unit(UNIT_THREADS)
 				.register()
 		);
 
@@ -95,8 +96,8 @@ public class PrometheusMetricsHttpService implements HttpService {
 			metricPrefix + "executor_queued",
 			name -> Gauge.builder()
 				.name(name)
-			.help("The approximate number of tasks that are queued for execution")
-			.unit(UNIT_TASKS)
+				.help("The approximate number of tasks that are queued for execution")
+				.unit(UNIT_TASKS)
 				.register()
 		);
 
@@ -104,8 +105,8 @@ public class PrometheusMetricsHttpService implements HttpService {
 			metricPrefix + "executor_queue_remaining",
 			name -> Gauge.builder()
 				.name(name)
-			.help("The number of additional elements that this queue can ideally accept without blocking")
-			.unit(UNIT_TASKS)
+				.help("The number of additional elements that this queue can ideally accept without blocking")
+				.unit(UNIT_TASKS)
 				.register()
 		);
 
@@ -113,8 +114,8 @@ public class PrometheusMetricsHttpService implements HttpService {
 			metricPrefix + "executor_pool_size",
 			name -> Gauge.builder()
 				.name(name)
-			.help("The current number of threads in the pool")
-			.unit(UNIT_THREADS)
+				.help("The current number of threads in the pool")
+				.unit(UNIT_THREADS)
 				.register()
 		);
 
@@ -122,8 +123,8 @@ public class PrometheusMetricsHttpService implements HttpService {
 			metricPrefix + "executor_pool_core",
 			name -> Gauge.builder()
 				.name(name)
-			.help("The core number of threads for the pool")
-			.unit(UNIT_THREADS)
+				.help("The core number of threads for the pool")
+				.unit(UNIT_THREADS)
 				.register()
 		);
 
@@ -131,13 +132,13 @@ public class PrometheusMetricsHttpService implements HttpService {
 			metricPrefix + "executor_pool_max",
 			name -> Gauge.builder()
 				.name(name)
-			.help("The maximum allowed number of threads in the pool")
-			.unit(UNIT_THREADS)
+				.help("The maximum allowed number of threads in the pool")
+				.unit(UNIT_THREADS)
 				.register()
 		);
 
 		return Stream.of(
-			() -> completed.set(tp.getCompletedTaskCount()),
+			() -> completed.inc(tp.getCompletedTaskCount() - tp.getCompletedTaskCount()),
 			() -> active.set(tp.getActiveCount()),
 			() -> queued.set(tp.getQueue().size()),
 			() -> queueRemaining.set(tp.getQueue().remainingCapacity()),
@@ -152,55 +153,55 @@ public class PrometheusMetricsHttpService implements HttpService {
 	 * Runnable tasks that can be used to update these metrics.
 	 *
 	 * @param metricPrefix The prefix to use for the metric names.
-	 * @param fj The ForkJoinPool to monitor.
+	 * @param fj           The ForkJoinPool to monitor.
 	 * @return A stream of Runnables that update the metrics when executed.
 	 */
 	@Nonnull
 	private static Stream<Runnable> monitor(@Nonnull String metricPrefix, @Nonnull ForkJoinPool fj) {
-		final Gauge steals = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
+		final Counter steals = (Counter) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
 			metricPrefix + "executor_steals",
-			name -> Gauge.builder()
+			name -> Counter.builder()
 				.name(name)
-		.help(
-			"Estimate of the total number of tasks stolen from one thread's work queue by another. The reported value " +
-			"underestimates the actual total number of steals when the pool is not quiescent")
-		.unit(UNIT_TASKS)
+				.help(
+					"Estimate of the total number of tasks stolen from one thread's work queue by another. The reported value " +
+						"underestimates the actual total number of steals when the pool is not quiescent")
+				.unit(UNIT_TASKS)
 				.register()
 		);
 		final Gauge queued = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
 			metricPrefix + "executor_queued",
 			name -> Gauge.builder()
 				.name(name)
-		.help("An estimate of the total number of tasks currently held in queues by worker threads")
-		.unit(UNIT_TASKS)
+				.help("An estimate of the total number of tasks currently held in queues by worker threads")
+				.unit(UNIT_TASKS)
 				.register()
 		);
 		final Gauge active = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
 			metricPrefix + "executor_active",
 			name -> Gauge.builder()
 				.name(name)
-		.help("An estimate of the number of threads that are currently stealing or executing tasks")
-		.unit(UNIT_THREADS)
+				.help("An estimate of the number of threads that are currently stealing or executing tasks")
+				.unit(UNIT_THREADS)
 				.register()
 		);
 		final Gauge running = (Gauge) REGISTERED_THREAD_POOL_METRICS.computeIfAbsent(
 			metricPrefix + "executor_running",
 			name -> Gauge.builder()
 				.name(name)
-		.help(
-			"An estimate of the number of worker threads that are not blocked waiting to join tasks or for other managed" +
-				" synchronization threads"
-		)
-		.unit(UNIT_THREADS)
+				.help(
+					"An estimate of the number of worker threads that are not blocked waiting to join tasks or for other managed" +
+						" synchronization threads"
+				)
+				.unit(UNIT_THREADS)
 				.register()
 		);
 
-	return Stream.of(
-		() -> steals.set(fj.getStealCount()),
-		() -> queued.set(fj.getQueuedTaskCount()),
-		() -> active.set(fj.getActiveThreadCount()),
-		() -> running.set(fj.getRunningThreadCount())
-	);
+		return Stream.of(
+			() -> steals.inc(fj.getStealCount() - steals.get()),
+			() -> queued.set(fj.getQueuedTaskCount()),
+			() -> active.set(fj.getActiveThreadCount()),
+			() -> running.set(fj.getRunningThreadCount())
+		);
 	}
 
 	public PrometheusMetricsHttpService(@Nonnull Evita evita) {
