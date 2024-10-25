@@ -1138,5 +1138,4 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Nonnull
 	ProxyFactory getProxyFactory();
-
 }

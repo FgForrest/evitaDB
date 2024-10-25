@@ -144,6 +144,14 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 	void execute(@Nonnull Consumer<EvitaSessionContract> logic) throws TransactionException;
 
 	/**
+	 * Returns true if there is active method invocation in place. When method is running, it is not possible to
+	 * kill session due to inactivity.
+	 *
+	 * @return true if there is active method invocation in place
+	 */
+	boolean methodIsRunning();
+
+	/**
 	 * Retrieves a CompletableFuture that represents the finalization status of a session. If the catalog is in
 	 * transactional mode, the future will respect the requested {@link CommitBehavior} bound to the current transaction.
 	 *

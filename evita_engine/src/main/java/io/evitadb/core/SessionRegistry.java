@@ -68,6 +68,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -259,9 +260,22 @@ final class SessionRegistry {
 	 * supports JDK proxies out-of-the-box so this shouldn't be a problem in the future.
 	 */
 	private static class EvitaSessionProxy implements InvocationHandler {
+		private final static Method IS_METHOD_RUNNING;
+		private final static Method INACTIVITY_IN_SECONDS;
 		private final EvitaSession evitaSession;
 		private final TracingContext tracingContext;
 		@Getter private final ClosedEvent sessionClosedEvent;
+		private final AtomicInteger insideInvocation = new AtomicInteger(0);
+		private final AtomicLong lastCall = new AtomicLong(System.currentTimeMillis());
+
+		static {
+			try {
+				IS_METHOD_RUNNING = EvitaInternalSessionContract.class.getMethod("methodIsRunning");
+				INACTIVITY_IN_SECONDS = EvitaInternalSessionContract.class.getMethod("getInactivityDurationInSeconds");
+			} catch (NoSuchMethodException ex) {
+				throw new GenericEvitaInternalError("Method not found.", ex);
+			}
+		}
 
 		/**
 		 * Handles arguments printing.
@@ -311,6 +325,10 @@ final class SessionRegistry {
 					.finish((OffsetDateTime) args[0], (int) args[1])
 					.commit();
 				return null;
+			} else if (method.equals(INACTIVITY_IN_SECONDS)) {
+				return (System.currentTimeMillis() - this.lastCall.get()) / 1000;
+			} else if (method.equals(IS_METHOD_RUNNING)) {
+				return this.insideInvocation.get() > 0;
 			} else {
 				try {
 					this.evitaSession.increaseNestLevel();
@@ -320,6 +338,8 @@ final class SessionRegistry {
 						() -> {
 							final Supplier<Object> invocation = () -> {
 								try {
+									this.insideInvocation.incrementAndGet();
+									this.lastCall.set(System.currentTimeMillis());
 									return method.invoke(evitaSession, args);
 								} catch (InvocationTargetException ex) {
 									// handle the error
@@ -369,6 +389,9 @@ final class SessionRegistry {
 										"Unexpected system error occurred.",
 										ex
 									);
+								} finally {
+									this.insideInvocation.decrementAndGet();
+									this.lastCall.set(System.currentTimeMillis());
 								}
 							};
 							if (method.isAnnotationPresent(RepresentsQuery.class)) {
