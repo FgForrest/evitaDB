@@ -83,7 +83,8 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 			.intercept(new ObservabilityInterceptor())
 			.supportedSerializationFormats(GrpcSerializationFormats.values())
 			.enableHttpJsonTranscoding(true)
-			.enableUnframedRequests(true);
+			.enableUnframedRequests(true)
+			.useClientTimeoutHeader(true);
 
 		final CorsServiceBuilder corsBuilder = CorsService.builderForAnyOrigin()
 			.allowRequestMethods(HttpMethod.POST) // Allow POST method.
