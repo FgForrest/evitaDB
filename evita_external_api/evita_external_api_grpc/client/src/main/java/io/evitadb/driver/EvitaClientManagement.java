@@ -96,11 +96,11 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	/**
 	 * Created evita service stub.
 	 */
-	private final StubTimeoutProxy<EvitaManagementServiceStub> evitaManagementServiceStub;
+	private final EvitaManagementServiceStub evitaManagementServiceStub;
 	/**
 	 * Created evita service stub that returns futures.
 	 */
-	private final StubTimeoutProxy<EvitaManagementServiceFutureStub> evitaManagementServiceFutureStub;
+	private final EvitaManagementServiceFutureStub evitaManagementServiceFutureStub;
 
 	public EvitaClientManagement(@Nonnull EvitaClient evitaClient, @Nonnull GrpcClientBuilder grpcClientBuilder) {
 		this.evitaClient = evitaClient;
@@ -109,8 +109,8 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 			evitaClient.getConfiguration().trackedTaskLimit(),
 			2000
 		);
-		this.evitaManagementServiceStub = new StubTimeoutProxy<>(grpcClientBuilder.build(EvitaManagementServiceStub.class));
-		this.evitaManagementServiceFutureStub = new StubTimeoutProxy<>(grpcClientBuilder.build(EvitaManagementServiceFutureStub.class));
+		this.evitaManagementServiceStub = grpcClientBuilder.build(EvitaManagementServiceStub.class);
+		this.evitaManagementServiceFutureStub = grpcClientBuilder.build(EvitaManagementServiceFutureStub.class);
 	}
 
 	@Nonnull
@@ -513,7 +513,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		final Timeout timeout = this.evitaClient.timeout.get().peek();
 		try {
 			return lambda.apply(
-				this.evitaManagementServiceStub.get(timeout)
+				this.evitaManagementServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit())
 			);
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
@@ -543,7 +543,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	) {
 		final Timeout timeout = this.evitaClient.timeout.get().peek();
 		try {
-			return lambda.apply(this.evitaManagementServiceFutureStub.get(timeout))
+			return lambda.apply(this.evitaManagementServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
 				.get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
