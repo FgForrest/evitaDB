@@ -1759,8 +1759,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			final EvitaManagementContract management = evitaClient.management();
 			final Field evitaManagementServiceStub = management.getClass().getDeclaredField("evitaManagementServiceFutureStub");
 			evitaManagementServiceStub.setAccessible(true);
-			return ((StubTimeoutProxy<EvitaManagementServiceFutureStub>) evitaManagementServiceStub.get(management))
-				.get(evitaClient.timeout.get().peek());
+			return (EvitaManagementServiceFutureStub) evitaManagementServiceStub.get(management);
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);
 		}
