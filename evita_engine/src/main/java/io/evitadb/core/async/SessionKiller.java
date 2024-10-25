@@ -26,6 +26,7 @@ package io.evitadb.core.async;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.core.Evita;
+import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.core.metric.event.session.KilledEvent;
 import lombok.extern.slf4j.Slf4j;
 
@@ -76,8 +77,13 @@ public class SessionKiller implements Runnable {
 	public void run() {
 		try {
 			final AtomicInteger counter = new AtomicInteger(0);
-			evita.getActiveSessions()
-				.filter(session -> session.getInactivityDurationInSeconds() >= allowedInactivityInSeconds)
+			this.evita.getActiveSessions()
+				.map(EvitaInternalSessionContract.class::cast)
+				.filter(session -> {
+					final boolean sessionOld = session.getInactivityDurationInSeconds() >= this.allowedInactivityInSeconds;
+					final boolean methodRunning = session.methodIsRunning();
+					return sessionOld && !methodRunning;
+				})
 				.forEach(session -> {
 					try {
 						final String catalogName = session.getCatalogName();
@@ -91,6 +97,7 @@ public class SessionKiller implements Runnable {
 						evita.terminateSession(session);
 						counter.incrementAndGet();
 
+						log.info("Killed session " + session.getId() + " (" + this.allowedInactivityInSeconds + "s of inactivity).");
 						// emit the event
 						new KilledEvent(catalogName).commit();
 					} catch (InstanceTerminatedException ex) {

@@ -1218,14 +1218,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public Optional<UUID> getOpenedTransactionId() {
-		return ofNullable(transactionAccessor.get())
+		return ofNullable(this.transactionAccessor.get())
 			.filter(it -> !it.isClosed())
 			.map(Transaction::getTransactionId);
 	}
 
 	@Override
 	public boolean isRollbackOnly() {
-		return ofNullable(transactionAccessor.get())
+		return ofNullable(this.transactionAccessor.get())
 			.map(Transaction::isRollbackOnly)
 			.orElse(false);
 	}
@@ -1243,22 +1243,22 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public boolean isReadOnly() {
-		return !sessionTraits.isReadWrite();
+		return !this.sessionTraits.isReadWrite();
 	}
 
 	@Override
 	public boolean isBinaryFormat() {
-		return sessionTraits.isBinary();
+		return this.sessionTraits.isBinary();
 	}
 
 	@Override
 	public boolean isDryRun() {
-		return sessionTraits.isDryRun();
+		return this.sessionTraits.isDryRun();
 	}
 
 	@Override
 	public long getInactivityDurationInSeconds() {
-		return (System.currentTimeMillis() - lastCall) / 1000;
+		return (System.currentTimeMillis() - this.lastCall) / 1000;
 	}
 
 	@Interruptible
@@ -1333,6 +1333,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				return null;
 			}
 		);
+	}
+
+	@Override
+	public boolean methodIsRunning() {
+		return false;
 	}
 
 	/**
