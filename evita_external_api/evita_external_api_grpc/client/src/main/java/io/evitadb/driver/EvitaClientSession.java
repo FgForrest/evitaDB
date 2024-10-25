@@ -185,11 +185,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 	/**
 	 * Entity session service that works with futures.
 	 */
-	private final StubTimeoutProxy<EvitaSessionServiceFutureStub> evitaSessionServiceFutureStub;
+	private final EvitaSessionServiceFutureStub evitaSessionServiceFutureStub;
 	/**
 	 * Entity session service.
 	 */
-	private final StubTimeoutProxy<EvitaSessionServiceStub> evitaSessionServiceStub;
+	private final EvitaSessionServiceStub evitaSessionServiceStub;
 	/**
 	 * Contains reference to the catalog name targeted by queries / mutations from this session.
 	 */
@@ -294,8 +294,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = schemaCache.getProxyFactory();
 		this.schemaCache = schemaCache;
-		this.evitaSessionServiceFutureStub = new StubTimeoutProxy<>(grpcClientBuilder.build(EvitaSessionServiceFutureStub.class));
-		this.evitaSessionServiceStub = new StubTimeoutProxy<>(grpcClientBuilder.build(EvitaSessionServiceStub.class));
+		this.evitaSessionServiceFutureStub = grpcClientBuilder.build(EvitaSessionServiceFutureStub.class);
+		this.evitaSessionServiceStub = grpcClientBuilder.build(EvitaSessionServiceStub.class);
 		this.catalogName = catalogName;
 		this.catalogState = catalogState;
 		this.commitBehaviour = commitBehaviour;
@@ -1645,7 +1645,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final Timeout timeout = this.callTimeout.peek();
 		try {
 			SessionIdHolder.setSessionId(getId().toString());
-			return lambda.apply(this.evitaSessionServiceFutureStub.get(timeout))
+			return lambda.apply(this.evitaSessionServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
 				.get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
@@ -1680,7 +1680,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final Timeout timeout = this.callTimeout.peek();
 		try {
 			SessionIdHolder.setSessionId(getId().toString());
-			return lambda.apply(this.evitaSessionServiceStub.get(timeout));
+			return lambda.apply(this.evitaSessionServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()));
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),
