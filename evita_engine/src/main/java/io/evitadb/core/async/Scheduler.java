@@ -562,6 +562,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 							it.remove();
 						} else if (taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED) {
 							// if task is finished, remove it from the queue
+							log.info("Task {} is waiting for precondition for too long, removing it from the queue.", status.taskId());
 							it.remove();
 							// if its defense period hasn't perished add it to list, that might end up in the queue again
 							if (status.finished().isAfter(threshold)) {
