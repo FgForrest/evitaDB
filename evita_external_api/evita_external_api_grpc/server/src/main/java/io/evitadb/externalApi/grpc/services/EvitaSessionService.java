@@ -52,6 +52,7 @@ import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
+import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
@@ -73,6 +74,8 @@ import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionIntercepto
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.ArrayUtils;
+import io.grpc.Context;
+import io.grpc.Deadline;
 import io.grpc.Metadata;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
@@ -87,7 +90,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -125,17 +128,19 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	private static void executeWithClientContext(
 		@Nonnull Consumer<EvitaInternalSessionContract> lambda,
-		@Nonnull ExecutorService executor,
+		@Nonnull ObservableExecutorServiceWithHardDeadline executor,
 		@Nonnull StreamObserver<?> responseObserver
 	) {
+		// Retrieve the deadline from the context
+		final Deadline deadline = Context.current().getDeadline();
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
-		ExternalApiTracingContextProvider.getContext()
-			.executeWithinBlock(
-				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
-				metadata,
-				() -> {
-					final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
-					executor.execute(
+		final String methodName = GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata);
+		final Runnable theMethod =
+			() -> {
+				final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
+				executor.execute(
+					executor.createTask(
+						methodName,
 						() -> {
 							try {
 								lambda.accept(session);
@@ -143,9 +148,18 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 								// Delegate exception handling to GlobalExceptionHandlerInterceptor
 								GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
 							}
-						}
-					);
-				}
+						},
+						deadline == null ?
+							executor.getDefaultTimeoutInMilliseconds() : deadline.timeRemaining(TimeUnit.MILLISECONDS)
+					)
+				);
+			};
+
+		ExternalApiTracingContextProvider.getContext()
+			.executeWithinBlock(
+				methodName,
+				metadata,
+				theMethod
 			);
 	}
 
@@ -314,9 +328,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 							.setPrimaryKey(((EntityReference) e).getPrimaryKey())
 							.build())
 				);
-				entityBuilder.setRecordPage(dataChunkBuilder
-						.addAllEntityReferences(entityReferences)
-						.build()
+				entityBuilder.setRecordPage(
+						dataChunkBuilder
+							.addAllEntityReferences(entityReferences)
+							.build()
 					)
 					.build();
 			}

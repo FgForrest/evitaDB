@@ -54,7 +54,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.async.ClientRunnableTask;
-import io.evitadb.core.async.ObservableExecutorService;
+import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.core.async.ObservableThreadExecutor;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.async.SessionKiller;
@@ -165,12 +165,12 @@ public final class Evita implements EvitaContract {
 	 * Executor service that handles all requests to the Evita instance.
 	 */
 	@Getter
-	private final ObservableExecutorService requestExecutor;
+	private final ObservableExecutorServiceWithHardDeadline requestExecutor;
 	/**
 	 * Executor service that handles transaction handling, once transaction gets committed.
 	 */
 	@Getter
-	private final ObservableExecutorService transactionExecutor;
+	private final ObservableExecutorServiceWithHardDeadline transactionExecutor;
 	/**
 	 * Scheduler service for executing asynchronous service tasks.
 	 */

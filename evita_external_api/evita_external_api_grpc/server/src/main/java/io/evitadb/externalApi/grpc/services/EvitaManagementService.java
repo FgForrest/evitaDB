@@ -45,20 +45,16 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.api.system.ProbesProvider.ApiState;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
-import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
-import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.ClassifierUtils.Keyword;
 import io.evitadb.utils.UUIDUtil;
-import io.grpc.Metadata;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
@@ -75,7 +71,6 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
@@ -83,6 +78,7 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrp
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcHealthProblem;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcReadinessState;
+import static io.evitadb.externalApi.grpc.services.EvitaService.executeWithClientContext;
 import static io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor.sendErrorToClient;
 import static java.util.Optional.ofNullable;
 
@@ -105,35 +101,6 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 * Direct reference to {@link EvitaManagement} instance.
 	 */
 	@Nonnull private final EvitaManagement management;
-
-	/**
-	 * Executes entire lambda function within the scope of a tracing context.
-	 *
-	 * @param lambda   lambda function to be executed
-	 * @param executor executor service to be used as a carrier for a lambda function
-	 */
-	private static void executeWithClientContext(
-		@Nonnull Runnable lambda,
-		@Nonnull ExecutorService executor,
-		@Nonnull StreamObserver<?> responseObserver
-	) {
-		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
-		ExternalApiTracingContextProvider.getContext()
-			.executeWithinBlock(
-				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
-				metadata,
-				() -> executor.execute(
-					() -> {
-						try {
-							lambda.run();
-						} catch (RuntimeException exception) {
-							// Delegate exception handling to GlobalExceptionHandlerInterceptor
-							sendErrorToClient(exception, responseObserver);
-						}
-					}
-				)
-			);
-	}
 
 	/**
 	 * Deletes temporary file if it exists.
