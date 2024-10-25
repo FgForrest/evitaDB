@@ -558,9 +558,9 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 						final TaskSimplifiedState taskState = status.simplifiedState();
 						if (taskState == TaskSimplifiedState.WAITING_FOR_PRECONDITION && status.created().isBefore(waitingThreshold)) {
 							// if task is waiting for precondition and its issued time is older than the threshold, remove it
+							log.info("Task {} is waiting for precondition for too long, removing it from the queue.", status.taskId());
 							it.remove();
 						} else if (taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED) {
-							// if task is finished, remove it from the queue
 							it.remove();
 							// if its defense period hasn't perished add it to list, that might end up in the queue again
 							if (status.finished().isAfter(threshold)) {

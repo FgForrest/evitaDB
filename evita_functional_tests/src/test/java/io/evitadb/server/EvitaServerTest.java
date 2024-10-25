@@ -341,7 +341,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				evitaClientBadPort.getCatalogNames();
 				fail("gRPC call should have failed on bad port!");
 			} catch (Exception ex) {
-				assertEquals("io.grpc.StatusRuntimeException: UNIMPLEMENTED: HTTP status code 404", ex.getCause().getMessage());
+				assertEquals("UNIMPLEMENTED: HTTP status code 404", ex.getMessage());
 			}
 
 			final EvitaClient evitaClientBadScheme = new EvitaClient(
@@ -356,7 +356,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				evitaClientBadScheme.getCatalogNames();
 				fail("gRPC call should have failed on bad scheme!");
 			} catch (Exception ex) {
-				assertEquals("io.grpc.StatusRuntimeException: UNAVAILABLE", ex.getCause().getMessage());
+				assertEquals("UNAVAILABLE", ex.getMessage());
 			}
 
 			// we should be able to access gRCP via correct scheme and port

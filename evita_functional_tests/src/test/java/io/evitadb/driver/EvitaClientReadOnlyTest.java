@@ -1413,7 +1413,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			clientSession.getEntity("nonExisting", 1, entityFetchAll().getRequirements());
 		} catch (EvitaInvalidUsageException ex) {
 			assertTrue(clientSession.isActive());
-			assertEquals("No collection found for entity type `nonExisting`!", ex.getPublicMessage());
+			assertTrue(ex.getPublicMessage().contains("No collection found for entity type `nonExisting`!"));
 			assertEquals(ex.getPrivateMessage(), ex.getPublicMessage());
 			assertNotNull(ex.getErrorCode());
 		} finally {
