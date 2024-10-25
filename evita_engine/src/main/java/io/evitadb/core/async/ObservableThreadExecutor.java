@@ -47,7 +47,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class ObservableThreadExecutor implements ObservableExecutorService {
+public class ObservableThreadExecutor implements ObservableExecutorServiceWithHardDeadline {
 	private static final int BUFFER_CAPACITY = 512;
 	/**
 	 * Buffer used for purging finished tasks.
@@ -131,6 +131,11 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 	@Nonnull
 	public ForkJoinPool getForkJoinPoolInternal() {
 		return forkJoinPool;
+	}
+
+	@Override
+	public long getDefaultTimeoutInMilliseconds() {
+		return this.timeoutInMilliseconds;
 	}
 
 	@Override
@@ -357,6 +362,7 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 							// if task is running / waiting longer than the threshold, cancel it and remove it from the queue
 							if (task.isTimedOut(threshold)) {
 								timedOutTasks++;
+								log.info("Cancelling timed out task: {}", task);
 								task.cancel();
 								it.remove();
 							} else {
@@ -409,10 +415,76 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 
 	}
 
+	@Override
+	@Nonnull
+	public Runnable createTask(@Nonnull String name, @Nonnull Runnable lambda) {
+		return new ObservableRunnable(name, lambda, this.timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public Runnable createTask(@Nonnull Runnable lambda) {
+		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+		return new ObservableRunnable(
+			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
+			lambda, this.timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public Runnable createTask(@Nonnull String name, @Nonnull Runnable lambda, long timeoutInMilliseconds) {
+		return new ObservableRunnable(name, lambda, timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public Runnable createTask(@Nonnull Runnable lambda, long timeoutInMilliseconds) {
+		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+		return new ObservableRunnable(
+			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
+			lambda, timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public <V> Callable<V> createTask(@Nonnull String name, @Nonnull Callable<V> lambda) {
+		return new ObservableCallable<>(name, lambda, this.timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public <V> Callable<V> createTask(@Nonnull Callable<V> lambda) {
+		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+		return new ObservableCallable<>(
+			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
+			lambda, this.timeoutInMilliseconds
+		);
+	}
+
+	@Override
+	@Nonnull
+	public <V> Callable<V> createTask(@Nonnull String name, @Nonnull Callable<V> lambda, long timeoutInMilliseconds) {
+		return new ObservableCallable<>(name, lambda, timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public <V> Callable<V> createTask(@Nonnull Callable<V> lambda, long timeoutInMilliseconds) {
+		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+		return new ObservableCallable<>(
+			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
+			lambda, timeoutInMilliseconds
+		);
+	}
+
 	/**
 	 * Wrapper around a {@link Runnable} that implements the {@link ObservableTask} interface.
 	 */
 	private static class ObservableRunnable implements Runnable, ObservableTask {
+		/**
+		 * Name / description of the task.
+		 */
+		private final String name;
 		/**
 		 * Delegate runnable that is being wrapped.
 		 */
@@ -427,6 +499,14 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 		private final CompletableFuture<Void> future = new CompletableFuture<>();
 
 		public ObservableRunnable(@Nonnull Runnable delegate, long timeoutInMilliseconds) {
+			final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+			this.name = stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown";
+			this.delegate = delegate;
+			this.timedOutAt = System.currentTimeMillis() + timeoutInMilliseconds;
+		}
+
+		public ObservableRunnable(@Nonnull String name, @Nonnull Runnable delegate, long timeoutInMilliseconds) {
+			this.name = name;
 			this.delegate = delegate;
 			this.timedOutAt = System.currentTimeMillis() + timeoutInMilliseconds;
 		}
@@ -457,6 +537,11 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 				throw e;
 			}
 		}
+
+		@Override
+		public String toString() {
+			return this.name;
+		}
 	}
 
 	/**
@@ -464,6 +549,10 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 	 * @param <V> the type of the result
 	 */
 	private static class ObservableCallable<V> implements Callable<V>, ObservableTask {
+		/**
+		 * Name / description of the task.
+		 */
+		private final String name;
 		/**
 		 * Delegate callable that is being wrapped.
 		 */
@@ -478,6 +567,14 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 		private final CompletableFuture<V> future = new CompletableFuture<>();
 
 		public ObservableCallable(@Nonnull Callable<V> delegate, long timeout) {
+			final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+			this.name = stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown";
+			this.delegate = delegate;
+			this.timedOutAt = System.currentTimeMillis() + timeout;
+		}
+
+		public ObservableCallable(@Nonnull String name, @Nonnull Callable<V> delegate, long timeout) {
+			this.name = name;
 			this.delegate = delegate;
 			this.timedOutAt = System.currentTimeMillis() + timeout;
 		}
@@ -508,6 +605,11 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 				ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
 				throw e;
 			}
+		}
+
+		@Override
+		public String toString() {
+			return this.name;
 		}
 	}
 
