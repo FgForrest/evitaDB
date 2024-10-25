@@ -54,6 +54,7 @@ import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaManagement;
+import io.evitadb.core.async.SessionKiller;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.CatalogCorruptedException;
@@ -88,6 +89,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -558,7 +560,7 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldKillInactiveSessionsAutomatically() {
+	void shouldKillInactiveSessionsAutomatically() throws NoSuchFieldException, IllegalAccessException {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			it -> {
@@ -581,9 +583,14 @@ class EvitaTest implements EvitaTestSupport {
 			assertNotNull(sessionActive.getCatalogSchema());
 		} while (!(System.currentTimeMillis() - start > 2000));
 
+		final Field sessionKillerField = Evita.class.getDeclaredField("sessionKiller");
+		sessionKillerField.setAccessible(true);
+		final SessionKiller sessionKiller = (SessionKiller) sessionKillerField.get(this.evita);
+		sessionKiller.run();
+
 		assertFalse(sessionInactive.isActive());
 		assertTrue(sessionActive.isActive());
-		assertEquals(1L, evita.getActiveSessions().count());
+		assertEquals(1L, this.evita.getActiveSessions().count());
 	}
 
 	@Test
