@@ -86,7 +86,6 @@ import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -108,8 +107,6 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.Modif
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.grpc.ClientCall;
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
 import io.grpc.stub.ClientCalls;
 import io.grpc.stub.StreamObserver;
 import lombok.EqualsAndHashCode;
@@ -135,7 +132,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -144,7 +140,6 @@ import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.extractEntityTypeFromClass;
-import static io.evitadb.driver.EvitaClient.ERROR_MESSAGE_PATTERN;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toTaskStatus;
@@ -190,11 +185,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 	/**
 	 * Entity session service that works with futures.
 	 */
-	private final EvitaSessionServiceFutureStub evitaSessionServiceFutureStub;
+	private final StubTimeoutProxy<EvitaSessionServiceFutureStub> evitaSessionServiceFutureStub;
 	/**
 	 * Entity session service.
 	 */
-	private final EvitaSessionServiceStub evitaSessionServiceStub;
+	private final StubTimeoutProxy<EvitaSessionServiceStub> evitaSessionServiceStub;
 	/**
 	 * Contains reference to the catalog name targeted by queries / mutations from this session.
 	 */
@@ -299,8 +294,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = schemaCache.getProxyFactory();
 		this.schemaCache = schemaCache;
-		this.evitaSessionServiceFutureStub = grpcClientBuilder.build(EvitaSessionServiceFutureStub.class);
-		this.evitaSessionServiceStub = grpcClientBuilder.build(EvitaSessionServiceStub.class);
+		this.evitaSessionServiceFutureStub = new StubTimeoutProxy<>(grpcClientBuilder.build(EvitaSessionServiceFutureStub.class));
+		this.evitaSessionServiceStub = new StubTimeoutProxy<>(grpcClientBuilder.build(EvitaSessionServiceStub.class));
 		this.catalogName = catalogName;
 		this.catalogState = catalogState;
 		this.commitBehaviour = commitBehaviour;
@@ -1647,23 +1642,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private <T> T executeWithBlockingEvitaSessionService(
 		@Nonnull AsyncCallFunction<EvitaSessionServiceFutureStub, ListenableFuture<T>> lambda
 	) {
-		final Timeout timeout = callTimeout.peek();
+		final Timeout timeout = this.callTimeout.peek();
 		try {
-			return executeWithEvitaSessionService(
-				lambda, this.evitaSessionServiceFutureStub.withDeadlineAfter(
-					timeout.timeout(), timeout.timeoutUnit()
-				)
-			).get(timeout.timeout(), timeout.timeoutUnit());
+			SessionIdHolder.setSessionId(getId().toString());
+			return lambda.apply(this.evitaSessionServiceFutureStub.get(timeout))
+				.get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
-			if (e.getCause() instanceof EvitaInvalidUsageException invalidUsageException) {
-				throw invalidUsageException;
-			} else if (e.getCause() instanceof EvitaInternalError internalError) {
-				throw internalError;
-			} else if (e.getCause() instanceof StatusRuntimeException statusRuntimeException) {
-				throw transformStatusRuntimeException(statusRuntimeException);
-			} else {
-				throw new EvitaClientServerCallException("Server call failed.", e.getCause());
-			}
+			throw EvitaClient.transformException(
+				e.getCause() == null ? e : e.getCause(),
+				() -> {
+					// close session and rethrow
+					final CompletableFuture<Long> future = closeInternally();
+					future.complete(0L);
+				}
+			);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new EvitaClientServerCallException("Server call interrupted.", e);
@@ -1671,87 +1663,42 @@ public class EvitaClientSession implements EvitaSessionContract {
 			throw new EvitaClientTimedOutException(
 				timeout.timeout(), timeout.timeoutUnit()
 			);
-		}
-	}
-
-	/**
-	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
-	 * from a channel pool.
-	 *
-	 * @param lambda function that holds a logic passed by the caller
-	 */
-	private void executeWithAsyncEvitaSessionService(
-		@Nonnull AsyncCallFunction<EvitaSessionServiceStub, Void> lambda
-	) {
-		executeWithEvitaSessionService(
-			lambda, this.evitaSessionServiceStub
-		);
-	}
-
-	/**
-	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
-	 * from a channel pool.
-	 *
-	 * @param lambda function that holds a logic passed by the caller
-	 * @param <T>    return type of the function
-	 * @param <S>    type of the expected stub
-	 * @return result of the applied function
-	 */
-	private <S, T> T executeWithEvitaSessionService(
-		@Nonnull AsyncCallFunction<S, T> lambda, @Nonnull S stub
-	) {
-		try {
-			SessionIdHolder.setSessionId(getId().toString());
-			return lambda.apply(stub);
-		} catch (StatusRuntimeException statusRuntimeException) {
-			throw transformStatusRuntimeException(statusRuntimeException);
-		} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
-			throw evitaError;
-		} catch (Throwable e) {
-			log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
-			throw new GenericEvitaInternalError(
-				"Unexpected internal Evita error occurred: " + e.getMessage(),
-				"Unexpected internal Evita error occurred.",
-				e
-			);
 		} finally {
 			SessionIdHolder.reset();
 		}
 	}
 
 	/**
-	 * Handles a {@link StatusRuntimeException} by checking the status code and performing appropriate actions.
+	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
+	 * from a channel pool.
 	 *
-	 * @param statusRuntimeException the {@link StatusRuntimeException} to handle
+	 * @param lambda function that holds a logic passed by the caller
 	 */
-	@Nonnull
-	private RuntimeException transformStatusRuntimeException(@Nonnull StatusRuntimeException statusRuntimeException) {
-		final Code statusCode = statusRuntimeException.getStatus().getCode();
-		final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
-			.orElse("No description.");
-		if (statusCode == Code.UNAUTHENTICATED) {
-			// close session and rethrow
-			final CompletableFuture<Long> future = closeInternally();
-			future.complete(0L);
-			return new InstanceTerminatedException("session");
-		} else if (statusCode == Code.INVALID_ARGUMENT) {
-			final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-			if (expectedFormat.matches()) {
-				return EvitaInvalidUsageException.createExceptionWithErrorCode(
-					expectedFormat.group(2), expectedFormat.group(1)
-				);
-			} else {
-				return new EvitaInvalidUsageException(description);
-			}
-		} else {
-			final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
-			if (expectedFormat.matches()) {
-				return GenericEvitaInternalError.createExceptionWithErrorCode(
-					expectedFormat.group(2), expectedFormat.group(1)
-				);
-			} else {
-				return new GenericEvitaInternalError(description);
-			}
+	private <T> T executeWithAsyncEvitaSessionService(
+		@Nonnull AsyncCallFunction<EvitaSessionServiceStub, T> lambda
+	) {
+		final Timeout timeout = this.callTimeout.peek();
+		try {
+			SessionIdHolder.setSessionId(getId().toString());
+			return lambda.apply(this.evitaSessionServiceStub.get(timeout));
+		} catch (ExecutionException e) {
+			throw EvitaClient.transformException(
+				e.getCause() == null ? e : e.getCause(),
+				() -> {
+					// close session and rethrow
+					final CompletableFuture<Long> future = closeInternally();
+					future.complete(0L);
+				}
+			);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new EvitaClientServerCallException("Server call interrupted.", e);
+		} catch (TimeoutException e) {
+			throw new EvitaClientTimedOutException(
+				timeout.timeout(), timeout.timeoutUnit()
+			);
+		} finally {
+			SessionIdHolder.reset();
 		}
 	}
 
