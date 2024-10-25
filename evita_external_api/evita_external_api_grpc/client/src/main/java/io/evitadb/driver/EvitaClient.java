@@ -125,7 +125,7 @@ public class EvitaClient implements EvitaContract {
 	/**
 	 * Created evita service stub that returns futures.
 	 */
-	private final StubTimeoutProxy<EvitaServiceFutureStub> evitaServiceFutureStub;
+	private final EvitaServiceFutureStub evitaServiceFutureStub;
 	/**
 	 * The configuration of the evitaDB client.
 	 */
@@ -311,7 +311,7 @@ public class EvitaClient implements EvitaContract {
 
 		ofNullable(grpcConfigurator).ifPresent(it -> it.accept(grpcClientBuilder));
 		this.grpcClientBuilder = grpcClientBuilder;
-		this.evitaServiceFutureStub = new StubTimeoutProxy<>(grpcClientBuilder.build(EvitaServiceFutureStub.class));
+		this.evitaServiceFutureStub = grpcClientBuilder.build(EvitaServiceFutureStub.class);
 		this.reflectionLookup = new ReflectionLookup(configuration.reflectionLookupBehaviour());
 		this.timeout = ThreadLocal.withInitial(() -> {
 			final LinkedList<Timeout> timeouts = new LinkedList<>();
@@ -789,7 +789,7 @@ public class EvitaClient implements EvitaContract {
 	) {
 		final Timeout timeout = this.timeout.get().peek();
 		try {
-			return lambda.apply(this.evitaServiceFutureStub.get(timeout))
+			return lambda.apply(this.evitaServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
 				.get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
