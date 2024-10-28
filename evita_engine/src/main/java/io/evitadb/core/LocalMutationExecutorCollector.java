@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
@@ -43,6 +44,7 @@ import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.EntityCollectionPersistenceService.EntityWithFetchCount;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -136,7 +138,7 @@ class LocalMutationExecutorCollector {
 	 * the entity was updated, otherwise null.
 	 */
 	@Nullable
-	public EntityWithFetchCount execute(
+	public <T> T execute(
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityMutation entityMutation,
 		boolean checkConsistency,
@@ -144,7 +146,8 @@ class LocalMutationExecutorCollector {
 		@Nonnull IntBiFunction<EvitaRequest, EntityWithFetchCount> entityFetcher,
 		@Nonnull ContainerizedLocalMutationExecutor changeCollector,
 		@Nonnull EntityIndexLocalMutationExecutor entityIndexUpdater,
-		@Nullable EvitaRequest requestUpdatedEntity
+		@Nullable EvitaRequest requestUpdatedEntity,
+		@Nonnull Class<T> requestedResultType
 	) {
 		// first register all mutation applicators and mutations to the internal state
 		this.executors.add(entityIndexUpdater);
@@ -200,7 +203,8 @@ class LocalMutationExecutorCollector {
 							serverEntityMutation.shouldVerifyConsistency(),
 							null,
 							serverEntityMutation.getImplicitMutationsBehavior(),
-							this
+							this,
+							Void.class
 						);
 				}
 			}
@@ -226,17 +230,29 @@ class LocalMutationExecutorCollector {
 			throw this.exception;
 		}
 
-		if (requestUpdatedEntity != null) {
-			return result == null ?
-				this.persistenceService.toEntity(
-					this.catalog.getVersion(),
-					changeCollector.getEntityPrimaryKey(),
-					requestUpdatedEntity,
-					entitySchema,
-					this.dataStoreReader,
-					changeCollector.getEntityStorageParts()
-				) :
-				result;
+		if (requestedResultType.equals(EntityWithFetchCount.class)) {
+			Assert.isPremiseValid(
+				requestUpdatedEntity != null,
+				"Requested result type is EntityWithFetchCount, but requestUpdatedEntity is null!"
+			);
+			//noinspection unchecked
+			return (T) (
+				result == null ?
+					this.persistenceService.toEntity(
+						this.catalog.getVersion(),
+						changeCollector.getEntityPrimaryKey(),
+						requestUpdatedEntity,
+						entitySchema,
+						this.dataStoreReader,
+						changeCollector.getEntityStorageParts()
+					) :
+					result
+			);
+		} else if (requestedResultType.equals(EntityReference.class)) {
+			//noinspection unchecked
+			return (T) new EntityReference(
+				entitySchema.getName(), changeCollector.getEntityPrimaryKey()
+			);
 		} else {
 			return null;
 		}

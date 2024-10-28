@@ -55,6 +55,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMut
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -162,14 +163,15 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	@Nonnull
 	private static Set<AttributeKey> collectAttributeKeys(@Nullable AttributesStoragePart storagePart) {
-		return Arrays.stream(
-				ofNullable(storagePart)
-					.map(AttributesStoragePart::getAttributes)
-					.orElse(EMPTY_ATTRIBUTES)
+		return ofNullable(storagePart)
+			.map(AttributesStoragePart::getAttributes)
+			.map(
+				it -> Arrays.stream(it)
+					.filter(Droppable::exists)
+					.map(AttributeValue::key)
+					.collect(Collectors.toSet())
 			)
-			.filter(Droppable::exists)
-			.map(AttributeValue::key)
-			.collect(Collectors.toSet());
+			.orElse(Collections.emptySet());
 	}
 
 	/**
@@ -296,10 +298,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				part.getClass()
 			)
 			: (catalogVersion, part) -> this.dataStoreUpdater.removeByPrimaryKey(
-				catalogVersion,
-				part.getStoragePartPK(),
-				part.getClass()
-			);
+			catalogVersion,
+			part.getStoragePartPK(),
+			part.getClass()
+		);
 		final BiConsumer<Long, StoragePart> updater = this.trapChanges ?
 			this.dataStoreUpdater::trapUpdate : this.dataStoreUpdater::update;
 		// now store all dirty containers
@@ -454,8 +456,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * entity.
 	 *
 	 * @return an array of {@link EntityStoragePart} consisting of the entity container,
-	 *         global attributes storage container, language-specific attributes container,
-	 *         prices container, references storage container, and associated data containers.
+	 * global attributes storage container, language-specific attributes container,
+	 * prices container, references storage container, and associated data containers.
 	 */
 	@Nonnull
 	public EntityStoragePart[] getEntityStorageParts() {
@@ -476,6 +478,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 	/**
 	 * Returns entity primary key of the updated container.
+	 *
 	 * @return entity primary key
 	 */
 	public int getEntityPrimaryKey() {
@@ -625,7 +628,16 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		boolean checkLocalized,
 		@Nonnull MutationCollector mutationCollector
 	) throws MandatoryAttributesNotProvidedException {
+		if (!checkGlobal && !checkLocalized) {
+			return;
+		}
 		final EntitySchema entitySchema = schemaAccessor.get();
+		final Collection<EntityAttributeSchemaContract> nonNullableOrDefaultValueAttributes =
+			entitySchema.getNonNullableOrDefaultValueAttributes();
+		if (nonNullableOrDefaultValueAttributes.isEmpty()) {
+			return;
+		}
+
 		final Set<AttributeKey> availableGlobalAttributes = checkGlobal ?
 			collectAttributeKeys(this.globalAttributesStorageContainer) : Collections.emptySet();
 		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
@@ -635,7 +647,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				.collect(
 					Collectors.toMap(
 						Function.identity(),
-						it -> collectAttributeKeys(getAttributeStoragePart(entityType, entityPrimaryKey, it))
+						it -> collectAttributeKeys(getAttributeStoragePart(this.entityType, this.entityPrimaryKey, it))
 					)
 				) : Collections.emptyMap();
 
@@ -651,8 +663,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			}
 		};
 
-		entitySchema
-			.getNonNullableOrDefaultValueAttributes()
+		nonNullableOrDefaultValueAttributes
 			.forEach(attribute -> {
 				final Serializable defaultValue = attribute.getDefaultValue();
 				if (checkLocalized && attribute.isLocalized()) {
@@ -1201,34 +1212,24 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	private void verifyMandatoryAssociatedData(@Nonnull EntityBodyStoragePart entityStorageContainer) throws MandatoryAssociatedDataNotProvidedException {
 		final EntitySchema entitySchema = schemaAccessor.get();
-		final Set<AssociatedDataKey> availableAssociatedDataKeys = entityContainer.getAssociatedDataKeys();
-		final Set<AssociatedDataKey> availableGlobalAssociatedDataKeys = availableAssociatedDataKeys
-			.stream()
-			.filter(it -> it.locale() == null)
-			.collect(Collectors.toSet());
-		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
-		final Map<Locale, Set<AssociatedDataKey>> availableLocalizedAssociatedDataKeys = entityLocales
-			.stream()
-			.collect(
-				Collectors.toMap(
-					Function.identity(),
-					it -> availableAssociatedDataKeys.stream()
-						.filter(key -> Objects.equals(it, key.locale()))
-						.collect(Collectors.toSet())
-				)
-			);
+		final Collection<AssociatedDataSchema> nonNullableAssociatedData = entitySchema.getNonNullableAssociatedData();
+		if (nonNullableAssociatedData.isEmpty()) {
+			return;
+		}
 
-		final List<AssociatedDataKey> missingMandatedAssociatedData = entitySchema.getNonNullableAssociatedData()
+		final Set<AssociatedDataKey> availableAssociatedDataKeys = entityContainer.getAssociatedDataKeys();
+		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
+
+		final List<AssociatedDataKey> missingMandatedAssociatedData = nonNullableAssociatedData
 			.stream()
 			.flatMap(associatedData -> {
 				if (associatedData.isLocalized()) {
 					return entityLocales.stream()
 						.map(locale -> new AssociatedDataKey(associatedData.getName(), locale))
-						.flatMap(key -> ofNullable(availableLocalizedAssociatedDataKeys.get(key.locale()))
-							.map(it -> it.contains(key)).orElse(false) ? Stream.empty() : Stream.of(key));
+						.flatMap(key -> availableAssociatedDataKeys.contains(key) ? Stream.empty() : Stream.of(key));
 				} else {
 					final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedData.getName());
-					return availableGlobalAssociatedDataKeys.contains(associatedDataKey) ? Stream.empty() : Stream.of(associatedDataKey);
+					return availableAssociatedDataKeys.contains(associatedDataKey) ? Stream.empty() : Stream.of(associatedDataKey);
 				}
 			})
 			.toList();
@@ -1274,8 +1275,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	private void verifyReferenceCardinalities(@Nullable ReferencesStoragePart referencesStorageContainer) throws ReferenceCardinalityViolatedException {
 		final EntitySchemaContract entitySchema = schemaAccessor.get();
-		final List<CardinalityViolation> violations = entitySchema
-			.getReferences()
+		final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+		if (references.isEmpty()) {
+			return;
+		}
+		final List<CardinalityViolation> violations = references
 			.values()
 			.stream()
 			.flatMap(it -> {
@@ -1286,11 +1290,17 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					return switch (it.getCardinality()) {
 						case ZERO_OR_MORE -> Stream.empty();
 						case ZERO_OR_ONE ->
-							referenceCount <= 1 ? Stream.empty() : Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
+							referenceCount <= 1 ?
+								Stream.empty() :
+								Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
 						case ONE_OR_MORE ->
-							referenceCount >= 1 ? Stream.empty() : Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
+							referenceCount >= 1 ?
+								Stream.empty() :
+								Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
 						case EXACTLY_ONE ->
-							referenceCount == 1 ? Stream.empty() : Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
+							referenceCount == 1 ?
+								Stream.empty() :
+								Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
 					};
 				} else {
 					return Stream.empty();
@@ -1467,7 +1477,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	private void updatePrices(@Nonnull EntitySchemaContract entitySchema, @Nonnull SetPriceInnerRecordHandlingMutation localMutation) {
 		// get or create prices container
-		final PricesStoragePart pricesStorageContainer = getPriceStoragePart(entityType, entityPrimaryKey);
+		final PricesStoragePart pricesStorageContainer = getPriceStoragePart(this.entityType, this.entityPrimaryKey);
 		// update price inner record handling in it - we have to mock the Prices virtual container for this operation
 		final PricesContract mutatedPrices = localMutation.mutateLocal(
 			entitySchema,
@@ -1481,7 +1491,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		pricesStorageContainer.setPriceInnerRecordHandling(mutatedPrices.getPriceInnerRecordHandling());
 		// change in entity parts also change the entity itself (we need to update the version)
 		if (pricesStorageContainer.isDirty()) {
-			getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);
+			getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);
 		}
 	}
 

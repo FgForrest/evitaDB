@@ -994,7 +994,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	@Nonnull
 	public CatalogSchema getInternalSchema() {
-		return schema.get().getDelegate();
+		return this.schema.get().getDelegate();
 	}
 
 	/**

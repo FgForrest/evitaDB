@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMut
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
@@ -57,6 +58,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -433,6 +435,11 @@ public interface AttributeIndexMutator {
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final SortableAttributeCompoundSchemaProvider<?> compoundProvider = getSortableAttributeCompoundSchemaProvider(entitySchema, referenceKey);
+		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = compoundProvider.getSortableAttributeCompounds();
+		if (sortableAttributeCompounds.isEmpty()) {
+			return;
+		}
+
 		final Function<String, AttributeSchema> attributeSchemaProvider = attributeName -> compoundProvider.getAttribute(attributeName)
 			.map(AttributeSchema.class::cast)
 			.orElse(null);
@@ -441,7 +448,7 @@ public interface AttributeIndexMutator {
 			entityStoragePartAccessor, entitySchema.getName(), entityPrimaryKey
 		);
 
-		final Stream<SortableAttributeCompoundSchema> allCompounds = compoundProvider.getSortableAttributeCompounds()
+		final Stream<SortableAttributeCompoundSchema> allCompounds = sortableAttributeCompounds
 			.values()
 			.stream()
 			// we retrieve schemas from EntitySchema, so we can safely cast them here
