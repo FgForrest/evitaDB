@@ -502,10 +502,10 @@ public class InitialEntityBuilder implements EntityBuilder {
 				getPrimaryKey(),
 				EntityExistence.MUST_NOT_EXIST,
 				Stream.of(
-						ofNullable(parent)
+						ofNullable(this.parent)
 							.map(SetParentMutation::new)
 							.stream(),
-						references.values()
+						this.references.values()
 							.stream()
 							.flatMap(it -> Stream.concat(
 									Stream.of(
@@ -524,19 +524,19 @@ public class InitialEntityBuilder implements EntityBuilder {
 										)
 								)
 							),
-						attributesBuilder
+						this.attributesBuilder
 							.getAttributeValues()
 							.stream()
 							.filter(it -> it.value() != null)
 							.map(it -> new UpsertAttributeMutation(it.key(), it.value())),
-						associatedDataBuilder
+						this.associatedDataBuilder
 							.getAssociatedDataValues()
 							.stream()
 							.map(it -> new UpsertAssociatedDataMutation(it.key(), it.value())),
 						Stream.of(
-							new SetPriceInnerRecordHandlingMutation(pricesBuilder.getPriceInnerRecordHandling())
+							new SetPriceInnerRecordHandlingMutation(this.pricesBuilder.getPriceInnerRecordHandling())
 						),
-						pricesBuilder
+						this.pricesBuilder
 							.getPrices()
 							.stream()
 							.map(it -> new UpsertPriceMutation(it.priceKey(), it))

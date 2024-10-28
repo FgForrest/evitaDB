@@ -566,21 +566,11 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		if (entityMutation.getEntityPrimaryKey() == null) {
-			final EntityWithFetchCount entityWithFetchCount = upsertEntityInternal(
-				entityMutation, this.defaultMinimalQuery
-			);
-			return new EntityReference(
-				entityMutation.getEntityType(),
-				entityWithFetchCount.entity().getPrimaryKey()
-			);
-		} else {
-			upsertEntityInternal(entityMutation, null);
-			return new EntityReference(
-				entityMutation.getEntityType(),
-				entityMutation.getEntityPrimaryKey()
-			);
-		}
+		return upsertEntityInternal(
+			entityMutation,
+			entityMutation.getEntityPrimaryKey() == null ? this.defaultMinimalQuery : null,
+			EntityReference.class
+		);
 	}
 
 	@Override
@@ -589,7 +579,7 @@ public final class EntityCollection implements
 		final ServerEntityDecorator internalEntity =
 			wrapToDecorator(
 				evitaRequest,
-				upsertEntityInternal(entityMutation, evitaRequest),
+				upsertEntityInternal(entityMutation, evitaRequest, EntityWithFetchCount.class),
 				false
 			);
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
@@ -602,7 +592,7 @@ public final class EntityCollection implements
 	@Override
 	public boolean deleteEntity(int primaryKey) {
 		if (this.getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
-			deleteEntityInternal(primaryKey, null);
+			deleteEntityInternal(primaryKey, null, Void.class);
 			return true;
 		} else {
 			return false;
@@ -615,7 +605,7 @@ public final class EntityCollection implements
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
-			final EntityWithFetchCount removedEntity = deleteEntityInternal(primaryKeys[0], evitaRequest);
+			final EntityWithFetchCount removedEntity = deleteEntityInternal(primaryKeys[0], evitaRequest, EntityWithFetchCount.class);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
 			return of(
@@ -658,8 +648,12 @@ public final class EntityCollection implements
 			} else {
 				ServerEntityDecorator removedRoot = null;
 				for (int entityToRemove : entityHierarchy) {
-					final EntityWithFetchCount removedEntity = deleteEntityInternal(entityToRemove, evitaRequest);
-					removedRoot = removedRoot == null ? wrapToDecorator(evitaRequest, removedEntity, false) : removedRoot;
+					if (removedRoot == null) {
+						final EntityWithFetchCount removedEntity = deleteEntityInternal(entityToRemove, evitaRequest, EntityWithFetchCount.class);
+						removedRoot = wrapToDecorator(evitaRequest, removedEntity, false);
+					} else {
+						deleteEntityInternal(entityToRemove, evitaRequest, Void.class);
+					}
 				}
 
 				final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
@@ -719,7 +713,11 @@ public final class EntityCollection implements
 		final List<SealedEntity> removedEntities = new ArrayList<>(entitiesToRemove.length);
 		for (int entityToRemove : entitiesToRemove) {
 			removedEntities.add(
-				wrapToDecorator(evitaRequest, deleteEntityInternal(entityToRemove, evitaRequest), false)
+				wrapToDecorator(
+					evitaRequest,
+					deleteEntityInternal(entityToRemove, evitaRequest, EntityWithFetchCount.class),
+					false
+				)
 			);
 		}
 
@@ -747,7 +745,7 @@ public final class EntityCollection implements
 	@Override
 	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
 		if (entityMutation instanceof EntityUpsertMutation upsertMutation) {
-			upsertEntityInternal(upsertMutation, null);
+			upsertEntityInternal(upsertMutation, null, Void.class);
 		} else if (entityMutation instanceof ServerEntityRemoveMutation removeMutation) {
 			applyMutations(
 				entityMutation,
@@ -755,7 +753,8 @@ public final class EntityCollection implements
 				removeMutation.shouldVerifyConsistency(),
 				null,
 				removeMutation.getImplicitMutationsBehavior(),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
+				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				Void.class
 			);
 		} else if (entityMutation instanceof EntityRemoveMutation) {
 			applyMutations(
@@ -764,7 +763,8 @@ public final class EntityCollection implements
 				true,
 				null,
 				EnumSet.noneOf(ImplicitMutationBehavior.class),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
+				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				Void.class
 			);
 		} else {
 			throw new InvalidMutationException(
@@ -1410,9 +1410,10 @@ public final class EntityCollection implements
 	 * Deletes passed entity both from indexes and the storage.
 	 */
 	@Nullable
-	private EntityWithFetchCount deleteEntityInternal(
+	private <T> T deleteEntityInternal(
 		int primaryKey,
-		@Nullable EvitaRequest returnDeletedEntity
+		@Nullable EvitaRequest returnDeletedEntity,
+		@Nonnull Class<T> returnType
 	) {
 		return applyMutations(
 			new EntityRemoveMutation(getEntityType(), primaryKey),
@@ -1420,7 +1421,8 @@ public final class EntityCollection implements
 			true,
 			returnDeletedEntity,
 			EnumSet.allOf(ImplicitMutationBehavior.class),
-			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
+			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+			returnType
 		);
 	}
 
@@ -1673,9 +1675,10 @@ public final class EntityCollection implements
 	 * Creates or updates entity and returns its primary key.
 	 */
 	@Nullable
-	private EntityWithFetchCount upsertEntityInternal(
+	private <T> T upsertEntityInternal(
 		@Nonnull EntityMutation entityMutation,
-		@Nullable EvitaRequest returnUpdatedEntity
+		@Nullable EvitaRequest returnUpdatedEntity,
+		@Nonnull Class<T> returnType
 	) {
 		// verify mutation against schema
 		// it was already executed when mutation was created, but there are two reasons to do it again
@@ -1704,7 +1707,8 @@ public final class EntityCollection implements
 				veum.shouldVerifyConsistency(),
 				returnUpdatedEntity,
 				veum.getImplicitMutationsBehavior(),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
+				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				returnType
 			);
 		} else {
 			entityMutationToUpsert = verifyPrimaryKeyAssignment(entityMutation, currentSchema);
@@ -1714,7 +1718,8 @@ public final class EntityCollection implements
 				true,
 				returnUpdatedEntity,
 				EnumSet.allOf(ImplicitMutationBehavior.class),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
+				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				returnType
 			);
 		}
 	}
@@ -1778,13 +1783,14 @@ public final class EntityCollection implements
 	 * @return entity with fetch count
 	 */
 	@Nullable
-	EntityWithFetchCount applyMutations(
+	<T> T applyMutations(
 		@Nonnull EntityMutation entityMutation,
 		boolean undoOnError,
 		boolean checkConsistency,
 		@Nullable EvitaRequest returnUpdatedEntity,
 		@Nonnull EnumSet<ImplicitMutationBehavior> generateImplicitMutations,
-		@Nonnull LocalMutationExecutorCollector localMutationExecutorCollector
+		@Nonnull LocalMutationExecutorCollector localMutationExecutorCollector,
+		@Nonnull Class<T> requestedType
 	) {
 		// prepare collectors
 		final ContainerizedLocalMutationExecutor changeCollector = new ContainerizedLocalMutationExecutor(
@@ -1816,7 +1822,8 @@ public final class EntityCollection implements
 			this::getEntityById,
 			changeCollector,
 			entityIndexUpdater,
-			returnUpdatedEntity
+			returnUpdatedEntity,
+			requestedType
 		);
 
 	}
