@@ -76,10 +76,12 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 			session -> {
 				session.defineEntitySchema(THE_ENTITY)
 					.withoutGeneratedPrimaryKey()
+					.withAttribute("url", String.class, whichIs -> whichIs.unique())
 					.updateVia(session);
 
 				for (int i = 0; i < 10_000_000; i++) {
 					session.createNewEntity(THE_ENTITY, i + 1)
+						.setAttribute("url", "http://www.example.com/" + i)
 						.upsertVia(session);
 					if (i % 200_000 == 0) {
 						System.out.println("Inserted: " + i);
