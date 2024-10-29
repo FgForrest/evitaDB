@@ -37,7 +37,6 @@ import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.Scope;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
@@ -47,12 +46,14 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.Scope;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -731,7 +732,7 @@ public final class EntityCollection implements
 	@Override
 	public boolean archiveEntity(int primaryKey) {
 		if (this.getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
-			archiveEntityInternal(primaryKey, null);
+			changeEntityScopeInternal(primaryKey, Scope.ARCHIVED, null);
 			return true;
 		} else {
 			return false;
@@ -744,12 +745,12 @@ public final class EntityCollection implements
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
-			final EntityWithFetchCount removedEntity = archiveEntityInternal(primaryKeys[0], evitaRequest);
+			final EntityWithFetchCount archivedEntity = changeEntityScopeInternal(primaryKeys[0], Scope.ARCHIVED, evitaRequest);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
 			return of(
 				(T) applyReferenceFetcher(
-					wrapToDecorator(evitaRequest, removedEntity, false),
+					wrapToDecorator(evitaRequest, archivedEntity, false),
 					referenceFetcher
 				)
 			);
@@ -761,7 +762,7 @@ public final class EntityCollection implements
 	@Override
 	public boolean restoreEntity(int primaryKey) {
 		if (this.getGlobalArchiveIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
-			restoreEntityInternal(primaryKey, null);
+			changeEntityScopeInternal(primaryKey, Scope.LIVE, null);
 			return true;
 		} else {
 			return false;
@@ -774,12 +775,12 @@ public final class EntityCollection implements
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
-			final EntityWithFetchCount removedEntity = restoreEntityInternal(primaryKeys[0], evitaRequest);
+			final EntityWithFetchCount restoredEntity = changeEntityScopeInternal(primaryKeys[0], Scope.LIVE, evitaRequest);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
 			return of(
 				(T) applyReferenceFetcher(
-					wrapToDecorator(evitaRequest, removedEntity, false),
+					wrapToDecorator(evitaRequest, restoredEntity, false),
 					referenceFetcher
 				)
 			);
@@ -1507,22 +1508,24 @@ public final class EntityCollection implements
 	 * TODO JNO - document me
 	 */
 	@Nullable
-	private EntityWithFetchCount archiveEntityInternal(
+	private EntityWithFetchCount changeEntityScopeInternal(
 		int primaryKey,
-		@Nullable EvitaRequest returnDeletedEntity
+		@Nonnull Scope scope,
+		@Nullable EvitaRequest returnArchivedEntity
 	) {
-		throw new UnsupportedOperationException("Not implemented yet!");
-	}
-
-	/**
-	 * TODO JNO - document me
-	 */
-	@Nullable
-	private EntityWithFetchCount restoreEntityInternal(
-		int primaryKey,
-		@Nullable EvitaRequest returnDeletedEntity
-	) {
-		throw new UnsupportedOperationException("Not implemented yet!");
+		return applyMutations(
+			new EntityUpsertMutation(
+				getEntityType(),
+				primaryKey,
+				EntityExistence.MAY_EXIST,
+				new SetEntityScopeMutation(scope)
+			),
+			true,
+			true,
+			returnArchivedEntity,
+			EnumSet.allOf(ImplicitMutationBehavior.class),
+			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
+		);
 	}
 
 	/**

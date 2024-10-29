@@ -23,7 +23,7 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.query.require.Scope;
+import io.evitadb.api.requestResponse.data.Scope;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexKeyAccessor;
 import io.evitadb.utils.StringUtils;
 

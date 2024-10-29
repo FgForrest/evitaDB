@@ -24,7 +24,7 @@
 package io.evitadb.store.index;
 
 import com.esotericsoftware.kryo.Kryo;
-import io.evitadb.api.query.require.Scope;
+import io.evitadb.api.requestResponse.data.Scope;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.index.EntityIndexType;

@@ -26,6 +26,7 @@ package io.evitadb.store.wal;
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.Scope;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -44,6 +45,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -88,6 +90,7 @@ import io.evitadb.store.wal.data.reference.ReferenceAttributeMutationSerializer;
 import io.evitadb.store.wal.data.reference.RemoveReferenceGroupMutationSerializer;
 import io.evitadb.store.wal.data.reference.RemoveReferenceMutationSerializer;
 import io.evitadb.store.wal.data.reference.SetReferenceGroupMutationSerializer;
+import io.evitadb.store.wal.data.scope.SetEntityScopeMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.CreateAssociatedDataSchemaMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.ModifyAssociatedDataSchemaDescriptionMutationSerializer;
@@ -235,6 +238,9 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(CreateReflectedReferenceSchemaMutation.class, new SerialVersionBasedSerializer<>(new CreateReflectedReferenceSchemaMutationSerializer(), CreateReflectedReferenceSchemaMutation.class), index++);
 		kryo.register(ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class, new SerialVersionBasedSerializer<>(new ModifyReflectedReferenceAttributeInheritanceSchemaMutationSerializer(), ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class), index++);
 		kryo.register(AttributeInheritanceBehavior.class, new EnumNameSerializer<>(), index++);
+
+		kryo.register(SetEntityScopeMutation.class, new SerialVersionBasedSerializer<>(new SetEntityScopeMutationSerializer(), SetEntityScopeMutation.class), index++);
+		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);
 
 		Assert.isPremiseValid(index < 500, "Index count overflow.");
 	}

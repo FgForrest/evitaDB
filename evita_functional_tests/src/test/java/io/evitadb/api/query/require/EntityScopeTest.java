@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.requestResponse.data.Scope;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;

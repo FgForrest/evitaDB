@@ -21,27 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.require;
+package io.evitadb.api.requestResponse.data.mutation.scope;
 
+import io.evitadb.api.requestResponse.data.Scope;
+import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
+import org.junit.jupiter.api.Test;
 
-import io.evitadb.dataType.SupportedEnum;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * TODO JNO - document me
+ * This test verifies contract of {@link SetEntityScopeMutationTest} mutation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@SupportedEnum
-public enum Scope {
+class SetEntityScopeMutationTest extends AbstractMutationTest {
 
-	/**
-	 * Entities that are currently active and reside in the live data set block.
-	 */
-	LIVE,
-
-	/**
-	 * Entities that are no longer active and reside in the archive block.
-	 */
-	ARCHIVED
+	@Test
+	void shouldPriceInnerRecordHandlingValue() {
+		final SetEntityScopeMutation mutation = new SetEntityScopeMutation(Scope.ARCHIVED);
+		assertEquals(
+			Scope.ARCHIVED,
+			mutation.mutateLocal(productSchema, Scope.LIVE)
+		);
+	}
 
 }
