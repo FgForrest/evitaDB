@@ -68,8 +68,7 @@ cache:                                            # [see Cache configuration](#c
 api:                                              # [see API configuration](#api-configuration)
   workerGroupThreads: 4
   idleTimeoutInMillis: 2K
-  requestTimeoutInMillis: 2K
-  keepAlive: true
+  requestTimeoutInMillis: 2K  
   maxEntitySizeInBytes: 2MB
   accessLog: false
   certificate:                                    # [see TLS configuration](#tls-configuration) 
@@ -84,28 +83,33 @@ api:                                              # [see API configuration](#api
     host: ":5555"
     exposeOn: "localhost:5555"
     tlsMode: FORCE_TLS
+    keepAlive: true
   endpoints:
     system:                                       # [see System API configuration](#system-api-configuration)
       enabled: null
       host: null
       exposeOn: null
       tlsMode: FORCE_NO_TLS
+      keepAlive: null
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
       enabled: null
       host: null
       exposeOn: null
       tlsMode: null
+      keepAlive: null
       parallelize: true
     rest:                                         # [see REST API configuration](#rest-api-configuration)
       enabled: null
       host: null
       exposeOn: null
       tlsMode: null
+      keepAlive: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
       enabled: null
       host: null
       exposeOn: null
       tlsMode: null
+      keepAlive: null
       exposeDocsService: false
       mTLS:
         enabled: false
@@ -115,6 +119,7 @@ api:                                              # [see API configuration](#api
       host: null
       exposeOn: null
       tlsMode: null
+      keepAlive: null
       gui:
         enabled: true
         readOnly: false
@@ -124,6 +129,7 @@ api:                                              # [see API configuration](#api
       host: null
       exposeOn: null
       tlsMode: null
+      keepAlive: null
       tracing:
         endpoint: null
         protocol: grpc
@@ -649,13 +655,7 @@ This section of the configuration allows you to selectively enable, disable, and
     <dd>
         <p>**Default:** `2K`</p>
         <p>The amount of time a connection can sit idle without processing a request, before it is closed by the server.</p>
-    </dd>
-    <dt>keepAlive</dt>
-    <dd>
-        <p>**Default:** `true`</p>
-        <p>If this is true then a Connection: keep-alive header will be added to responses, even when it is not strictly 
-            required by the specification.</p>
-    </dd>
+    </dd> 
     <dt>maxEntitySizeInBytes</dt>
     <dd>
         <p>**Default:** `2MB`</p>
@@ -772,6 +772,11 @@ This allows you to set common settings for all endpoints in one place.
             <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
             <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
         </ol>
+    </dd>
+    <dt>keepAlive</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>If this is set to false server closes connection via HTTP `connection: close` after each request.</p>
     </dd>
 </dl>
 

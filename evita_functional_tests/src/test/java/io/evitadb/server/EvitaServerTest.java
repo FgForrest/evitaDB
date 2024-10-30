@@ -30,6 +30,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.grpc.GrpcProvider;
@@ -677,11 +678,21 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			evitaServer.run();
 
 			final ExternalApiServer externalApiServer = evitaServer.getExternalApiServer();
-			assertEquals(TlsMode.FORCE_NO_TLS, externalApiServer.getExternalApiProviderByCode(SystemProvider.CODE).getConfiguration().getTlsMode());
-			assertEquals(TlsMode.FORCE_NO_TLS, externalApiServer.getExternalApiProviderByCode(GraphQLProvider.CODE).getConfiguration().getTlsMode());
-			assertEquals(TlsMode.FORCE_NO_TLS, externalApiServer.getExternalApiProviderByCode(RestProvider.CODE).getConfiguration().getTlsMode());
-			assertEquals(TlsMode.FORCE_NO_TLS, externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE).getConfiguration().getTlsMode());
-			assertEquals(TlsMode.FORCE_TLS, externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE).getConfiguration().getTlsMode());
+			final AbstractApiConfiguration systemConfig = externalApiServer.getExternalApiProviderByCode(SystemProvider.CODE).getConfiguration();
+			assertEquals(TlsMode.FORCE_NO_TLS, systemConfig.getTlsMode());
+			assertFalse(systemConfig.isKeepAlive());
+			final AbstractApiConfiguration graphQLConfig = externalApiServer.getExternalApiProviderByCode(GraphQLProvider.CODE).getConfiguration();
+			assertEquals(TlsMode.FORCE_NO_TLS, graphQLConfig.getTlsMode());
+			assertFalse(graphQLConfig.isKeepAlive());
+			final AbstractApiConfiguration restConfig = externalApiServer.getExternalApiProviderByCode(RestProvider.CODE).getConfiguration();
+			assertEquals(TlsMode.FORCE_NO_TLS, restConfig.getTlsMode());
+			assertFalse(restConfig.isKeepAlive());
+			final AbstractApiConfiguration grpcConfig = externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE).getConfiguration();
+			assertEquals(TlsMode.FORCE_NO_TLS, grpcConfig.getTlsMode());
+			assertFalse(grpcConfig.isKeepAlive());
+			final AbstractApiConfiguration observabilityConfig = externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE).getConfiguration();
+			assertEquals(TlsMode.FORCE_TLS, observabilityConfig.getTlsMode());
+			assertFalse(observabilityConfig.isKeepAlive());
 
 		} catch (Exception ex) {
 			fail(ex);

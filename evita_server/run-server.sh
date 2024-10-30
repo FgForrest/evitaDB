@@ -39,7 +39,6 @@ java \
         "api.exposedOn=localhost" \
         "api.accessLog=true" \
         "cache.enabled=false" \
-        "api.keepAlive=false" \
         "api.endpoints.graphQL.tlsMode=RELAXED" \
         "api.endpoints.rest.tlsMode=RELAXED" \
         "api.endpoints.lab.tlsMode=RELAXED" \

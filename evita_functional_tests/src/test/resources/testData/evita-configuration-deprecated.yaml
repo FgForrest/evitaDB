@@ -1,4 +1,5 @@
 api:
+  keepAlive: false
   endpoints:
     graphQL:
       tlsEnabled: false

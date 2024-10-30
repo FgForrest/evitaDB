@@ -56,14 +56,14 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	@Getter @Nullable private final List<String> allowedEvents;
 
 	public ObservabilityConfig() {
-		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, null);
+		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, null, null);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
 	}
 
 	public ObservabilityConfig(@Nonnull String host) {
-		super(true, host, null, null);
+		super(true, host, null, null, null);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
@@ -74,10 +74,12 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	                           @Nonnull @JsonProperty("host") String host,
 	                           @Nullable @JsonProperty("exposeOn") String exposeOn,
 	                           @Nullable @JsonProperty("tlsMode") String tlsMode,
+	                           @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
 	                           @Nullable @JsonProperty("prefix") String prefix,
 							   @Nullable @JsonProperty("tracing") TracingConfig tracing,
-	                           @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents) {
-		super(enabled, host, exposeOn, tlsMode);
+	                           @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents
+	) {
+		super(enabled, host, exposeOn, tlsMode, keepAlive);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_OBSERVABILITY_PATH);
 		this.tracing = Optional.ofNullable(tracing).orElse(new TracingConfig());
 		this.allowedEvents = allowedEvents;
