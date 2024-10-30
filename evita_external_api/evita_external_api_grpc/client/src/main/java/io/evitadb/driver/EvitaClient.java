@@ -252,14 +252,8 @@ public class EvitaClient implements EvitaContract {
 	) {
 		this.configuration = configuration;
 		ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
-			.workerGroup(Runtime.getRuntime().availableProcessors());
-
-		final long idleTimeoutMillis = TimeUnit.MILLISECONDS.convert(configuration.timeout(), configuration.timeoutUnit());
-		if (idleTimeoutMillis > 1000) {
-			clientFactoryBuilder = clientFactoryBuilder
-				.pingIntervalMillis(idleTimeoutMillis / 4)
-				.idleTimeoutMillis(idleTimeoutMillis, true);
-		}
+			.workerGroup(Runtime.getRuntime().availableProcessors())
+			.idleTimeoutMillis(TimeUnit.MILLISECONDS.convert(configuration.timeout(), configuration.timeoutUnit()));
 
 		final String uriScheme;
 		if (configuration.tlsEnabled()) {
