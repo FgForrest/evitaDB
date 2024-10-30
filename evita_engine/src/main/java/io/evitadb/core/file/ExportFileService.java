@@ -26,6 +26,7 @@ package io.evitadb.core.file;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.Assert;
@@ -49,14 +50,14 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -81,13 +82,9 @@ public class ExportFileService {
 	 */
 	private final StorageOptions storageOptions;
 	/**
-	 * Lock for the files list.
-	 */
-	private final ReentrantLock lock = new ReentrantLock();
-	/**
 	 * Cached list of files to fetch.
 	 */
-	private List<FileForFetch> files;
+	private final CopyOnWriteArrayList<FileForFetch> files;
 
 	/**
 	 * Parses metadata file and creates {@link FileForFetch} instance.
@@ -107,7 +104,33 @@ public class ExportFileService {
 
 	public ExportFileService(@Nonnull StorageOptions storageOptions) {
 		this.storageOptions = storageOptions;
-		this.initFilesForFetch();
+		// init files for fetch
+		if (this.storageOptions.exportDirectory().toFile().exists()) {
+			try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
+				this.files = fileStream
+					.filter(it -> it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
+					.map(ExportFileService::toFileForFetch)
+					.flatMap(Optional::stream)
+					.sorted(Comparator.comparing(FileForFetch::created).reversed())
+					.collect(Collectors.toCollection(CopyOnWriteArrayList::new));
+			} catch (IOException e) {
+				throw new UnexpectedIOException(
+					"Failed to read the contents of the folder: " + e.getMessage(),
+					"Failed to read the contents of the folder.",
+					e
+				);
+			}
+		} else {
+			this.files = new CopyOnWriteArrayList<>();
+		}
+		// schedule automatic purging task
+		new DelayedAsyncTask(
+			null,
+			"Export file service purging task",
+			scheduler,
+			this::purgeFiles,
+			5, TimeUnit.MINUTES
+		).schedule();
 	}
 
 	/**
@@ -262,7 +285,6 @@ public class ExportFileService {
 					finalFilePath,
 					fileForFetchCompletableFuture,
 					() -> {
-						lock.lock();
 						try {
 							final FileForFetch fileForFetch = new FileForFetch(
 								fileId,
@@ -283,8 +305,6 @@ public class ExportFileService {
 								"Failed to write metadata file: " + e.getMessage(),
 								"Failed to write metadata file."
 							);
-						} finally {
-							lock.unlock();
 						}
 					}
 				)
@@ -328,7 +348,6 @@ public class ExportFileService {
 	 * @throws UnexpectedIOException         if the file cannot be deleted
 	 */
 	public void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
-		lock.lock();
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
@@ -342,8 +361,6 @@ public class ExportFileService {
 				"Failed to delete the file.",
 				e
 			);
-		} finally {
-			lock.unlock();
 		}
 	}
 
@@ -397,35 +414,6 @@ public class ExportFileService {
 			StandardCharsets.UTF_8,
 			options
 		);
-	}
-
-	/**
-	 * Method refreshes the list of files to fetch.
-	 */
-	private void initFilesForFetch() {
-		try {
-			lock.lock();
-			if (this.storageOptions.exportDirectory().toFile().exists()) {
-				try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
-					this.files = fileStream
-						.filter(it -> it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
-						.map(ExportFileService::toFileForFetch)
-						.flatMap(Optional::stream)
-						.sorted(Comparator.comparing(FileForFetch::created).reversed())
-						.collect(Collectors.toCollection(ArrayList::new));
-				} catch (IOException e) {
-					throw new UnexpectedIOException(
-						"Failed to read the contents of the folder: " + e.getMessage(),
-						"Failed to read the contents of the folder.",
-						e
-					);
-				}
-			} else {
-				this.files = new ArrayList<>(16);
-			}
-		} finally {
-			lock.unlock();
-		}
 	}
 
 	/**
