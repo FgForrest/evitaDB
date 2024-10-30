@@ -26,7 +26,6 @@ package io.evitadb.core.file;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.utils.Assert;
@@ -57,7 +56,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -102,7 +100,9 @@ public class ExportFileService {
 		}
 	}
 
-	public ExportFileService(@Nonnull StorageOptions storageOptions) {
+	public ExportFileService(
+		@Nonnull StorageOptions storageOptions
+	) {
 		this.storageOptions = storageOptions;
 		// init files for fetch
 		if (this.storageOptions.exportDirectory().toFile().exists()) {
@@ -123,14 +123,6 @@ public class ExportFileService {
 		} else {
 			this.files = new CopyOnWriteArrayList<>();
 		}
-		// schedule automatic purging task
-		new DelayedAsyncTask(
-			null,
-			"Export file service purging task",
-			scheduler,
-			this::purgeFiles,
-			5, TimeUnit.MINUTES
-		).schedule();
 	}
 
 	/**
@@ -171,75 +163,6 @@ public class ExportFileService {
 		return this.files.stream()
 			.filter(it -> it.fileId().equals(fileId))
 			.findFirst();
-	}
-
-	/**
-	 * Method creates new file for fetch but doesn't create it - only metadata is created.
-	 *
-	 * @param fileName    name of the file
-	 * @param description optional description of the file
-	 * @param contentType MIME type of the file
-	 * @param origin      optional origin of the file
-	 * @return file for fetch
-	 */
-	@Nonnull
-	public FileForFetch createFile(
-		@Nonnull String fileName,
-		@Nullable String description,
-		@Nonnull String contentType,
-		@Nullable String origin
-	) {
-		final UUID fileId = UUIDUtil.randomUUID();
-		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
-		final Path finalFilePath = this.storageOptions.exportDirectory().resolve(finalFileName);
-		try {
-			if (!storageOptions.exportDirectory().toFile().exists()) {
-				Assert.isPremiseValid(
-					storageOptions.exportDirectory().toFile().mkdirs(),
-					() -> new UnexpectedIOException(
-						"Failed to create directory: " + storageOptions.exportDirectory(),
-						"Failed to create directory."
-					)
-				);
-			}
-			Assert.isPremiseValid(
-				finalFilePath.toFile().createNewFile(),
-				() -> new UnexpectedIOException(
-					"Failed to create file: " + finalFilePath,
-					"Failed to create file."
-				)
-			);
-			lock.lock();
-			try {
-				final FileForFetch fileForFetch = new FileForFetch(
-					fileId,
-					fileName,
-					description,
-					contentType,
-					Files.size(finalFilePath),
-					OffsetDateTime.now(),
-					origin == null ? null : Arrays.stream(origin.split(","))
-						.map(String::trim)
-						.toArray(String[]::new)
-				);
-				writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
-				this.files.add(0, fileForFetch);
-				return fileForFetch;
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Failed to write metadata file: " + e.getMessage(),
-					"Failed to write metadata file."
-				);
-			} finally {
-				lock.unlock();
-			}
-		} catch (IOException e) {
-			throw new UnexpectedIOException(
-				"Failed to store file: " + finalFilePath,
-				"Failed to store file.",
-				e
-			);
-		}
 	}
 
 	/**
