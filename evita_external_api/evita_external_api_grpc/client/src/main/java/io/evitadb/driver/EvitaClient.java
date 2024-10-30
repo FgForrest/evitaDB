@@ -251,9 +251,15 @@ public class EvitaClient implements EvitaContract {
 		@Nullable Consumer<GrpcClientBuilder> grpcConfigurator
 	) {
 		this.configuration = configuration;
-		final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
-			.workerGroup(Runtime.getRuntime().availableProcessors())
-			.idleTimeoutMillis(TimeUnit.MILLISECONDS.convert(configuration.timeout(), configuration.timeoutUnit()), true);
+		ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
+			.workerGroup(Runtime.getRuntime().availableProcessors());
+
+		final long idleTimeoutMillis = TimeUnit.MILLISECONDS.convert(configuration.timeout(), configuration.timeoutUnit());
+		if (idleTimeoutMillis > 1000) {
+			clientFactoryBuilder = clientFactoryBuilder
+				.pingIntervalMillis(idleTimeoutMillis / 4)
+				.idleTimeoutMillis(idleTimeoutMillis, true);
+		}
 
 		final String uriScheme;
 		if (configuration.tlsEnabled()) {
@@ -787,10 +793,8 @@ public class EvitaClient implements EvitaContract {
 	) {
 		final Timeout timeout = this.timeout.get().peek();
 		try {
-			/* TODO JNO - change me */
-			return lambda.apply(this.evitaServiceFutureStub).get();
-			/*return lambda.apply(this.evitaServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
-				.get(timeout.timeout(), timeout.timeoutUnit());*/
+			return lambda.apply(this.evitaServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
+				.get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),

@@ -512,11 +512,9 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	) {
 		final Timeout timeout = this.evitaClient.timeout.get().peek();
 		try {
-			/* TODO JNO - change me */
-			return lambda.apply(this.evitaManagementServiceStub);
-			/*return lambda.apply(
+			return lambda.apply(
 				this.evitaManagementServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit())
-			);*/
+			);
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),
@@ -545,10 +543,8 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	) {
 		final Timeout timeout = this.evitaClient.timeout.get().peek();
 		try {
-			/* TODO JNO - change me */
-			return lambda.apply(this.evitaManagementServiceFutureStub).get();
-			/*return lambda.apply(this.evitaManagementServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
-				.get(timeout.timeout(), timeout.timeoutUnit());*/
+			return lambda.apply(this.evitaManagementServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
+				.get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),
