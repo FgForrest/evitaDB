@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ class SchemaUtilsTest {
 		final Set<Entry<String, Object>> dataCarrier = new HashSet<>(TestDataGenerator.generateMainCatalogEntities(evita,20).entrySet());
 
 		final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		final OpenAPI openApi = new CatalogRestBuilder(null, new RestConfig(true, "localhost:5555", null, null, "rest", null), evita, catalog).build().openApi();
+		final OpenAPI openApi = new CatalogRestBuilder(null, new RestConfig(true, "localhost:5555", null, null, null, "rest", null), evita, catalog).build().openApi();
 		dataCarrier.add(new SimpleEntry<>("openApi", openApi));
 
 		return new DataCarrier(dataCarrier);

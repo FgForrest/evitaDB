@@ -79,11 +79,12 @@ public class GraphQLConfig extends AbstractApiConfiguration implements ApiWithSp
 		@Nonnull @JsonProperty("host") String host,
 		@Nullable @JsonProperty("exposeOn") String exposeOn,
 		@Nullable @JsonProperty("tlsMode") String tlsMode,
+		@Nullable @JsonProperty("keepAlive") Boolean keepAlive,
 		@Nullable @JsonProperty("prefix") String prefix,
 		@Nullable @JsonProperty("allowedOrigins") String allowedOrigins,
 		@Nullable @JsonProperty("parallelize") Boolean parallelize
 	) {
-		super(enabled, host, exposeOn, tlsMode);
+		super(enabled, host, exposeOn, tlsMode, keepAlive);
 		this.prefix = ofNullable(prefix).orElse(BASE_GRAPHQL_PATH);
 		this.parallelize = ofNullable(parallelize).orElse(false);
 		if (allowedOrigins == null) {
