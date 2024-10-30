@@ -69,7 +69,6 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class EvitaManagement implements EvitaManagementContract {
-	private static final long WAITING_TASK_MAX_AGE = 5 * 60 * 1000; // 5 minutes
 	/**
 	 * Contains reference to the main evita service.
 	 */

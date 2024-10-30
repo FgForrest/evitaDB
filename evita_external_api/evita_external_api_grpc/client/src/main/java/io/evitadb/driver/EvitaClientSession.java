@@ -1645,8 +1645,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final Timeout timeout = this.callTimeout.peek();
 		try {
 			SessionIdHolder.setSessionId(getId().toString());
-			return lambda.apply(this.evitaSessionServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
-				.get(timeout.timeout(), timeout.timeoutUnit());
+			/* TODO JNO - change me */
+			return lambda.apply(this.evitaSessionServiceFutureStub).get();
+			/*return lambda.apply(this.evitaSessionServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
+				.get(timeout.timeout(), timeout.timeoutUnit());*/
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),
@@ -1680,7 +1682,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final Timeout timeout = this.callTimeout.peek();
 		try {
 			SessionIdHolder.setSessionId(getId().toString());
-			return lambda.apply(this.evitaSessionServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()));
+			/* TODO JNO - change me */
+			return lambda.apply(this.evitaSessionServiceStub);
+			/*return lambda.apply(this.evitaSessionServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()));*/
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),

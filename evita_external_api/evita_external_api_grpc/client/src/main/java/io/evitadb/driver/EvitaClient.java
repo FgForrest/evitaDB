@@ -789,8 +789,10 @@ public class EvitaClient implements EvitaContract {
 	) {
 		final Timeout timeout = this.timeout.get().peek();
 		try {
-			return lambda.apply(this.evitaServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
-				.get(timeout.timeout(), timeout.timeoutUnit());
+			/* TODO JNO - change me */
+			return lambda.apply(this.evitaServiceFutureStub).get();
+			/*return lambda.apply(this.evitaServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
+				.get(timeout.timeout(), timeout.timeoutUnit());*/
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),

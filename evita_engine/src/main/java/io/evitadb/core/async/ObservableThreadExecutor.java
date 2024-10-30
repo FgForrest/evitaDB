@@ -523,6 +523,8 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 
 		@Override
 		public void cancel() {
+			/* TODO JNO - remove me */
+			log.info("Task `" + this.name + "` was cancelled (" + isTimedOut(System.currentTimeMillis()) + ").");
 			this.future.cancel(true);
 		}
 
@@ -591,6 +593,8 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 
 		@Override
 		public void cancel() {
+			/* TODO JNO - remove me */
+			log.info("Task `" + this.name + "` was cancelled (" + isTimedOut(System.currentTimeMillis()) + ").");
 			this.future.cancel(true);
 		}
 
