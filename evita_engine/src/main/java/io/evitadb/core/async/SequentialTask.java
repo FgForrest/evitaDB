@@ -28,6 +28,7 @@ import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.utils.UUIDUtil;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,7 +47,7 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class SequentialTask<T> implements ServerTask<Void, T> {
-	private final String taskName;
+	@Getter private final String taskName;
 	private final AtomicReference<TaskStatus<Void, T>> status;
 	private final ServerTask<?, ?>[] steps;
 	private final AtomicReference<Task<?, ?>> currentStep;

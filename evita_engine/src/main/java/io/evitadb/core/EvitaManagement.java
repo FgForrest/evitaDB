@@ -261,6 +261,7 @@ public class EvitaManagement implements EvitaManagementContract {
 	@Nonnull
 	@Override
 	public String getConfiguration() {
+		this.evita.assertActiveAndWritable();
 		return this.configurationSupplier.get();
 	}
 }

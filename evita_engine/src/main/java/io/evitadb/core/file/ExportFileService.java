@@ -49,14 +49,13 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -81,13 +80,9 @@ public class ExportFileService {
 	 */
 	private final StorageOptions storageOptions;
 	/**
-	 * Lock for the files list.
-	 */
-	private final ReentrantLock lock = new ReentrantLock();
-	/**
 	 * Cached list of files to fetch.
 	 */
-	private List<FileForFetch> files;
+	private final CopyOnWriteArrayList<FileForFetch> files;
 
 	/**
 	 * Parses metadata file and creates {@link FileForFetch} instance.
@@ -105,9 +100,29 @@ public class ExportFileService {
 		}
 	}
 
-	public ExportFileService(@Nonnull StorageOptions storageOptions) {
+	public ExportFileService(
+		@Nonnull StorageOptions storageOptions
+	) {
 		this.storageOptions = storageOptions;
-		this.initFilesForFetch();
+		// init files for fetch
+		if (this.storageOptions.exportDirectory().toFile().exists()) {
+			try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
+				this.files = fileStream
+					.filter(it -> it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
+					.map(ExportFileService::toFileForFetch)
+					.flatMap(Optional::stream)
+					.sorted(Comparator.comparing(FileForFetch::created).reversed())
+					.collect(Collectors.toCollection(CopyOnWriteArrayList::new));
+			} catch (IOException e) {
+				throw new UnexpectedIOException(
+					"Failed to read the contents of the folder: " + e.getMessage(),
+					"Failed to read the contents of the folder.",
+					e
+				);
+			}
+		} else {
+			this.files = new CopyOnWriteArrayList<>();
+		}
 	}
 
 	/**
@@ -148,75 +163,6 @@ public class ExportFileService {
 		return this.files.stream()
 			.filter(it -> it.fileId().equals(fileId))
 			.findFirst();
-	}
-
-	/**
-	 * Method creates new file for fetch but doesn't create it - only metadata is created.
-	 *
-	 * @param fileName    name of the file
-	 * @param description optional description of the file
-	 * @param contentType MIME type of the file
-	 * @param origin      optional origin of the file
-	 * @return file for fetch
-	 */
-	@Nonnull
-	public FileForFetch createFile(
-		@Nonnull String fileName,
-		@Nullable String description,
-		@Nonnull String contentType,
-		@Nullable String origin
-	) {
-		final UUID fileId = UUIDUtil.randomUUID();
-		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
-		final Path finalFilePath = this.storageOptions.exportDirectory().resolve(finalFileName);
-		try {
-			if (!storageOptions.exportDirectory().toFile().exists()) {
-				Assert.isPremiseValid(
-					storageOptions.exportDirectory().toFile().mkdirs(),
-					() -> new UnexpectedIOException(
-						"Failed to create directory: " + storageOptions.exportDirectory(),
-						"Failed to create directory."
-					)
-				);
-			}
-			Assert.isPremiseValid(
-				finalFilePath.toFile().createNewFile(),
-				() -> new UnexpectedIOException(
-					"Failed to create file: " + finalFilePath,
-					"Failed to create file."
-				)
-			);
-			lock.lock();
-			try {
-				final FileForFetch fileForFetch = new FileForFetch(
-					fileId,
-					fileName,
-					description,
-					contentType,
-					Files.size(finalFilePath),
-					OffsetDateTime.now(),
-					origin == null ? null : Arrays.stream(origin.split(","))
-						.map(String::trim)
-						.toArray(String[]::new)
-				);
-				writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
-				this.files.add(0, fileForFetch);
-				return fileForFetch;
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Failed to write metadata file: " + e.getMessage(),
-					"Failed to write metadata file."
-				);
-			} finally {
-				lock.unlock();
-			}
-		} catch (IOException e) {
-			throw new UnexpectedIOException(
-				"Failed to store file: " + finalFilePath,
-				"Failed to store file.",
-				e
-			);
-		}
 	}
 
 	/**
@@ -262,7 +208,6 @@ public class ExportFileService {
 					finalFilePath,
 					fileForFetchCompletableFuture,
 					() -> {
-						lock.lock();
 						try {
 							final FileForFetch fileForFetch = new FileForFetch(
 								fileId,
@@ -283,8 +228,6 @@ public class ExportFileService {
 								"Failed to write metadata file: " + e.getMessage(),
 								"Failed to write metadata file."
 							);
-						} finally {
-							lock.unlock();
 						}
 					}
 				)
@@ -328,7 +271,6 @@ public class ExportFileService {
 	 * @throws UnexpectedIOException         if the file cannot be deleted
 	 */
 	public void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
-		lock.lock();
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
@@ -342,8 +284,6 @@ public class ExportFileService {
 				"Failed to delete the file.",
 				e
 			);
-		} finally {
-			lock.unlock();
 		}
 	}
 
@@ -397,35 +337,6 @@ public class ExportFileService {
 			StandardCharsets.UTF_8,
 			options
 		);
-	}
-
-	/**
-	 * Method refreshes the list of files to fetch.
-	 */
-	private void initFilesForFetch() {
-		try {
-			lock.lock();
-			if (this.storageOptions.exportDirectory().toFile().exists()) {
-				try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
-					this.files = fileStream
-						.filter(it -> it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
-						.map(ExportFileService::toFileForFetch)
-						.flatMap(Optional::stream)
-						.sorted(Comparator.comparing(FileForFetch::created).reversed())
-						.collect(Collectors.toCollection(ArrayList::new));
-				} catch (IOException e) {
-					throw new UnexpectedIOException(
-						"Failed to read the contents of the folder: " + e.getMessage(),
-						"Failed to read the contents of the folder.",
-						e
-					);
-				}
-			} else {
-				this.files = new ArrayList<>(16);
-			}
-		} finally {
-			lock.unlock();
-		}
 	}
 
 	/**

@@ -82,7 +82,6 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 		this.apiHandler = apiHandler;
 		this.requestTimeout = requestTimeout;
 		this.clientFactory = ClientFactory.builder()
-			.useHttp1Pipelining(true)
 			// 1 second timeout for connection establishment
 			.connectTimeoutMillis(requestTimeout)
 			// 1 second timeout for idle connections

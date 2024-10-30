@@ -55,6 +55,11 @@ public abstract class AbstractApiConfiguration {
 	 */
 	@Getter private final boolean enabled;
 	/**
+	 * Defines whether the API should keep the connection alive (default is true). When set to false, the connection
+	 * will be closed after each request from the server side.
+	 */
+	@Getter private final boolean keepAlive;
+	/**
 	 * Defines hosts the API will listen on.
 	 */
 	@Getter private final HostDefinition[] host;
@@ -99,6 +104,7 @@ public abstract class AbstractApiConfiguration {
 		this.host = new HostDefinition[]{
 			new HostDefinition(NetworkUtils.getByName("0.0.0.0"), true, DEFAULT_PORT)
 		};
+		this.keepAlive = true;
 	}
 
 	/**
@@ -107,7 +113,7 @@ public abstract class AbstractApiConfiguration {
 	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
 	 */
 	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host) {
-		this(enabled, host, null, null);
+		this(enabled, host, null, null, null);
 	}
 
 	/**
@@ -116,7 +122,13 @@ public abstract class AbstractApiConfiguration {
 	 *                   (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
 	 * @param tlsMode    allows the API to run with TLS encryption
 	 */
-	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nonnull String exposeOn, @Nullable String tlsMode) {
+	protected AbstractApiConfiguration(
+		@Nullable Boolean enabled,
+		@Nonnull String host,
+		@Nonnull String exposeOn,
+		@Nullable String tlsMode,
+		@Nullable Boolean keepAlive
+	) {
 		this.enabled = ofNullable(enabled).orElse(true);
 		this.tlsMode = TlsMode.getByName(tlsMode);
 		this.host = Arrays.stream(host.split(","))
@@ -124,6 +136,7 @@ public abstract class AbstractApiConfiguration {
 			.flatMap(Arrays::stream)
 			.toArray(HostDefinition[]::new);
 		this.exposeOn = exposeOn;
+		this.keepAlive = ofNullable(keepAlive).orElse(true);
 	}
 
 	/**

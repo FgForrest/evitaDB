@@ -71,9 +71,11 @@ public class RestConfig extends AbstractApiConfiguration implements ApiWithSpeci
 	                  @Nonnull @JsonProperty("host") String host,
 	                  @Nullable @JsonProperty("exposeOn") String exposeOn,
 	                  @Nullable @JsonProperty("tlsMode") String tlsMode,
+	                  @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
 	                  @Nullable @JsonProperty("prefix") String prefix,
-	                  @Nullable @JsonProperty("allowedOrigins") String allowedOrigins) {
-		super(enabled, host, exposeOn, tlsMode);
+	                  @Nullable @JsonProperty("allowedOrigins") String allowedOrigins
+	) {
+		super(enabled, host, exposeOn, tlsMode, keepAlive);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_REST_PATH);
 		if (allowedOrigins == null) {
 			this.allowedOrigins = null;

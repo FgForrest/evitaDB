@@ -60,7 +60,6 @@ import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.StringUtils;
-import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.handler.ssl.ClientAuth;
 import lombok.Getter;
@@ -574,14 +573,6 @@ public class ExternalApiServer implements AutoCloseable {
 			.verboseResponses(false)
 			.workerGroup(workerGroup, gracefulShutdown);
 
-		if (!apiOptions.keepAlive()) {
-			serverBuilder
-				.childChannelOption(ChannelOption.SO_REUSEADDR, true)
-				.childChannelOption(ChannelOption.SO_KEEPALIVE, true)
-				.maxConnectionAgeMillis(0)
-				.maxNumRequestsPerConnection(1);
-		}
-
 		if (apiOptions.accessLog()) {
 			serverBuilder
 				.accessLogWriter(AccessLogWriter.combined(), gracefulShutdown)
@@ -648,8 +639,10 @@ public class ExternalApiServer implements AutoCloseable {
 								.map(it -> !it.isEmpty() && it.charAt(0) == '/' ? it.substring(1) : it)
 								.orElse("");
 
+						HttpService service = httpServiceDefinition.service();
+
 						// decorate the service with security decorator
-						final HttpService service = httpServiceDefinition.service().decorate(
+						service = service.decorate(
 							new HttpServiceSecurityDecorator(
 								ArrayUtils.mergeArrays(
 									new AbstractApiConfiguration[]{configuration},
@@ -657,6 +650,11 @@ public class ExternalApiServer implements AutoCloseable {
 								)
 							)
 						);
+						// decorate the service with connection closing decorator if keepAlive is set to false
+						if (!configuration.isKeepAlive()) {
+							service = service.decorate(ConnectionClosingDecorator.INSTANCE);
+						}
+
 						if (httpServiceDefinition.pathHandlingMode() == PathHandlingMode.FIXED_PATH_HANDLING) {
 							// if the service knows by itself how to route requests (HttpServiceWithRoutes), collect it
 							// for later registration
