@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.lang.Thread.UncaughtExceptionHandler;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -52,7 +53,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	/**
 	 * Buffer used for purging finished tasks.
 	 */
-	private final ArrayList<ObservableTask> buffer = new ArrayList<>(BUFFER_CAPACITY);
+	private final ArrayList<WeakReference<ObservableTask>> buffer = new ArrayList<>(BUFFER_CAPACITY);
 	/**
 	 * Lock synchronizing access to the buffer and purge operation.
 	 */
@@ -85,7 +86,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	 * Queue that holds the tasks that are currently being executed or waiting to be executed. It could also contain
 	 * already finished tasks that are subject to be removed.
 	 */
-	private final ArrayBlockingQueue<ObservableTask> queue;
+	private final ArrayBlockingQueue<WeakReference<ObservableTask>> queue;
 
 	public ObservableThreadExecutor(
 		@Nonnull String name,
@@ -317,15 +318,16 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	 */
 	@Nonnull
 	private <T extends ObservableTask> T addTaskToQueue(@Nonnull T task) {
+		final WeakReference<ObservableTask> taskRef = new WeakReference<>(task);
 		try {
 			// add the task to the queue
-			this.queue.add(task);
+			this.queue.add(taskRef);
 		} catch (IllegalStateException e) {
 			// this means the queue is full, so we need to remove some tasks
 			this.cancelTimedOutTasks();
 			// and try adding the task again
 			try {
-				this.queue.add(task);
+				this.queue.add(taskRef);
 			} catch (IllegalStateException exceptionAgain) {
 				// and this should never happen since queue was cleared of finished and timed out tasks and its size
 				// is double the configured size
@@ -352,10 +354,14 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 					// effectively withdraw first block of tasks from the queue
 					i += this.queue.drainTo(this.buffer, BUFFER_CAPACITY);
 					// now go through all of them
-					final Iterator<ObservableTask> it = this.buffer.iterator();
+					final Iterator<WeakReference<ObservableTask>> it = this.buffer.iterator();
 					while (it.hasNext()) {
-						final ObservableTask task = it.next();
-						if (task.isFinished()) {
+						final WeakReference<ObservableTask> taskRef = it.next();
+						final ObservableTask task = taskRef.get();
+						if (task == null) {
+							// if task is already garbage collected, remove it from the queue
+							it.remove();
+						} else if (task.isFinished()) {
 							// if task is finished, remove it from the queue
 							it.remove();
 						} else {
