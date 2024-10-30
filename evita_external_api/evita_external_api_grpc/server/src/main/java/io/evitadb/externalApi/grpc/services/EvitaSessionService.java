@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.SessionNotFoundException;
@@ -74,8 +75,6 @@ import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionIntercepto
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.ArrayUtils;
-import io.grpc.Context;
-import io.grpc.Deadline;
 import io.grpc.Metadata;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
@@ -90,7 +89,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -132,7 +130,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		@Nonnull StreamObserver<?> responseObserver
 	) {
 		// Retrieve the deadline from the context
-		final Deadline deadline = Context.current().getDeadline();
+		final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
 		final String methodName = GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata);
 		final Runnable theMethod =
@@ -149,8 +147,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 								GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
 							}
 						},
-						deadline == null ?
-							executor.getDefaultTimeoutInMilliseconds() : deadline.timeRemaining(TimeUnit.MILLISECONDS)
+						requestTimeoutMillis
 					)
 				);
 			};

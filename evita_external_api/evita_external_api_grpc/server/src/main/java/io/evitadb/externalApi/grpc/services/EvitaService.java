@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
@@ -42,8 +43,6 @@ import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerI
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.UUIDUtil;
-import io.grpc.Context;
-import io.grpc.Deadline;
 import io.grpc.Metadata;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
@@ -52,7 +51,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 
@@ -103,7 +101,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		@Nonnull StreamObserver<?> responseObserver
 	) {
 		// Retrieve the deadline from the context
-		final Deadline deadline = Context.current().getDeadline();
+		final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
 		final String methodName = GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata);
 		final Runnable theMethod =
@@ -118,8 +116,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 							GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
 						}
 					},
-					deadline == null ?
-						executor.getDefaultTimeoutInMilliseconds() : deadline.timeRemaining(TimeUnit.MILLISECONDS)
+					requestTimeoutMillis
 				)
 			);
 
