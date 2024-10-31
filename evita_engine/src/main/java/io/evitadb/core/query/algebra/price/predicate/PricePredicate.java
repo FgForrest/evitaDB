@@ -78,8 +78,8 @@ public sealed abstract class PricePredicate implements PricePredicateContract
 		int indexedPricePlaces
 	) {
 		this.queryPriceMode = queryPriceMode;
-		this.fromAsInt = from == null ? Integer.MIN_VALUE : NumberUtils.convertToInt(from, indexedPricePlaces);
-		this.toAsInt = to == null ? Integer.MAX_VALUE : NumberUtils.convertToInt(to, indexedPricePlaces);
+		this.fromAsInt = from == null ? Integer.MIN_VALUE : NumberUtils.convertExternalNumberToInt(from, indexedPricePlaces);
+		this.toAsInt = to == null ? Integer.MAX_VALUE : NumberUtils.convertExternalNumberToInt(to, indexedPricePlaces);
 		this.indexedPricePlaces = indexedPricePlaces;
 		if (queryPriceMode == null) {
 			this.description = "NO FILTER PREDICATE";
@@ -109,7 +109,7 @@ public sealed abstract class PricePredicate implements PricePredicateContract
 		this.amountPredicate = new PriceAmountPredicate(
 			queryPriceMode, from, to, indexedPricePlaces,
 			amount ->  {
-				final int amountAsInt = NumberUtils.convertToInt(amount, indexedPricePlaces);
+				final int amountAsInt = NumberUtils.convertExternalNumberToInt(amount, indexedPricePlaces);
 				return amountAsInt >= fromAsInt && amountAsInt <= toAsInt;
 			}
 		);
