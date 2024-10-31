@@ -27,6 +27,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 /**
  * String utils contains shared utility method for working with Numbers.
@@ -153,7 +154,10 @@ public class NumberUtils {
 	 */
 	public static int convertToInt(@Nonnull BigDecimal number, int acceptDecimalPlaces) {
 		try {
-			return number.stripTrailingZeros().scaleByPowerOfTen(acceptDecimalPlaces).intValueExact();
+			return number.stripTrailingZeros()
+				.scaleByPowerOfTen(acceptDecimalPlaces)
+				.setScale(0, RoundingMode.HALF_UP)
+				.intValueExact();
 		} catch (ArithmeticException ex) {
 			throw new ArithmeticException(
 				"Cannot convert big decimal " + number +

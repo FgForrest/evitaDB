@@ -146,6 +146,9 @@ class NumberUtilsTest {
 		assertEquals(2, NumberUtils.convertToInt((short) 2));
 		assertEquals(2, NumberUtils.convertToInt(2));
 		assertEquals(2, NumberUtils.convertToInt((long) 2));
+		assertEquals(22314, NumberUtils.convertToInt(new BigDecimal("223.1405"), 2));
+		assertEquals(2231405, NumberUtils.convertToInt(new BigDecimal("223.1405"), 4));
+		assertEquals(223, NumberUtils.convertToInt(new BigDecimal("223.1405"), 0));
 	}
 
 	@Test
