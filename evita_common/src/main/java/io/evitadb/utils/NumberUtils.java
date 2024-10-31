@@ -23,6 +23,8 @@
 
 package io.evitadb.utils;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
+
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 
@@ -54,6 +56,7 @@ public class NumberUtils {
 	 * converted to the same type and applied. Method checks that there is no loss of precision during sum.
 	 */
 	@SuppressWarnings("RedundantCast")
+	@Nonnull
 	public static Number sum(@Nonnull Number a, @Nonnull Number b) {
 		if (a instanceof Byte) {
 			final long longResult = convertToLong(a) + convertToLong(b);
@@ -152,10 +155,26 @@ public class NumberUtils {
 		try {
 			return number.stripTrailingZeros().scaleByPowerOfTen(acceptDecimalPlaces).intValueExact();
 		} catch (ArithmeticException ex) {
-			throw new IllegalArgumentException(
+			throw new ArithmeticException(
 				"Cannot convert big decimal " + number +
 					" to exact integer by using " + acceptDecimalPlaces + " decimal places!"
 			);
+		}
+	}
+
+	/**
+	 * Converts passed {@link BigDecimal} number to integer value with rounding and overflow handling.
+	 *
+	 * @param number             number to convert
+	 * @param indexedPricePlaces number of decimal places to keep in the integer value
+	 * @return converted integer value
+	 * @throws EvitaInvalidUsageException if the number is too large to be converted to integer
+	 */
+	public static int convertExternalNumberToInt(@Nonnull BigDecimal number, int indexedPricePlaces) {
+		try {
+			return convertToInt(number, indexedPricePlaces);
+		} catch (ArithmeticException ex) {
+			throw new EvitaInvalidUsageException(ex.getMessage(), ex);
 		}
 	}
 
@@ -173,6 +192,7 @@ public class NumberUtils {
 	/**
 	 * Converts unknown number to {@link BigDecimal}.
 	 */
+	@Nonnull
 	public static BigDecimal convertToBigDecimal(@Nonnull Number number) {
 		if (number instanceof Byte) {
 			return new BigDecimal(number.toString());
