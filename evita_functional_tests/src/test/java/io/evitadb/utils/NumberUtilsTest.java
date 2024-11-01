@@ -146,6 +146,9 @@ class NumberUtilsTest {
 		assertEquals(2, NumberUtils.convertToInt((short) 2));
 		assertEquals(2, NumberUtils.convertToInt(2));
 		assertEquals(2, NumberUtils.convertToInt((long) 2));
+		assertEquals(22314, NumberUtils.convertToInt(new BigDecimal("223.1405"), 2));
+		assertEquals(2231405, NumberUtils.convertToInt(new BigDecimal("223.1405"), 4));
+		assertEquals(223, NumberUtils.convertToInt(new BigDecimal("223.1405"), 0));
 	}
 
 	@Test
@@ -160,7 +163,7 @@ class NumberUtilsTest {
 		assertEquals(11020, NumberUtils.convertToInt(new BigDecimal("110.2"), 2));
 		assertEquals(11020, NumberUtils.convertToInt(new BigDecimal("110.20"), 2));
 		assertEquals(11020, NumberUtils.convertToInt(new BigDecimal("110.2000"), 2));
-		assertThrows(IllegalArgumentException.class, () -> NumberUtils.convertToInt(new BigDecimal("110.202"), 2));
+		assertThrows(ArithmeticException.class, () -> NumberUtils.convertToInt(new BigDecimal("21474836471"), 2));
 	}
 
 	@Test
