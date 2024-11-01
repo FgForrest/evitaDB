@@ -53,12 +53,12 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 	@Getter private final String prefix;
 
 	public SystemConfig() {
-		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, null, TlsMode.FORCE_NO_TLS.name());
+		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, null, TlsMode.FORCE_NO_TLS.name(), null);
 		this.prefix = BASE_SYSTEM_PATH;
 	}
 
 	public SystemConfig(@Nonnull String host) {
-		super(true, host, null, TlsMode.FORCE_NO_TLS.name());
+		super(true, host, null, TlsMode.FORCE_NO_TLS.name(), null);
 		this.prefix = BASE_SYSTEM_PATH;
 	}
 
@@ -67,8 +67,10 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 						@Nonnull @JsonProperty("host") String host,
 						@Nullable @JsonProperty("exposeOn") String exposeOn,
 						@Nullable @JsonProperty("tlsMode") String tlsMode,
-						@Nullable @JsonProperty("prefix") String prefix) {
-		super(enabled, host, exposeOn, tlsMode);
+						@Nullable @JsonProperty("keepAlive") Boolean keepAlive,
+						@Nullable @JsonProperty("prefix") String prefix
+	) {
+		super(enabled, host, exposeOn, tlsMode, keepAlive);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_SYSTEM_PATH);
 	}
 }

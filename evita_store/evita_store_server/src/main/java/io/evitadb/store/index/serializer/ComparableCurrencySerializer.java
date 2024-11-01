@@ -29,6 +29,8 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.dataType.ComparableCurrency;
 
+import java.util.Currency;
+
 /**
  * Class handles Kryo (de)serialization of {@link ComparableCurrency} instances.
  *
@@ -41,7 +43,7 @@ public class ComparableCurrencySerializer extends Serializer<ComparableCurrency>
 	}
 
 	public ComparableCurrency read(Kryo kryo, Input input, Class<? extends ComparableCurrency> type) {
-		return kryo.readObject(input, ComparableCurrency.class);
+		return new ComparableCurrency(kryo.readObject(input, Currency.class));
 	}
 
 }

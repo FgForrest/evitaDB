@@ -38,7 +38,6 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-@SuppressWarnings("rawtypes")
 public class ValueToRecordBitmapSerializer extends Serializer<ValueToRecordBitmap> {
 
 	public void write(Kryo kryo, Output output, ValueToRecordBitmap valueToRecordBitmap) {

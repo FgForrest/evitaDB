@@ -127,8 +127,8 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 								innerRecordPrice.priceId(),
 								entityPrimaryKey,
 								innerRecordPrice.innerRecordId(),
-								NumberUtils.convertToInt(innerRecordPrice.priceWithTax(), indexedPricePlaces),
-								NumberUtils.convertToInt(innerRecordPrice.priceWithoutTax(), indexedPricePlaces)
+								NumberUtils.convertExternalNumberToInt(innerRecordPrice.priceWithTax(), indexedPricePlaces),
+								NumberUtils.convertExternalNumberToInt(innerRecordPrice.priceWithoutTax(), indexedPricePlaces)
 							)
 						);
 					}
@@ -136,8 +136,8 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 				return new CumulatedVirtualPriceRecord(
 					entityPrimaryKey,
 					priceQueryMode == QueryPriceMode.WITH_TAX ?
-						NumberUtils.convertToInt(cumulatedPrice.priceWithTax(), indexedPricePlaces) :
-						NumberUtils.convertToInt(cumulatedPrice.priceWithoutTax(), indexedPricePlaces),
+						NumberUtils.convertExternalNumberToInt(cumulatedPrice.priceWithTax(), indexedPricePlaces) :
+						NumberUtils.convertExternalNumberToInt(cumulatedPrice.priceWithoutTax(), indexedPricePlaces),
 					priceQueryMode,
 					intSetInnerRecordIds
 				);
@@ -147,8 +147,8 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 						priceWithInternalIds.getInternalPriceId() : -1,
 						priceContract.priceId(),
 					entityPrimaryKey,
-					NumberUtils.convertToInt(priceContract.priceWithTax(), indexedPricePlaces),
-					NumberUtils.convertToInt(priceContract.priceWithoutTax(), indexedPricePlaces)
+					NumberUtils.convertExternalNumberToInt(priceContract.priceWithTax(), indexedPricePlaces),
+					NumberUtils.convertExternalNumberToInt(priceContract.priceWithoutTax(), indexedPricePlaces)
 				);
 			} else {
 				return new PriceRecordInnerRecordSpecific(
@@ -157,8 +157,8 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 					priceContract.priceId(),
 					entityPrimaryKey,
 					priceContract.innerRecordId(),
-					NumberUtils.convertToInt(priceContract.priceWithTax(), indexedPricePlaces),
-					NumberUtils.convertToInt(priceContract.priceWithoutTax(), indexedPricePlaces)
+					NumberUtils.convertExternalNumberToInt(priceContract.priceWithTax(), indexedPricePlaces),
+					NumberUtils.convertExternalNumberToInt(priceContract.priceWithoutTax(), indexedPricePlaces)
 				);
 			}
 		};

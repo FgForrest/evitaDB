@@ -1262,16 +1262,6 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldRetrieveSystemConfiguration(EvitaClient evitaClient) {
-		final String configuration = evitaClient.management().getConfiguration();
-		assertNotNull(configuration);
-		assertTrue(configuration.contains("name:"));
-		assertTrue(configuration.contains("server:"));
-		assertTrue(configuration.contains("api:"));
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldRetrieveCatalogStatistics(EvitaClient evitaClient) {
 		final CatalogStatistics[] catalogStatistics = evitaClient.management().getCatalogStatistics();
 

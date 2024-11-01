@@ -251,11 +251,9 @@ public class EvitaClient implements EvitaContract {
 		@Nullable Consumer<GrpcClientBuilder> grpcConfigurator
 	) {
 		this.configuration = configuration;
-		final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
+		ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
 			.workerGroup(Runtime.getRuntime().availableProcessors())
-			.idleTimeoutMillis(10000, true)
-			.maxNumRequestsPerConnection(1000)
-			.maxNumEventLoopsPerEndpoint(1);
+			.idleTimeoutMillis(TimeUnit.MILLISECONDS.convert(configuration.timeout(), configuration.timeoutUnit()));
 
 		final String uriScheme;
 		if (configuration.tlsEnabled()) {

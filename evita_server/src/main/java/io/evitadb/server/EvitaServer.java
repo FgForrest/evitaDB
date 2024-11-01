@@ -376,6 +376,14 @@ public class EvitaServer {
 			if (entry.getValue() instanceof Map map) {
 				//noinspection unchecked
 				replaceDeprecatedSettings((prefix.isBlank() ? "" : prefix + ".") + entry.getKey(), map);
+			} else if (entry.getKey().equals("keepAlive") && prefix.equals("api")) {
+				itemsToAdd.add(
+					new Object[]{
+						"endpointDefaults",
+						Map.of("keepAlive", entry.getValue())
+					}
+				);
+				entryIterator.remove();
 			} else if (entry.getKey().equals("exposeOn") && prefix.equals("api")) {
 				itemsToAdd.add(
 					new Object[]{
@@ -433,8 +441,12 @@ public class EvitaServer {
 	private static void replaceValue(@Nonnull Map values, String replacedKey, Object replacedValue) {
 		if (replacedValue instanceof Map replacedMap) {
 			final Object existingValues = values.get(replacedKey);
-			Assert.isPremiseValid(existingValues instanceof Map, () -> "Expected map, got: " + existingValues);
-			replacedMap.forEach((key, value) -> replaceValue((Map) existingValues, (String) key, value));
+			if (existingValues == null) {
+				values.put(replacedKey, replacedMap);
+			} else {
+				Assert.isPremiseValid(existingValues instanceof Map, () -> "Expected map, got: " + existingValues);
+				replacedMap.forEach((key, value) -> replaceValue((Map) existingValues, (String) key, value));
+			}
 		} else {
 			values.put(replacedKey, replacedValue);
 		}

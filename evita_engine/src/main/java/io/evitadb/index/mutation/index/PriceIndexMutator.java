@@ -33,6 +33,7 @@ import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,8 +41,6 @@ import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-
-import static io.evitadb.utils.NumberUtils.convertToInt;
 
 /**
  * This interface is used to co-locate price mutating routines which are rather procedural and long to avoid excessive
@@ -108,8 +107,8 @@ public interface PriceIndexMutator {
 			final Integer formerInternalPriceId = Objects.requireNonNull(formerPrice.getInternalPriceId());
 			final Integer formerInnerRecordId = formerPrice.innerRecordId();
 			final DateTimeRange formerValidity = formerPrice.validity();
-			final int formerPriceWithoutTax = convertToInt(formerPrice.priceWithoutTax(), indexedPricePlaces);
-			final int formerPriceWithTax = convertToInt(formerPrice.priceWithTax(), indexedPricePlaces);
+			final int formerPriceWithoutTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithoutTax(), indexedPricePlaces);
+			final int formerPriceWithTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithTax(), indexedPricePlaces);
 			entityIndex.priceRemove(
 				entityPrimaryKey,
 				formerInternalPriceId,
@@ -135,8 +134,8 @@ public interface PriceIndexMutator {
 		if (indexed) {
 			final PriceInternalIdContainer internalPriceIds = internalIdSupplier.apply(priceKey, innerRecordId);
 			final Integer internalPriceId = internalPriceIds.getInternalPriceId();
-			final int priceWithoutTaxAsInt = convertToInt(priceWithoutTax, indexedPricePlaces);
-			final int priceWithTaxAsInt = convertToInt(priceWithTax, indexedPricePlaces);
+			final int priceWithoutTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithoutTax, indexedPricePlaces);
+			final int priceWithTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithTax, indexedPricePlaces);
 			final PriceInternalIdContainer priceId = entityIndex.addPrice(
 				entityPrimaryKey,
 				internalPriceId,
@@ -198,8 +197,8 @@ public interface PriceIndexMutator {
 				final int internalPriceId = formerPrice.getInternalPriceId();
 				final Integer innerRecordId = formerPrice.innerRecordId();
 				final DateTimeRange validity = formerPrice.validity();
-				final int priceWithoutTax = convertToInt(formerPrice.priceWithoutTax(), indexedPricePlaces);
-				final int priceWithTax = convertToInt(formerPrice.priceWithTax(), indexedPricePlaces);
+				final int priceWithoutTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithoutTax(), indexedPricePlaces);
+				final int priceWithTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithTax(), indexedPricePlaces);
 				entityIndex.priceRemove(
 					entityPrimaryKey,
 					internalPriceId,
@@ -244,4 +243,5 @@ public interface PriceIndexMutator {
 			return price;
 		};
 	}
+
 }
