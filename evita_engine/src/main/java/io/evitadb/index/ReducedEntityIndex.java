@@ -41,6 +41,7 @@ import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -77,7 +78,7 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
 		super(primaryKey, entityType, entityIndexKey);
-		this.priceIndex = new PriceRefIndex();
+		this.priceIndex = new PriceRefIndex(this.getIndexKey().scope());
 	}
 
 	public ReducedEntityIndex(
@@ -197,6 +198,6 @@ public class ReducedEntityIndex extends EntityIndex
 
 	@Override
 	public String toString() {
-		return "ReducedEntityIndex: " + getIndexKey();
+		return "ReducedEntityIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) + ")";
 	}
 }

@@ -32,7 +32,7 @@ import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.exception.UniqueValueViolationException;
-import io.evitadb.api.query.Query;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -97,6 +97,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	public static final String ATTRIBUTE_CODE = "code";
 	public static final String ATTRIBUTE_NAME = "name";
+	public static final String ATTRIBUTE_CODE_NAME = "codeName";
 	public static final String ATTRIBUTE_URL = "url";
 	public static final String ATTRIBUTE_DESCRIPTION = "description";
 	public static final String ATTRIBUTE_EAN = "ean";
@@ -115,6 +116,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED = "notInherited";
 	private static final String ATTRIBUTE_PRODUCT_CATEGORY_INHERITED = "inherited";
 	private static final String ATTRIBUTE_CATEGORY_MARKET = "market";
+	private static final String ATTRIBUTE_CATEGORY_OPEN = "open";
+	private static final String ATTRIBUTE_CATEGORY_MARKET_OPEN = "marketOpen";
 	private Evita evita;
 
 	private static void assertDataWasPropagated(EntityIndex categoryIndex, int recordId) {
@@ -640,7 +643,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					return session.queryOneSealedEntity(
-						Query.query(
+						query(
 							collection(Entities.PRODUCT),
 							filterBy(
 								and(
@@ -2303,7 +2306,6 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.removeReference(Entities.BRAND, 1)
 					.removeReference(Entities.CATEGORY, 1)
 					.upsertVia(session);
-				;
 
 				// assert indexes were emptied and removed
 				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 1));
@@ -3641,6 +3643,166 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				assertEntitiesAreNotEntangled(session);
 			}
 		);
+	}
+
+	@Test
+	void shouldArchiveEntityAndRemoveFromIndexes() {
+		/* create schema for entity archival */
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.BRAND)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.unique().sortable())
+					.withHierarchy()
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.unique().sortable())
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable().sortable())
+					.withSortableAttributeCompound(
+						ATTRIBUTE_CODE_NAME,
+						new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+						new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+					)
+					.withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
+					.withReferenceToEntity(
+						Entities.BRAND,
+						Entities.BRAND,
+						Cardinality.ZERO_OR_ONE,
+						thatIs -> thatIs
+							.indexed()
+							.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, whichIs -> whichIs.filterable().sortable())
+					)
+					.withReferenceToEntity(
+						Entities.CATEGORY,
+						Entities.CATEGORY,
+						Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs
+							.indexed()
+							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable().sortable())
+							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable())
+							.withSortableAttributeCompound(
+								ATTRIBUTE_CATEGORY_MARKET_OPEN,
+								new AttributeElement(ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+								new AttributeElement(ATTRIBUTE_CATEGORY_OPEN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+							)
+					)
+					.updateVia(session);
+			}
+		);
+
+		// upsert entities product depends on
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.BRAND, 1).upsertVia(session);
+				session.createNewEntity(Entities.BRAND, 2).upsertVia(session);
+
+				session.createNewEntity(Entities.CATEGORY, 1)
+					.setAttribute(ATTRIBUTE_CODE, "electronics")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.CATEGORY, 2)
+					.setParent(1)
+					.setAttribute(ATTRIBUTE_CODE, "TV")
+					.upsertVia(session);
+			}
+		);
+
+		// create product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.setReference(Entities.BRAND, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "123"))
+					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+			}
+		);
+
+		// check product entity is in indexes
+		checkProductCanBeLookedUpByIndexes();
+
+		// check indexes exist
+		/* TODO JNO - add checks */
+		/*assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));*/
+
+		// archive product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 100);
+			}
+		);
+
+		// check product entity is not in indexes
+		checkProductCannotBeLookedUpByIndexes();
+
+		// check archive indexes exist and previous indexes are removed
+		/* TODO JNO - add checks */
+		/*assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));*/
+	}
+
+	private void checkProductCanBeLookedUpByIndexes() {
+		final EntityReference productReference = new EntityReference(Entities.PRODUCT, 100);
+		assertEquals(
+			productReference,
+			queryProductReferenceBy(attributeEquals(ATTRIBUTE_CODE, "TV-123"))
+		);
+		assertEquals(
+			productReference,
+			queryProductReferenceBy(attributeEquals(ATTRIBUTE_NAME, "TV"), entityLocaleEquals(Locale.ENGLISH))
+		);
+		assertEquals(
+			productReference,
+			queryProductReferenceBy(referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1)))
+		);
+		assertEquals(
+			productReference,
+			queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)))
+		);
+		assertEquals(
+			productReference,
+			queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)))
+		);
+		assertEquals(
+			productReference,
+			queryProductReferenceBy(priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC))
+		);
+	}
+
+	private void checkProductCannotBeLookedUpByIndexes() {
+		assertNull(queryProductReferenceBy(attributeEquals(ATTRIBUTE_CODE, "TV-123")));
+		assertNull(queryProductReferenceBy(attributeEquals(ATTRIBUTE_NAME, "TV"), entityLocaleEquals(Locale.ENGLISH)));
+		assertNull(queryProductReferenceBy(referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1))));
+		assertNull(queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))));
+		assertNull(queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))));
+		assertNull(queryProductReferenceBy(priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC)));
+	}
+
+	@Nullable
+	private EntityReference queryProductReferenceBy(@Nonnull FilterConstraint... filterBy) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOne(
+					query(collection(Entities.PRODUCT), filterBy(filterBy)),
+					EntityReference.class
+				);
+			}
+		).orElse(null);
 	}
 
 	@Nonnull

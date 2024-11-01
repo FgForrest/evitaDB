@@ -23,8 +23,8 @@
 
 package io.evitadb.api.requestResponse.data.mutation.scope;
 
-import io.evitadb.api.requestResponse.data.Scope;
 import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

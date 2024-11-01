@@ -37,6 +37,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -90,6 +91,13 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	 */
 	private final TransactionalBoolean dirty;
 	/**
+	 * Captures the scope of the index and reflects the {@link EntityIndexKey#scope()} of the main entity index this
+	 * price index is part of.
+	 *
+	 * TODO JNO - serialize me
+	 */
+	private final Scope scope;
+	/**
 	 * Unique identification of this index - contains price list name and currency combination.
 	 */
 	@Getter private final PriceIndexKey priceIndexKey;
@@ -127,24 +135,28 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	private int[] memoizedIndexedPriceIds;
 
 	public PriceListAndCurrencyPriceRefIndex(
+		@Nonnull Scope scope,
 		@Nonnull PriceIndexKey priceIndexKey
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.terminated = new TransactionalBoolean();
 		this.indexedPriceEntityIds = new TransactionalBitmap();
 		this.indexedPriceIds = new TransactionalBitmap();
+		this.scope = scope;
 		this.priceIndexKey = priceIndexKey;
 		this.validityIndex = new RangeIndex();
 		this.priceRecords = new TransactionalObjArray<>(new PriceRecordContract[0], Comparator.naturalOrder());
 	}
 
 	public PriceListAndCurrencyPriceRefIndex(
+		@Nonnull Scope scope,
 		@Nonnull PriceIndexKey priceIndexKey,
 		@Nonnull RangeIndex validityIndex,
 		@Nonnull int[] priceIds
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.terminated = new TransactionalBoolean();
+		this.scope = scope;
 		this.priceIndexKey = priceIndexKey;
 		this.validityIndex = validityIndex;
 		this.indexedPriceIds = new TransactionalBitmap(priceIds);
@@ -152,6 +164,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	}
 
 	private PriceListAndCurrencyPriceRefIndex(
+		@Nonnull Scope scope,
 		@Nonnull PriceIndexKey priceIndexKey,
 		@Nonnull Bitmap indexedPriceEntityIds,
 		@Nonnull Bitmap priceIds,
@@ -159,6 +172,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.terminated = new TransactionalBoolean();
+		this.scope = scope;
 		this.priceIndexKey = priceIndexKey;
 		this.indexedPriceEntityIds = new TransactionalBitmap(indexedPriceEntityIds);
 		this.indexedPriceIds = new TransactionalBitmap(priceIds);
@@ -166,6 +180,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	}
 
 	private PriceListAndCurrencyPriceRefIndex(
+		@Nonnull Scope scope,
 		@Nonnull PriceIndexKey priceIndexKey,
 		@Nonnull TransactionalBitmap indexedPriceEntityIds,
 		@Nonnull TransactionalBitmap priceIds,
@@ -173,6 +188,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.terminated = new TransactionalBoolean();
+		this.scope = scope;
 		this.priceIndexKey = priceIndexKey;
 		this.indexedPriceEntityIds = indexedPriceEntityIds;
 		this.indexedPriceIds = priceIds;
@@ -184,9 +200,11 @@ public class PriceListAndCurrencyPriceRefIndex implements
 		assertNotTerminated();
 		Assert.isPremiseValid(this.superIndex == null, "Catalog was already attached to this index!");
 		final PriceListAndCurrencyPriceIndex<?, ?> superIndex = catalog.getEntityIndexIfExists(
-			entityType, new EntityIndexKey(EntityIndexType.GLOBAL), GlobalEntityIndex.class
+			entityType,
+			new EntityIndexKey(EntityIndexType.GLOBAL, this.scope),
+			GlobalEntityIndex.class
 		)
-			.map(it -> it.getPriceIndex(priceIndexKey))
+			.map(it -> it.getPriceIndex(this.priceIndexKey))
 			.orElse(null);
 		Assert.isPremiseValid(
 			superIndex instanceof PriceListAndCurrencyPriceSuperIndex,
@@ -213,6 +231,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	public PriceListAndCurrencyPriceRefIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		assertNotTerminated();
 		return new PriceListAndCurrencyPriceRefIndex(
+			this.scope,
 			this.priceIndexKey,
 			this.indexedPriceEntityIds,
 			this.indexedPriceIds,
@@ -422,6 +441,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 		this.terminated.removeLayer(transactionalLayer);
 		this.priceRecords.removeLayer(transactionalLayer);
 		return new PriceListAndCurrencyPriceRefIndex(
+			this.scope,
 			this.priceIndexKey,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceEntityIds),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceIds),

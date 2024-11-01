@@ -24,6 +24,7 @@
 package io.evitadb.core;
 
 
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -53,11 +54,11 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Objects;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation.computeLocalMutationsForEntityRemoval;
 
 /**
  * LocalMutationExecutorCollector is responsible for collecting, executing,
@@ -92,6 +93,11 @@ class LocalMutationExecutorCollector {
 	 */
 	private final List<EntityMutation> entityMutations = new ArrayList<>(16);
 	/**
+	 * Reference to the fully fetched entity that is being mutated. This entity is needed for removal / archive / restore
+	 * mutations to generate local mutations for all necessary parts of the entity.
+	 */
+	private EntityWithFetchCount fullEntityBody;
+	/**
 	 * The current nesting level of the collector.
 	 */
 	private int level;
@@ -104,22 +110,37 @@ class LocalMutationExecutorCollector {
 	 * Method fetches the full contents of the entity by its primary key from the I/O storage (taking advantage of
 	 * modified parts in the {@link TransactionalDataStoreMemoryBuffer}.
 	 */
-	@Nullable
-	private static EntityWithFetchCount getFullEntityById(
+	@Nonnull
+	public EntityWithFetchCount getFullEntityById(
 		int primaryKey,
-		@Nonnull EntitySchema entitySchema,
+		@Nonnull String entityType,
 		@Nonnull IntBiFunction<EvitaRequest, EntityWithFetchCount> entityFetcher
 	) {
-		final EvitaRequest evitaRequest = new EvitaRequest(
-			Query.query(
-				collection(entitySchema.getName()),
-				require(entityFetchAll())
-			),
-			OffsetDateTime.now(),
-			Entity.class,
-			null
-		);
-		return entityFetcher.apply(primaryKey, evitaRequest);
+		if (
+			this.fullEntityBody == null ||
+				this.fullEntityBody.entity().getPrimaryKey() != primaryKey ||
+				!this.fullEntityBody.entity().getType().equals(entityType)
+		) {
+			final EvitaRequest evitaRequest = new EvitaRequest(
+				Query.query(
+					collection(entityType),
+					require(entityFetchAll())
+				),
+				OffsetDateTime.now(),
+				Entity.class,
+				null
+			);
+			this.fullEntityBody = entityFetcher.apply(primaryKey, evitaRequest);
+			Assert.notNull(
+				this.fullEntityBody,
+				() -> new InvalidMutationException(
+					"There is no entity " + entityType + " with primary key " +
+						primaryKey + " present! This means, that you're probably trying to update " +
+						"entity that has been already removed!"
+				)
+			);
+		}
+		return this.fullEntityBody;
 	}
 
 	/**
@@ -170,11 +191,9 @@ class LocalMutationExecutorCollector {
 			this.level++;
 
 			final List<? extends LocalMutation<?, ?>> localMutations;
-			if (entityMutation instanceof EntityRemoveMutation erm) {
-				result = getFullEntityById(entityMutation.getEntityPrimaryKey(), entitySchema, entityFetcher);
-				localMutations = erm.computeLocalMutationsForEntityRemoval(
-					Objects.requireNonNull(result.entity())
-				);
+			if (entityMutation instanceof EntityRemoveMutation) {
+				result = getFullEntityById(entityMutation.getEntityPrimaryKey(), entitySchema.getName(), entityFetcher);
+				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
 			} else {
 				localMutations = entityMutation.getLocalMutations();
 			}

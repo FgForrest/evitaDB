@@ -33,6 +33,8 @@ import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex.PriceListAndCurrencyPriceIndexTerminated;
 import io.evitadb.index.price.PriceRefIndex.PriceIndexChanges;
@@ -78,6 +80,13 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 {
 	@Serial private static final long serialVersionUID = 7596276815836027747L;
 	/**
+	 * Captures the scope of the index and reflects the {@link EntityIndexKey#scope()} of the main entity index this
+	 * price index is part of.
+	 *
+	 * TODO JNO - serialize me
+	 */
+	private final Scope scope;
+	/**
 	 * Map of {@link PriceListAndCurrencyPriceSuperIndex indexes} that contains prices that relates to specific price-list
 	 * and currency combination.
 	 */
@@ -89,11 +98,16 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	 */
 	private Consumer<PriceListAndCurrencyPriceRefIndex> initCallback;
 
-	public PriceRefIndex() {
+	public PriceRefIndex(@Nonnull Scope scope) {
+		this.scope = scope;
 		this.priceIndexes = new TransactionalMap<>(new HashMap<>(), PriceListAndCurrencyPriceRefIndex.class, Function.identity());
 	}
 
-	public PriceRefIndex(@Nonnull Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes) {
+	public PriceRefIndex(
+		@Nonnull Scope scope,
+		@Nonnull Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes
+	) {
+		this.scope = scope;
 		this.priceIndexes = new TransactionalMap<>(priceIndexes, PriceListAndCurrencyPriceRefIndex.class, Function.identity());
 	}
 
@@ -109,6 +123,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	@Override
 	public PriceRefIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		return new PriceRefIndex(
+			this.scope,
 			this.priceIndexes
 				.entrySet()
 				.stream()
@@ -134,6 +149,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	@Override
 	public PriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final PriceRefIndex priceIndex = new PriceRefIndex(
+			this.scope,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
@@ -153,7 +169,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 
 	@Nonnull
 	protected PriceListAndCurrencyPriceRefIndex createNewPriceListAndCurrencyIndex(@Nonnull PriceIndexKey lookupKey) {
-		final PriceListAndCurrencyPriceRefIndex newPriceListIndex = new PriceListAndCurrencyPriceRefIndex(lookupKey);
+		final PriceListAndCurrencyPriceRefIndex newPriceListIndex = new PriceListAndCurrencyPriceRefIndex(this.scope, lookupKey);
 		initCallback.accept(newPriceListIndex);
 		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addCreatedItem(newPriceListIndex));

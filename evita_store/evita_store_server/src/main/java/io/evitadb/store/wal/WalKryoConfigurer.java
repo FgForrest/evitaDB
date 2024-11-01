@@ -26,7 +26,6 @@ package io.evitadb.store.wal;
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.api.requestResponse.data.Scope;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -71,6 +70,7 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.store.dataType.serializer.EnumNameSerializer;
 import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.wal.data.EntityRemoveMutationSerializer;

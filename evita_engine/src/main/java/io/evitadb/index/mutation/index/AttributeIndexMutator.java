@@ -25,12 +25,9 @@ package io.evitadb.index.mutation.index;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
-import io.evitadb.api.requestResponse.data.Droppable;
-import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -43,20 +40,13 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
-import io.evitadb.index.mutation.index.ReferenceIndexMutator.ReferenceAttributeValueSupplier;
-import io.evitadb.store.entity.model.entity.AttributesStoragePart;
-import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
-import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
+import io.evitadb.index.mutation.index.attributeSupplier.ExistingAttributeValueSupplier;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -426,15 +416,13 @@ public interface AttributeIndexMutator {
 	 * added, or the entity is set up in a brand new reduced index.
 	 */
 	static void insertInitialSuiteOfSortableAttributeCompounds(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
 		@Nullable Locale locale,
-		int entityPrimaryKey,
-		@Nonnull EntitySchema entitySchema,
-		@Nullable ReferenceKey referenceKey,
-		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor,
+		@Nonnull SortableAttributeCompoundSchemaProvider<?> compoundProvider,
+		@Nonnull ExistingAttributeValueSupplier entityAttributeValueSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final SortableAttributeCompoundSchemaProvider<?> compoundProvider = getSortableAttributeCompoundSchemaProvider(entitySchema, referenceKey);
 		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = compoundProvider.getSortableAttributeCompounds();
 		if (sortableAttributeCompounds.isEmpty()) {
 			return;
@@ -443,10 +431,6 @@ public interface AttributeIndexMutator {
 		final Function<String, AttributeSchema> attributeSchemaProvider = attributeName -> compoundProvider.getAttribute(attributeName)
 			.map(AttributeSchema.class::cast)
 			.orElse(null);
-
-		final EntityAttributeValueSupplier entityAttributeValueSupplier = new EntityAttributeValueSupplier(
-			entityStoragePartAccessor, entitySchema.getName(), entityPrimaryKey
-		);
 
 		final Stream<SortableAttributeCompoundSchema> allCompounds = sortableAttributeCompounds
 			.values()
@@ -459,6 +443,7 @@ public interface AttributeIndexMutator {
 			// filter only localized compound schemas
 			allCompounds.filter(it -> it.isLocalized(attributeSchemaProvider));
 
+		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 		filteredCompounds.forEach(
 			it -> insertNewCompound(
 				entityPrimaryKey, entityIndex, it,
@@ -484,30 +469,17 @@ public interface AttributeIndexMutator {
 	 * discarded, or the entity removed from the index.
 	 */
 	static void removeEntireSuiteOfSortableAttributeCompounds(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
 		@Nullable Locale locale,
-		int entityPrimaryKey,
-		@Nonnull EntitySchema entitySchema,
-		@Nullable ReferenceKey referenceKey,
-		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor,
+		@Nonnull SortableAttributeCompoundSchemaProvider<?> compoundProvider,
+		@Nonnull ExistingAttributeValueSupplier entityAttributeValueSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final SortableAttributeCompoundSchemaProvider<?> compoundProvider = getSortableAttributeCompoundSchemaProvider(entitySchema, referenceKey);
 		final Function<String, AttributeSchema> attributeSchemaProvider = attributeName -> compoundProvider.getAttribute(attributeName)
 			.map(AttributeSchema.class::cast)
 			.orElse(null);
 
-		final ExistingAttributeValueSupplier entityAttributeValueSupplier = ofNullable(referenceKey)
-			.map(
-				refKey -> (ExistingAttributeValueSupplier) new ReferenceAttributeValueSupplier(
-					entityStoragePartAccessor, refKey, entitySchema.getName(), entityPrimaryKey
-				)
-			)
-			.orElseGet(
-				() -> new EntityAttributeValueSupplier(
-					entityStoragePartAccessor, entitySchema.getName(), entityPrimaryKey
-				)
-			);
 		final Stream<SortableAttributeCompoundSchema> allCompounds = compoundProvider.getSortableAttributeCompounds()
 			.values()
 			.stream()
@@ -519,6 +491,7 @@ public interface AttributeIndexMutator {
 			// filter only localized compound schemas
 			allCompounds.filter(it -> it.isLocalized(attributeSchemaProvider));
 
+		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 		filteredCompounds.forEach(
 			it -> removeOldCompound(
 				entityPrimaryKey, entityIndex, it,
@@ -532,24 +505,6 @@ public interface AttributeIndexMutator {
 				undoActionConsumer
 			)
 		);
-	}
-
-	/**
-	 * Returns {@link SortableAttributeCompoundSchemaProvider} for the given entity and `referenceKey`. When the
-	 * `referenceKey` is null, the method returns the entity itself, otherwise the reference is returned.
-	 */
-	@Nonnull
-	private static SortableAttributeCompoundSchemaProvider<?> getSortableAttributeCompoundSchemaProvider(
-		@Nonnull EntitySchema entitySchema,
-		@Nullable ReferenceKey referenceKey
-	) {
-		final SortableAttributeCompoundSchemaProvider<?> compoundProvider;
-		if (referenceKey == null) {
-			compoundProvider = entitySchema;
-		} else {
-			compoundProvider = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
-		}
-		return compoundProvider;
 	}
 
 	/**
@@ -734,100 +689,6 @@ public interface AttributeIndexMutator {
 					new AttributeKey(it.attributeName())
 			);
 		};
-	}
-
-	/**
-	 * This auxiliary interface allows to get existing attribute value for particular attribute key and retrieve set
-	 * of available locales for the updated entity.
-	 */
-	interface ExistingAttributeValueSupplier {
-
-		/**
-		 * Returns complete set of locales for the entity attributes.
-		 */
-		@Nonnull
-		Set<Locale> getEntityAttributeLocales();
-
-		/**
-		 * Returns existing attribute value for particular attribute key.
-		 */
-		@Nonnull
-		Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey);
-
-	}
-
-	/**
-	 * This is auxiliary class that allows lazily fetch attribute container from persistent storage and remember it
-	 * for potential future requests.
-	 */
-	@NotThreadSafe
-	@RequiredArgsConstructor
-	class EntityAttributeValueSupplier implements ExistingAttributeValueSupplier {
-		private final EntityStoragePartAccessor containerAccessor;
-		private final String entityType;
-		private final int entityPrimaryKey;
-		private Set<Locale> memoizedLocales;
-		private AttributeKey memoizedKey;
-		@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-		private Optional<AttributeValue> memoizedValue;
-
-		@Nonnull
-		@Override
-		public Set<Locale> getEntityAttributeLocales() {
-			if (memoizedLocales == null) {
-				final Set<Locale> attributeLocales;
-				if (containerAccessor instanceof WritableEntityStorageContainerAccessor writableEntityStorageContainerAccessor
-					&& !(writableEntityStorageContainerAccessor.getAddedLocales().isEmpty() && writableEntityStorageContainerAccessor.getRemovedLocales().isEmpty())) {
-					attributeLocales = new HashSet<>(
-						containerAccessor.getEntityStoragePart(
-							entityType, entityPrimaryKey, EntityExistence.MUST_EXIST
-						).getAttributeLocales()
-					);
-					attributeLocales.removeAll(writableEntityStorageContainerAccessor.getAddedLocales());
-					attributeLocales.addAll(writableEntityStorageContainerAccessor.getRemovedLocales());
-				} else {
-					attributeLocales = containerAccessor.getEntityStoragePart(
-						entityType, entityPrimaryKey, EntityExistence.MUST_EXIST
-					).getAttributeLocales();
-				}
-				this.memoizedLocales = attributeLocales;
-			}
-			return memoizedLocales;
-		}
-
-		@Nonnull
-		@Override
-		public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-			if (!Objects.equals(memoizedKey, attributeKey)) {
-				final AttributesStoragePart currentAttributes = ofNullable(attributeKey.locale())
-					.map(it -> containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey, it))
-					.orElseGet(() -> containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey));
-
-				this.memoizedKey = attributeKey;
-				this.memoizedValue = Optional.of(currentAttributes)
-					.map(it -> it.findAttribute(attributeKey))
-					.filter(Droppable::exists);
-			}
-			return memoizedValue;
-		}
-
-		/**
-		 * Returns stream of all attribute values for the entity.
-		 */
-		public Stream<AttributeValue> getAttributeValues() {
-			return Arrays.stream(
-				containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey).getAttributes()
-			).filter(Droppable::exists);
-		}
-
-		/**
-		 * Returns stream of all attribute values for the entity in particular locale.
-		 */
-		public Stream<AttributeValue> getAttributeValues(@Nonnull Locale locale) {
-			return Arrays.stream(
-				containerAccessor.getAttributeStoragePart(entityType, entityPrimaryKey, locale).getAttributes()
-			).filter(Droppable::exists);
-		}
 	}
 
 }

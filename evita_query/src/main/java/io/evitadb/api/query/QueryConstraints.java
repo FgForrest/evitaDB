@@ -30,6 +30,7 @@ import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Range;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.StripList;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;

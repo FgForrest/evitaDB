@@ -679,3 +679,15 @@ enum GrpcClassifierType {
   CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE = 6;
 
 }
+
+// Enum defines the possible scopes where the entities can reside.
+enum GrpcEntityScope {
+
+    // Entities that are currently active and reside in the live data set block.
+    SCOPE_LIVE = 0;
+
+
+    // Entities that are no longer active and reside in the archive block.
+    SCOPE_ARCHIVED = 1;
+
+}

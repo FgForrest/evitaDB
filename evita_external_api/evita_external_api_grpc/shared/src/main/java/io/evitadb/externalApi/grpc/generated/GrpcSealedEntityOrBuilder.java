@@ -283,7 +283,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice>
       getPricesList();
   /**
    * <pre>
@@ -308,7 +308,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
       getPricesOrBuilderList();
   /**
    * <pre>
@@ -380,7 +380,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference>
       getReferencesList();
   /**
    * <pre>
@@ -408,7 +408,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
       getReferencesOrBuilderList();
   /**
    * <pre>
@@ -537,7 +537,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale>
       getLocalesList();
   /**
    * <pre>
@@ -565,7 +565,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
       getLocalesOrBuilderList();
   /**
    * <pre>
@@ -577,4 +577,23 @@ public interface GrpcSealedEntityOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocalesOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Identifies scope where the entity resides (either live or archived scope).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 17;</code>
+   * @return The enum numeric value on the wire for scope.
+   */
+  int getScopeValue();
+  /**
+   * <pre>
+   * Identifies scope where the entity resides (either live or archived scope).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 17;</code>
+   * @return The scope.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScope();
 }

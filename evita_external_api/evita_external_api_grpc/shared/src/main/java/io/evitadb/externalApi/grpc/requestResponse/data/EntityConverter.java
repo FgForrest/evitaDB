@@ -81,6 +81,9 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScope;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
+
 /**
  * Class used for building suitable form of entity based on {@link SealedEntity}. The main methods here are
  * {@link #toGrpcSealedEntity(SealedEntity)} and {@link #toGrpcBinaryEntity(BinaryEntity)}, which are used for building
@@ -191,7 +194,8 @@ public class EntityConverter {
 					grpcEntity.getLocalesList()
 						.stream()
 						.map(EvitaDataTypesConverter::toLocale)
-						.collect(Collectors.toSet())
+						.collect(Collectors.toSet()),
+					toScope(grpcEntity.getScope())
 				),
 				entitySchema,
 				parentEntity,
@@ -282,7 +286,8 @@ public class EntityConverter {
 			.setEntityType(entity.getType())
 			.setPrimaryKey(entity.getPrimaryKey())
 			.setSchemaVersion(entity.getSchema().version())
-			.setVersion(entity.version());
+			.setVersion(entity.version())
+			.setScope(toGrpcScope(entity.getScope()));
 
 		if (entity.parentAvailable()) {
 			entity.getParentEntity()

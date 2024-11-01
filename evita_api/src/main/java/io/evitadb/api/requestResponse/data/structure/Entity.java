@@ -52,7 +52,6 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.Scope;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
@@ -78,6 +77,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -257,7 +257,8 @@ public class Entity implements SealedEntity {
 		@Nonnull EntityAttributes attributes,
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
-		@Nonnull Set<Locale> locales
+		@Nonnull Set<Locale> locales,
+		@Nonnull Scope scope
 	) {
 		return new Entity(
 			ofNullable(version).orElse(1),
@@ -269,7 +270,7 @@ public class Entity implements SealedEntity {
 			associatedData,
 			prices,
 			locales,
-			Scope.LIVE,
+			scope,
 			false
 		);
 	}

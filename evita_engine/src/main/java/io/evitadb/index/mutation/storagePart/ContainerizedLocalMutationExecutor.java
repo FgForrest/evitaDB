@@ -70,6 +70,7 @@ import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriConsumer;
@@ -353,24 +354,25 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		// apply entity consistency checks and returns list of mutations that needs to be also applied in order
 		// maintain entity consistent (i.e. init default values).
 		final MutationCollector mutationCollector = new MutationCollector();
-		if (this.entityContainer.isNew() && !entityContainer.isMarkedForRemoval()) {
+		final Scope scope = this.entityContainer.getScope();
+		if (this.entityContainer.isNew() && !this.entityContainer.isMarkedForRemoval()) {
 			// we need to check entire entity
 			final List<Object> missingMandatedAttributes = new LinkedList<>();
 			if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_ATTRIBUTES)) {
 				verifyMandatoryAttributes(this.entityContainer, missingMandatedAttributes, true, true, mutationCollector);
 			}
 			if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
-				insertReflectedReferences(this.referencesStorageContainer, missingMandatedAttributes, mutationCollector);
+				insertReflectedReferences(scope, this.referencesStorageContainer, missingMandatedAttributes, mutationCollector);
 			}
 			if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
-				verifyReferenceAttributes(this.entityContainer, this.referencesStorageContainer, inputMutations, missingMandatedAttributes, mutationCollector);
+				verifyReferenceAttributes(scope, this.entityContainer, this.referencesStorageContainer, inputMutations, missingMandatedAttributes, mutationCollector);
 			}
 
 			if (!missingMandatedAttributes.isEmpty()) {
 				throw new MandatoryAttributesNotProvidedException(this.schemaAccessor.get().getName(), missingMandatedAttributes);
 			}
 		} else if (this.entityContainer.isMarkedForRemoval()) {
-			removeReflectedReferences(this.initialReferencesStorageContainer, mutationCollector);
+			removeReflectedReferences(scope, this.initialReferencesStorageContainer, mutationCollector);
 		} else {
 			final List<Object> missingMandatedAttributes = new LinkedList<>();
 			// we need to check only changed parts
@@ -385,10 +387,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			}
 			if (this.referencesStorageContainer != null && this.referencesStorageContainer.isDirty()) {
 				if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
-					verifyReflectedReferences(inputMutations, mutationCollector);
+					verifyReflectedReferences(scope, inputMutations, mutationCollector);
 				}
 				if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
 					verifyReferenceAttributes(
+						scope,
 						this.entityContainer,
 						this.referencesStorageContainer,
 						inputMutations,
@@ -698,6 +701,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 *                                   Cannot be null.
 	 */
 	private void insertReflectedReferences(
+		@Nonnull Scope scope,
 		@Nullable ReferencesStoragePart referencesStorageContainer,
 		@Nonnull List<Object> missingMandatedAttributes,
 		@Nonnull MutationCollector mutationCollector
@@ -706,13 +710,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		final CatalogSchema catalogSchema = catalogSchemaAccessor.get();
 
 		setupReferencesOnEntityCreation(
-			catalogSchema, entitySchema,
+			scope, catalogSchema, entitySchema,
 			missingMandatedAttributes, mutationCollector
 		);
 
 		if (referencesStorageContainer != null) {
 			propagateReferencesToEntangledEntities(
-				catalogSchema, entitySchema, referencesStorageContainer,
+				scope, catalogSchema, entitySchema, referencesStorageContainer,
 				InsertReferenceMutation::new, mutationCollector
 			);
 		}
@@ -727,6 +731,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param mutationCollector         the collector for mutations, must not be null
 	 */
 	private void setupReferencesOnEntityCreation(
+		@Nonnull Scope scope,
 		@Nonnull CatalogSchema catalogSchema,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull List<Object> missingMandatedAttributes,
@@ -754,6 +759,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				reflectedReferenceSchema
 					.ifPresent(
 						it -> createAndRegisterReferencePropagationMutation(
+							scope,
 							dataStoreReader,
 							(ReferenceSchema) referenceSchema, it, mutationCollector,
 							InsertReferenceMutation::new,
@@ -793,6 +799,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param mutationCollector The mutation collector used to collect the verified reflected references.
 	 */
 	private void verifyReflectedReferences(
+		@Nonnull Scope scope,
 		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
 		@Nonnull MutationCollector mutationCollector
 	) {
@@ -807,7 +814,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					final int currentIndex = i;
 					final String thisReferenceName = referenceKey.referenceName();
 					propagateReferenceModification(
-						catalogSchema, entitySchema, thisReferenceName,
+						scope, catalogSchema, entitySchema, thisReferenceName,
 						() -> new ReferenceBlock(
 							catalogSchema,
 							this.entityContainer.getLocales(),
@@ -829,7 +836,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					final int currentIndex = i;
 					final String thisReferenceName = referenceKey.referenceName();
 					propagateReferenceModification(
-						catalogSchema, entitySchema, thisReferenceName,
+						scope, catalogSchema, entitySchema, thisReferenceName,
 						() -> new ReferenceBlock(
 							catalogSchema,
 							this.entityContainer.getLocales(),
@@ -858,11 +865,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param mutationCollector          the collector that will gather all mutations applied during the process.
 	 */
 	private void removeReflectedReferences(
+		@Nonnull Scope scope,
 		@Nullable ReferencesStoragePart referencesStorageContainer,
 		@Nonnull MutationCollector mutationCollector
 	) {
 		if (referencesStorageContainer != null) {
 			propagateReferencesToEntangledEntities(
+				scope,
 				catalogSchemaAccessor.get(),
 				schemaAccessor.get(),
 				referencesStorageContainer,
@@ -883,6 +892,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param mutationCollector          The mutation collector to accumulate mutations. Cannot be null.
 	 */
 	private void propagateReferencesToEntangledEntities(
+		@Nonnull Scope scope,
 		@Nullable CatalogSchema catalogSchema,
 		@Nullable EntitySchema entitySchema,
 		@Nonnull ReferencesStoragePart referencesStorageContainer,
@@ -905,7 +915,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				final int currentIndex = i;
 				// setup references
 				propagateReferenceModification(
-					catalogSchema, entitySchema,
+					scope, catalogSchema, entitySchema,
 					thisReferenceName,
 					() -> {
 						final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(thisReferenceName);
@@ -947,6 +957,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param eachReferenceConsumer       consumer that is invoked with each created reference
 	 */
 	private void createAndRegisterReferencePropagationMutation(
+		@Nonnull Scope scope,
 		@Nonnull DataStoreReader dataStoreReader,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable String externalReferenceSchemaName,
@@ -957,7 +968,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		// access its reduced entity index for current entity
 		final ReferenceKey referenceKey = new ReferenceKey(externalReferenceSchemaName, this.entityPrimaryKey);
 		final ReducedEntityIndex reducedEntityIndex = dataStoreReader.getIndexIfExists(
-			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey),
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, referenceKey),
 			entityIndexKey -> null
 		);
 		// and if such is found, there are entities referring to our entity
@@ -989,6 +1000,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param mutationFactory        function that creates the propagated mutation
 	 */
 	private void propagateReferenceModification(
+		@Nonnull Scope scope,
 		@Nonnull CatalogSchema catalogSchema,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull String referenceName,
@@ -1014,7 +1026,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				// lets collect all primary keys of the reference with the same name into a bitmap
 				final ReferenceBlock referenceBlock = referenceBlockSupplier.get();
 				final RoaringBitmap referencePrimaryKeys = referenceBlock.getReferencedPrimaryKeys();
-				final GlobalEntityIndex globalIndex = dataStoreReader.getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL), entityIndexKey -> null);
+				final GlobalEntityIndex globalIndex = dataStoreReader.getIndexIfExists(
+					new EntityIndexKey(EntityIndexType.GLOBAL, scope),
+					entityIndexKey -> null
+				);
 				// if global index is found there is at least one entity of such type
 				if (globalIndex != null) {
 					// but we need to match only those our entity refers to via this reference
@@ -1052,6 +1067,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * Method verifies that all non-mandatory attributes are present on entity references.
 	 */
 	private void verifyReferenceAttributes(
+		@Nonnull Scope scope,
 		@Nonnull EntityBodyStoragePart entityStorageContainer,
 		@Nullable ReferencesStoragePart referencesStoragePart,
 		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
@@ -1064,7 +1080,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 		final CatalogSchema catalogSchema = catalogSchemaAccessor.get();
 		final EntitySchema entitySchema = schemaAccessor.get();
-		propagateOrphanedReferenceAttributeMutations(catalogSchema, entitySchema, inputMutations, mutationCollector);
+		propagateOrphanedReferenceAttributeMutations(
+			scope, catalogSchema, entitySchema, inputMutations, mutationCollector
+		);
 
 		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
 		Arrays.stream(referencesStoragePart.getReferences())
@@ -1117,6 +1135,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param mutationCollector The collector used to gather and store mutations that need to be externally applied.
 	 */
 	private void propagateOrphanedReferenceAttributeMutations(
+		@Nonnull Scope scope,
 		@Nonnull CatalogSchema catalogSchema,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
@@ -1151,7 +1170,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					if (dataStoreReader != null) {
 						// check whether global index exists (there is at least one entity of such type)
 						final GlobalEntityIndex globalIndex = dataStoreReader.getIndexIfExists(
-							new EntityIndexKey(EntityIndexType.GLOBAL),
+							new EntityIndexKey(EntityIndexType.GLOBAL, scope),
 							entityIndexKey -> null
 						);
 						if (globalIndex != null) {
@@ -1340,7 +1359,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Nonnull
 	private EntityBodyStoragePart getEntityStorageContainer() {
 		// if entity represents first version we need to forcefully create entity container object
-		this.entityContainer = this.entityContainer == null ? new EntityBodyStoragePart(entityPrimaryKey) : this.entityContainer;
+		this.entityContainer = this.entityContainer == null ? new EntityBodyStoragePart(this.entityPrimaryKey) : this.entityContainer;
 		return this.entityContainer;
 	}
 

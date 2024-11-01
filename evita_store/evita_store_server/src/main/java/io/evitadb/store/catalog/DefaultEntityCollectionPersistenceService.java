@@ -57,6 +57,7 @@ import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
@@ -555,6 +556,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	private static Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> fetchPriceRefIndexes(
 		long catalogVersion,
 		int entityIndexId,
+		@Nonnull Scope scope,
 		@Nonnull Set<PriceIndexKey> priceIndexes,
 		@Nonnull StoragePartPersistenceService persistenceService
 	) {
@@ -569,6 +571,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			priceRefIndexes.put(
 				priceIndexKey,
 				new PriceListAndCurrencyPriceRefIndex(
+					scope,
 					priceIndexKey,
 					priceIndexCnt.getValidityIndex(),
 					priceIndexCnt.getPriceIds()
@@ -1161,8 +1164,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				cardinalityIndexes
 			);
 		} else {
+			final Scope scope = entityIndexKey.scope();
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
-				catalogVersion, entityIndexId, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
+				catalogVersion, entityIndexId, scope, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
 			);
 			return new ReducedEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
@@ -1173,7 +1177,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				new AttributeIndex(
 					entitySchema.getName(), uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 				),
-				new PriceRefIndex(priceIndexes),
+				new PriceRefIndex(scope, priceIndexes),
 				hierarchyIndex,
 				facetIndex
 			);

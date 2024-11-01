@@ -23,7 +23,7 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.requestResponse.data.Scope;
+import io.evitadb.dataType.Scope;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexKeyAccessor;
 import io.evitadb.utils.StringUtils;
 
@@ -97,7 +97,7 @@ public record EntityIndexKey(
 	@Override
 	public String toString() {
 		return StringUtils.capitalize(this.scope.name().toLowerCase()) + " index: " +
-			this.type + ofNullable(this.discriminator).map(it -> " (" + it + ')').orElse("");
+			this.type + ofNullable(this.discriminator).map(it -> " - " + it).orElse("");
 	}
 
 }

@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;

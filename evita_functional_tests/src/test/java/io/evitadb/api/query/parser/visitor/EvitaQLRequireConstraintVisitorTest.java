@@ -38,7 +38,7 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
-import io.evitadb.api.requestResponse.data.Scope;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;

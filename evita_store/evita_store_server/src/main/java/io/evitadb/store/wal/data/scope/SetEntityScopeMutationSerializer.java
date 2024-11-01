@@ -27,8 +27,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.data.Scope;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
+import io.evitadb.dataType.Scope;
 
 /**
  * Serializer for {@link SetEntityScopeMutation}.

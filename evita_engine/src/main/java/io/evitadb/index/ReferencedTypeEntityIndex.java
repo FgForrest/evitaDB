@@ -47,6 +47,7 @@ import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.utils.StringUtils;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
@@ -317,7 +318,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		} else {
 			// for non-array values we need to call super method only if cardinality reaches zero
 			if (theCardinalityIndex.removeRecord((Serializable) value, recordId)) {
-				super.insertFilterAttribute(attributeSchema, allowedLocales, locale, value, recordId);
+				super.removeFilterAttribute(attributeSchema, allowedLocales, locale, value, recordId);
 			}
 		}
 	}
@@ -344,6 +345,11 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	public void removeSortAttributeCompound(SortableAttributeCompoundSchemaContract compoundSchemaContract, Locale locale, Object[] value, int recordId) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
 		// entities and the sort index couldn't handle multiple values
+	}
+
+	@Override
+	public String toString() {
+		return "ReducedEntityTypeIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) + ")";
 	}
 
 	/*

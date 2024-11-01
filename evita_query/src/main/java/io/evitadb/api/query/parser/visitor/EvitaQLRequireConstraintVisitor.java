@@ -36,6 +36,7 @@ import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.api.query.require.*;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;

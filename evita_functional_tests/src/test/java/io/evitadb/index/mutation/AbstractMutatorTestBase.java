@@ -116,7 +116,10 @@ abstract class AbstractMutatorTestBase {
 			new MockEntityIndexCreator<>(catalogIndex),
 			() -> productSchema,
 			entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
-			false
+			false,
+			() -> {
+				throw new UnsupportedOperationException("Not supported in the test.");
+			}
 		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);

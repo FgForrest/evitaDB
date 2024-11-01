@@ -24,10 +24,10 @@
 package io.evitadb.api.requestResponse.data.mutation.scope;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.data.Scope;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.dataType.Scope;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 

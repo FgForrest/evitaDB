@@ -46,7 +46,6 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.Scope;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -103,6 +102,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -730,7 +730,7 @@ public final class EntityCollection implements
 	@Override
 	public boolean archiveEntity(int primaryKey) {
 		if (this.getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
-			changeEntityScopeInternal(primaryKey, Scope.ARCHIVED, null);
+			changeEntityScopeInternal(primaryKey, Scope.ARCHIVED, null, Void.class);
 			return true;
 		} else {
 			return false;
@@ -743,7 +743,7 @@ public final class EntityCollection implements
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
-			final EntityWithFetchCount archivedEntity = changeEntityScopeInternal(primaryKeys[0], Scope.ARCHIVED, evitaRequest);
+			final EntityWithFetchCount archivedEntity = changeEntityScopeInternal(primaryKeys[0], Scope.ARCHIVED, evitaRequest, EntityWithFetchCount.class);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
 			return of(
@@ -760,7 +760,7 @@ public final class EntityCollection implements
 	@Override
 	public boolean restoreEntity(int primaryKey) {
 		if (this.getGlobalArchiveIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
-			changeEntityScopeInternal(primaryKey, Scope.LIVE, null);
+			changeEntityScopeInternal(primaryKey, Scope.LIVE, null, Void.class);
 			return true;
 		} else {
 			return false;
@@ -773,7 +773,7 @@ public final class EntityCollection implements
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
-			final EntityWithFetchCount restoredEntity = changeEntityScopeInternal(primaryKeys[0], Scope.LIVE, evitaRequest);
+			final EntityWithFetchCount restoredEntity = changeEntityScopeInternal(primaryKeys[0], Scope.LIVE, evitaRequest, EntityWithFetchCount.class);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
 			return of(
@@ -1510,10 +1510,11 @@ public final class EntityCollection implements
 	 * TODO JNO - document me
 	 */
 	@Nullable
-	private EntityWithFetchCount changeEntityScopeInternal(
+	private <T> T changeEntityScopeInternal(
 		int primaryKey,
 		@Nonnull Scope scope,
-		@Nullable EvitaRequest returnArchivedEntity
+		@Nullable EvitaRequest returnArchivedEntity,
+		@Nonnull Class<T> returnType
 	) {
 		return applyMutations(
 			new EntityUpsertMutation(
@@ -1526,7 +1527,8 @@ public final class EntityCollection implements
 			true,
 			returnArchivedEntity,
 			EnumSet.allOf(ImplicitMutationBehavior.class),
-			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader)
+			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+			returnType
 		);
 	}
 
@@ -1897,25 +1899,28 @@ public final class EntityCollection implements
 		@Nonnull Class<T> requestedType
 	) {
 		// prepare collectors
+		final Integer entityPrimaryKey = entityMutation.getEntityPrimaryKey();
+		final String entityType = entityMutation.getEntityType();
 		final ContainerizedLocalMutationExecutor changeCollector = new ContainerizedLocalMutationExecutor(
 			this.dataStoreBuffer,
 			this.dataStoreReader,
 			this.catalog.getVersion(),
-			entityMutation.getEntityPrimaryKey(),
+			entityPrimaryKey,
 			entityMutation.expects(),
 			this.catalog::getInternalSchema,
 			this::getInternalSchema,
-			entityType -> this.catalog.getCollectionForEntityInternal(entityType).orElse(null),
+			theEntityType -> this.catalog.getCollectionForEntityInternal(theEntityType).orElse(null),
 			entityMutation instanceof EntityRemoveMutation
 		);
 		final EntityIndexLocalMutationExecutor entityIndexUpdater = new EntityIndexLocalMutationExecutor(
 			changeCollector,
-			entityMutation.getEntityPrimaryKey(),
+			entityPrimaryKey,
 			this.entityIndexCreator,
 			this.catalog.getCatalogIndexMaintainer(),
 			this::getInternalSchema,
-			entityType -> this.catalog.getCollectionForEntityOrThrowException(entityType).getInternalSchema(),
-			undoOnError
+			theEntityType -> this.catalog.getCollectionForEntityOrThrowException(theEntityType).getInternalSchema(),
+			undoOnError,
+			() -> localMutationExecutorCollector.getFullEntityById(entityPrimaryKey, entityType, this::getEntityById).entity()
 		);
 
 		return localMutationExecutorCollector.execute(

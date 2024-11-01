@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;

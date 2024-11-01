@@ -148,6 +148,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	/**
 	 * Returns inner data wrapped to {@link Prices} object that can be wired to {@link Entity}.
 	 */
+	@Nonnull
 	public Prices getAsPrices(@Nonnull EntitySchemaContract entitySchema) {
 		return new Prices(
 			entitySchema, version, Arrays.stream(prices).collect(Collectors.toList()), priceInnerRecordHandling

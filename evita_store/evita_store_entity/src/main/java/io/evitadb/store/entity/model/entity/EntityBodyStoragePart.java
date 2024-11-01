@@ -25,6 +25,7 @@ package io.evitadb.store.entity.model.entity;
 
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.dataType.Scope;
 import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import lombok.EqualsAndHashCode;
@@ -56,11 +57,15 @@ import static java.util.Optional.ofNullable;
 @EqualsAndHashCode(exclude = {"dirty", "initialRevision", "sizeInBytes"})
 @ToString(exclude = {"dirty", "initialRevision"})
 public class EntityBodyStoragePart implements EntityStoragePart {
-	@Serial private static final long serialVersionUID = 34998825794290379L;
+	@Serial private static final long serialVersionUID = -4270700716957317392L;
 	/**
 	 * See {@link Entity#getPrimaryKey()}.
 	 */
 	@Getter private final int primaryKey;
+	/**
+	 * See {@link Entity#getScope()}.
+	 */
+	@Getter private final Scope scope;
 	/**
 	 * See {@link Entity#getAttributeLocales()}.
 	 */
@@ -101,6 +106,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 
 	public EntityBodyStoragePart(int primaryKey) {
 		this.primaryKey = primaryKey;
+		this.scope = Scope.LIVE;
 		this.locales = new LinkedHashSet<>();
 		this.attributeLocales = new LinkedHashSet<>();
 		this.associatedDataKeys = new LinkedHashSet<>();
@@ -112,6 +118,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	public EntityBodyStoragePart(
 		int version,
 		@Nonnull Integer primaryKey,
+		@Nonnull Scope scope,
 		@Nullable Integer parent,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<Locale> attributeLocales,
@@ -120,6 +127,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	) {
 		this.version = version;
 		this.primaryKey = primaryKey;
+		this.scope = scope;
 		this.parent = parent;
 		this.locales = locales;
 		this.attributeLocales = attributeLocales;

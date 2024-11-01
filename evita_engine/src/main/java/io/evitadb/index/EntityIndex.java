@@ -51,6 +51,7 @@ import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -449,6 +450,11 @@ public abstract class EntityIndex implements
 			facetIndexReferencedEntities,
 			null
 		);
+	}
+
+	@Override
+	public String toString() {
+		return "EntityIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) + ")";
 	}
 
 	/*

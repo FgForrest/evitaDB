@@ -21,10 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.data;
+package io.evitadb.dataType;
 
-
-import io.evitadb.dataType.SupportedEnum;
 
 /**
  * Enum defines the possible scopes where the entities can reside. Currently, there are only two scopes:

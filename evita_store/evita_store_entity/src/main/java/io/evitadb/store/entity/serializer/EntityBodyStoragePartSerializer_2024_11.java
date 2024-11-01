@@ -44,14 +44,13 @@ import java.util.Set;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
-public class EntityBodyStoragePartSerializer extends Serializer<EntityBodyStoragePart> {
+public class EntityBodyStoragePartSerializer_2024_11 extends Serializer<EntityBodyStoragePart> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, EntityBodyStoragePart object) {
 		output.writeVarInt(object.getVersion(), true);
 		output.writeInt(object.getPrimaryKey());
-		kryo.writeObject(output, object.getScope());
 		kryo.writeObjectOrNull(output, object.getParent(), Integer.class);
 
 		final Set<Locale> locales = object.getLocales();
@@ -78,7 +77,6 @@ public class EntityBodyStoragePartSerializer extends Serializer<EntityBodyStorag
 
 		final int version = input.readVarInt(true);
 		final int entityPrimaryKey = input.readInt();
-		final Scope scope = kryo.readObject(input, Scope.class);
 		final Integer hierarchicalPlacement = kryo.readObjectOrNull(input, Integer.class);
 
 		final int localeCount = input.readVarInt(true);
@@ -99,7 +97,7 @@ public class EntityBodyStoragePartSerializer extends Serializer<EntityBodyStorag
 			associatedDataKeys.add(keyCompressor.getKeyForId(input.readVarInt(true)));
 		}
 		return new EntityBodyStoragePart(
-			version, entityPrimaryKey, scope, hierarchicalPlacement,
+			version, entityPrimaryKey, Scope.LIVE, hierarchicalPlacement,
 			locales, attributeLocales, associatedDataKeys,
 			Math.toIntExact(input.total() - totalBefore)
 		);
