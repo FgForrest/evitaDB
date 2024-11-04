@@ -169,9 +169,9 @@ public abstract class AbstractHierarchyTranslator {
 			);
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			final Formula theFormula = queryContext.analyse(
-				theFilterByVisitor.executeInContext(
+				theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
 					indexType,
-					Collections.singletonList(entityIndex),
+					() -> Collections.singletonList(entityIndex),
 					null,
 					targetEntitySchema,
 					null,
