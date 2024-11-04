@@ -329,7 +329,7 @@ no order was specified in the query.
 
 </Note>
 
-### Spacing
+## Spacing
 
 ```evitaql-syntax
 spacing(
@@ -456,7 +456,7 @@ recalculated because a total of 7 records were left on the front pages.
 
 </Note>
 
-### Gap
+## Gap
 
 ```evitaql-syntax
 gap(
