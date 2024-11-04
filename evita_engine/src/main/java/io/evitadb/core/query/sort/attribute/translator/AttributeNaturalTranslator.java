@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
@@ -159,14 +160,18 @@ public class AttributeNaturalTranslator
 		) {
 			if (orderDirection == ASC) {
 				comparator = new ReferencePredecessorComparator(
-					attributeOrCompoundName, locale, orderByVisitor,
+					attributeOrCompoundName,
+					attributeSchema.isLocalized() ? locale : null,
+					orderByVisitor,
 					ChainIndex::getAscendingOrderRecordsSupplier,
 					(ref1, ref2) -> ref1.primaryKey() == ref2.primaryKey(),
 					(epk, referenceKey) -> epk
 				);
 			} else {
 				comparator = new ReferencePredecessorComparator(
-					attributeOrCompoundName, locale, orderByVisitor,
+					attributeOrCompoundName,
+					attributeSchema.isLocalized() ? locale : null,
+					orderByVisitor,
 					ChainIndex::getDescendingOrderRecordsSupplier,
 					(ref1, ref2) -> ref1.primaryKey() == ref2.primaryKey(),
 					(epk, referenceKey) -> epk
@@ -177,28 +182,36 @@ public class AttributeNaturalTranslator
 		) {
 			if (orderDirection == ASC) {
 				comparator = new ReferencePredecessorComparator(
-					attributeOrCompoundName, locale, orderByVisitor,
+					attributeOrCompoundName,
+					attributeSchema.isLocalized() ? locale : null,
+					orderByVisitor,
 					ChainIndex::getAscendingOrderRecordsSupplier,
 					(ref1, ref2) -> true,
 					(epk, referenceKey) -> referenceKey.primaryKey()
 				);
 			} else {
 				comparator = new ReferencePredecessorComparator(
-					attributeOrCompoundName, locale, orderByVisitor,
+					attributeOrCompoundName,
+					attributeSchema.isLocalized() ? locale : null,
+					orderByVisitor,
 					ChainIndex::getDescendingOrderRecordsSupplier,
 					(ref1, ref2) -> true,
 					(epk, referenceKey) -> referenceKey.primaryKey()
 				);
 			}
-		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchemaContract) {
+		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchema compoundSchemaContract) {
 			comparator = new ReferenceCompoundAttributeComparator(
-				compoundSchemaContract, locale,
+				compoundSchemaContract,
+				compoundSchemaContract.isLocalized(orderByVisitor::getAttributeSchema) ? locale : null,
 				orderByVisitor::getAttributeSchema,
 				orderDirection
 			);
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
 			comparator = new ReferenceAttributeComparator(
-				attributeOrCompoundName, attributeSchema.getPlainType(), locale, orderDirection
+				attributeOrCompoundName,
+				attributeSchema.getPlainType(),
+				attributeSchema.isLocalized() ? locale : null,
+				orderDirection
 			);
 		} else {
 			throw new GenericEvitaInternalError("Unsupported attribute schema type: " + attributeOrCompoundSchema);

@@ -218,11 +218,11 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 	 *         if not found in the cache.
 	 */
 	private int getRecordPosition(@Nonnull ReferenceKey referenceKey) {
-		final int pkToLookup = primaryKeyResolver.applyAsInt(this.entityPrimaryKey, referenceKey);
+		final int pkToLookup = this.primaryKeyResolver.applyAsInt(this.entityPrimaryKey, referenceKey);
 		final int position = this.pkToRecordPositionCache.getOrDefault(pkToLookup, -1);
 		if (position == -1) {
-			final ChainIndex chainIndex = this.referenceOrderByVisitor.getChainIndex(this.entityPrimaryKey, referenceKey, attributeKey).orElse(null);
-			final SortedRecordsProvider sortedRecordsSupplier = chainIndex == null ? SortedRecordsProvider.EMPTY : sortedRecordsSupplierProvider.apply(chainIndex);
+			final ChainIndex chainIndex = this.referenceOrderByVisitor.getChainIndex(this.entityPrimaryKey, referenceKey, this.attributeKey).orElse(null);
+			final SortedRecordsProvider sortedRecordsSupplier = chainIndex == null ? SortedRecordsProvider.EMPTY : this.sortedRecordsSupplierProvider.apply(chainIndex);
 			final int index = sortedRecordsSupplier.getAllRecords().indexOf(pkToLookup);
 			final int computedPosition = index < 0 ? -2 : sortedRecordsSupplier.getRecordPositions()[index];
 			this.pkToRecordPositionCache.put(pkToLookup, computedPosition);
