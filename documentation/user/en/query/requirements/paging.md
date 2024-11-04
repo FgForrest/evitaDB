@@ -484,7 +484,7 @@ the expression for each page. Detailed usage is documented in the [spacing const
 **The expression can use the following variables:**
 
 <dl>
-    <dt>`int`: `pageNumber`</dt>
+    <dt>variableName: `pageNumber` of type: `int`</dt>
     <dd>
         the number of the page to be evaluated
     </dd>
