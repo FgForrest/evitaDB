@@ -171,12 +171,12 @@ public class EntityDecorator implements SealedEntity {
 					final ReferenceDecorator[] filteredReferences = Arrays.stream(references, start, end)
 						.filter(it -> referenceFilter.test(entityPrimaryKey, it))
 						.toArray(ReferenceDecorator[]::new);
+					Arrays.sort(filteredReferences, referenceComparator);
 
 					for (int i = start; i < end; i++) {
 						final int filteredIndex = i - start;
 						references[i] = filteredReferences.length > filteredIndex ? filteredReferences[filteredIndex] : null;
 					}
-					Arrays.sort(references, start, end, referenceComparator);
 				}
 				nonSortedReferenceCount = referenceComparator.getNonSortedReferenceCount();
 				start = start + (end - nonSortedReferenceCount);
