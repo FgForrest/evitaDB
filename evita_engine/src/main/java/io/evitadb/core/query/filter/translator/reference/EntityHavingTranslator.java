@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -55,12 +54,10 @@ import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
 
@@ -71,36 +68,65 @@ import static java.util.Optional.ofNullable;
  */
 public class EntityHavingTranslator implements FilteringConstraintTranslator<EntityHaving>, SelfTraversingTranslator {
 
+	/**
+	 * Plans and constructs a nested query by for the provided target entity type and filter constraint. The formula
+	 * is cached and computed only once to avoid redundant computation. When the target entity doesn't have a global
+	 * index, an empty formula is returned (since no entities are present there).
+	 *
+	 * @param targetEntityType         The type of the target entity for which the nested query is being planned.
+	 * @param filter                   The filter constraint that applies the necessary filtering logic.
+	 * @param filterByVisitor          The visitor object used for traversing and processing filter constraints.
+	 * @param taskDescriptionSupplier  A supplier that provides a task description used in exception messages
+	 *                                 and logging.
+	 * @return A GlobalIndexAndFormula object containing the global entity index and
+	 *                                 filter formula resulting from planning the nested query.
+	 */
 	@Nonnull
-	private static Formula getNestedQueryFormula(
+	private static GlobalIndexAndFormula planNestedQuery(
+		@Nonnull String targetEntityType,
+		@Nonnull FilterConstraint filter,
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull String referencedEntityType,
-		@Nonnull EntityCollection referencedEntityCollection,
-		@Nonnull FilterBy filterBy,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
+		@Nonnull Supplier<String> taskDescriptionSupplier
 	) {
-		final QueryPlanningContext nestedQueryContext = referencedEntityCollection.createQueryContext(
-			filterByVisitor.getQueryContext(),
-			filterByVisitor.getEvitaRequest().deriveCopyWith(
-				referencedEntityType,
-				filterBy,
-				ofNullable(entityNestedQueryComparator)
-					.map(EntityNestedQueryComparator::getOrderBy)
-					.map(it -> new OrderBy(it.getChildren()))
-					.orElse(null),
-				ofNullable(entityNestedQueryComparator)
-					.map(EntityNestedQueryComparator::getLocale)
-					.orElse(null)
-			),
-			filterByVisitor.getEvitaSession()
-		);
+		final EntityCollection targetEntityCollection = filterByVisitor.getEntityCollectionOrThrowException(targetEntityType, taskDescriptionSupplier);
+		final Optional<GlobalEntityIndex> globalIndexIfExists = targetEntityCollection.getGlobalIndexIfExists();
+		if (globalIndexIfExists.isEmpty()) {
+			return new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE);
+		} else {
+			final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
+			final Function<FilterConstraint, FilterConstraint> enricher = processingScope.getNestedQueryFormulaEnricher();
+			final FilterConstraint enrichedConstraint = enricher.apply(filter);
+			final FilterBy combinedFilterBy = enrichedConstraint instanceof FilterBy fb ? fb : new FilterBy(enrichedConstraint);
+			final EntityNestedQueryComparator entityNestedQueryComparator = processingScope.getEntityNestedQueryComparator();
 
-		final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
-		if (entityNestedQueryComparator != null) {
-			entityNestedQueryComparator.setSorter(nestedQueryContext.createExecutionContext(), queryPlan.getSorter());
+			final GlobalEntityIndex globalIndex = globalIndexIfExists.get();
+			return new GlobalIndexAndFormula(
+				globalIndex,
+				filterByVisitor.computeOnlyOnce(
+					Collections.singletonList(globalIndex),
+					combinedFilterBy,
+					() -> {
+						final QueryPlanningContext nestedQueryContext = targetEntityCollection.createQueryContext(
+							filterByVisitor.getQueryContext(),
+							filterByVisitor.getEvitaRequest().deriveCopyWith(
+								targetEntityType,
+								combinedFilterBy,
+								ofNullable(entityNestedQueryComparator)
+									.map(EntityNestedQueryComparator::getOrderBy)
+									.map(it -> new OrderBy(it.getChildren()))
+									.orElse(null),
+								ofNullable(entityNestedQueryComparator)
+									.map(EntityNestedQueryComparator::getLocale)
+									.orElse(null)
+							),
+							filterByVisitor.getEvitaSession()
+						);
+
+						return QueryPlanner.planNestedQuery(nestedQueryContext, taskDescriptionSupplier)
+							.getFilter();
+					})
+			);
 		}
-
-		return queryPlan.getFilter();
 	}
 
 	@Nonnull
@@ -120,54 +146,30 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 				"`" + referenceSchema.getReferencedEntityType() + "` that is not managed by evitaDB."
 		);
 		final String referencedEntityType = referenceSchema.getReferencedEntityType();
-		final EntityCollection referencedEntityCollection = filterByVisitor.getEntityCollectionOrThrowException(
-			referencedEntityType, "resolve entity having constraint"
-		);
 		final FilterConstraint filterConstraint = entityHaving.getChild();
 		if (filterConstraint != null) {
-			final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
-			final Function<FilterConstraint, FilterConstraint> enricher = processingScope.getNestedQueryFormulaEnricher();
-			final FilterBy combinedFilterBy = new FilterBy(enricher.apply(filterConstraint));
-			final Supplier<String> nestedQueryDescription = () -> "Reference `" + referenceSchema.getName() + "`, " +
-				"entity `" + referencedEntityType + "`: " +
-				Arrays.stream(combinedFilterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
+			@SuppressWarnings("unchecked") final ProcessingScope<EntityIndex> processingScope = (ProcessingScope<EntityIndex>) filterByVisitor.getProcessingScope();
+			final Supplier<String> nestedQueryDescription = () -> "filtering reference `" + referenceSchema.getName() +
+				"` by entity `" + referencedEntityType + "` having: " + filterConstraint;
 
-			final Optional<GlobalEntityIndex> globalIndexIfExists = referencedEntityCollection.getGlobalIndexIfExists();
-			if (globalIndexIfExists.isPresent()) {
-				final GlobalEntityIndex globalEntityIndex = globalIndexIfExists.get();
-				final Formula nestedQueryFormula = filterByVisitor.computeOnlyOnce(
-					Collections.singletonList(globalEntityIndex),
-					combinedFilterBy,
-					() -> {
-						try {
-							filterByVisitor.pushStep(
-								QueryPhase.PLANNING_FILTER_NESTED_QUERY,
-								nestedQueryDescription
-							);
-							return getNestedQueryFormula(
-								filterByVisitor,
-								referencedEntityType,
-								referencedEntityCollection,
-								combinedFilterBy,
-								processingScope.getEntityNestedQueryComparator()
-							);
-						} finally {
-							filterByVisitor.popStep();
-						}
-					},
-					1L
-				);
+			final GlobalIndexAndFormula nestedResult = planNestedQuery(
+				referencedEntityType,
+				filterConstraint,
+				filterByVisitor,
+				nestedQueryDescription
+			);
 
+			if (!nestedResult.isEmpty()) {
 				if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
-					return nestedQueryFormula;
+					return nestedResult.filter();
 				} else {
 					return filterByVisitor.computeOnlyOnce(
-						Collections.singletonList(globalEntityIndex),
-						combinedFilterBy,
+						processingScope.getIndexes(),
+						filterConstraint,
 						() -> {
 							final ReferenceOwnerTranslatingFormula outputFormula = new ReferenceOwnerTranslatingFormula(
-								globalEntityIndex,
-								nestedQueryFormula,
+								nestedResult.globalIndex(),
+								nestedResult.filter(),
 								it -> {
 									// leave the return here, so that we can easily debug it
 									return filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it)
@@ -201,6 +203,32 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 			}
 		}
 		return EmptyFormula.INSTANCE;
+	}
+
+	/**
+	 * Represents a combination of a global entity index and a corresponding filter formula.
+	 * This record is used within the context of query planning and execution to encapsulate
+	 * the necessary components for filtering entities based on specific criteria.
+	 *
+	 * @param globalIndex The global entity index that contains a complete set of indexed data,
+	 *                    including their bodies, for all entities in the collection.
+	 * @param filter      The formula that represents the filter constraints applied to the entities
+	 *                    in the global index.
+	 */
+	private record GlobalIndexAndFormula(
+		@Nullable GlobalEntityIndex globalIndex,
+		@Nonnull Formula filter
+	) {
+
+		/**
+		 * Checks if the global index is null.
+		 *
+		 * @return true if the global index is null, false otherwise.
+		 */
+		boolean isEmpty() {
+			return this.globalIndex == null;
+		}
+
 	}
 
 }

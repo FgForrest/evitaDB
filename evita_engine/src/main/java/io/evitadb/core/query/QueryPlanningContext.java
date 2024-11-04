@@ -609,6 +609,17 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Method returns appropriate {@link EntityCollection} for the {@link #evitaRequest} or throws comprehensible
+	 * exception. In order exception to be comprehensible you need to provide sensible `reason` for accessing
+	 * the collection in the input parameter.
+	 */
+	@Nonnull
+	public EntityCollection getEntityCollectionOrThrowException(@Nullable String entityType, @Nonnull Supplier<String> reasonSupplier) {
+		return getEntityCollection(entityType)
+			.orElseThrow(() -> new EntityCollectionRequiredException(reasonSupplier.get()));
+	}
+
+	/**
 	 * Method creates new {@link EvitaRequest} for particular `entityType` that takes all passed `requiredConstraints`
 	 * into the account. Fabricated request is expected to be used only for passing the scope to
 	 * {@link EntityCollection#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  or
@@ -640,9 +651,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Supplier<Formula> formulaSupplier,
 		long... additionalCacheKeys
 	) {
-		if (parentContext == null) {
-			if (internalCache == null) {
-				internalCache = new HashMap<>();
+		if (this.parentContext == null) {
+			if (this.internalCache == null) {
+				this.internalCache = new HashMap<>();
 			}
 			final InternalCacheKey cacheKey = new InternalCacheKey(
 				LongStream.concat(
@@ -651,17 +662,17 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				).toArray(),
 				constraint
 			);
-			final Formula cachedResult = internalCache.get(cacheKey);
+			final Formula cachedResult = this.internalCache.get(cacheKey);
 			if (cachedResult == null) {
 				final Formula computedResult = formulaSupplier.get();
 				computedResult.initialize(this.internalExecutionContext);
-				internalCache.put(cacheKey, computedResult);
+				this.internalCache.put(cacheKey, computedResult);
 				return computedResult;
 			} else {
 				return cachedResult;
 			}
 		} else {
-			return parentContext.computeOnlyOnce(
+			return this.parentContext.computeOnlyOnce(
 				entityIndexes, constraint, formulaSupplier, additionalCacheKeys
 			);
 		}
