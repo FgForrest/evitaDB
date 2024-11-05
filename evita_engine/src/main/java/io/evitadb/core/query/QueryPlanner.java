@@ -175,9 +175,10 @@ public class QueryPlanner {
 	 */
 	@Nonnull
 	public static QueryPlan planNestedQuery(
-		@Nonnull QueryPlanningContext context
+		@Nonnull QueryPlanningContext context,
+		@Nonnull Supplier<String> nestedQueryDescription
 	) {
-		context.pushStep(QueryPhase.PLANNING_NESTED_QUERY);
+		context.pushStep(QueryPhase.PLANNING_NESTED_QUERY, nestedQueryDescription);
 		try {
 			// determine the indexes that should be used for filtering
 			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);

@@ -329,7 +329,7 @@ no order was specified in the query.
 
 </Note>
 
-### Spacing
+## Spacing
 
 ```evitaql-syntax
 spacing(
@@ -456,7 +456,7 @@ recalculated because a total of 7 records were left on the front pages.
 
 </Note>
 
-### Gap
+## Gap
 
 ```evitaql-syntax
 gap(
@@ -473,15 +473,19 @@ gap(
     </dd>
     <dt>argument:expression</dt>
     <dd>
-        <p>a mandatory [expression](../expression-language.md) that must be evaluated to a boolean value, indicating 
-        whether the gap should be applied to the given page or not.</p>
-        <p>the expression can use the following variables:
-            <ul>
-                <li>`int`: `pageNumber` - the number of the page to be evaluated</li>
-            </ul>
-        </p>
+        a mandatory [expression](../expression-language.md) that must be evaluated to a boolean value, indicating 
+        whether the gap should be applied to the given page or not.
     </dd>
 </dl>
 
 The `gap` requirement specifies a single rule for leaving a gap of a given size on a given page, identified by 
 the expression for each page. Detailed usage is documented in the [spacing constraint](#spacing) chapter.
+
+**The expression can use the following variables:**
+
+<dl>
+    <dt>variableName: `pageNumber` of type: `int`</dt>
+    <dd>
+        the number of the page to be evaluated
+    </dd>
+</dl>

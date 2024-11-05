@@ -127,9 +127,9 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			final Formula theFormula;
 			if (referenceSchema == null) {
 				theFormula = queryContext.analyse(
-					theFilterByVisitor.executeInContext(
+					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
 						GlobalEntityIndex.class,
-						Collections.singletonList(queryContext.getGlobalEntityIndex()),
+						() -> Collections.singletonList(queryContext.getGlobalEntityIndex()),
 						null,
 						queryContext.getSchema(),
 						null,
@@ -223,9 +223,9 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			);
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			final Formula theFormula = queryContext.analyse(
-				theFilterByVisitor.executeInContext(
+				theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
 					GlobalEntityIndex.class,
-					Collections.singletonList(entityIndex),
+					() -> Collections.singletonList(entityIndex),
 					null,
 					entitySchema,
 					null,

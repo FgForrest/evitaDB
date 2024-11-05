@@ -578,9 +578,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		// compute the result formula in the initialized context
 		final String referenceName = referenceSchema.getName();
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		final Formula filterFormula = filterByVisitor.executeInContext(
+		final Formula filterFormula = filterByVisitor.executeInContextAndIsolatedFormulaStack(
 			ReducedEntityIndex.class,
-			Collections.singletonList(index),
+			() -> Collections.singletonList(index),
 			ReferenceContent.ALL_REFERENCES,
 			processingScope.getEntitySchema(),
 			referenceSchema,
@@ -635,7 +635,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * Initializes the {@link Sorter} implementation in the passed `entityNestedQueryComparator` from the global index
 	 * of the passed `targetEntityCollection`.
 	 *
-	 * @param referenceSchemaContract     the schema of the reference
+	 * @param referenceSchema     the schema of the reference
 	 * @param targetEntityCollection      collection of the referenced entity type
 	 * @param targetEntityGroupCollection collection of the referenced entity type group
 	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
@@ -645,7 +645,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param evitaSession                current session
 	 */
 	private static void initializeComparatorFromGlobalIndex(
-		@Nonnull ReferenceSchemaContract referenceSchemaContract,
+		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityCollection targetEntityCollection,
 		@Nullable EntityCollection targetEntityGroupCollection,
 		@Nonnull EntityNestedQueryComparator entityNestedQueryComparator,
@@ -662,7 +662,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				),
 				evitaSession
 			);
-			final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
+			final QueryPlan queryPlan = QueryPlanner.planNestedQuery(
+				nestedQueryContext,
+				() -> "ordering reference `" + referenceSchema.getName() +
+					"` by entity `" + targetEntityCollection.getEntityType() + "`: " + entityOrderBy
+			);
 			final Sorter sorter = queryPlan.getSorter();
 			entityNestedQueryComparator.setSorter(nestedQueryContext.createExecutionContext(), sorter);
 		}
@@ -670,16 +674,20 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		if (entityGroupOrderBy != null) {
 			Assert.isTrue(
 				targetEntityGroupCollection != null,
-				"The `entityGroupProperty` ordering is specified in the query but the reference `" + referenceSchemaContract.getName() + "` does not have managed entity group collection!"
+				"The `entityGroupProperty` ordering is specified in the query but the reference `" + referenceSchema.getName() + "` does not have managed entity group collection!"
 			);
 
 			final OrderBy orderBy = new OrderBy(entityGroupOrderBy.getChildren());
 			final QueryPlanningContext nestedQueryContext = targetEntityGroupCollection.createQueryContext(
-				evitaRequest.deriveCopyWith(targetEntityCollection.getEntityType(), null, orderBy, entityNestedQueryComparator.getLocale()),
+				evitaRequest.deriveCopyWith(targetEntityGroupCollection.getEntityType(), null, orderBy, entityNestedQueryComparator.getLocale()),
 				evitaSession
 			);
 
-			final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
+			final QueryPlan queryPlan = QueryPlanner.planNestedQuery(
+				nestedQueryContext,
+				() -> "ordering reference groups `" + referenceSchema.getName() +
+					"` by entity group `" + targetEntityGroupCollection.getEntityType() + "`: " + entityGroupOrderBy
+			);
 			final Sorter sorter = queryPlan.getSorter();
 			entityNestedQueryComparator.setGroupSorter(nestedQueryContext.createExecutionContext(), sorter);
 		}

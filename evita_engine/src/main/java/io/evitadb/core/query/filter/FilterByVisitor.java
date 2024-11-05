@@ -189,7 +189,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Contemporary stack for keeping results resolved for each level of the query.
 	 */
 	@Getter(AccessLevel.PROTECTED)
-	private final Deque<ProcessingScope<? extends Index<?>>> scope = new ArrayDeque<>(16);
+	private final Deque<ProcessingScope<? extends Index<?>>> scope = new ArrayDeque<>(8);
 	/**
 	 * Contains list of registered post processors. Formula post processor is used to transform final {@link Formula}
 	 * tree constructed in {@link FilterByVisitor} before computing the result. Post processors should analyze created
@@ -197,7 +197,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * as soon as possible. We may take advantage of transitivity in boolean algebra to exchange formula placement
 	 * the way it's most performant.
 	 */
-	private final LinkedHashMap<Class<? extends FormulaPostProcessor>, FormulaPostProcessor> postProcessors = new LinkedHashMap<>(16);
+	private final Deque<LinkedHashMap<Class<? extends FormulaPostProcessor>, FormulaPostProcessor>> postProcessors = new ArrayDeque<>(8);
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
@@ -289,9 +289,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			theFormula = queryContext.getGlobalEntityIndexIfExists(entityType)
 				.map(
 					entityIndex -> queryContext.analyse(
-						theFilterByVisitor.executeInContext(
+						theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
 							GlobalEntityIndex.class,
-							Collections.singletonList(entityIndex),
+							() -> Collections.singletonList(entityIndex),
 							null,
 							queryContext.getSchema(entityType),
 							null,
@@ -326,6 +326,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull TargetIndexes<T> indexSetToUse
 	) {
 		this.stack.push(new LinkedList<>());
+		this.postProcessors.push(new LinkedHashMap<>(16));
 		this.scope.push(processingScope);
 		this.queryContext = queryContext;
 		//I just can't get generic to work here
@@ -375,7 +376,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			.map(this::constructFinalFormula)
 			.orElseGet(this::getSuperSetFormula);
 		this.computedFormula = null;
-		this.postProcessors.clear();
 		return result;
 	}
 
@@ -401,7 +401,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nonnull
 	public Formula[] getCollectedFormulasOnCurrentLevel() {
-		return ofNullable(stack.peek())
+		return ofNullable(this.stack.peek())
 			.map(it -> it.toArray(Formula[]::new))
 			.orElse(EMPTY_INTEGER_FORMULA);
 	}
@@ -540,7 +540,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Supplier<T> formulaPostProcessorSupplier
 	) {
 		final T value = formulaPostProcessorSupplier.get();
-		this.postProcessors.put(
+		this.postProcessors.peek().put(
 			postProcessorType,
 			value
 		);
@@ -613,9 +613,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			return EmptyFormula.INSTANCE;
 		}
 
-		final Formula resultFormula = executeInContext(
+		final Formula resultFormula = executeInContextAndIsolatedFormulaStack(
 			ReferencedTypeEntityIndex.class,
-			Collections.singletonList(entityIndex.get()),
+			() -> Collections.singletonList(entityIndex.get()),
 			ReferenceContent.ALL_REFERENCES,
 			entitySchema,
 			referenceSchema,
@@ -736,6 +736,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	) {
 		try {
 			this.stack.push(new LinkedList<>());
+			this.postProcessors.push(new LinkedHashMap<>(16));
 			return executeInContext(
 				indexType,
 				targetIndexSupplier,
@@ -751,6 +752,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			);
 		} finally {
 			this.stack.pop();
+			this.postProcessors.poll();
 		}
 	}
 
@@ -1012,9 +1014,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	@Nonnull
 	private Formula constructFinalFormula(@Nonnull Formula constraintFormula) {
 		Formula finalFormula = constraintFormula;
-		if (!this.postProcessors.isEmpty()) {
-			final Set<FormulaPostProcessor> executedProcessors = CollectionUtils.createHashSet(postProcessors.size());
-			for (FormulaPostProcessor postProcessor : this.postProcessors.values()) {
+		final LinkedHashMap<Class<? extends FormulaPostProcessor>, FormulaPostProcessor> thePostProcessors = this.postProcessors.peek();
+		if (!thePostProcessors.isEmpty()) {
+			final Set<FormulaPostProcessor> executedProcessors = CollectionUtils.createHashSet(thePostProcessors.size());
+			for (FormulaPostProcessor postProcessor : thePostProcessors.values()) {
 				if (!executedProcessors.contains(postProcessor)) {
 					postProcessor.visit(finalFormula);
 					finalFormula = postProcessor.getPostProcessedFormula();
@@ -1213,6 +1216,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		/**
 		 * Returns indexes that should be used for searching.
 		 */
+		@Nonnull
 		public List<T> getIndexes() {
 			if (indexes == null) {
 				this.indexes = this.indexSupplier.get();
@@ -1223,6 +1227,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		/**
 		 * Returns stream of indexes that should be used for searching.
 		 */
+		@Nonnull
 		public Stream<T> getIndexStream() {
 			return getIndexes().stream();
 		}
