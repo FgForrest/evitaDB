@@ -42,11 +42,8 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
-import io.evitadb.index.CatalogIndex;
-import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 
 import javax.annotation.Nonnull;
@@ -147,26 +144,19 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
-		return filterByVisitor.getIndex(CatalogIndexKey.INSTANCE)
-			.map(
-				it -> {
-					final CatalogIndex catalogIndex = (CatalogIndex) it;
-					final GlobalUniqueIndex uniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeDefinition, filterByVisitor.getLocale());
-					return new Formula[] {
-						uniqueIndex == null ?
-							EmptyFormula.INSTANCE :
-							new NotFormula(
-								uniqueIndex.getRecordIdsFormula(filterByVisitor.getEntityType()),
-								FormulaFactory.or(
-									filterByVisitor.getEntityIndexStream()
-										.map(EntityIndex::getAllPrimaryKeysFormula)
-										.toArray(Formula[]::new)
-								)
-							)
-					};
-				}
+		return new Formula[]{
+			filterByVisitor.applyOnGlobalUniqueIndex(
+				attributeDefinition,
+				uniqueIndex -> new NotFormula(
+					uniqueIndex.getRecordIdsFormula(filterByVisitor.getEntityType()),
+					FormulaFactory.or(
+						filterByVisitor.getEntityIndexStream()
+							.map(EntityIndex::getAllPrimaryKeysFormula)
+							.toArray(Formula[]::new)
+					)
+				)
 			)
-			.orElse(new Formula[0]);
+		};
 	}
 
 	/**

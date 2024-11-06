@@ -36,7 +36,8 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
- * TODO JNO - DOCUMENT ME
+ * Mutation that sets the scope of the target entity. It either archives or restored the entity back to the living set
+ * of entities.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -44,7 +45,7 @@ import java.io.Serial;
 public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 	@Serial private static final long serialVersionUID = -8465670492875977978L;
 	/**
-	 * TODO JNO - DOCUMENT ME
+	 * Scope to be set in the target entity.
 	 */
 	@Getter private final Scope scope;
 

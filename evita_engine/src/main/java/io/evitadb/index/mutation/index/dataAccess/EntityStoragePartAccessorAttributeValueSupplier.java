@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation.index.attributeSupplier;
+package io.evitadb.index.mutation.index.dataAccess;
 
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -37,7 +37,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -56,9 +55,6 @@ class EntityStoragePartAccessorAttributeValueSupplier implements ExistingAttribu
 	private final int entityPrimaryKey;
 	private final MemoizedLocalesObsoleteChecker memoizedLocalesObsoleteChecker;
 	private Set<Locale> memoizedLocales;
-	private AttributeKey memoizedKey;
-	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-	private Optional<AttributeValue> memoizedValue;
 
 	public EntityStoragePartAccessorAttributeValueSupplier(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -87,17 +83,13 @@ class EntityStoragePartAccessorAttributeValueSupplier implements ExistingAttribu
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		if (!Objects.equals(this.memoizedKey, attributeKey)) {
-			final AttributesStoragePart currentAttributes = ofNullable(attributeKey.locale())
-				.map(it -> this.containerAccessor.getAttributeStoragePart(this.entityType, this.entityPrimaryKey, it))
-				.orElseGet(() -> this.containerAccessor.getAttributeStoragePart(this.entityType, this.entityPrimaryKey));
+		final AttributesStoragePart currentAttributes = ofNullable(attributeKey.locale())
+			.map(it -> this.containerAccessor.getAttributeStoragePart(this.entityType, this.entityPrimaryKey, it))
+			.orElseGet(() -> this.containerAccessor.getAttributeStoragePart(this.entityType, this.entityPrimaryKey));
 
-			this.memoizedKey = attributeKey;
-			this.memoizedValue = Optional.of(currentAttributes)
+		return Optional.of(currentAttributes)
 				.map(it -> it.findAttribute(attributeKey))
 				.filter(Droppable::exists);
-		}
-		return memoizedValue;
 	}
 
 	@Override

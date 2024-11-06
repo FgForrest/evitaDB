@@ -61,6 +61,7 @@ import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
@@ -1159,13 +1160,21 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public CatalogIndex readCatalogIndex(@Nonnull Catalog catalog) {
+	public Optional<CatalogIndex> readCatalogIndex(@Nonnull Catalog catalog, @Nonnull Scope scope) {
 		final long catalogVersion = catalog.getVersion();
 		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
-		final CatalogIndexStoragePart catalogIndexStoragePart = storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogIndexStoragePart.class);
+		final CatalogIndexStoragePart catalogIndexStoragePart = storagePartPersistenceService.getStoragePart(
+			catalogVersion,
+			scope == Scope.LIVE ? 1L : 2L,
+			CatalogIndexStoragePart.class
+		);
 		if (catalogIndexStoragePart == null) {
-			return new CatalogIndex();
+			return Optional.empty();
 		} else {
+			Assert.isPremiseValid(
+				catalogIndexStoragePart.getCatalogIndexKey().scope() == scope,
+				() -> new GenericEvitaInternalError("Catalog index key scope `" + catalogIndexStoragePart.getCatalogIndexKey().scope() + "` does not match the requested scope (`" + scope + "`)!")
+			);
 			final Set<AttributeKey> sharedAttributeUniqueIndexes = catalogIndexStoragePart.getSharedAttributeUniqueIndexes();
 			final Map<AttributeKey, GlobalUniqueIndex> sharedUniqueIndexes = CollectionUtils.createHashMap(sharedAttributeUniqueIndexes.size());
 			for (AttributeKey attributeKey : sharedAttributeUniqueIndexes) {
@@ -1186,7 +1195,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					)
 				);
 			}
-			return new CatalogIndex(catalogIndexStoragePart.getVersion(), sharedUniqueIndexes);
+			return Optional.of(
+				new CatalogIndex(
+					catalogIndexStoragePart.getVersion(),
+					catalogIndexStoragePart.getCatalogIndexKey(),
+					sharedUniqueIndexes
+				)
+			);
 		}
 	}
 

@@ -43,6 +43,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -56,10 +57,13 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * This visitor examines {@link Query#getFilterBy()} query and tries to construct multiple {@link TargetIndexes}
@@ -80,26 +84,39 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 
 	public IndexSelectionVisitor(@Nonnull QueryPlanningContext queryContext) {
 		this.queryContext = queryContext;
-		final Optional<EntityIndex> entityIndex = queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
-		if (entityIndex.isPresent()) {
-			final EntityIndex eix = entityIndex.get();
+		final EnumSet<Scope> allowedScopes = this.queryContext.getEvitaRequest().getScopes();
+		if (this.queryContext.hasEntityGlobalIndex()) {
+			final List<EntityIndex> indexes = Arrays.stream(Scope.values())
+				.filter(allowedScopes::contains)
+				.map(it -> this.queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL, it)))
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.map(EntityIndex.class::cast)
+				.toList();
 			this.targetIndexes.add(
 				new TargetIndexes<>(
-					eix.getIndexKey().type().name(),
+					indexes.stream().map(it -> it.getIndexKey().toString()).collect(Collectors.joining(", ")),
 					EntityIndex.class,
-					Collections.singletonList(eix)
+					indexes
 				)
 			);
 		} else {
-			queryContext.getIndex(CatalogIndexKey.INSTANCE)
-				.ifPresent(it -> this.targetIndexes.add(
-						new TargetIndexes<>(
-							it.getIndexKey().toString(),
-							CatalogIndex.class,
-							Collections.singletonList((CatalogIndex) it)
-						)
+			final List<CatalogIndex> indexes = Arrays.stream(Scope.values())
+				.filter(allowedScopes::contains)
+				.map(it -> this.queryContext.getIndex(new CatalogIndexKey(it)))
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.map(CatalogIndex.class::cast)
+				.toList();
+			if (!indexes.isEmpty()) {
+				this.targetIndexes.add(
+					new TargetIndexes<>(
+						indexes.stream().map(it -> it.getIndexKey().toString()).collect(Collectors.joining(", ")),
+						CatalogIndex.class,
+						indexes
 					)
 				);
+			}
 		}
 	}
 
@@ -160,11 +177,11 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					final List<ReducedEntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size());
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						queryContext.getIndex(
-							new EntityIndexKey(
-								EntityIndexType.REFERENCED_HIERARCHY_NODE,
-								new ReferenceKey(filteredHierarchyReferenceName, hierarchyEntityId)
+								new EntityIndexKey(
+									EntityIndexType.REFERENCED_HIERARCHY_NODE,
+									new ReferenceKey(filteredHierarchyReferenceName, hierarchyEntityId)
+								)
 							)
-						)
 							.map(ReducedEntityIndex.class::cast)
 							.ifPresent(theTargetIndexes::add);
 					}

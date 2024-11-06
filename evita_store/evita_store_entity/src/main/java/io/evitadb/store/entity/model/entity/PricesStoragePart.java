@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceIdFirstPriceKeyC
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.store.model.EntityStoragePart;
@@ -226,15 +225,16 @@ public class PricesStoragePart implements EntityStoragePart {
 	 * {@link PriceInternalIdContainer} contains nulls in its field.
 	 */
 	@Nonnull
-	public PriceInternalIdContainer findExistingInternalIds(@Nonnull PriceKey priceKey) {
-		Integer internalPriceId = null;
-		for (PriceWithInternalIds price : prices) {
+	public OptionalInt findExistingInternalIds(@Nonnull PriceKey priceKey) {
+		OptionalInt internalPriceId = OptionalInt.empty();
+		for (PriceWithInternalIds price : this.prices) {
 			if (Objects.equals(priceKey, price.priceKey())) {
-				internalPriceId = price.getInternalPriceId();
+				internalPriceId = price.getInternalPriceId() == null ?
+					OptionalInt.empty() : OptionalInt.of(price.getInternalPriceId());
 				break;
 			}
 		}
-		return new MinimalPriceInternalIdContainer(internalPriceId);
+		return internalPriceId;
 	}
 
 	/**

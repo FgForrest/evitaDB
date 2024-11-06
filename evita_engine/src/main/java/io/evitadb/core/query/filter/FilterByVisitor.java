@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.filter;
 
-import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
@@ -79,6 +78,7 @@ import io.evitadb.core.query.filter.translator.reference.EntityHavingTranslator;
 import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.CatalogIndex;
@@ -871,18 +871,21 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
-		final Optional<Index<CatalogIndexKey>> catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
-		final String attributeName = attributeDefinition.getName();
-		if (catalogIndex.isEmpty()) {
-			throw new EntityCollectionRequiredException("filter by attribute `" + attributeName + "`");
-		} else {
-			final CatalogIndex catalogIndexKeyIndex = (CatalogIndex) catalogIndex.get();
-			final GlobalUniqueIndex globalUniqueIndex = catalogIndexKeyIndex.getGlobalUniqueIndex(attributeDefinition, getLocale());
-			if (globalUniqueIndex == null) {
-				return EmptyFormula.INSTANCE;
-			}
-			return formulaFunction.apply(globalUniqueIndex);
-		}
+		final EnumSet<Scope> allowedScopes = getEvitaRequest().getScopes();
+		return FormulaFactory.or(
+			Arrays.stream(Scope.values())
+				.filter(allowedScopes::contains)
+				.map(CatalogIndexKey::new)
+				.map(this::getIndex)
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.map(CatalogIndex.class::cast)
+				.map(catalogIndex -> catalogIndex.getGlobalUniqueIndex(attributeDefinition, getLocale()))
+				.filter(Objects::nonNull)
+				.map(formulaFunction)
+				.filter(it -> !(it instanceof EmptyFormula))
+				.toArray(Formula[]::new)
+		);
 	}
 
 	/**

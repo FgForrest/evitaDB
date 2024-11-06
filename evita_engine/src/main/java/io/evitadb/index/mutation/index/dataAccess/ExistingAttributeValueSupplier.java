@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation.index.attributeSupplier;
+package io.evitadb.index.mutation.index.dataAccess;
 
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;

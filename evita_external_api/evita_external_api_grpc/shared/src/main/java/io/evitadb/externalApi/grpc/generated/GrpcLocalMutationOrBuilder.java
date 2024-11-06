@@ -447,5 +447,32 @@ public interface GrpcLocalMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutationOrBuilder getReferenceAttributeMutationOrBuilder();
 
+  /**
+   * <pre>
+   * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+   * @return Whether the setEntityScopeMutation field is set.
+   */
+  boolean hasSetEntityScopeMutation();
+  /**
+   * <pre>
+   * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+   * @return The setEntityScopeMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation getSetEntityScopeMutation();
+  /**
+   * <pre>
+   * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutationOrBuilder getSetEntityScopeMutationOrBuilder();
+
   public io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.MutationCase getMutationCase();
 }

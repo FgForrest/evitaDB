@@ -63,10 +63,6 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 */
 	@Getter private final int primaryKey;
 	/**
-	 * See {@link Entity#getScope()}.
-	 */
-	@Getter private final Scope scope;
-	/**
 	 * See {@link Entity#getAttributeLocales()}.
 	 */
 	@Nonnull private final Set<Locale> attributeLocales;
@@ -82,6 +78,10 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 * See {@link Entity#version()}.
 	 */
 	private int version;
+	/**
+	 * See {@link Entity#getScope()}.
+	 */
+	@Getter private Scope scope;
 	/**
 	 * See {@link Entity#getParent()}.
 	 */
@@ -164,7 +164,25 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	}
 
 	/**
-	 * Updates hierarchical placement of the entity.
+	 * Sets the scope of the entity to the provided value.
+	 * If the new scope differs from the current one, marks the entity as dirty.
+	 *
+	 * @param newScope the new scope to be set for the entity, must be non-null
+	 */
+	public void setScope(@Nonnull Scope newScope) {
+		if (this.scope != newScope) {
+			this.scope = newScope;
+			this.dirty = true;
+		}
+	}
+
+	/**
+	 * Sets the parent identifier for this entity.
+	 * If the new parent is different from the current one,
+	 * this method also marks the entity as dirty, indicating that
+	 * it has been modified and needs to be persisted.
+	 *
+	 * @param parent the new parent identifier, which could be null to indicate no parent.
 	 */
 	public void setParent(@Nullable Integer parent) {
 		if ((this.parent == null && parent != null) || (this.parent != null && !Objects.equals(this.parent, parent))) {
@@ -177,7 +195,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 * Returns version of the entity for storing (incremented by one, if anything changed).
 	 */
 	public int getVersion() {
-		return dirty ? version + 1 : version;
+		return this.dirty ? this.version + 1 : this.version;
 	}
 
 	/**

@@ -25,12 +25,10 @@ package io.evitadb.index.mutation.index;
 
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -38,17 +36,17 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.mutation.index.attributeSupplier.ExistingAttributeValueSupplier;
-import io.evitadb.index.mutation.index.attributeSupplier.ExistingAttributeValueSupplierFactory;
+import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
+import io.evitadb.index.mutation.index.dataAccess.ExistingDataSupplierFactory;
+import io.evitadb.index.mutation.index.dataAccess.ExistingPriceSupplier;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
-import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
-import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 
 import javax.annotation.Nonnull;
@@ -61,7 +59,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
-import static io.evitadb.index.mutation.index.attributeSupplier.ExistingAttributeValueSupplier.NO_EXISTING_VALUE_SUPPLIER;
+import static io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier.NO_EXISTING_VALUE_SUPPLIER;
 import static io.evitadb.utils.Assert.isPremiseValid;
 
 /**
@@ -90,12 +88,12 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Method allows to process all attribute mutations in referenced entities of the entity. Method uses
-	 * {@link EntityIndexLocalMutationExecutor#updateAttributes(AttributeMutation, Function, Function, ExistingAttributeValueSupplier, EntityIndex, boolean, boolean)}
+	 * {@link EntityIndexLocalMutationExecutor#updateAttribute(AttributeMutation, Function, Function, ExistingAttributeValueSupplier, EntityIndex, boolean, boolean)}
 	 * to do that.
 	 */
 	static void attributeUpdate(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ExistingAttributeValueSupplierFactory attributeSupplierFactory,
+		@Nonnull ExistingDataSupplierFactory attributeSupplierFactory,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nullable EntityIndex referenceIndex,
 		@Nonnull ReferenceKey referenceKey,
@@ -114,7 +112,7 @@ public interface ReferenceIndexMutator {
 
 		executor.executeWithDifferentPrimaryKeyToIndex(
 			indexType -> referenceKey.primaryKey(),
-			() -> executor.updateAttributes(
+			() -> executor.updateAttribute(
 				attributeMutation,
 				attributeSchemaProvider,
 				compoundSchemaProvider,
@@ -127,7 +125,7 @@ public interface ReferenceIndexMutator {
 
 		if (referenceIndex != null) {
 			// we need to index entity primary key into the referenced entity index for all attributes
-			executor.updateAttributes(
+			executor.updateAttribute(
 				attributeMutation,
 				attributeSchemaProvider,
 				compoundSchemaProvider,
@@ -150,7 +148,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nullable EntityIndex referenceIndex,
 		@Nonnull ReferenceKey referenceKey,
-		@Nonnull ExistingAttributeValueSupplierFactory existingAttributeSupplierFactory,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		// we need to index referenced entity primary key into the reference type index
@@ -161,6 +159,29 @@ public interface ReferenceIndexMutator {
 		// add facet to global index
 		addFacetToIndex(entityIndex, referenceKey, null, executor, entityPrimaryKey, undoActionConsumer);
 
+		// index all reference attributes to the reference type index
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
+		final Function<String, AttributeSchema> referenceAttributeProvider = attributeName -> referenceSchema.getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null);
+		final Function<String, Stream<SortableAttributeCompoundSchema>> referenceCompoundProvider = attributeName -> referenceSchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
+		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(referenceKey);
+		executor.executeWithDifferentPrimaryKeyToIndex(
+			indexType -> referenceKey.primaryKey(),
+			() -> referenceAttributeValueSupplier
+				.getAttributeValues()
+				.forEach(attributeValue -> AttributeIndexMutator.executeAttributeUpsert(
+					executor,
+					referenceAttributeProvider,
+					referenceCompoundProvider,
+					NO_EXISTING_VALUE_SUPPLIER,
+					referenceTypeIndex,
+					attributeValue.key(),
+					Objects.requireNonNull(attributeValue.value()),
+					false,
+					false,
+					undoActionConsumer
+				))
+		);
+
 		if (referenceIndex != null) {
 			// we need to index entity primary key into the referenced entity index
 			if (referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey)) {
@@ -170,7 +191,7 @@ public interface ReferenceIndexMutator {
 				// we need to index all previously added global entity attributes and prices
 				indexAllExistingData(
 					executor, referenceIndex,
-					entitySchema, entityPrimaryKey, existingAttributeSupplierFactory,
+					entitySchema, entityPrimaryKey, existingDataSupplierFactory,
 					undoActionConsumer
 				);
 			}
@@ -191,7 +212,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nonnull EntityIndex referenceIndex,
 		@Nonnull ReferenceKey referenceKey,
-		@Nonnull ExistingAttributeValueSupplierFactory existingAttributeSupplierFactory,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final String entityType = entitySchema.getName();
@@ -204,6 +225,28 @@ public interface ReferenceIndexMutator {
 		// remove facet from global index
 		removeFacetInIndex(entityIndex, referenceKey, executor, entityType, entityPrimaryKey, undoActionConsumer);
 
+		// remove all reference attributes to the reference type index
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
+		final Function<String, AttributeSchema> referenceAttributeProvider = attributeName -> referenceSchema.getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null);
+		final Function<String, Stream<SortableAttributeCompoundSchema>> referenceCompoundProvider = attributeName -> referenceSchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
+		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(referenceKey);
+		executor.executeWithDifferentPrimaryKeyToIndex(
+			indexType -> referenceKey.primaryKey(),
+			() -> referenceAttributeValueSupplier
+				.getAttributeValues()
+				.forEach(attributeValue -> AttributeIndexMutator.executeAttributeRemoval(
+					executor,
+					referenceAttributeProvider,
+					referenceCompoundProvider,
+					referenceAttributeValueSupplier,
+					referenceTypeIndex,
+					attributeValue.key(),
+					false,
+					false,
+					undoActionConsumer
+				))
+		);
+
 		// we need to remove entity primary key from the referenced entity index
 		if (referenceIndex.removePrimaryKey(entityPrimaryKey)) {
 			if (undoActionConsumer != null) {
@@ -214,20 +257,10 @@ public interface ReferenceIndexMutator {
 			removeAllExistingData(
 				executor, referenceIndex,
 				entitySchema, entityPrimaryKey,
-				existingAttributeSupplierFactory,
+				existingDataSupplierFactory,
 				undoActionConsumer
 			);
 		}
-
-		// remove all attributes that are present on the reference relation form type index
-		final ExistingAttributeValueSupplier existingAttributeSupplier = existingAttributeSupplierFactory.getReferenceAttributeValueSupplier(referenceKey);
-		existingAttributeSupplier.getAttributeValues()
-			.forEach(
-				attributeValue -> attributeUpdate(
-					executor, existingAttributeSupplierFactory, referenceTypeIndex, null, referenceKey,
-					new RemoveAttributeMutation(attributeValue.key())
-				)
-			);
 
 		// if referenced type index is empty remove it completely
 		if (referenceTypeIndex.isEmpty()) {
@@ -243,7 +276,8 @@ public interface ReferenceIndexMutator {
 	@Nonnull
 	static EntityIndex getReferencedEntityIndex(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferenceKey referenceKey
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull Scope scope
 	) {
 		final String referenceName = referenceKey.referenceName();
 		final ReferenceSchemaContract referenceSchema = executor.getEntitySchema().getReferenceOrThrowException(referenceName);
@@ -258,9 +292,9 @@ public interface ReferenceIndexMutator {
 		// in order to save memory the data are indexed either to hierarchical or referenced entity index
 		final EntityIndexKey entityIndexKey;
 		if (referencesHierarchy) {
-			entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_HIERARCHY_NODE, executor.getScope(), referenceKey);
+			entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_HIERARCHY_NODE, scope, referenceKey);
 		} else {
-			entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, executor.getScope(), referenceKey);
+			entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, referenceKey);
 		}
 		return executor.getOrCreateIndex(entityIndexKey);
 	}
@@ -288,10 +322,11 @@ public interface ReferenceIndexMutator {
 		@Nonnull Predicate<ReferenceContract> referencePredicate
 	) {
 		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
+		final Scope scope = executor.getScope();
 		final ReferencesStoragePart referencesStorageContainer = executor.getContainerAccessor().getReferencesStoragePart(entityType, entityPrimaryKey);
 		for (ReferenceContract reference : referencesStorageContainer.getReferences()) {
 			if (reference.exists() && isIndexed(reference) && referencePredicate.test(reference)) {
-				final EntityIndex targetIndex = getReferencedEntityIndex(executor, reference.getReferenceKey());
+				final EntityIndex targetIndex = getReferencedEntityIndex(executor, reference.getReferenceKey(), scope);
 				referenceIndexConsumer.accept(targetIndex);
 			}
 		}
@@ -437,6 +472,96 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
+	 * Method indexes all sortable attribute compounds of the entity in passed index. When the `locale` parameter is
+	 * not null, only the compounds for the given locale are created. Otherwise, all compounds that don't contain
+	 * localized attribute value are created.
+	 */
+	static void indexAllCompounds(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntityIndex targetIndex,
+		@Nullable Locale locale,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		final EntitySchema entitySchema = executor.getEntitySchema();
+
+		final ExistingAttributeValueSupplier entityAttributeValueSupplier = existingDataSupplierFactory.getEntityAttributeValueSupplier();
+		AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+			executor, targetIndex, locale, entitySchema,
+			entityAttributeValueSupplier, undoActionConsumer
+		);
+		if (undoActionConsumer != null) {
+			undoActionConsumer.accept(
+				() -> AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+					executor, targetIndex, locale, entitySchema, entityAttributeValueSupplier, undoActionConsumer
+				)
+			);
+		}
+
+		final EntityIndexKey indexKey = targetIndex.getIndexKey();
+		if (indexKey.discriminator() instanceof ReferenceKey referenceKey) {
+			final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
+			final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(referenceKey);
+			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+				executor, targetIndex, locale, referenceSchema,
+				referenceAttributeValueSupplier, undoActionConsumer
+			);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+						executor, targetIndex, locale, referenceSchema,
+						referenceAttributeValueSupplier, undoActionConsumer
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Method removes all sortable attribute compounds of the entity from passed index.
+	 */
+	static void removeAllCompounds(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntityIndex targetIndex,
+		@Nullable Locale locale,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		final EntitySchema entitySchema = executor.getEntitySchema();
+
+		final ExistingAttributeValueSupplier entityAttributeValueSupplier = existingDataSupplierFactory.getEntityAttributeValueSupplier();
+		AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+			executor, targetIndex, locale, entitySchema,
+			entityAttributeValueSupplier, undoActionConsumer
+		);
+		if (undoActionConsumer != null) {
+			undoActionConsumer.accept(
+				() -> AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+					executor, targetIndex, locale, entitySchema, entityAttributeValueSupplier, undoActionConsumer
+				)
+			);
+		}
+
+		final EntityIndexKey indexKey = targetIndex.getIndexKey();
+		if (indexKey.discriminator() instanceof ReferenceKey referenceKey) {
+			final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
+			final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(referenceKey);
+			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+				executor, targetIndex, locale, referenceSchema,
+				referenceAttributeValueSupplier, undoActionConsumer
+			);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+						executor, targetIndex, locale, referenceSchema,
+						referenceAttributeValueSupplier, undoActionConsumer
+					)
+				);
+			}
+		}
+	}
+
+	/**
 	 * Method indexes all existing indexable data for passed entity / referenced entity combination in passed indexes.
 	 */
 	private static void indexAllExistingData(
@@ -444,7 +569,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull EntitySchemaContract entitySchema,
 		int entityPrimaryKey,
-		@Nonnull ExistingAttributeValueSupplierFactory existingAttributeSupplierFactory,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final String entityType = entitySchema.getName();
@@ -456,13 +581,13 @@ public interface ReferenceIndexMutator {
 
 		for (Locale locale : entityCnt.getLocales()) {
 			executor.upsertEntityLanguageInTargetIndex(
-				entityPrimaryKey, locale, targetIndex, entitySchema, existingAttributeSupplierFactory, undoActionConsumer
+				entityPrimaryKey, locale, targetIndex, entitySchema, existingDataSupplierFactory, undoActionConsumer
 			);
 		}
 
-		indexAllPrices(executor, targetIndex, entityType, entityPrimaryKey, undoActionConsumer);
-		indexAllAttributes(executor, targetIndex, existingAttributeSupplierFactory, undoActionConsumer);
-		indexAllCompounds(executor, targetIndex, null, existingAttributeSupplierFactory, undoActionConsumer);
+		indexAllPrices(executor, targetIndex, existingDataSupplierFactory.getPriceSupplier(), undoActionConsumer);
+		indexAllAttributes(executor, targetIndex, existingDataSupplierFactory, undoActionConsumer);
+		indexAllCompounds(executor, targetIndex, null, existingDataSupplierFactory, undoActionConsumer);
 	}
 
 	/**
@@ -502,16 +627,14 @@ public interface ReferenceIndexMutator {
 	private static void indexAllPrices(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
-		@Nonnull String entityType,
-		int entityPrimaryKey,
+		@Nonnull ExistingPriceSupplier existingPriceSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
-		final PricesStoragePart priceContainer = containerAccessor.getPriceStoragePart(entityType, entityPrimaryKey);
-		for (PriceWithInternalIds price : priceContainer.getPrices()) {
-			if (price.exists()) {
+		existingPriceSupplier
+			.getExistingPrices()
+			.forEach(price ->
 				PriceIndexMutator.priceUpsert(
-					entityType, executor, targetIndex,
+					executor, targetIndex,
 					price.priceKey(),
 					price.innerRecordId(),
 					price.validity(),
@@ -519,12 +642,11 @@ public interface ReferenceIndexMutator {
 					price.priceWithTax(),
 					price.indexed(),
 					null,
-					priceContainer.getPriceInnerRecordHandling(),
+					existingPriceSupplier.getPriceInnerRecordHandling(),
 					PriceIndexMutator.createPriceProvider(price),
 					undoActionConsumer
-				);
-			}
-		}
+				)
+			);
 	}
 
 	/**
@@ -533,7 +655,7 @@ public interface ReferenceIndexMutator {
 	private static void indexAllAttributes(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
-		@Nonnull ExistingAttributeValueSupplierFactory existingAttributeValueSupplierFactory,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
@@ -543,7 +665,7 @@ public interface ReferenceIndexMutator {
 		final Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider =
 			attributeName -> entitySchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
 
-		existingAttributeValueSupplierFactory.getEntityAttributeValueSupplier()
+		existingDataSupplierFactory.getEntityAttributeValueSupplier()
 			.getAttributeValues()
 			.forEach(attribute ->
 				AttributeIndexMutator.executeAttributeUpsert(
@@ -568,7 +690,7 @@ public interface ReferenceIndexMutator {
 			final Function<String, Stream<SortableAttributeCompoundSchema>> referenceCompoundsSchemaProvider =
 				attributeName -> referenceSchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
 
-			existingAttributeValueSupplierFactory.getReferenceAttributeValueSupplier(referenceKey)
+			existingDataSupplierFactory.getReferenceAttributeValueSupplier(referenceKey)
 				.getAttributeValues()
 				.forEach(attribute ->
 					AttributeIndexMutator.executeAttributeUpsert(
@@ -588,52 +710,6 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Method indexes all sortable attribute compounds of the entity in passed index. When the `locale` parameter is
-	 * not null, only the compounds for the given locale are created. Otherwise, all compounds that don't contain
-	 * localized attribute value are created.
-	 */
-	static void indexAllCompounds(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex targetIndex,
-		@Nullable Locale locale,
-		@Nonnull ExistingAttributeValueSupplierFactory existingAttributeValueSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		final EntitySchema entitySchema = executor.getEntitySchema();
-
-		final ExistingAttributeValueSupplier entityAttributeValueSupplier = existingAttributeValueSupplierFactory.getEntityAttributeValueSupplier();
-		AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-			executor, targetIndex, locale, entitySchema,
-			entityAttributeValueSupplier, undoActionConsumer
-		);
-		if (undoActionConsumer != null) {
-			undoActionConsumer.accept(
-				() -> AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-					executor, targetIndex, locale, entitySchema, entityAttributeValueSupplier, undoActionConsumer
-				)
-			);
-		}
-
-		final EntityIndexKey indexKey = targetIndex.getIndexKey();
-		if (indexKey.discriminator() instanceof ReferenceKey referenceKey) {
-			final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
-			final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingAttributeValueSupplierFactory.getReferenceAttributeValueSupplier(referenceKey);
-			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-				executor, targetIndex, locale, referenceSchema,
-				referenceAttributeValueSupplier, undoActionConsumer
-			);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-						executor, targetIndex, locale, referenceSchema,
-						referenceAttributeValueSupplier, undoActionConsumer
-					)
-				);
-			}
-		}
-	}
-
-	/**
 	 * Method removes all indexed data for passed entity / referenced entity combination in passed indexes.
 	 */
 	private static void removeAllExistingData(
@@ -641,7 +717,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull EntitySchemaContract entitySchema,
 		int entityPrimaryKey,
-		@Nonnull ExistingAttributeValueSupplierFactory existingAttributeSupplierFactory,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final String entityType = entitySchema.getName();
@@ -653,14 +729,14 @@ public interface ReferenceIndexMutator {
 		for (Locale locale : entityCnt.getLocales()) {
 			executor.removeEntityLanguageInTargetIndex(
 				entityPrimaryKey, locale, targetIndex, entitySchema,
-				existingAttributeSupplierFactory,
+				existingDataSupplierFactory,
 				undoActionConsumer
 			);
 		}
 
-		removeAllPrices(executor, targetIndex, entityType, entityPrimaryKey, undoActionConsumer);
-		removeAllAttributes(executor, targetIndex, existingAttributeSupplierFactory, undoActionConsumer);
-		removeAllCompounds(executor, targetIndex, null, existingAttributeSupplierFactory, undoActionConsumer);
+		removeAllPrices(executor, targetIndex, existingDataSupplierFactory.getPriceSupplier(), undoActionConsumer);
+		removeAllAttributes(executor, targetIndex, existingDataSupplierFactory, undoActionConsumer);
+		removeAllCompounds(executor, targetIndex, null, existingDataSupplierFactory, undoActionConsumer);
 
 		// if target index is empty, remove it completely
 		if (targetIndex.isEmpty()) {
@@ -704,21 +780,18 @@ public interface ReferenceIndexMutator {
 	private static void removeAllPrices(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
-		@Nonnull String entityType,
-		int entityPrimaryKey,
+		@Nonnull ExistingPriceSupplier existingPriceSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final EntityStoragePartAccessor containerAccessor = executor.getContainerAccessor();
-		final PricesStoragePart priceContainer = containerAccessor.getPriceStoragePart(entityType, entityPrimaryKey);
-		for (PriceContract price : priceContainer.getPrices()) {
-			if (price.exists()) {
-				PriceIndexMutator.priceRemove(
-					entityType, executor, targetIndex,
+		existingPriceSupplier.getExistingPrices()
+			.forEach(
+				price -> PriceIndexMutator.priceRemove(
+					executor, targetIndex,
 					price.priceKey(),
+					existingPriceSupplier,
 					undoActionConsumer
-				);
-			}
-		}
+				)
+			);
 	}
 
 	/**
@@ -727,7 +800,7 @@ public interface ReferenceIndexMutator {
 	private static void removeAllAttributes(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
-		@Nonnull ExistingAttributeValueSupplierFactory existingAttributeValueSupplierFactory,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
@@ -737,14 +810,14 @@ public interface ReferenceIndexMutator {
 		final Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider =
 			attributeName -> entitySchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
 
-		existingAttributeValueSupplierFactory.getEntityAttributeValueSupplier()
+		existingDataSupplierFactory.getEntityAttributeValueSupplier()
 			.getAttributeValues()
 			.forEach(attribute ->
 				AttributeIndexMutator.executeAttributeRemoval(
 					executor,
 					attributeSchemaProvider,
 					compoundsSchemaProvider,
-					existingAttributeValueSupplierFactory.getEntityAttributeValueSupplier(),
+					existingDataSupplierFactory.getEntityAttributeValueSupplier(),
 					targetIndex,
 					attribute.key(),
 					false,
@@ -761,7 +834,7 @@ public interface ReferenceIndexMutator {
 			final Function<String, Stream<SortableAttributeCompoundSchema>> referenceCompoundsSchemaProvider =
 				attributeName -> referenceSchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
 
-			final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingAttributeValueSupplierFactory.getReferenceAttributeValueSupplier(referenceKey);
+			final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(referenceKey);
 			referenceAttributeValueSupplier
 				.getAttributeValues()
 				.forEach(attribute ->
@@ -777,50 +850,6 @@ public interface ReferenceIndexMutator {
 						undoActionConsumer
 					)
 				);
-		}
-	}
-
-	/**
-	 * Method removes all sortable attribute compounds of the entity from passed index.
-	 */
-	static void removeAllCompounds(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex targetIndex,
-		@Nullable Locale locale,
-		@Nonnull ExistingAttributeValueSupplierFactory existingAttributeValueSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		final EntitySchema entitySchema = executor.getEntitySchema();
-
-		final ExistingAttributeValueSupplier entityAttributeValueSupplier = existingAttributeValueSupplierFactory.getEntityAttributeValueSupplier();
-		AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-			executor, targetIndex, locale, entitySchema,
-			entityAttributeValueSupplier, undoActionConsumer
-		);
-		if (undoActionConsumer != null) {
-			undoActionConsumer.accept(
-				() -> AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-					executor, targetIndex, locale, entitySchema, entityAttributeValueSupplier, undoActionConsumer
-				)
-			);
-		}
-
-		final EntityIndexKey indexKey = targetIndex.getIndexKey();
-		if (indexKey.discriminator() instanceof ReferenceKey referenceKey) {
-			final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
-			final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingAttributeValueSupplierFactory.getReferenceAttributeValueSupplier(referenceKey);
-			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-				executor, targetIndex, locale, referenceSchema,
-				referenceAttributeValueSupplier, undoActionConsumer
-			);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-						executor, targetIndex, locale, referenceSchema,
-						referenceAttributeValueSupplier, undoActionConsumer
-					)
-				);
-			}
 		}
 	}
 

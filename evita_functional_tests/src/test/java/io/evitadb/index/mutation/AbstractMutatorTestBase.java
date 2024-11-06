@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.EvitaSession;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -95,7 +96,7 @@ abstract class AbstractMutatorTestBase {
 		alterCatalogSchema(catalogSchemaBuilder);
 		catalogSchema = (CatalogSchema) catalogSchemaBuilder.toInstance();
 		sealedCatalogSchema = new CatalogSchemaDecorator(catalogSchema);
-		catalogIndex = new CatalogIndex();
+		catalogIndex = new CatalogIndex(Scope.LIVE);
 		catalogIndex.attachToCatalog(null, catalog);
 
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);

@@ -330,13 +330,14 @@ public class Entity implements SealedEntity {
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
+		@Nonnull Scope scope,
 		boolean dropped
 	) {
 		return new Entity(
 			version, schema, primaryKey,
 			parent, references,
 			attributes, associatedData, prices,
-			locales, Scope.LIVE, dropped
+			locales, scope, dropped
 		);
 	}
 
@@ -358,6 +359,7 @@ public class Entity implements SealedEntity {
 		@Nullable AssociatedData associatedData,
 		@Nullable Prices prices,
 		@Nullable Set<Locale> locales,
+		@Nonnull Scope scope,
 		boolean dropped
 	) {
 		return new Entity(
@@ -368,7 +370,7 @@ public class Entity implements SealedEntity {
 			ofNullable(associatedData).orElse(entity.associatedData),
 			ofNullable(prices).orElse(entity.prices),
 			ofNullable(locales).orElse(entity.locales),
-			Scope.LIVE,
+			scope,
 			dropped
 		);
 	}

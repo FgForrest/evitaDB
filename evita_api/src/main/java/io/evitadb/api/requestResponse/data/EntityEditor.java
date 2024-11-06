@@ -54,9 +54,14 @@ import static io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySch
 public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract, AttributesEditor<W, EntityAttributeSchemaContract>, AssociatedDataEditor<W>, PricesEditor<W> {
 
 	/**
-	 * TODO JNO - document me
-	 * @param scope
-	 * @return
+	 * Sets the scope of the entity. When the {@link Scope#ARCHIVED} is set, and the entity is saved, it will be moved
+	 * to the archive indexes and will be no longer accessible in the live data set. It's the equivalent of calling
+	 * {@link EvitaSessionContract#archiveEntity(String, int)} method. When the {@link Scope#LIVE} is set, and the entity
+	 * is saved, it will be moved to the live data set and will be accessible in the live data set. It's the equivalent of
+	 * calling {@link EvitaSessionContract#restoreEntity(String, int)} method.
+	 *
+	 * @param scope the scope to set for the entity
+	 * @return an instance of the entity editor with the updated scope
 	 */
 	W setScope(@Nonnull Scope scope);
 

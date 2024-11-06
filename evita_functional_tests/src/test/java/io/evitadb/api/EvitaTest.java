@@ -2209,9 +2209,9 @@ class EvitaTest implements EvitaTestSupport {
 
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1642,
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1654,
 					new EntityCollectionStatistics[]{
-						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 508)
+						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 520)
 					}
 				),
 				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow()

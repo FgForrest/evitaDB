@@ -42,8 +42,6 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
-import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -82,8 +80,6 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	/**
 	 * Captures the scope of the index and reflects the {@link EntityIndexKey#scope()} of the main entity index this
 	 * price index is part of.
-	 *
-	 * TODO JNO - serialize me
 	 */
 	private final Scope scope;
 	/**
@@ -184,22 +180,28 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	}
 
 	@Override
-	protected PriceInternalIdContainer addPrice(
+	protected int addPrice(
 		@Nonnull PriceListAndCurrencyPriceRefIndex priceListIndex, int entityPrimaryKey,
-		@Nullable Integer internalPriceId, int priceId,
+		@Nullable Integer internalPriceId,
+		int priceId,
 		@Nullable Integer innerRecordId,
-		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax
+		@Nullable DateTimeRange validity,
+		int priceWithoutTax,
+		int priceWithTax
 	) {
 		final PriceRecordContract priceRecord = priceListIndex.addPrice(internalPriceId, validity);
-		return new MinimalPriceInternalIdContainer(priceRecord.internalPriceId());
+		return priceRecord.internalPriceId();
 	}
 
 	@Override
 	protected void removePrice(
 		@Nonnull PriceListAndCurrencyPriceRefIndex priceListIndex, int entityPrimaryKey,
-		int internalPriceId, int priceId,
+		int internalPriceId,
+		int priceId,
 		@Nullable Integer innerRecordId,
-		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax
+		@Nullable DateTimeRange validity,
+		int priceWithoutTax,
+		int priceWithTax
 	) {
 		try {
 			priceListIndex.removePrice(internalPriceId, validity);

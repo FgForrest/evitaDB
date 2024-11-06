@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation.index.attributeSupplier;
+package io.evitadb.index.mutation.index.dataAccess;
 
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -33,8 +33,8 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public sealed interface ExistingAttributeValueSupplierFactory
-	permits EntityExistingAttributeFactory, EntityStoragePartExistingAttributeFactory {
+public sealed interface ExistingDataSupplierFactory
+	permits EntityExistingDataFactory, EntityStoragePartExistingDataFactory {
 
 	/**
 	 * Provides an {@link ExistingAttributeValueSupplier} instance that supplies existing attribute values from an entity.
@@ -43,6 +43,14 @@ public sealed interface ExistingAttributeValueSupplierFactory
 	 */
 	@Nonnull
 	ExistingAttributeValueSupplier getEntityAttributeValueSupplier();
+
+	/**
+	 * Provides an instance of {@link ReferenceSupplier} which can be used to retrieve reference-related data.
+	 *
+	 * @return an instance of {@link ReferenceSupplier} for accessing reference data.
+	 */
+	@Nonnull
+	ReferenceSupplier getReferenceSupplier();
 
 	/**
 	 * Provides an {@link ExistingAttributeValueSupplier} instance for retrieving attribute values defined on
@@ -54,5 +62,13 @@ public sealed interface ExistingAttributeValueSupplierFactory
 	 */
 	@Nonnull
 	ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull ReferenceKey referenceKey);
+
+	/**
+	 * Provides an {@link ExistingPriceSupplier} instance for retrieving prices on a particular reference.
+	 *
+	 * @return an instance of {@link ExistingPriceSupplier} which can be used to retrieve existing prices.
+	 */
+	@Nonnull
+	ExistingPriceSupplier getPriceSupplier();
 
 }

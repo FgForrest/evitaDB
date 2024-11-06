@@ -367,9 +367,7 @@ public abstract class EntityIndex implements
 	 * Returns true if index contains no data whatsoever.
 	 */
 	public boolean isEmpty() {
-		return entityIds.isEmpty() &&
-			attributeIndex.isAttributeIndexEmpty() &&
-			hierarchyIndex.isHierarchyIndexEmpty();
+		return this.entityIds.isEmpty();
 	}
 
 	@Override

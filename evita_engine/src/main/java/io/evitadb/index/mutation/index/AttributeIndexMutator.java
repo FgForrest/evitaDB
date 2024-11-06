@@ -37,10 +37,11 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
-import io.evitadb.index.mutation.index.attributeSupplier.ExistingAttributeValueSupplier;
+import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 
@@ -155,7 +156,9 @@ public interface AttributeIndexMutator {
 
 			if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
 				globalAttributeSchema.isUniqueGlobally()) {
-				final CatalogIndex catalogIndex = executor.getCatalogIndex();
+				// use the same scope as used in the entity index
+				final Scope scope = entityIndex.getIndexKey().scope();
+				final CatalogIndex catalogIndex = executor.getCatalogIndex(scope);
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
@@ -264,7 +267,9 @@ public interface AttributeIndexMutator {
 				if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
 					globalAttributeSchema.isUniqueGlobally()
 				) {
-					final CatalogIndex catalogIndex = executor.getCatalogIndex();
+					// use the same scope as used in the entity index
+					final Scope scope = entityIndex.getIndexKey().scope();
+					final CatalogIndex catalogIndex = executor.getCatalogIndex(scope);
 					catalogIndex.removeUniqueAttribute(
 						entitySchema, globalAttributeSchema, allowedLocales, locale, valueToRemoveSupplier.get(),
 						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
@@ -578,11 +583,11 @@ public interface AttributeIndexMutator {
 		@Nonnull Function<AttributeKey, AttributeValue> existingAttributeValueProvider,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final Function<AttributeElement, AttributeValue> attributeElementValueProvider = createAttributeElementToAttributeValueProvider(
-			attributeSchemaProvider, existingAttributeValueProvider, locale
-		);
-
 		if (locale == null || availableAttributeLocales.contains(locale)) {
+			final Function<AttributeElement, AttributeValue> attributeElementValueProvider = createAttributeElementToAttributeValueProvider(
+				attributeSchemaProvider, existingAttributeValueProvider, locale
+			);
+
 			removeOldCompound(
 				entityPrimaryKey, entityIndex, compound, locale,
 				attributeSchemaProvider, attributeElementValueProvider, undoActionConsumer

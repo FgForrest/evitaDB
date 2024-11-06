@@ -52,6 +52,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -84,14 +85,13 @@ import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
-import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
-import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.AbstractEntityStorageContainerAccessor;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.Setter;
 import org.roaringbitmap.RoaringBitmap;
@@ -284,6 +284,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			updateAttributes(entitySchema, attributeMutation);
 		} else if (localMutation instanceof AssociatedDataMutation associatedDataMutation) {
 			updateAssociatedData(entitySchema, associatedDataMutation);
+		} else if (localMutation instanceof SetEntityScopeMutation setEntityScopeMutation) {
+			updateEntityScope(entitySchema, setEntityScopeMutation);
 		} else {
 			// SHOULD NOT EVER HAPPEN
 			throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
@@ -340,10 +342,6 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			}
 		}
 	}
-
-	/*
-		PROTECTED METHODS
-	 */
 
 	@Nonnull
 	@Override
@@ -409,34 +407,33 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	}
 
 	@Override
-	public void registerAssignedPriceId(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey, @Nullable Integer innerRecordId, @Nonnull PriceInternalIdContainer priceId) {
+	public void registerAssignedPriceId(int entityPrimaryKey, @Nonnull PriceKey priceKey, int internalPriceId) {
 		Assert.isPremiseValid(entityPrimaryKey == this.entityPrimaryKey, ERROR_SAME_KEY_EXPECTED);
-		if (assignedInternalPriceIdIndex == null) {
-			assignedInternalPriceIdIndex = new HashMap<>();
+		if (this.assignedInternalPriceIdIndex == null) {
+			this.assignedInternalPriceIdIndex = CollectionUtils.createHashMap(16);
 		}
-		assignedInternalPriceIdIndex.compute(
+		this.assignedInternalPriceIdIndex.compute(
 			priceKey,
 			(thePriceKey, existingInternalPriceId) -> {
-				final Integer newPriceId = Objects.requireNonNull(priceId.getInternalPriceId());
 				Assert.isPremiseValid(
-					existingInternalPriceId == null || Objects.equals(existingInternalPriceId, newPriceId),
+					existingInternalPriceId == null || existingInternalPriceId == internalPriceId,
 					"Attempt to change already assigned price id!"
 				);
-				return newPriceId;
+				return internalPriceId;
 			}
 		);
 	}
 
 	@Nonnull
 	@Override
-	public PriceInternalIdContainer findExistingInternalIds(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey, @Nullable Integer innerRecordId) {
+	public OptionalInt findExistingInternalId(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey) {
 		Assert.isPremiseValid(entityPrimaryKey == this.entityPrimaryKey, ERROR_SAME_KEY_EXPECTED);
-		Integer internalPriceId = assignedInternalPriceIdIndex == null ? null : assignedInternalPriceIdIndex.get(priceKey);
+		Integer internalPriceId = this.assignedInternalPriceIdIndex == null ? null : this.assignedInternalPriceIdIndex.get(priceKey);
 		if (internalPriceId == null) {
 			final PricesStoragePart priceStorageContainer = getPriceStoragePart(entityType, entityPrimaryKey);
 			return priceStorageContainer.findExistingInternalIds(priceKey);
 		} else {
-			return new MinimalPriceInternalIdContainer(internalPriceId);
+			return OptionalInt.of(internalPriceId);
 		}
 	}
 
@@ -487,6 +484,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	public int getEntityPrimaryKey() {
 		return this.entityPrimaryKey;
 	}
+
+	/*
+		PROTECTED METHODS
+	 */
 
 	@Nullable
 	@Override
@@ -1482,7 +1483,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		pricesStorageContainer.replaceOrAddPrice(
 			localMutation.getPriceKey(),
 			priceContract -> localMutation.mutateLocal(entitySchema, priceContract),
-			priceKey -> ofNullable(assignedInternalPriceIdIndex).map(it -> it.get(priceKey)).orElse(null)
+			priceKey -> ofNullable(this.assignedInternalPriceIdIndex).map(it -> it.get(priceKey)).orElse(null)
 		);
 		// change in entity parts also change the entity itself (we need to update the version)
 		if (pricesStorageContainer.isDirty()) {
@@ -1512,6 +1513,18 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		if (pricesStorageContainer.isDirty()) {
 			getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);
 		}
+	}
+
+	/**
+	 * Updates the scope of the given entity schema based on the provided mutation.
+	 *
+	 * @param entitySchema The entity schema contract representing the entity whose scope is to be updated.
+	 * @param setEntityScopeMutation The mutation object containing the logic to update the entity's scope.
+	 */
+	private void updateEntityScope(@Nonnull EntitySchemaContract entitySchema, @Nonnull SetEntityScopeMutation setEntityScopeMutation) {
+		final EntityBodyStoragePart entityStorageContainer = getEntityStorageContainer();
+		final Scope newScope = setEntityScopeMutation.mutateLocal(entitySchema, entityStorageContainer.getScope());
+		entityStorageContainer.setScope(newScope);
 	}
 
 	/**

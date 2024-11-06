@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,27 +21,27 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference;
+package io.evitadb.index.mutation.index.dataAccess;
 
-import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
-import java.util.List;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+
+import javax.annotation.Nonnull;
+import java.util.stream.Stream;
 
 /**
- * Descriptor representing {@link RemoveReferenceMutation}
+ * ReferenceSupplier is responsible for providing access to references for purpose of indexing.
  *
- * Note: this descriptor has static structure.
- *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface RemoveReferenceMutationDescriptor extends ReferenceMutationDescriptor {
+public interface ReferenceSupplier {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemoveReferenceMutation")
-		.description("""
-			This mutation allows to remove a reference from the entity.
-			""")
-		.staticFields(List.of(NAME, PRIMARY_KEY))
-		.build();
+	/**
+	 * Retrieves a stream of reference keys associated with the implementing entity.
+	 *
+	 * @return a stream of ReferenceKey objects representing unique identifiers of ReferenceContract instances
+	 */
+	@Nonnull
+	Stream<ReferenceKey> getReferenceKeys();
+
 }

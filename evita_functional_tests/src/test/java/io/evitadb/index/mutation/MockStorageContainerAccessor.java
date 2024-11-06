@@ -31,8 +31,6 @@ import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
-import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
-import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 import lombok.Getter;
 
@@ -42,7 +40,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Set;
 
 /**
@@ -59,27 +57,26 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	private ReferencesStoragePart referencesStorageContainer;
 	private PricesStoragePart pricesStorageContainer;
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
-	@Getter private Set<Locale> addedLocales = new HashSet<>();
-	@Getter private Set<Locale> removedLocales = new HashSet<>();
+	@Getter private final Set<Locale> addedLocales = new HashSet<>();
+	@Getter private final Set<Locale> removedLocales = new HashSet<>();
 
 	@Override
-	public void registerAssignedPriceId(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey, @Nullable Integer innerRecordId, @Nonnull PriceInternalIdContainer priceId) {
-		if (assignedInternalPriceIdIndex == null) {
-			assignedInternalPriceIdIndex = new HashMap<>();
+	public void registerAssignedPriceId(int entityPrimaryKey, @Nonnull PriceKey priceKey, int internalPriceId) {
+		if (this.assignedInternalPriceIdIndex == null) {
+			this.assignedInternalPriceIdIndex = new HashMap<>();
 		}
-		assignedInternalPriceIdIndex.put(priceKey, Objects.requireNonNull(priceId.getInternalPriceId()));
+		this.assignedInternalPriceIdIndex.put(priceKey, internalPriceId);
 	}
 
 	@Nonnull
 	@Override
-	public PriceInternalIdContainer findExistingInternalIds(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey, @Nullable Integer innerRecordId) {
+	public OptionalInt findExistingInternalId(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey) {
 		Integer internalPriceId = assignedInternalPriceIdIndex == null ? null : assignedInternalPriceIdIndex.get(priceKey);
 		if (internalPriceId == null) {
 			final PricesStoragePart priceStorageContainer = getPriceStoragePart(entityType, entityPrimaryKey);
-			final PriceInternalIdContainer existingInternalIds = priceStorageContainer.findExistingInternalIds(priceKey);
-			return new MinimalPriceInternalIdContainer(existingInternalIds.getInternalPriceId());
+			return priceStorageContainer.findExistingInternalIds(priceKey);
 		} else {
-			return new MinimalPriceInternalIdContainer(internalPriceId);
+			return OptionalInt.of(internalPriceId);
 		}
 	}
 

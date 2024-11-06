@@ -51,10 +51,12 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -291,30 +293,47 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Nullable
-	private static EntityIndex getGlobalIndex(EntityCollectionContract collection) {
+	private static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection) {
+		return getGlobalIndex(collection, Scope.LIVE);
+	}
+
+	@Nullable
+	private static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.GLOBAL)
+			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
 		);
 	}
 
 	@Nullable
-	private static EntityIndex getHierarchyIndex(EntityCollectionContract collection, String entityType, int recordId) {
+	private static EntityIndex getHierarchyIndex(@Nonnull EntityCollectionContract collection, @Nonnull String entityType, int recordId) {
+		return getHierarchyIndex(collection, Scope.LIVE, entityType, recordId);
+	}
+
+	@Nullable
+	private static EntityIndex getHierarchyIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope, @Nonnull String entityType, int recordId) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
 			new EntityIndexKey(
 				EntityIndexType.REFERENCED_HIERARCHY_NODE,
+				scope,
 				new ReferenceKey(entityType, recordId)
 			)
 		);
 	}
 
 	@Nullable
-	private static EntityIndex getReferencedEntityIndex(EntityCollectionContract collection, String entityType, int recordId) {
+	private static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull String entityType, int recordId) {
+		return getReferencedEntityIndex(collection, Scope.LIVE, entityType, recordId);
+	}
+
+	@Nullable
+	private static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope, @Nonnull String entityType, int recordId) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
 			new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY,
+				scope,
 				new ReferenceKey(entityType, recordId)
 			)
 		);
@@ -3648,6 +3667,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@Test
 	void shouldArchiveEntityAndRemoveFromIndexes() {
 		/* create schema for entity archival */
+		evita.defineCatalog(TEST_CATALOG)
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally().sortable())
+			.updateViaNewSession(evita);
+
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3657,13 +3680,13 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				session.defineEntitySchema(Entities.CATEGORY)
 					.withoutGeneratedPrimaryKey()
-					.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.unique().sortable())
+					.withGlobalAttribute(ATTRIBUTE_CODE)
 					.withHierarchy()
 					.updateVia(session);
 
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
-					.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.unique().sortable())
+					.withGlobalAttribute(ATTRIBUTE_CODE)
 					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable().sortable())
 					.withSortableAttributeCompound(
 						ATTRIBUTE_CODE_NAME,
@@ -3734,9 +3757,22 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		checkProductCanBeLookedUpByIndexes();
 
 		// check indexes exist
-		/* TODO JNO - add checks */
-		/*assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 1));
-		assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));*/
+		final Catalog catalog1 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollectionContract productCollection1 = catalog1.getCollectionForEntity(Entities.PRODUCT)
+			.orElseThrow();
+
+		assertNotNull(catalog1.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
+		assertNull(getHierarchyIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getHierarchyIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNotNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.BRAND, 2));
+
+		assertNull(catalog1.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
+		assertNull(getGlobalIndex(productCollection1, Scope.ARCHIVED));
+		assertNull(getHierarchyIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getHierarchyIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 2));
 
 		// archive product entity
 		evita.updateCatalog(
@@ -3750,9 +3786,78 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		checkProductCannotBeLookedUpByIndexes();
 
 		// check archive indexes exist and previous indexes are removed
-		/* TODO JNO - add checks */
-		/*assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 1));
-		assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));*/
+		final Catalog catalog2 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollectionContract productCollection2 = catalog2.getCollectionForEntity(Entities.PRODUCT)
+			.orElseThrow();
+
+		assertNotNull(catalog2.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
+		assertNull(getHierarchyIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNull(getHierarchyIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 2));
+
+		assertNotNull(catalog2.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
+		assertNotNull(getGlobalIndex(productCollection2, Scope.ARCHIVED));
+		assertNull(getHierarchyIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNotNull(getHierarchyIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNotNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 2));
+
+		// archive product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.restoreEntity(Entities.PRODUCT, 100);
+			}
+		);
+
+		// check product entity is in indexes
+		checkProductCanBeLookedUpByIndexes();
+
+		// check live indexes exist and previous indexes are removed
+		final Catalog catalog3 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollectionContract productCollection3 = catalog3.getCollectionForEntity(Entities.PRODUCT)
+			.orElseThrow();
+
+		assertNotNull(catalog3.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
+		assertNull(getHierarchyIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getHierarchyIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNotNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 2));
+
+		assertNull(catalog3.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
+		assertNull(getGlobalIndex(productCollection3, Scope.ARCHIVED));
+		assertNull(getHierarchyIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getHierarchyIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 2));
+
+		// close evita and reload it from disk again
+		evita.close();
+		evita = new Evita(
+			getEvitaConfiguration()
+		);
+
+		// check product entity is in indexes
+		checkProductCanBeLookedUpByIndexes();
+
+		// check live indexes exist and previous indexes are removed
+		final Catalog catalog4 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollectionContract productCollection4 = catalog4.getCollectionForEntity(Entities.PRODUCT)
+			.orElseThrow();
+
+		assertNotNull(catalog4.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
+		assertNull(getHierarchyIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getHierarchyIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNotNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.BRAND, 2));
+
+		assertNull(catalog4.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
+		assertNull(getGlobalIndex(productCollection4, Scope.ARCHIVED));
+		assertNull(getHierarchyIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getHierarchyIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 2));
 	}
 
 	private void checkProductCanBeLookedUpByIndexes() {

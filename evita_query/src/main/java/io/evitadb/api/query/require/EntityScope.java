@@ -33,9 +33,27 @@ import java.io.Serializable;
 import java.util.EnumSet;
 
 /**
- * TODO JNO - document me
+ * This `scope` require constraint can be used to control the scope of the entity search. It has single vararg argument
+ * that accepts one or more scopes where the entity should be searched. The following scopes are supported:
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * - LIVE: entities that are currently active and reside in the live data set indexes
+ * - ARCHIVED: entities that are no longer active and reside in the archive indexes (with limited accessibility)
+ *
+ * By default, entities are searched only in the LIVE scope. The ARCHIVED scope is being searched only when explicitly
+ * requested. Archived entities are considered to be "soft-deleted", can be still queried if necessary, and can be
+ * restored back to the LIVE scope.
+ *
+ * Example:
+ *
+ * ```
+ * scope(ARCHIVED)
+ * scope(LIVE,ARCHIVED)
+ * ```
+ *
+ * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#scope">Visit detailed user documentation</a></p>
+ *
+ * @see Scope
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class EntityScope extends AbstractRequireConstraintLeaf {
 	@Serial private static final long serialVersionUID = -7172389493449298316L;

@@ -27,8 +27,8 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Locale;
+import java.util.OptionalInt;
 import java.util.Set;
 
 /**
@@ -44,11 +44,9 @@ public interface WritableEntityStorageContainerAccessor extends EntityStoragePar
 	 * the entity with `entityPrimaryKey`.
 	 */
 	void registerAssignedPriceId(
-		@Nonnull String entityType,
 		int entityPrimaryKey,
 		@Nonnull PriceKey priceKey,
-		@Nullable Integer innerRecordId,
-		@Nonnull PriceInternalIdContainer priceId
+		int internalPriceId
 	);
 
 	/**
@@ -56,11 +54,10 @@ public interface WritableEntityStorageContainerAccessor extends EntityStoragePar
 	 * `entityPrimaryKey`.
 	 */
 	@Nonnull
-	PriceInternalIdContainer findExistingInternalIds(
+	OptionalInt findExistingInternalId(
 		@Nonnull String entityType,
 		int entityPrimaryKey,
-		@Nonnull PriceKey priceKey,
-		@Nullable Integer innerRecordId
+		@Nonnull PriceKey priceKey
 	);
 
 	/**

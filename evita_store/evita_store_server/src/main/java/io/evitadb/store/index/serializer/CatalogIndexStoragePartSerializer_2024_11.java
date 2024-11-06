@@ -43,14 +43,14 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated
 @RequiredArgsConstructor
-public class CatalogIndexStoragePartSerializer extends Serializer<CatalogIndexStoragePart> {
+public class CatalogIndexStoragePartSerializer_2024_11 extends Serializer<CatalogIndexStoragePart> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, CatalogIndexStoragePart catalogIndex) {
 		output.writeVarInt(catalogIndex.getVersion(), true);
-		kryo.writeObject(output, catalogIndex.getCatalogIndexKey().scope());
 
 		final Set<AttributeKey> attributeKeys = catalogIndex.getSharedAttributeUniqueIndexes();
 		output.writeVarInt(attributeKeys.size(), true);
@@ -62,7 +62,6 @@ public class CatalogIndexStoragePartSerializer extends Serializer<CatalogIndexSt
 	@Override
 	public CatalogIndexStoragePart read(Kryo kryo, Input input, Class<? extends CatalogIndexStoragePart> type) {
 		final int version = input.readVarInt(true);
-		final Scope scope = kryo.readObject(input, Scope.class);
 		final int attributeCount = input.readVarInt(true);
 
 		final Set<AttributeKey> attributeKeys = CollectionUtils.createHashSet(attributeCount);
@@ -72,7 +71,7 @@ public class CatalogIndexStoragePartSerializer extends Serializer<CatalogIndexSt
 			);
 		}
 
-		return new CatalogIndexStoragePart(version, new CatalogIndexKey(scope), attributeKeys);
+		return new CatalogIndexStoragePart(version, new CatalogIndexKey(Scope.LIVE), attributeKeys);
 	}
 
 }

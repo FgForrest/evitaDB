@@ -1507,13 +1507,20 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Changes the scope (either live/archived) of an entity identified by the given primary key and applies
+	 * the specified changes.
+	 *
+	 * @param primaryKey the primary key of the entity whose scope is to be changed
+	 * @param scope the new scope to be assigned to the entity
+	 * @param returnEntity request to return the archived entity if present, otherwise null
+	 * @param returnType the class type of the object to be returned
+	 * @return the result of the mutation operation, which can be null if the operation fails or no entity is found
 	 */
 	@Nullable
 	private <T> T changeEntityScopeInternal(
 		int primaryKey,
 		@Nonnull Scope scope,
-		@Nullable EvitaRequest returnArchivedEntity,
+		@Nullable EvitaRequest returnEntity,
 		@Nonnull Class<T> returnType
 	) {
 		return applyMutations(
@@ -1525,7 +1532,7 @@ public final class EntityCollection implements
 			),
 			true,
 			true,
-			returnArchivedEntity,
+			returnEntity,
 			EnumSet.allOf(ImplicitMutationBehavior.class),
 			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
 			returnType

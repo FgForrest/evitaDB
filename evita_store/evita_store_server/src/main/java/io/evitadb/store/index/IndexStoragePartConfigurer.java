@@ -63,7 +63,12 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 	public void accept(Kryo kryo) {
 		int index = INDEX_BASE;
 
-		kryo.register(CatalogIndexStoragePart.class, new SerialVersionBasedSerializer<>(new CatalogIndexStoragePartSerializer(keyCompressor), CatalogIndexStoragePart.class), index++);
+		kryo.register(
+			CatalogIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new CatalogIndexStoragePartSerializer(keyCompressor), CatalogIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-1216381352203651969L, new CatalogIndexStoragePartSerializer_2024_11(keyCompressor)),
+			index++
+		);
 		kryo.register(
 			EntityIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new EntityIndexStoragePartSerializer(keyCompressor), EntityIndexStoragePart.class)

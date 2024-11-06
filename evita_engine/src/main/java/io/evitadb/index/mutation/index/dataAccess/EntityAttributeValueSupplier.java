@@ -21,11 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation.index.attributeSupplier;
+package io.evitadb.index.mutation.index.dataAccess;
 
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.utils.CollectionUtils;
@@ -45,7 +46,7 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 class EntityAttributeValueSupplier implements ExistingAttributeValueSupplier {
 	private final Entity entity;
-	private final Set<AttributeKey> removedAttributes = CollectionUtils.createHashSet(16);
+	private Set<AttributeKey> removedAttributes;
 
 	@Nonnull
 	@Override
@@ -56,8 +57,9 @@ class EntityAttributeValueSupplier implements ExistingAttributeValueSupplier {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		return this.removedAttributes.contains(attributeKey) ?
-			Optional.empty() : this.entity.getAttributeValueWithoutSchemaCheck(attributeKey);
+		return this.entity.getAttributeValueWithoutSchemaCheck(attributeKey)
+				.filter(Droppable::exists)
+				.filter(this::isNotRemoved);
 	}
 
 	@Override
@@ -65,7 +67,8 @@ class EntityAttributeValueSupplier implements ExistingAttributeValueSupplier {
 	public Stream<AttributeValue> getAttributeValues() {
 		return this.entity.getAttributeValues()
 			.stream()
-			.filter(it -> this.removedAttributes.contains(it.key()));
+			.filter(Droppable::exists)
+			.filter(this::isNotRemoved);
 	}
 
 	@Override
@@ -73,7 +76,8 @@ class EntityAttributeValueSupplier implements ExistingAttributeValueSupplier {
 	public Stream<AttributeValue> getAttributeValues(@Nonnull Locale locale) {
 		return this.entity.getAttributeValues()
 			.stream()
-			.filter(it -> this.removedAttributes.contains(it.key()) || locale.equals(it.key().locale()));
+			.filter(Droppable::exists)
+			.filter(it -> isNotRemoved(it) || locale.equals(it.key().locale()));
 	}
 
 	/**
@@ -87,7 +91,20 @@ class EntityAttributeValueSupplier implements ExistingAttributeValueSupplier {
 	 * @param key the key of the attribute to be removed; must not be null
 	 */
 	public void registerRemoval(@Nonnull AttributeKey key) {
+		if (this.removedAttributes == null) {
+			this.removedAttributes = CollectionUtils.createHashSet(16);
+		}
 		this.removedAttributes.add(key);
+	}
+
+	/**
+	 * Checks if the provided attribute value has not been removed.
+	 *
+	 * @param attributeValue the attribute value to check; must not be null
+	 * @return true if the attribute value has not been removed, false otherwise
+	 */
+	private boolean isNotRemoved(@Nonnull AttributeValue attributeValue) {
+		return this.removedAttributes == null || !this.removedAttributes.contains(attributeValue.key());
 	}
 
 }

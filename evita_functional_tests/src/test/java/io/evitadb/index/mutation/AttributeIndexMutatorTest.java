@@ -38,8 +38,8 @@ import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.mutation.index.AttributeIndexMutator;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
-import io.evitadb.index.mutation.index.attributeSupplier.EntityStoragePartExistingAttributeFactory;
-import io.evitadb.index.mutation.index.attributeSupplier.ExistingAttributeValueSupplier;
+import io.evitadb.index.mutation.index.dataAccess.EntityStoragePartExistingDataFactory;
+import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
@@ -347,7 +347,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
-		return new EntityStoragePartExistingAttributeFactory(executor.getContainerAccessor(), entityType, entityPrimaryKey)
+		return new EntityStoragePartExistingDataFactory(executor.getContainerAccessor(), entityType, entityPrimaryKey)
 			.getEntityAttributeValueSupplier();
 	}
 

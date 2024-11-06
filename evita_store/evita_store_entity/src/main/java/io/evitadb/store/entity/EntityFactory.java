@@ -124,6 +124,8 @@ public class EntityFactory {
 				.orElseGet(() -> new Prices(entitySchema, PriceInnerRecordHandling.UNKNOWN)),
 			// pass all locales known in the entity container
 			entityStorageContainer.getLocales(),
+			// pass entity scope
+			entityStorageContainer.getScope(),
 			// loaded entity is never dropped - otherwise it could not have been read
 			false
 		);
@@ -219,6 +221,10 @@ public class EntityFactory {
 			ofNullable(entityStoragePart)
 				.map(EntityBodyStoragePart::getLocales)
 				.orElse(null),
+			// pass scope known in the entity container
+			ofNullable(entityStoragePart)
+				.map(EntityBodyStoragePart::getScope)
+				.orElseGet(entity::getScope),
 			// loaded entity is never dropped - otherwise it could not have been read
 			false
 		);

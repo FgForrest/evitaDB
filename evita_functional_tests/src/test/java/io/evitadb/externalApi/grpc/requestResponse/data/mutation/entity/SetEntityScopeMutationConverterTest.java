@@ -23,24 +23,25 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity;
 
-import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class SetHierarchicalParentTest {
+class SetEntityScopeMutationConverterTest {
 
-	private static SetParentMutationConverter converter;
+	private static SetEntityScopeMutationConverter converter;
 
 	@BeforeAll
 	static void setup() {
-		converter = SetParentMutationConverter.INSTANCE;
+		converter = SetEntityScopeMutationConverter.INSTANCE;
 	}
 
 	@Test
 	void shouldConvertMutation() {
-		final SetParentMutation mutation1 = new SetParentMutation(10);
+		final SetEntityScopeMutation mutation1 = new SetEntityScopeMutation(Scope.ARCHIVED);
 		assertEquals(mutation1, converter.convert(converter.convert(mutation1)));
 	}
 }

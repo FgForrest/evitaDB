@@ -36,6 +36,7 @@ import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex.CatalogIndexChanges;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -78,6 +79,10 @@ public class CatalogIndex implements
 {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
+	 * Type of the index.
+	 */
+	@Getter protected final CatalogIndexKey indexKey;
+	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
 	protected final TransactionalBoolean dirty;
@@ -97,22 +102,22 @@ public class CatalogIndex implements
 	 */
 	private Catalog catalog;
 
-	public CatalogIndex() {
+	public CatalogIndex(@Nonnull Scope scope) {
 		this.version = 1;
+		this.indexKey = new CatalogIndexKey(scope);
 		this.dirty = new TransactionalBoolean();
 		this.uniqueIndex = new TransactionalMap<>(new HashMap<>(), GlobalUniqueIndex.class, Function.identity());
 	}
 
-	public CatalogIndex(int version, @Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex) {
+	public CatalogIndex(
+		int version,
+		@Nonnull CatalogIndexKey indexKey,
+		@Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex
+	) {
 		this.version = version;
+		this.indexKey = indexKey;
 		this.dirty = new TransactionalBoolean();
 		this.uniqueIndex = new TransactionalMap<>(uniqueIndex, GlobalUniqueIndex.class, Function.identity());
-	}
-
-	private CatalogIndex(int version, @Nonnull TransactionalMap<AttributeKey, GlobalUniqueIndex> uniqueIndex) {
-		this.version = version;
-		this.dirty = new TransactionalBoolean();
-		this.uniqueIndex = uniqueIndex;
 	}
 
 	@Override
@@ -129,6 +134,7 @@ public class CatalogIndex implements
 	public CatalogIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		return new CatalogIndex(
 			this.version,
+			this.indexKey,
 			this.uniqueIndex
 				.entrySet()
 				.stream()
@@ -139,12 +145,6 @@ public class CatalogIndex implements
 					)
 				)
 		);
-	}
-
-	@Nonnull
-	@Override
-	public CatalogIndexKey getIndexKey() {
-		return CatalogIndexKey.INSTANCE;
 	}
 
 	@Nonnull
@@ -231,6 +231,13 @@ public class CatalogIndex implements
 		);
 	}
 
+	/**
+	 * Returns true if index contains no data whatsoever.
+	 */
+	public boolean isEmpty() {
+		return this.uniqueIndex.isEmpty();
+	}
+
 	/*
 		TransactionalLayerCreator implementation
 	 */
@@ -254,7 +261,9 @@ public class CatalogIndex implements
 	public CatalogIndex createCopyWithMergedTransactionalMemory(@Nullable CatalogIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		final CatalogIndex newCatalogIndex = new CatalogIndex(
-			version + (wasDirty ? 1 : 0), transactionalLayer.getStateCopyWithCommittedChanges(uniqueIndex)
+			this.version + (wasDirty ? 1 : 0),
+			this.indexKey,
+			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueIndex)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return newCatalogIndex;
@@ -321,9 +330,10 @@ public class CatalogIndex implements
 	 * Method creates container that is possible to serialize with Kryo and store
 	 * into persistent storage.
 	 */
+	@Nonnull
 	private StoragePart createStoragePart() {
 		return new CatalogIndexStoragePart(
-			version, uniqueIndex.keySet()
+			this.version, this.indexKey, this.uniqueIndex.keySet()
 		);
 	}
 

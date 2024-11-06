@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,16 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.entity.model.entity.price;
+package io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity;
 
-import lombok.Data;
-import lombok.Getter;
+import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
-/**
- * Simple DTO that implements {@link PriceInternalIdContainer}.
- */
-@Data
-public class MinimalPriceInternalIdContainer implements PriceInternalIdContainer {
-	@Getter private final Integer internalPriceId;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+class SetParentMutationConverterTest {
+
+	private static SetParentMutationConverter converter;
+
+	@BeforeAll
+	static void setup() {
+		converter = SetParentMutationConverter.INSTANCE;
+	}
+
+	@Test
+	void shouldConvertMutation() {
+		final SetParentMutation mutation1 = new SetParentMutation(10);
+		assertEquals(mutation1, converter.convert(converter.convert(mutation1)));
+	}
 }

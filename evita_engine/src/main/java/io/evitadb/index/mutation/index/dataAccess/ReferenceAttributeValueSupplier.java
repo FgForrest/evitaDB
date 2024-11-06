@@ -21,11 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation.index.attributeSupplier;
+package io.evitadb.index.mutation.index.dataAccess;
 
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import lombok.RequiredArgsConstructor;
@@ -55,14 +56,15 @@ class ReferenceAttributeValueSupplier implements ExistingAttributeValueSupplier 
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		return this.reference.getAttributeValue(attributeKey);
+		return this.reference.getAttributeValue(attributeKey).filter(Droppable::exists);
 	}
 
 	@Override
 	@Nonnull
 	public Stream<AttributeValue> getAttributeValues() {
 		return this.reference.getAttributeValues()
-			.stream();
+			.stream()
+			.filter(Droppable::exists);
 	}
 
 	@Override
@@ -70,6 +72,7 @@ class ReferenceAttributeValueSupplier implements ExistingAttributeValueSupplier 
 	public Stream<AttributeValue> getAttributeValues(@Nonnull Locale locale) {
 		return this.reference.getAttributeValues()
 			.stream()
+			.filter(Droppable::exists)
 			.filter(it -> locale.equals(it.key().locale()));
 	}
 

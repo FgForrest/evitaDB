@@ -29,8 +29,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
-import io.evitadb.store.entity.model.entity.PricesStoragePart;
-import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
+import io.evitadb.index.mutation.index.dataAccess.ExistingPriceSupplier;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
@@ -57,22 +56,20 @@ public interface PriceIndexMutator {
 	static void priceUpsert(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
-		@Nonnull String entityType,
-		int entityPrimaryKey,
 		@Nonnull PriceKey priceKey,
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
 		@Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal priceWithTax,
 		boolean indexed,
-		@Nonnull BiFunction<PriceKey, Integer, PriceInternalIdContainer> internalIdSupplier,
+		@Nonnull ExistingPriceSupplier existingPriceSupplier,
+		@Nonnull BiFunction<PriceKey, Integer, Integer> internalIdSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final PricesStoragePart entityFormerPrices = executor.getContainerAccessor().getPriceStoragePart(entityType, entityPrimaryKey);
-		final PriceWithInternalIds formerPrice = entityFormerPrices.getPriceByKey(priceKey);
-		final PriceInnerRecordHandling innerRecordHandling = entityFormerPrices.getPriceInnerRecordHandling();
+		final PriceWithInternalIds formerPrice = existingPriceSupplier.getPriceByKey(priceKey);
+		final PriceInnerRecordHandling innerRecordHandling = existingPriceSupplier.getPriceInnerRecordHandling();
 		priceUpsert(
-			entityType, executor, entityIndex, priceKey, innerRecordId, validity,
+			executor, entityIndex, priceKey, innerRecordId, validity,
 			priceWithoutTax, priceWithTax,
 			indexed,
 			formerPrice, innerRecordHandling,
@@ -86,7 +83,6 @@ public interface PriceIndexMutator {
 	 * as removal of previously stored value and inserting new price information to the indexes again.
 	 */
 	static void priceUpsert(
-		@Nonnull String entityType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull PriceKey priceKey,
@@ -97,7 +93,7 @@ public interface PriceIndexMutator {
 		boolean indexed,
 		@Nullable PriceWithInternalIds formerPrice,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
-		@Nonnull BiFunction<PriceKey, Integer, PriceInternalIdContainer> internalIdSupplier,
+		@Nonnull BiFunction<PriceKey, Integer, Integer> internalIdSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
@@ -132,11 +128,10 @@ public interface PriceIndexMutator {
 		}
 		// now insert new price
 		if (indexed) {
-			final PriceInternalIdContainer internalPriceIds = internalIdSupplier.apply(priceKey, innerRecordId);
-			final Integer internalPriceId = internalPriceIds.getInternalPriceId();
+			final Integer internalPriceId = internalIdSupplier.apply(priceKey, innerRecordId);
 			final int priceWithoutTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithoutTax, indexedPricePlaces);
 			final int priceWithTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithTax, indexedPricePlaces);
-			final PriceInternalIdContainer priceId = entityIndex.addPrice(
+			final int priceId = entityIndex.addPrice(
 				entityPrimaryKey,
 				internalPriceId,
 				priceKey, innerRecordHandling, innerRecordId,
@@ -148,7 +143,7 @@ public interface PriceIndexMutator {
 				undoActionConsumer.accept(
 					() -> entityIndex.priceRemove(
 						entityPrimaryKey,
-						priceId.getInternalPriceId(),
+						priceId,
 						priceKey, innerRecordHandling, innerRecordId,
 						validity,
 						priceWithoutTaxAsInt,
@@ -156,7 +151,10 @@ public interface PriceIndexMutator {
 					)
 				);
 			}
-			executor.getContainerAccessor().registerAssignedPriceId(entityType, entityPrimaryKey, priceKey, innerRecordId, priceId);
+			if (internalPriceId == null) {
+				executor.getContainerAccessor()
+					.registerAssignedPriceId(entityPrimaryKey, priceKey, priceId);
+			}
 		}
 	}
 
@@ -164,16 +162,14 @@ public interface PriceIndexMutator {
 	 * Method handles updating price index in the situation when entity price is removed.
 	 */
 	static void priceRemove(
-		@Nonnull String entityType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull PriceKey priceKey,
+		@Nonnull ExistingPriceSupplier existingPriceSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
-		final PricesStoragePart entityFormerPrices = executor.getContainerAccessor().getPriceStoragePart(entityType, entityPrimaryKey);
-		final PriceWithInternalIds formerPrice = entityFormerPrices.getPriceByKey(priceKey);
-		final PriceInnerRecordHandling innerRecordHandling = entityFormerPrices.getPriceInnerRecordHandling();
+		final PriceWithInternalIds formerPrice = existingPriceSupplier.getPriceByKey(priceKey);
+		final PriceInnerRecordHandling innerRecordHandling = existingPriceSupplier.getPriceInnerRecordHandling();
 
 		priceRemove(executor, entityIndex, priceKey, formerPrice, innerRecordHandling, undoActionConsumer);
 	}
@@ -234,13 +230,13 @@ public interface PriceIndexMutator {
 	 * bi function arguments match the `price` identification and if not exception is thrown.
 	 */
 	@Nonnull
-	static BiFunction<PriceKey, Integer, PriceInternalIdContainer> createPriceProvider(@Nonnull PriceWithInternalIds price) {
+	static BiFunction<PriceKey, Integer, Integer> createPriceProvider(@Nonnull PriceWithInternalIds price) {
 		return (priceKey, innerRecordId) -> {
 			Assert.isPremiseValid(
 				priceKey.equals(price.priceKey()) && Objects.equals(innerRecordId, price.innerRecordId()),
 				"Unexpected price call!"
 			);
-			return price;
+			return price.internalPriceId();
 		};
 	}
 

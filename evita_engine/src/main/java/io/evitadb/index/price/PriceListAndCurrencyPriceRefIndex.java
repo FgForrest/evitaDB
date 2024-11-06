@@ -55,6 +55,7 @@ import io.evitadb.index.range.RangeIndex;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -93,8 +94,6 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	/**
 	 * Captures the scope of the index and reflects the {@link EntityIndexKey#scope()} of the main entity index this
 	 * price index is part of.
-	 *
-	 * TODO JNO - serialize me
 	 */
 	private final Scope scope;
 	/**
@@ -210,7 +209,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 			superIndex instanceof PriceListAndCurrencyPriceSuperIndex,
 			() -> new GenericEvitaInternalError(
 				"PriceListAndCurrencyPriceRefIndex can only be initialized with PriceListAndCurrencyPriceSuperIndex, " +
-					"actual instance is `" + (superIndex == null ? "NULL" : superIndex.getClass().getName()) + "`",
+					"actual instance is `" + (this.superIndex == null ? "NULL" : this.superIndex.getClass().getName()) + "`",
 				"PriceListAndCurrencyPriceRefIndex can only be initialized with PriceListAndCurrencyPriceSuperIndex"
 			)
 		);
@@ -420,7 +419,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 
 	@Override
 	public String toString() {
-		return priceIndexKey.toString();
+		return StringUtils.capitalize(scope.name().toLowerCase()) + " " + priceIndexKey.toString() + (terminated.isTrue() ? " (TERMINATED)" : "");
 	}
 
 	@Override

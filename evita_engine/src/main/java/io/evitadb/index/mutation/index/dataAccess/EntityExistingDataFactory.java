@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation.index.attributeSupplier;
+package io.evitadb.index.mutation.index.dataAccess;
 
 
 import io.evitadb.api.exception.ReferenceNotFoundException;
@@ -44,9 +44,11 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-public final class EntityExistingAttributeFactory implements ExistingAttributeValueSupplierFactory {
+public final class EntityExistingDataFactory implements ExistingDataSupplierFactory {
 	private final Entity entity;
 	private EntityAttributeValueSupplier entityAttributeValueSupplier;
+	private EntityPriceSupplier entityPriceSupplier;
+	private ReferenceSupplier referenceSupplier;
 	private Map<ReferenceKey, ReferenceAttributeValueSupplier> referenceAttributeValueSuppliers;
 
 	/**
@@ -71,6 +73,15 @@ public final class EntityExistingAttributeFactory implements ExistingAttributeVa
 
 	@Nonnull
 	@Override
+	public ReferenceSupplier getReferenceSupplier() {
+		if (this.referenceSupplier == null) {
+			this.referenceSupplier = new EntityReferenceSupplier(this.entity);
+		}
+		return this.referenceSupplier;
+	}
+
+	@Nonnull
+	@Override
 	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull ReferenceKey referenceKey) {
 		this.referenceAttributeValueSuppliers = this.referenceAttributeValueSuppliers == null ?
 			CollectionUtils.createHashMap(16) :
@@ -90,4 +101,14 @@ public final class EntityExistingAttributeFactory implements ExistingAttributeVa
 			)
 		);
 	}
+
+	@Nonnull
+	@Override
+	public EntityPriceSupplier getPriceSupplier() {
+		if (this.entityPriceSupplier == null) {
+			this.entityPriceSupplier = new EntityPriceSupplier(this.entity);
+		}
+		return this.entityPriceSupplier;
+	}
+
 }

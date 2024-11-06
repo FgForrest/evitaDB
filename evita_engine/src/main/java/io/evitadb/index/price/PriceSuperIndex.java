@@ -36,7 +36,6 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
-import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 
 import javax.annotation.Nonnull;
@@ -158,7 +157,7 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 	}
 
 	@Override
-	protected PriceInternalIdContainer addPrice(
+	protected int addPrice(
 		@Nonnull PriceListAndCurrencyPriceSuperIndex priceListIndex, int entityPrimaryKey,
 		@Nullable Integer internalPriceId, int priceId, @Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax
@@ -170,7 +169,7 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 				usedInternalPriceId, priceId, entityPrimaryKey, innerRecordId, priceWithTax, priceWithoutTax
 			);
 		priceListIndex.addPrice(priceRecord, validity);
-		return new MinimalPriceInternalIdContainer(priceRecord.internalPriceId());
+		return priceRecord.internalPriceId();
 	}
 
 	@Override

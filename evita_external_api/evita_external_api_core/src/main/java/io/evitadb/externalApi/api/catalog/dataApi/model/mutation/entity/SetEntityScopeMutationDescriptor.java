@@ -21,27 +21,40 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference;
+package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity;
 
-import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+
 /**
- * Descriptor representing {@link RemoveReferenceMutation}
+ * Descriptor representing {@link SetEntityScopeMutation}.
  *
  * Note: this descriptor has static structure.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface RemoveReferenceMutationDescriptor extends ReferenceMutationDescriptor {
+public interface SetEntityScopeMutationDescriptor {
+
+	PropertyDescriptor SCOPE = PropertyDescriptor.builder()
+		.name("scope")
+		.description("""
+			Target scope of the entity - either LIVE or ARCHIVED. Scope ARCHIVED moves entity to "soft-delete" state
+			in which is not accessible by standard queries.
+			""")
+		.type(nonNull(Scope.class))
+		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemoveReferenceMutation")
+		.name("SetEntityScopeMutation")
 		.description("""
-			This mutation allows to remove a reference from the entity.
+			This mutation allows to change entity scope from live data set to archived and vice versa.
 			""")
-		.staticFields(List.of(NAME, PRIMARY_KEY))
+		.staticFields(List.of(SCOPE))
 		.build();
 }

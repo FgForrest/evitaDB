@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation.index.attributeSupplier;
+package io.evitadb.index.mutation.index.dataAccess;
 
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -40,11 +40,13 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-public final class EntityStoragePartExistingAttributeFactory implements ExistingAttributeValueSupplierFactory {
+public final class EntityStoragePartExistingDataFactory implements ExistingDataSupplierFactory {
 	private final WritableEntityStorageContainerAccessor containerAccessor;
 	private final String entityType;
 	private final int entityPrimaryKey;
 	private EntityStoragePartAccessorAttributeValueSupplier entityAttributeValueSupplier;
+	private PriceStoragePartSupplier priceStoragePartSupplier;
+	private ReferencesStoragePartSupplier referenceStoragePartSupplier;
 	private Map<ReferenceKey, ReferenceEntityStoragePartAccessorAttributeValueSupplier> referenceAttributeValueSuppliers;
 
 	@Nonnull
@@ -56,6 +58,17 @@ public final class EntityStoragePartExistingAttributeFactory implements Existing
 			);
 		}
 		return this.entityAttributeValueSupplier;
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceSupplier getReferenceSupplier() {
+		if (this.referenceStoragePartSupplier == null) {
+			this.referenceStoragePartSupplier = new ReferencesStoragePartSupplier(
+				this.containerAccessor.getReferencesStoragePart(this.entityType, this.entityPrimaryKey)
+			);
+		}
+		return this.referenceStoragePartSupplier;
 	}
 
 	@Nonnull
@@ -72,4 +85,14 @@ public final class EntityStoragePartExistingAttributeFactory implements Existing
 		);
 	}
 
+	@Nonnull
+	@Override
+	public ExistingPriceSupplier getPriceSupplier() {
+		if (this.priceStoragePartSupplier == null) {
+			this.priceStoragePartSupplier = new PriceStoragePartSupplier(
+				this.containerAccessor.getPriceStoragePart(this.entityType, this.entityPrimaryKey)
+			);
+		}
+		return this.priceStoragePartSupplier;
+	}
 }

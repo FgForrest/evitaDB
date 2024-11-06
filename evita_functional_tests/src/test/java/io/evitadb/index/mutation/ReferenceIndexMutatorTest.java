@@ -38,8 +38,8 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.mutation.index.ReferenceIndexMutator;
-import io.evitadb.index.mutation.index.attributeSupplier.EntityStoragePartExistingAttributeFactory;
-import io.evitadb.index.mutation.index.attributeSupplier.ExistingAttributeValueSupplierFactory;
+import io.evitadb.index.mutation.index.dataAccess.EntityStoragePartExistingDataFactory;
+import io.evitadb.index.mutation.index.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
@@ -101,7 +101,7 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	void shouldIndexAttributes() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
 		final EntityIndex referenceIndex = new GlobalEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
-		final ExistingAttributeValueSupplierFactory entityAttributeValueSupplierFactory = getEntityAttributeValueSupplierFactory(ENTITY_NAME, 1);
+		final ExistingDataSupplierFactory entityAttributeValueSupplierFactory = getEntityAttributeValueSupplierFactory(ENTITY_NAME, 1);
 
 		referenceInsert(
 			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
@@ -130,11 +130,11 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	}
 
 	@Nonnull
-	ExistingAttributeValueSupplierFactory getEntityAttributeValueSupplierFactory(
+	ExistingDataSupplierFactory getEntityAttributeValueSupplierFactory(
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
-		return new EntityStoragePartExistingAttributeFactory(executor.getContainerAccessor(), entityType, entityPrimaryKey);
+		return new EntityStoragePartExistingDataFactory(executor.getContainerAccessor(), entityType, entityPrimaryKey);
 	}
 
 }

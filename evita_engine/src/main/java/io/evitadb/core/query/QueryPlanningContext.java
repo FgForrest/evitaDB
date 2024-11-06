@@ -341,6 +341,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Checks if any of the keys in the indexes map are instances of EntityIndexKey.
+	 *
+	 * @return true if at least one key in the indexes map is an instance of EntityIndexKey;
+	 *         false otherwise.
+	 */
+	public boolean hasEntityGlobalIndex() {
+		return this.indexes.keySet().stream().anyMatch(it -> it instanceof EntityIndexKey);
+	}
+
+	/**
 	 * Returns {@link EntityIndex} of external entity type by its key and entity type.
 	 */
 	@Nonnull
@@ -359,13 +369,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns {@link EntityIndex} by its key.
 	 */
 	@Nonnull
-	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndex(@Nonnull S entityIndexKey) {
-		if (entityIndexKey instanceof CatalogIndexKey) {
+	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndex(@Nonnull S indexKey) {
+		if (indexKey instanceof CatalogIndexKey cik) {
 			//noinspection unchecked
-			return ofNullable((T) catalog.getCatalogIndex());
+			return ofNullable((T) catalog.getCatalogIndex(cik.scope()));
 		} else {
 			//noinspection unchecked
-			return ofNullable((T) indexes.get(entityIndexKey));
+			return ofNullable((T) indexes.get(indexKey));
 		}
 	}
 
