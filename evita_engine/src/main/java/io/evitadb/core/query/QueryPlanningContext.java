@@ -372,10 +372,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndex(@Nonnull S indexKey) {
 		if (indexKey instanceof CatalogIndexKey cik) {
 			//noinspection unchecked
-			return ofNullable((T) catalog.getCatalogIndex(cik.scope()));
+			return ofNullable((T) this.catalog.getCatalogIndex(cik.scope()));
 		} else {
 			//noinspection unchecked
-			return ofNullable((T) indexes.get(indexKey));
+			return ofNullable((T) this.indexes.get(indexKey));
 		}
 	}
 

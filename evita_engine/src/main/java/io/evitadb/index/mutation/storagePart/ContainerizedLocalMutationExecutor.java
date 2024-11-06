@@ -136,7 +136,6 @@ import static java.util.Optional.ofNullable;
 public final class ContainerizedLocalMutationExecutor extends AbstractEntityStorageContainerAccessor
 	implements ConsistencyCheckingLocalMutationExecutor, WritableEntityStorageContainerAccessor {
 	public static final String ERROR_SAME_KEY_EXPECTED = "Expected same primary key here!";
-	private static final AttributeValue[] EMPTY_ATTRIBUTES = new AttributeValue[0];
 	@Nonnull
 	private final EntityExistence requiresExisting;
 	private final int entityPrimaryKey;
@@ -148,6 +147,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private final boolean removeOnly;
 	private final DataStoreMemoryBuffer dataStoreUpdater;
 	@Getter @Setter private boolean trapChanges;
+	private Scope initialEntityScope;
 	private EntityBodyStoragePart entityContainer;
 	private PricesStoragePart pricesContainer;
 	private ReferencesStoragePart initialReferencesStorageContainer;
@@ -261,7 +261,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		this.dataStoreReaderAccessor = dataStoreReaderAccessor;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.entityType = schemaAccessor.get().getName();
-		this.entityContainer = getEntityStoragePart(entityType, entityPrimaryKey, requiresExisting);
+		this.entityContainer = getEntityStoragePart(this.entityType, entityPrimaryKey, requiresExisting);
+		this.initialEntityScope = this.entityContainer.getScope();
 		this.requiresExisting = requiresExisting;
 		this.removeOnly = removeOnly;
 		if (this.removeOnly) {
@@ -370,7 +371,12 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				throw new MandatoryAttributesNotProvidedException(this.schemaAccessor.get().getName(), missingMandatedAttributes);
 			}
 		} else if (this.entityContainer.isMarkedForRemoval()) {
-			removeReflectedReferences(scope, this.initialReferencesStorageContainer, mutationCollector);
+			removeReflectedReferences(scope, this.referencesStorageContainer, mutationCollector);
+		} else if (this.initialEntityScope != this.entityContainer.getScope()) {
+			// we need to drop all reflected references in old scope
+			removeReflectedReferences(this.initialEntityScope, this.referencesStorageContainer, mutationCollector);
+			// and insert new reflected references in new scope
+			insertReflectedReferences(scope, this.referencesStorageContainer, List.of(), mutationCollector);
 		} else {
 			final List<Object> missingMandatedAttributes = new LinkedList<>();
 			// we need to check only changed parts
@@ -501,6 +507,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	protected EntityBodyStoragePart cacheEntityStorageContainer(int entityPrimaryKey, @Nonnull EntityBodyStoragePart entityStorageContainer) {
 		Assert.isPremiseValid(entityPrimaryKey == this.entityPrimaryKey, ERROR_SAME_KEY_EXPECTED);
 		this.entityContainer = entityStorageContainer;
+		this.initialEntityScope = entityStorageContainer.getScope();
 		return this.entityContainer;
 	}
 
