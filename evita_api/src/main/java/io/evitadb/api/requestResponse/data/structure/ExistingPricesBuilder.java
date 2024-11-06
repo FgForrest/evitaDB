@@ -335,6 +335,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 							}),
 						originalPrices
 							.stream()
+							.filter(Droppable::exists)
 							.filter(it -> priceMutations.get(it.priceKey()) == null)
 							.map(it -> new RemovePriceMutation(it.priceKey()))
 					)
