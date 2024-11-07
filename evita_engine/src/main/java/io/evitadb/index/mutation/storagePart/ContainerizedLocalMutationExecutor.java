@@ -371,7 +371,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				throw new MandatoryAttributesNotProvidedException(this.schemaAccessor.get().getName(), missingMandatedAttributes);
 			}
 		} else if (this.entityContainer.isMarkedForRemoval()) {
-			removeReflectedReferences(scope, this.referencesStorageContainer, mutationCollector);
+			removeReflectedReferences(scope, this.initialReferencesStorageContainer, mutationCollector);
 		} else if (this.initialEntityScope != this.entityContainer.getScope()) {
 			// we need to drop all reflected references in old scope
 			removeReflectedReferences(this.initialEntityScope, this.referencesStorageContainer, mutationCollector);
@@ -1183,7 +1183,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						);
 						if (globalIndex != null) {
 							// and whether it contains the entity we are referencing to
-							if (globalIndex.getAllPrimaryKeys().contains(referenceKey.primaryKey())) {
+							if (globalIndex.contains(referenceKey.primaryKey())) {
 								// create shared factory for creating entity mutations (shared logic)
 								final Function<ReferenceAttributeMutation, ServerEntityUpsertMutation> entityMutationFactory =
 									referenceAttributeMutation -> new ServerEntityUpsertMutation(

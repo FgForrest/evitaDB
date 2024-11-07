@@ -71,6 +71,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.task.Task;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -620,10 +621,27 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
-	 * access to the entity contents when primary key is known.
+	 * access to the entity contents when primary key is known. Method returns only entity in live scope (archived
+	 * entities are considered as removed).
+	 *
+	 * @param entityType type of the entity to be fetched
+	 * @param primaryKey primary key of the entity to be fetched
+	 * @param require    additional requirements for the entity fetching
 	 */
 	@Nonnull
 	Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
+
+	/**
+	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
+	 * access to the entity contents when primary key is known.
+	 *
+	 * @param entityType type of the entity to be fetched
+	 * @param primaryKey primary key of the entity to be fetched
+	 * @param scopes     array of scopes that should be used for fetching the entity (at least one scope is required)
+	 * @param require    additional requirements for the entity fetching
+	 */
+	@Nonnull
+	Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, @Nonnull Scope[] scopes, EntityContentRequire... require);
 
 	/**
 	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick

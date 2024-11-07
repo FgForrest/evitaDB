@@ -81,10 +81,10 @@ import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
 import lombok.EqualsAndHashCode;
@@ -114,6 +114,8 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.extractEntityTypeFromClass;
+import static io.evitadb.utils.Assert.isPremiseValid;
+import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -137,6 +139,7 @@ import static java.util.Optional.ofNullable;
 @EqualsAndHashCode(of = "id")
 @Slf4j
 public final class EvitaSession implements EvitaInternalSessionContract {
+	private static final Scope[] LIVE_SCOPE_ONLY = {Scope.LIVE};
 
 	/**
 	 * Evita instance this session is connected to.
@@ -329,7 +332,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public boolean goLiveAndClose() {
 		final CatalogContract theCatalog = getCatalog();
-		Assert.isTrue(!theCatalog.supportsTransaction(), "Catalog went live already and is currently in transactional mode!");
+		isTrue(!theCatalog.supportsTransaction(), "Catalog went live already and is currently in transactional mode!");
 		if (theCatalog.goLive()) {
 			close();
 			return true;
@@ -344,7 +347,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			// flush changes if we're not in transactional mode
 			final CatalogContract theCatalog = this.catalog.get();
 			if (theCatalog.getCatalogState() == CatalogState.WARMING_UP) {
-				Assert.isPremiseValid(
+				isPremiseValid(
 					this.transactionAccessor.get() == null,
 					"In warming-up mode no transaction is expected to be opened!"
 				);
@@ -545,7 +548,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
+		return getEntity(entityType, primaryKey, LIVE_SCOPE_ONLY, require);
+	}
+
+	@Interruptible
+	@Traced
+	@RepresentsQuery
+	@Nonnull
+	@Override
+	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, @Nonnull Scope[] scopes, EntityContentRequire... require) {
 		assertActive();
+		isTrue(scopes.length > 0, "At least one scope must be provided!");
 
 		final EntityFetchEvent fetchEvent = new EntityFetchEvent(getCatalogName(), entityType);
 
@@ -553,7 +566,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			Query.query(
 				collection(entityType),
 				require(
-					entityFetch(require)
+					entityFetch(require),
+					scope(scopes)
 				)
 			),
 			OffsetDateTime.now(),
@@ -673,7 +687,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				enrichedEntity
 			);
 		} else {
-			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
+			isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
 			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.enrichEntity(
 				(EntityDecorator) partiallyLoadedEntity,
 				evitaRequest,
@@ -736,7 +750,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				enrichedEntity
 			);
 		} else {
-			Assert.isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
+			isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
 			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.limitEntity(
 				entityCollection.enrichEntity((EntityDecorator) partiallyLoadedEntity, evitaRequest, this),
 				evitaRequest, this
@@ -1105,7 +1119,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final EntityCollectionContract collection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
-			Assert.isTrue(
+			isTrue(
 				collection.getSchema().isWithHierarchy(),
 				"Entity type " + entityType + " doesn't represent a hierarchical entity!"
 			);
@@ -1291,7 +1305,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
 		// added read only check
-		Assert.isTrue(
+		isTrue(
 			!isReadOnly(),
 			ReadOnlyException::new
 		);
@@ -1590,7 +1604,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		//noinspection unchecked
 		return (DeletedHierarchy<T>) executeInTransactionIfPossible(session -> {
 			final EntityCollectionContract collection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
-			Assert.isTrue(
+			isTrue(
 				collection.getSchema().isWithHierarchy(),
 				"Entity type " + entityType + " doesn't represent a hierarchical entity!"
 			);
@@ -1696,7 +1710,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Creates new transaction a wraps it into carrier object.
 	 */
 	private Transaction createTransaction(@Nonnull CommitBehavior commitBehaviour) {
-		Assert.isTrue(
+		isTrue(
 			!isReadOnly(),
 			ReadOnlyException::new
 		);
@@ -1747,7 +1761,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 		final Transaction tx = createTransaction(commitBehaviour);
 		transactionAccessor.getAndUpdate(transaction -> {
-			Assert.isPremiseValid(transaction == null, "Transaction unexpectedly found!");
+			isPremiseValid(transaction == null, "Transaction unexpectedly found!");
 			return tx;
 		});
 		return tx;

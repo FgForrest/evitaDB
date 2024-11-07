@@ -593,7 +593,7 @@ public final class EntityCollection implements
 
 	@Override
 	public boolean deleteEntity(int primaryKey) {
-		if (this.getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
+		if (this.getGlobalIndexIfExists().map(it -> it.contains(primaryKey)).orElse(false)) {
 			deleteEntityInternal(primaryKey, null, Void.class);
 			return true;
 		} else {
@@ -606,7 +606,7 @@ public final class EntityCollection implements
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
-		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
+		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
 			final EntityWithFetchCount removedEntity = deleteEntityInternal(primaryKeys[0], evitaRequest, EntityWithFetchCount.class);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
@@ -729,7 +729,7 @@ public final class EntityCollection implements
 
 	@Override
 	public boolean archiveEntity(int primaryKey) {
-		if (this.getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
+		if (this.getGlobalIndexIfExists().map(it -> it.contains(primaryKey)).orElse(false)) {
 			changeEntityScopeInternal(primaryKey, Scope.ARCHIVED, null, Void.class);
 			return true;
 		} else {
@@ -742,7 +742,7 @@ public final class EntityCollection implements
 	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
-		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
+		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
 			final EntityWithFetchCount archivedEntity = changeEntityScopeInternal(primaryKeys[0], Scope.ARCHIVED, evitaRequest, EntityWithFetchCount.class);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
@@ -759,7 +759,7 @@ public final class EntityCollection implements
 
 	@Override
 	public boolean restoreEntity(int primaryKey) {
-		if (this.getGlobalArchiveIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKey)).orElse(false)) {
+		if (this.getGlobalArchiveIndexIfExists().map(it -> it.contains(primaryKey)).orElse(false)) {
 			changeEntityScopeInternal(primaryKey, Scope.LIVE, null, Void.class);
 			return true;
 		} else {
@@ -772,7 +772,7 @@ public final class EntityCollection implements
 	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
-		if (getGlobalIndexIfExists().map(it -> it.getAllPrimaryKeys().contains(primaryKeys[0])).orElse(false)) {
+		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
 			final EntityWithFetchCount restoredEntity = changeEntityScopeInternal(primaryKeys[0], Scope.LIVE, evitaRequest, EntityWithFetchCount.class);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
@@ -1695,6 +1695,19 @@ public final class EntityCollection implements
 	 */
 	@Nullable
 	private EntityWithFetchCount getEntityById(int primaryKey, @Nonnull EvitaRequest evitaRequest) {
+		final Optional<GlobalEntityIndex> globalArchiveIndex = this.getGlobalArchiveIndexIfExists();
+		final EnumSet<Scope> requestedScopes = evitaRequest.getScopes();
+		final boolean canReadWithoutConsultingIndexes = (globalArchiveIndex.isEmpty() && requestedScopes.contains(Scope.LIVE))
+			|| requestedScopes.containsAll(Arrays.asList(Scope.values()));
+		if (!canReadWithoutConsultingIndexes) {
+			if (requestedScopes.contains(Scope.LIVE) && !getGlobalIndex().contains(primaryKey)) {
+				return null;
+			}
+			if (requestedScopes.contains(Scope.ARCHIVED) && globalArchiveIndex.map(ix -> !ix.contains(primaryKey)).orElse(false)) {
+				return null;
+			}
+		}
+
 		return this.persistenceService.readEntity(
 			catalog.getVersion(),
 			primaryKey,

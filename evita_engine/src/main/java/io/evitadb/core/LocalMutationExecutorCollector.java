@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
@@ -58,6 +59,7 @@ import java.util.List;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation.computeLocalMutationsForEntityRemoval;
 
 /**
@@ -124,7 +126,10 @@ class LocalMutationExecutorCollector {
 			final EvitaRequest evitaRequest = new EvitaRequest(
 				Query.query(
 					collection(entityType),
-					require(entityFetchAll())
+					require(
+						scope(Scope.LIVE, Scope.ARCHIVED),
+						entityFetchAll()
+					)
 				),
 				OffsetDateTime.now(),
 				Entity.class,

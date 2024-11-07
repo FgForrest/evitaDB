@@ -32,7 +32,6 @@ import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.exception.UniqueValueViolationException;
-import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -51,7 +50,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
@@ -94,21 +92,19 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class EvitaIndexingTest implements EvitaTestSupport {
-	public static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
-	public static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
+	private static final String DIR_EVITA_INDEXING_TEST = "evitaIndexingTest";
+	private static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
+	private static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
 
-	public static final String ATTRIBUTE_CODE = "code";
-	public static final String ATTRIBUTE_NAME = "name";
-	public static final String ATTRIBUTE_CODE_NAME = "codeName";
-	public static final String ATTRIBUTE_URL = "url";
-	public static final String ATTRIBUTE_DESCRIPTION = "description";
-	public static final String ATTRIBUTE_EAN = "ean";
+	private static final String ATTRIBUTE_CODE = "code";
+	private static final String ATTRIBUTE_NAME = "name";
+	private static final String ATTRIBUTE_DESCRIPTION = "description";
+	private static final String ATTRIBUTE_EAN = "ean";
 
-	public static final String ATTRIBUTE_BRAND_NAME = "brandName";
-	public static final String ATTRIBUTE_BRAND_DESCRIPTION = "brandDescription";
-	public static final String ATTRIBUTE_BRAND_EAN = "brandEan";
-	public static final String ATTRIBUTE_CATEGORY_PRIORITY = "categoryPriority";
-	public static final String DIR_EVITA_INDEXING_TEST = "evitaIndexingTest";
+	private static final String ATTRIBUTE_BRAND_NAME = "brandName";
+	private static final String ATTRIBUTE_BRAND_DESCRIPTION = "brandDescription";
+	private static final String ATTRIBUTE_BRAND_EAN = "brandEan";
+	private static final String ATTRIBUTE_CATEGORY_PRIORITY = "categoryPriority";
 	private static final Locale LOCALE_CZ = new Locale("cs", "CZ");
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
@@ -118,8 +114,6 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED = "notInherited";
 	private static final String ATTRIBUTE_PRODUCT_CATEGORY_INHERITED = "inherited";
 	private static final String ATTRIBUTE_CATEGORY_MARKET = "market";
-	private static final String ATTRIBUTE_CATEGORY_OPEN = "open";
-	private static final String ATTRIBUTE_CATEGORY_MARKET_OPEN = "marketOpen";
 	private Evita evita;
 
 	private static void assertDataWasPropagated(EntityIndex categoryIndex, int recordId) {
@@ -293,12 +287,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Nullable
-	private static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection) {
+	static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection) {
 		return getGlobalIndex(collection, Scope.LIVE);
 	}
 
 	@Nullable
-	private static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope) {
+	static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
 			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
@@ -306,12 +300,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Nullable
-	private static EntityIndex getHierarchyIndex(@Nonnull EntityCollectionContract collection, @Nonnull String entityType, int recordId) {
+	static EntityIndex getHierarchyIndex(@Nonnull EntityCollectionContract collection, @Nonnull String entityType, int recordId) {
 		return getHierarchyIndex(collection, Scope.LIVE, entityType, recordId);
 	}
 
 	@Nullable
-	private static EntityIndex getHierarchyIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope, @Nonnull String entityType, int recordId) {
+	static EntityIndex getHierarchyIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope, @Nonnull String entityType, int recordId) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
 			new EntityIndexKey(
@@ -323,12 +317,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Nullable
-	private static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull String entityType, int recordId) {
+	static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull String entityType, int recordId) {
 		return getReferencedEntityIndex(collection, Scope.LIVE, entityType, recordId);
 	}
 
 	@Nullable
-	private static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope, @Nonnull String entityType, int recordId) {
+	static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope, @Nonnull String entityType, int recordId) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
 			new EntityIndexKey(
@@ -3631,7 +3625,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					session.createNewEntity(Entities.PRODUCT, 10)
 				);
 
-				// then add regular reference
+				// then delete entity
 				session.deleteEntity(Entities.PRODUCT, 10, entityFetchAllContent());
 
 				assertEntitiesAreNotEntangled(session);
@@ -3656,427 +3650,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					session.createNewEntity(Entities.PRODUCT, 10)
 				);
 
-				// then add regular reference
+				// then delete entity
 				session.deleteEntity(Entities.CATEGORY, 1, entityFetchAllContent());
 
 				assertEntitiesAreNotEntangled(session);
 			}
 		);
-	}
-
-	@Test
-	void shouldArchiveEntityAndRemoveFromIndexes() {
-		/* create schema for entity archival */
-		evita.defineCatalog(TEST_CATALOG)
-			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally().sortable())
-			.updateViaNewSession(evita);
-
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.defineEntitySchema(Entities.BRAND)
-					.withoutGeneratedPrimaryKey()
-					.updateVia(session);
-
-				session.defineEntitySchema(Entities.CATEGORY)
-					.withoutGeneratedPrimaryKey()
-					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withHierarchy()
-					.updateVia(session);
-
-				session.defineEntitySchema(Entities.PRODUCT)
-					.withoutGeneratedPrimaryKey()
-					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable().sortable())
-					.withSortableAttributeCompound(
-						ATTRIBUTE_CODE_NAME,
-						new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-						new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-					)
-					.withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
-					.withReferenceToEntity(
-						Entities.BRAND,
-						Entities.BRAND,
-						Cardinality.ZERO_OR_ONE,
-						thatIs -> thatIs
-							.indexed()
-							.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, whichIs -> whichIs.filterable().sortable())
-					)
-					.withReferenceToEntity(
-						Entities.CATEGORY,
-						Entities.CATEGORY,
-						Cardinality.ZERO_OR_MORE,
-						thatIs -> thatIs
-							.indexed()
-							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable().sortable())
-							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable())
-							.withSortableAttributeCompound(
-								ATTRIBUTE_CATEGORY_MARKET_OPEN,
-								new AttributeElement(ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-								new AttributeElement(ATTRIBUTE_CATEGORY_OPEN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-							)
-					)
-					.updateVia(session);
-			}
-		);
-
-		// upsert entities product depends on
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.createNewEntity(Entities.BRAND, 1).upsertVia(session);
-				session.createNewEntity(Entities.BRAND, 2).upsertVia(session);
-
-				session.createNewEntity(Entities.CATEGORY, 1)
-					.setAttribute(ATTRIBUTE_CODE, "electronics")
-					.upsertVia(session);
-
-				session.createNewEntity(Entities.CATEGORY, 2)
-					.setParent(1)
-					.setAttribute(ATTRIBUTE_CODE, "TV")
-					.upsertVia(session);
-			}
-		);
-
-		// create product entity
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.createNewEntity(Entities.PRODUCT, 100)
-					.setAttribute(ATTRIBUTE_CODE, "TV-123")
-					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
-					.setReference(Entities.BRAND, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "123"))
-					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
-					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
-					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
-					.upsertVia(session);
-			}
-		);
-
-		// check product entity is in indexes
-		checkProductCanBeLookedUpByIndexes();
-
-		// check indexes exist
-		final Catalog catalog1 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		final EntityCollectionContract productCollection1 = catalog1.getCollectionForEntity(Entities.PRODUCT)
-			.orElseThrow();
-
-		assertNotNull(catalog1.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNotNull(getHierarchyIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 2));
-		assertNotNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.BRAND, 1));
-		assertNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.BRAND, 2));
-
-		assertNull(catalog1.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
-		assertNull(getGlobalIndex(productCollection1, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 2));
-		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 1));
-		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 2));
-
-		// archive product entity
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.archiveEntity(Entities.PRODUCT, 100);
-			}
-		);
-
-		// check product entity is not in indexes
-		checkProductCannotBeLookedUpByIndexes();
-
-		// check archive indexes exist and previous indexes are removed
-		final Catalog catalog2 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		final EntityCollectionContract productCollection2 = catalog2.getCollectionForEntity(Entities.PRODUCT)
-			.orElseThrow();
-
-		assertNotNull(catalog2.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 2));
-		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 1));
-		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 2));
-
-		assertNotNull(catalog2.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
-		assertNotNull(getGlobalIndex(productCollection2, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNotNull(getHierarchyIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 2));
-		assertNotNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 1));
-		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 2));
-
-		// restore product entity
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.restoreEntity(Entities.PRODUCT, 100);
-			}
-		);
-
-		// check product entity is in indexes
-		checkProductCanBeLookedUpByIndexes();
-
-		// check live indexes exist and previous indexes are removed
-		final Catalog catalog3 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		final EntityCollectionContract productCollection3 = catalog3.getCollectionForEntity(Entities.PRODUCT)
-			.orElseThrow();
-
-		assertNotNull(catalog3.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNotNull(getHierarchyIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 2));
-		assertNotNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 1));
-		assertNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 2));
-
-		assertNull(catalog3.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
-		assertNull(getGlobalIndex(productCollection3, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 2));
-		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 1));
-		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 2));
-
-		// close evita and reload it from disk again
-		evita.close();
-		evita = new Evita(
-			getEvitaConfiguration()
-		);
-
-		// check product entity is in indexes
-		checkProductCanBeLookedUpByIndexes();
-
-		// check live indexes exist and previous indexes are removed
-		final Catalog catalog4 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		final EntityCollectionContract productCollection4 = catalog4.getCollectionForEntity(Entities.PRODUCT)
-			.orElseThrow();
-
-		assertNotNull(catalog4.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNotNull(getHierarchyIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 2));
-		assertNotNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.BRAND, 1));
-		assertNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.BRAND, 2));
-
-		assertNull(catalog4.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
-		assertNull(getGlobalIndex(productCollection4, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 2));
-		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 1));
-		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 2));
-	}
-
-	@Test
-	void shouldDropReflectedReferencesOnEntityArchivingAndCreateWhenBeingRestored() {
-		/* create schema for entity archival */
-		evita.defineCatalog(TEST_CATALOG)
-			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally().sortable())
-			.updateViaNewSession(evita);
-
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.defineEntitySchema(Entities.CATEGORY)
-					.withoutGeneratedPrimaryKey()
-					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withReflectedReferenceToEntity(
-						"products",
-						Entities.PRODUCT,
-						Entities.CATEGORY,
-						whichIs -> whichIs.indexed().withAttributesInherited()
-					)
-					.withHierarchy()
-					.updateVia(session);
-
-				session.defineEntitySchema(Entities.PRODUCT)
-					.withoutGeneratedPrimaryKey()
-					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable().sortable())
-					.withSortableAttributeCompound(
-						ATTRIBUTE_CODE_NAME,
-						new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-						new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-					)
-					.withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
-					.withReferenceToEntity(
-						Entities.CATEGORY,
-						Entities.CATEGORY,
-						Cardinality.ZERO_OR_MORE,
-						thatIs -> thatIs
-							.indexed()
-							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable().sortable())
-							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable())
-							.withSortableAttributeCompound(
-								ATTRIBUTE_CATEGORY_MARKET_OPEN,
-								new AttributeElement(ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-								new AttributeElement(ATTRIBUTE_CATEGORY_OPEN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-							)
-					)
-					.updateVia(session);
-			}
-		);
-
-		// upsert entities product depends on
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.createNewEntity(Entities.CATEGORY, 1)
-					.setAttribute(ATTRIBUTE_CODE, "electronics")
-					.upsertVia(session);
-
-				session.createNewEntity(Entities.CATEGORY, 2)
-					.setParent(1)
-					.setAttribute(ATTRIBUTE_CODE, "TV")
-					.upsertVia(session);
-			}
-		);
-
-		// create product entity
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.createNewEntity(Entities.PRODUCT, 100)
-					.setAttribute(ATTRIBUTE_CODE, "TV-123")
-					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
-					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
-					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
-					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
-					.upsertVia(session);
-			}
-		);
-
-		// check category has reflected reference to product
-		final SealedEntity category = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
-					.orElse(null);
-			}
-		);
-		assertNotNull(category);
-		final ReferenceContract products = category.getReference("products", 100).orElse(null);
-		assertNotNull(products);
-		assertEquals("EU", products.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
-
-		// archive product entity
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.archiveEntity(Entities.PRODUCT, 100);
-			}
-		);
-
-		// check category has no reflected reference to product
-		final SealedEntity categoryAfterArchiving = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
-					.orElse(null);
-			}
-		);
-		assertNotNull(categoryAfterArchiving);
-		final ReferenceContract productsAfterArchiving = categoryAfterArchiving.getReference("products", 100).orElse(null);
-		assertNull(productsAfterArchiving);
-
-		// archive category entity
-		/* TODO JNO - create copy of this test that will leave reference indexed even if archived and test this */
-		/*evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.archiveEntity(Entities.CATEGORY, 2);
-			}
-		);
-
-		// check archived category has reflected reference to product
-		final SealedEntity archivedCategory = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryOne(
-					Query.query(
-						collection(Entities.CATEGORY),
-						filterBy(
-							entityPrimaryKeyInSet(2)
-						),
-						require(
-							scope(Scope.ARCHIVED),
-							entityFetchAll()
-						)
-					),
-					SealedEntity.class
-				).orElse(null);
-			}
-		);
-
-		assertNotNull(archivedCategory);
-		final ReferenceContract archivedProducts = archivedCategory.getReference("products", 100).orElse(null);
-		assertNotNull(archivedProducts);
-		assertEquals("EU", archivedProducts.getAttribute(ATTRIBUTE_CATEGORY_MARKET));*/
-
-		// restore both category and product entity
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.restoreEntity(Entities.CATEGORY, 2);
-				session.restoreEntity(Entities.PRODUCT, 100);
-			}
-		);
-
-		// check restored category has reflected reference to product again
-		final SealedEntity categoryAfterRestore = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
-					.orElse(null);
-			}
-		);
-		assertNotNull(categoryAfterRestore);
-		final ReferenceContract productsAfterRestore = categoryAfterRestore.getReference("products", 100).orElse(null);
-		assertNotNull(productsAfterRestore);
-		assertEquals("EU", productsAfterRestore.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
-	}
-
-	private void checkProductCanBeLookedUpByIndexes() {
-		final EntityReference productReference = new EntityReference(Entities.PRODUCT, 100);
-		assertEquals(
-			productReference,
-			queryProductReferenceBy(attributeEquals(ATTRIBUTE_CODE, "TV-123"))
-		);
-		assertEquals(
-			productReference,
-			queryProductReferenceBy(attributeEquals(ATTRIBUTE_NAME, "TV"), entityLocaleEquals(Locale.ENGLISH))
-		);
-		assertEquals(
-			productReference,
-			queryProductReferenceBy(referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1)))
-		);
-		assertEquals(
-			productReference,
-			queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)))
-		);
-		assertEquals(
-			productReference,
-			queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)))
-		);
-		assertEquals(
-			productReference,
-			queryProductReferenceBy(priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC))
-		);
-	}
-
-	private void checkProductCannotBeLookedUpByIndexes() {
-		assertNull(queryProductReferenceBy(attributeEquals(ATTRIBUTE_CODE, "TV-123")));
-		assertNull(queryProductReferenceBy(attributeEquals(ATTRIBUTE_NAME, "TV"), entityLocaleEquals(Locale.ENGLISH)));
-		assertNull(queryProductReferenceBy(referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1))));
-		assertNull(queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))));
-		assertNull(queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))));
-		assertNull(queryProductReferenceBy(priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC)));
-	}
-
-	@Nullable
-	private EntityReference queryProductReferenceBy(@Nonnull FilterConstraint... filterBy) {
-		return evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.queryOne(
-					query(collection(Entities.PRODUCT), filterBy(filterBy)),
-					EntityReference.class
-				);
-			}
-		).orElse(null);
 	}
 
 	@Nonnull

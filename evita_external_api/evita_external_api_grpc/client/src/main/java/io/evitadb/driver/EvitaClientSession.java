@@ -81,6 +81,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.Scope;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
@@ -104,7 +105,6 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.grpc.ClientCall;
 import io.grpc.stub.ClientCalls;
@@ -139,6 +139,7 @@ import java.util.stream.StreamSupport;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.extractEntityTypeFromClass;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toOffsetDateTime;
@@ -146,6 +147,8 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toTas
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter.toGrpcChangeCaptureRequest;
 import static io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter.SEALED_ENTITY_TYPE_CONVERTER;
+import static io.evitadb.utils.Assert.isPremiseValid;
+import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -164,6 +167,7 @@ import static java.util.Optional.ofNullable;
 @EqualsAndHashCode(of = "sessionId")
 @ToString(of = "sessionId")
 public class EvitaClientSession implements EvitaSessionContract {
+	private static final Scope[] LIVE_SCOPE_ONLY = {Scope.LIVE};
 
 	/**
 	 * Evita instance this session is connected to.
@@ -618,11 +622,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
+		return getEntity(entityType, primaryKey, LIVE_SCOPE_ONLY, require);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, @Nonnull Scope[] scopes, EntityContentRequire... require) {
+		isTrue(scopes.length > 0, "At least one scope must be provided!");
+
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
 				require(
-					entityFetch(require)
+					entityFetch(require),
+					scope(scopes)
 				)
 			),
 			OffsetDateTime.now(),
@@ -2150,7 +2163,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		schemaCache.updateLastKnownCatalogVersion(grpcResponse.getCatalogVersion());
 
 		transactionAccessor.getAndUpdate(transaction -> {
-			Assert.isPremiseValid(transaction == null, "Transaction unexpectedly found!");
+			isPremiseValid(transaction == null, "Transaction unexpectedly found!");
 			if (sessionTraits.isDryRun()) {
 				tx.setRollbackOnly();
 			}

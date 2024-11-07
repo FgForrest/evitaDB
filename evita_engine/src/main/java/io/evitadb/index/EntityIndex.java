@@ -416,6 +416,12 @@ public abstract class EntityIndex implements
 		this.facetIndex.resetDirty();
 	}
 
+	/**
+	 * Removes the transactional memory layers of various referenced producers associated with the given transactional
+	 * layer. This method is used when index is removed to clear all orphaned transactional memory layers.
+	 *
+	 * @param transactionalLayer the instance of TransactionalLayerMaintainer whose layers are to be removed from the referenced producers
+	 */
 	public void removeTransactionalMemoryOfReferencedProducers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.dirty.removeLayer(transactionalLayer);
 		this.entityIds.removeLayer(transactionalLayer);
@@ -425,8 +431,23 @@ public abstract class EntityIndex implements
 		this.facetIndex.removeLayer(transactionalLayer);
 	}
 
+	/**
+	 * Retrieves the price index for the implementing entity.
+	 *
+	 * @return an instance of the price index conforming to the PriceIndexContract.
+	 */
 	@Nonnull
 	public abstract <S extends PriceIndexContract> S getPriceIndex();
+
+	/**
+	 * Checks if the given primary key is present in the set of entity IDs.
+	 *
+	 * @param primaryKey the primary key to check for presence in the entity index
+	 * @return true if the primary key is present, false otherwise
+	 */
+	public boolean contains(int primaryKey) {
+		return entityIds.contains(primaryKey);
+	}
 
 	/**
 	 * Method creates container that is possible to serialize and store into persistent storage.
