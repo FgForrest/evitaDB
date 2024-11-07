@@ -289,8 +289,10 @@ public class EvitaClient implements EvitaContract {
 							);
 						}
 					},
-					tlsCustomizer
-				));
+					tlsCustomizer,
+					clientFactoryBuilder
+				)
+			);
 		} else {
 			uriScheme = "http";
 		}

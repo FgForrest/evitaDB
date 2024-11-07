@@ -82,7 +82,7 @@ public class TestGrpcClientBuilderCreator {
 
 		final String uriScheme;
 		if (grpcConfig.getTlsMode() != TlsMode.FORCE_NO_TLS) {
-			clientFactoryBuilder.tlsCustomizer(tlsCustomizer -> builder.build().buildClientSslContext(null, tlsCustomizer));
+			clientFactoryBuilder.tlsCustomizer(tlsCustomizer -> builder.build().buildClientSslContext(null, tlsCustomizer, clientFactoryBuilder));
 			uriScheme = "https";
 		} else {
 			uriScheme = "http";

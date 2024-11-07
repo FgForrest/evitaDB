@@ -35,17 +35,34 @@ import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.RpcService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.ApiConfigurationWithMutualTls;
 import io.evitadb.externalApi.configuration.HostDefinition;
+import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
+import io.evitadb.externalApi.exception.ClientCertificateNotAllowedException;
+import io.evitadb.externalApi.exception.ClientCertificateNotProvidedException;
 import io.evitadb.externalApi.exception.InvalidPortException;
 import io.evitadb.externalApi.exception.InvalidSchemeException;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import java.io.FileInputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.Principal;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * This HTTP service verifies input scheme against allowed {@link TlsMode} in configuration and returns appropriate
@@ -61,6 +78,7 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 	private final String[] schemes;
 	private final int[] ports;
 	private final int peak;
+	private final MtlsConfiguration mtlsConfiguration;
 
 	public HttpServiceSecurityDecorator(@Nonnull AbstractApiConfiguration... configurations) {
 		final int hostsConfigs = Arrays.stream(configurations)
@@ -70,6 +88,13 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		this.schemes = new String[hostsConfigs];
 		this.ports = new int[hostsConfigs];
 		this.peak = prepareConfigurations(configurations);
+		Optional<ApiConfigurationWithMutualTls> mtlsApiConfiguration = Arrays.stream(configurations)
+			.filter(x -> x instanceof ApiConfigurationWithMutualTls)
+			.map(x -> (ApiConfigurationWithMutualTls) x)
+			.findFirst();
+		this.mtlsConfiguration = mtlsApiConfiguration
+			.map(ApiConfigurationWithMutualTls::getMtlsConfiguration)
+			.orElseGet(() -> new MtlsConfiguration(false, new ArrayList<>(0)));
 	}
 
 	@Nonnull
@@ -83,6 +108,25 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		for (int i = 0; i < peak; i++) {
 			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
 				if (schemes[i] == null || scheme.equals(schemes[i])) {
+					final MediaType mediaType = req.contentType();
+					if (mediaType != null && "application/grpc+proto".equals(mediaType.toString())) {
+						if (mtlsConfiguration.enabled()) {
+							final Set<X509Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration);
+							try {
+								final Certificate[] clientCerts = ctx.sslSession().getPeerCertificates();
+								if (clientCerts.length == 0) {
+									return HttpResponse.ofFailure(new ClientCertificateNotProvidedException("Client certificate not provided."));
+								}
+								final Certificate clientCert = clientCerts[0];
+								if (!isClientCertificateAllowed(clientCert, allowedCertificates)) {
+									return HttpResponse.ofFailure(new ClientCertificateNotAllowedException("Client certificate not allowed."));
+								}
+							} catch (SSLPeerUnverifiedException e) {
+								return HttpResponse.ofFailure(new ClientCertificateNotProvidedException("Client certificate not provided."));
+							}
+
+						}
+					}
 					return delegate.serve(ctx, req);
 				} else {
 					hostAndPortMatching = true;
@@ -107,6 +151,17 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		for (int i = 0; i < peak; i++) {
 			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
 				if (schemes[i] == null || scheme.equals(schemes[i])) {
+					if (mtlsConfiguration.enabled()) {
+						final Set<X509Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration);
+						final Certificate[] clientCerts = ctx.sslSession().getPeerCertificates();
+						if (clientCerts.length == 0) {
+							return RpcResponse.ofFailure(new InvalidSchemeException("Client certificate not provided."));
+						}
+						final Certificate clientCert = clientCerts[0];
+						if (!isClientCertificateAllowed(clientCert, allowedCertificates)) {
+							return RpcResponse.ofFailure(new InvalidSchemeException("Client certificate not allowed."));
+						}
+					}
 					return delegate.serve(ctx, req);
 				} else {
 					portMatching = true;
@@ -118,6 +173,34 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		} else {
 			return RpcResponse.ofFailure(new InvalidPortException("Service not available."));
 		}
+	}
+
+	private static Set<X509Certificate> getAllowedClientCertificatesFromPaths(@Nonnull MtlsConfiguration mtlsConfig) {
+		final Set<X509Certificate> certificates = CollectionUtils.createHashSet(mtlsConfig.allowedClientCertificatePaths().size());
+
+		try {
+			mtlsConfig.allowedClientCertificatePaths().stream()
+				.filter(Objects::nonNull)
+				.filter(path -> path.endsWith(".crt"))
+				.forEach(certPath -> {
+					try (FileInputStream fis = new FileInputStream(certPath)) {
+						final CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+						final X509Certificate cert = (X509Certificate) certFactory.generateCertificate(fis);
+						certificates.add(cert);
+					} catch (Exception e) {
+						System.err.println("Failed to load certificate from " + certPath + ": " + e.getMessage());
+					}
+				});
+		} catch (Exception e) {
+			System.err.println("Error loading certificates: " + e.getMessage());
+		}
+
+		return certificates;
+	}
+
+	private static boolean isClientCertificateAllowed(@Nonnull Certificate clientCert, @Nonnull Set<X509Certificate> allowedCertificates) {
+		// Check if any allowed certificate matches the client certificate
+		return allowedCertificates.stream().anyMatch(allowedCert -> allowedCert.equals(clientCert));
 	}
 
 	/**

@@ -182,7 +182,7 @@ public class ExternalApiServer implements AutoCloseable {
 					);
 				}
 
-				if (necessaryFiles.stream().noneMatch(File::exists)) {
+				if (necessaryFiles.stream().anyMatch(it -> !it.exists())) {
 					try {
 						serverCertificateManager.generateSelfSignedCertificate(certificateTypes);
 					} catch (Exception e) {
