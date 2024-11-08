@@ -32,6 +32,8 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -41,7 +43,9 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Optional;
 
 /**
@@ -59,11 +63,30 @@ import java.util.Optional;
 public class SetReferenceSchemaFacetedMutation
 	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 4847175066828277710L;
-	@Getter private final Boolean faceted;
+	@Getter private final Scope[] facetedInScopes;
 
-	public SetReferenceSchemaFacetedMutation(@Nonnull String name, @Nullable Boolean faceted) {
+	public SetReferenceSchemaFacetedMutation(
+		@Nonnull String name,
+		@Nullable Boolean faceted
+	) {
+		this(name, faceted == null ? null : (faceted ? new Scope[] {Scope.LIVE} : new Scope[0]));
+	}
+
+	public SetReferenceSchemaFacetedMutation(
+		@Nonnull String name,
+		@Nullable Scope[] facetedInScopes
+	) {
 		super(name);
-		this.faceted = faceted;
+		this.facetedInScopes = facetedInScopes;
+	}
+
+	@Nullable
+	public Boolean getFaceted() {
+		if (this.facetedInScopes == null) {
+			return null;
+		} else {
+			return !ArrayUtils.isEmptyOrItsValuesNull(this.facetedInScopes);
+		}
 	}
 
 	@Nullable
@@ -84,36 +107,41 @@ public class SetReferenceSchemaFacetedMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, this.facetedInScopes);
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-			if ((reflectedReferenceSchema.isFacetedInherited() && this.faceted == null) ||
-				(!reflectedReferenceSchema.isFacetedInherited() && reflectedReferenceSchema.isFaceted() == this.faceted)) {
+			if ((reflectedReferenceSchema.isFacetedInherited() && this.facetedInScopes == null) ||
+				(!reflectedReferenceSchema.isFacetedInherited() && reflectedReferenceSchema.getFacetedInScopes().equals(facetedScopes))) {
 				return reflectedReferenceSchema;
 			} else {
-				return reflectedReferenceSchema
-					.withFaceted(this.faceted);
+				return reflectedReferenceSchema.withFaceted(this.facetedInScopes);
 			}
-		} else {
-			if (referenceSchema.isFaceted() == this.faceted) {
-				return referenceSchema;
+		} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
+			Assert.isTrue(!ArrayUtils.isEmptyOrItsValuesNull(this.facetedInScopes), "Faceted scopes must be set!");
+			if (theReferenceSchema.getFacetedInScopes().equals(facetedScopes)) {
+				return theReferenceSchema;
 			} else {
 				return ReferenceSchema._internalBuild(
 					this.name,
-					referenceSchema.getNameVariants(),
-					referenceSchema.getDescription(),
-					referenceSchema.getDeprecationNotice(),
-					referenceSchema.getReferencedEntityType(),
-					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-					referenceSchema.isReferencedEntityTypeManaged(),
-					referenceSchema.getCardinality(),
-					referenceSchema.getReferencedGroupType(),
-					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.isIndexed(),
-					this.faceted,
-					referenceSchema.getAttributes(),
-					referenceSchema.getSortableAttributeCompounds()
+					theReferenceSchema.getNameVariants(),
+					theReferenceSchema.getDescription(),
+					theReferenceSchema.getDeprecationNotice(),
+					theReferenceSchema.getCardinality(),
+					theReferenceSchema.getReferencedEntityType(),
+					theReferenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
+					theReferenceSchema.isReferencedEntityTypeManaged(),
+					theReferenceSchema.getReferencedGroupType(),
+					theReferenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
+					theReferenceSchema.isReferencedGroupTypeManaged(),
+					theReferenceSchema.getIndexedInScopes(),
+					facetedScopes,
+					theReferenceSchema.getAttributes(),
+					theReferenceSchema.getSortableAttributeCompounds()
 				);
 			}
+		} else {
+			throw new InvalidSchemaMutationException(
+				"Unsupported reference schema type: " + referenceSchema.getClass().getName()
+			);
 		}
 	}
 
@@ -123,7 +151,7 @@ public class SetReferenceSchemaFacetedMutation
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
-			// ups, the associated data is missing
+			// ups, the reference schema is missing
 			throw new InvalidSchemaMutationException(
 				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
@@ -136,7 +164,8 @@ public class SetReferenceSchemaFacetedMutation
 
 	@Override
 	public String toString() {
+		final Boolean faceted = getFaceted();
 		return "Set entity reference `" + this.name + "` schema: " +
-			"faceted=" + this.faceted;
+			"faceted=" + (faceted == null ? "(inherited)" : (faceted ? "(faceted in scopes: " + Arrays.toString(this.facetedInScopes) + ")" : "(not faceted)"));
 	}
 }

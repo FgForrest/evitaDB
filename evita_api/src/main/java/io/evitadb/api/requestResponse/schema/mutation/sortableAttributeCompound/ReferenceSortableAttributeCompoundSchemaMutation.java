@@ -126,24 +126,26 @@ public interface ReferenceSortableAttributeCompoundSchemaMutation extends Sortab
 								)
 							)
 					);
-			} else {
+			} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
 				return ReferenceSchema._internalBuild(
-					referenceSchema.getName(),
-					referenceSchema.getNameVariants(),
-					referenceSchema.getDescription(),
-					referenceSchema.getDeprecationNotice(),
-					referenceSchema.getReferencedEntityType(),
-					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-					referenceSchema.isReferencedEntityTypeManaged(),
-					referenceSchema.getCardinality(),
-					referenceSchema.getReferencedGroupType(),
-					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.isIndexed(),
-					referenceSchema.isFaceted(),
-					referenceSchema.getAttributes(),
+					theReferenceSchema.getName(),
+					theReferenceSchema.getNameVariants(),
+					theReferenceSchema.getDescription(),
+					theReferenceSchema.getDeprecationNotice(),
+					theReferenceSchema.getCardinality(),
+					theReferenceSchema.getReferencedEntityType(),
+					theReferenceSchema.isReferencedEntityTypeManaged() ?
+						Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
+					theReferenceSchema.isReferencedEntityTypeManaged(),
+					theReferenceSchema.getReferencedGroupType(),
+					theReferenceSchema.isReferencedGroupTypeManaged() ?
+						Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
+					theReferenceSchema.isReferencedGroupTypeManaged(),
+					theReferenceSchema.getIndexedInScopes(),
+					theReferenceSchema.getFacetedInScopes(),
+					theReferenceSchema.getAttributes(),
 					Stream.concat(
-							referenceSchema.getSortableAttributeCompounds().values().stream().filter(it -> !updatedSchema.getName().equals(it.getName())),
+							theReferenceSchema.getSortableAttributeCompounds().values().stream().filter(it -> !updatedSchema.getName().equals(it.getName())),
 							Stream.of(updatedSchema)
 						)
 						.collect(
@@ -152,6 +154,10 @@ public interface ReferenceSortableAttributeCompoundSchemaMutation extends Sortab
 								Function.identity()
 							)
 						)
+				);
+			} else {
+				throw new InvalidSchemaMutationException(
+					"Unsupported reference schema type: " + referenceSchema.getClass().getName()
 				);
 			}
 		}

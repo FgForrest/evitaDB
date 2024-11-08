@@ -91,23 +91,29 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 			!(referenceSchema instanceof ReflectedReferenceSchema),
 			() -> "Target entity type cannot be changed once the reflected reference is created!"
 		);
-		return ReferenceSchema._internalBuild(
-			this.name,
-			referenceSchema.getNameVariants(),
-			referenceSchema.getDescription(),
-			referenceSchema.getDeprecationNotice(),
-			this.referencedEntityType,
-			this.referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(this.referencedEntityType),
-			this.referencedEntityTypeManaged,
-			referenceSchema.getCardinality(),
-			referenceSchema.getReferencedGroupType(),
-			referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-			referenceSchema.isReferencedGroupTypeManaged(),
-			referenceSchema.isIndexed(),
-			referenceSchema.isFaceted(),
-			referenceSchema.getAttributes(),
-			referenceSchema.getSortableAttributeCompounds()
-		);
+		if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
+			return ReferenceSchema._internalBuild(
+				this.name,
+				theReferenceSchema.getNameVariants(),
+				theReferenceSchema.getDescription(),
+				theReferenceSchema.getDeprecationNotice(),
+				theReferenceSchema.getCardinality(),
+				this.referencedEntityType,
+				this.referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(this.referencedEntityType),
+				this.referencedEntityTypeManaged,
+				theReferenceSchema.getReferencedGroupType(),
+				theReferenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
+				theReferenceSchema.isReferencedGroupTypeManaged(),
+				theReferenceSchema.getIndexedInScopes(),
+				theReferenceSchema.getFacetedInScopes(),
+				theReferenceSchema.getAttributes(),
+				theReferenceSchema.getSortableAttributeCompounds()
+			);
+		} else {
+			throw new InvalidSchemaMutationException(
+				"Reference schema `" + referenceSchema.getName() + "` is not a valid reference schema!"
+			);
+		}
 	}
 
 	@Nullable

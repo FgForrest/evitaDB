@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import java.util.function.BooleanSupplier;
@@ -48,7 +49,34 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T uniqueGlobally();
+	default T uniqueGlobally() {
+		return uniqueGlobally(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T uniqueGlobally(@Nonnull Scope... inScope);
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	default T nonUniqueGlobally() {
+		return nonUniqueGlobally(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T nonUniqueGlobally(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -63,7 +91,9 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T uniqueGlobally(@Nonnull BooleanSupplier decider);
+	default T uniqueGlobally(@Nonnull BooleanSupplier decider) {
+		return decider.getAsBoolean() ? uniqueGlobally() : nonUniqueGlobally();
+	}
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -81,7 +111,34 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T uniqueGloballyWithinLocale();
+	default T uniqueGloballyWithinLocale() {
+		return uniqueGloballyWithinLocale(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T uniqueGloballyWithinLocale(@Nonnull Scope... inScope);
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	default T nonUniqueGloballyWithinLocale() {
+		return nonUniqueGloballyWithinLocale(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T nonUniqueGloballyWithinLocale(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -100,7 +157,9 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T uniqueGloballyWithinLocale(@Nonnull BooleanSupplier decider);
+	default T uniqueGloballyWithinLocale(@Nonnull BooleanSupplier decider) {
+		return decider.getAsBoolean() ? uniqueGloballyWithinLocale() : nonUniqueGloballyWithinLocale();
+	}
 
 	/**
 	 * Interface that simply combines {@link GlobalAttributeSchemaEditor} and {@link GlobalAttributeSchemaContract}

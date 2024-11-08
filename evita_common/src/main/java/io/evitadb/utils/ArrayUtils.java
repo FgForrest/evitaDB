@@ -35,6 +35,7 @@ import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
@@ -1126,6 +1127,18 @@ public class ArrayUtils {
 		} else {
 			return a.hashCode();
 		}
+	}
+
+	/**
+	 * Converts an array of enums to an EnumSet of theirs.
+	 *
+	 * @param scopes an array of Scope enums
+	 * @return an EnumSet of Scopes; returns an empty EnumSet if the input array is empty or contains null values
+	 */
+	@Nonnull
+	public static <T extends Enum<T>> EnumSet<T> toEnumSet(@Nonnull Class<T> enumType, @Nullable T[] scopes) {
+		return isEmptyOrItsValuesNull(scopes) ?
+			EnumSet.noneOf(enumType) : EnumSet.of(scopes[0], Arrays.copyOfRange(scopes, 1, scopes.length));
 	}
 
 	/**

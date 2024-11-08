@@ -45,7 +45,9 @@ import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator.Con
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.*;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.experimental.Delegate;
 
@@ -56,6 +58,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -260,7 +263,7 @@ public final class ReflectedReferenceSchemaBuilder
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaFacetedMutation(getName(), null)
+				new SetReferenceSchemaFacetedMutation(getName(), (Scope[]) null)
 			)
 		);
 		return this;
@@ -299,42 +302,106 @@ public final class ReflectedReferenceSchemaBuilder
 		return withDeprecatedInherited();
 	}
 
+	/**
+	 * Note: this method will behave differently depending on input:
+	 *
+	 * - if the input is NULL, the settings are inherited from the original reference
+	 * - if the input contains any scopes, the reference is indexed in these scopes
+	 *
+	 * Input cannot be empty array, in order reflected references can be propagated, they need to be indexed.
+	 */
+	@Nonnull
 	@Override
-	public ReflectedReferenceSchemaBuilder indexed() {
-		// reflected references are required to be indexed and are indexed by default
+	public ReflectedReferenceSchemaBuilder indexed(@Nullable Scope... inScope) {
+		Assert.isTrue(
+			!(inScope != null && inScope.length == 0),
+			"Reflected references must be indexed (otherwise we wouldn't be able to propagate the reflections)!"
+		);
+
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaIndexedMutation(getName(), inScope)
+			)
+		);
 		return this;
 	}
 
+	@Nonnull
 	@Override
-	public ReflectedReferenceSchemaBuilder faceted() {
-		if (toInstanceInternal().isIndexed()) {
+	public ReflectedReferenceSchemaBuilder nonIndexed(@Nullable Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		final Scope[] newScopes = Arrays.stream(Scope.values())
+			.filter(this::isIndexed)
+			.filter(excludedScopes::contains)
+			.toArray(Scope[]::new);
+
+		Assert.isTrue(
+			newScopes.length > 0,
+			"Reflected references must be indexed (otherwise we wouldn't be able to propagate the reflections)!"
+		);
+
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaIndexedMutation(
+					getName(),
+					newScopes
+				)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder faceted(@Nonnull Scope... inScope) {
+		if (Arrays.stream(inScope).allMatch(this::isIndexed)) {
+			// just update the faceted scopes
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
 				addMutations(
 					this.catalogSchema, this.entitySchema, this.mutations,
-					new SetReferenceSchemaFacetedMutation(getName(), true)
+					new SetReferenceSchemaFacetedMutation(getName(), inScope)
 				)
 			);
 		} else {
+			// update both indexed and faceted scopes
+			final EnumSet<Scope> includedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
 				addMutations(
 					this.catalogSchema, this.entitySchema, this.mutations,
-					new SetReferenceSchemaIndexedMutation(getName(), true),
-					new SetReferenceSchemaFacetedMutation(getName(), true)
+					new SetReferenceSchemaIndexedMutation(
+						getName(),
+						Arrays.stream(Scope.values())
+							.filter(scope -> includedScopes.contains(scope) || isIndexed(scope))
+							.toArray(Scope[]::new)
+					),
+					new SetReferenceSchemaFacetedMutation(getName(), inScope)
 				)
 			);
 		}
 		return this;
 	}
 
+	@Nonnull
 	@Override
-	public ReflectedReferenceSchemaBuilder nonFaceted() {
+	public ReflectedReferenceSchemaBuilder nonFaceted(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaFacetedMutation(getName(), false)
+				new SetReferenceSchemaFacetedMutation(
+					getName(),
+					Arrays.stream(Scope.values())
+						.filter(this::isFaceted)
+						.filter(excludedScopes::contains)
+						.toArray(Scope[]::new)
+				)
 			)
 		);
 		return this;

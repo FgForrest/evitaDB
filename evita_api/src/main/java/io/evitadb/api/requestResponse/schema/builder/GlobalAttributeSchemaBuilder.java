@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,14 +31,19 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
@@ -98,11 +103,32 @@ public final class GlobalAttributeSchemaBuilder
 
 	@Override
 	@Nonnull
-	public GlobalAttributeSchemaBuilder uniqueGlobally() {
+	public GlobalAttributeSchemaBuilder uniqueGlobally(@Nonnull Scope... scope) {
 		this.updatedSchemaDirty = addMutations(
 			new SetAttributeSchemaGloballyUniqueMutation(
 				toInstance().getName(),
-				GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
+				Arrays.stream(scope)
+					.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG))
+					.toArray(ScopedGlobalAttributeUniquenessType[]::new)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public GlobalAttributeSchemaBuilder nonUniqueGlobally(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaGloballyUniqueMutation(
+					baseSchema.getName(),
+					Arrays.stream(Scope.values())
+						.filter(it -> !isUniqueWithinLocale(it) || !excludedScopes.contains(it))
+						.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG))
+						.toArray(ScopedGlobalAttributeUniquenessType[]::new)
+				)
 			)
 		);
 		return this;
@@ -110,11 +136,32 @@ public final class GlobalAttributeSchemaBuilder
 
 	@Override
 	@Nonnull
-	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocale() {
+	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocale(@Nonnull Scope... scope) {
 		this.updatedSchemaDirty = addMutations(
 			new SetAttributeSchemaGloballyUniqueMutation(
 				toInstance().getName(),
-				GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
+				Arrays.stream(scope)
+					.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE))
+					.toArray(ScopedGlobalAttributeUniquenessType[]::new)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public GlobalAttributeSchemaBuilder nonUniqueGloballyWithinLocale(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaGloballyUniqueMutation(
+					baseSchema.getName(),
+					Arrays.stream(Scope.values())
+						.filter(it -> !isUniqueWithinLocale(it) || !excludedScopes.contains(it))
+						.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE))
+						.toArray(ScopedGlobalAttributeUniquenessType[]::new)
+				)
 			)
 		);
 		return this;
@@ -128,8 +175,13 @@ public final class GlobalAttributeSchemaBuilder
 			addMutations(
 				new SetAttributeSchemaGloballyUniqueMutation(
 					toInstance().getName(),
-					decider.getAsBoolean() ?
-						GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG : GlobalAttributeUniquenessType.NOT_UNIQUE
+					new ScopedGlobalAttributeUniquenessType[] {
+						new ScopedGlobalAttributeUniquenessType(
+							Scope.LIVE,
+							decider.getAsBoolean() ?
+								GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG : GlobalAttributeUniquenessType.NOT_UNIQUE
+						)
+					}
 				)
 			)
 		);

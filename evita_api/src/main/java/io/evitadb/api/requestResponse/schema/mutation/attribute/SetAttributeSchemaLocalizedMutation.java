@@ -103,18 +103,20 @@ public class SetAttributeSchemaLocalizedMutation
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
-		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		if (attributeSchema.isLocalized() == this.localized) {
+			return attributeSchema;
+		} else if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) GlobalAttributeSchema._internalBuild(
-				name,
+				this.name,
 				globalAttributeSchema.getNameVariants(),
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.getUniquenessType(),
-				globalAttributeSchema.getGlobalUniquenessType(),
-				globalAttributeSchema.isFilterable(),
-				globalAttributeSchema.isSortable(),
-				localized,
+				globalAttributeSchema.getUniquenessTypeInScopes(),
+				globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
+				globalAttributeSchema.getFilterableInScopes(),
+				globalAttributeSchema.getSortableInScopes(),
+				this.localized,
 				globalAttributeSchema.isNullable(),
 				globalAttributeSchema.isRepresentative(),
 				(Class) globalAttributeSchema.getType(),
@@ -124,36 +126,38 @@ public class SetAttributeSchemaLocalizedMutation
 		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) EntityAttributeSchema._internalBuild(
-				name,
+				this.name,
 				entityAttributeSchema.getNameVariants(),
 				entityAttributeSchema.getDescription(),
 				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.getUniquenessType(),
-				entityAttributeSchema.isFilterable(),
-				entityAttributeSchema.isSortable(),
-				localized,
+				entityAttributeSchema.getUniquenessTypeInScopes(),
+				entityAttributeSchema.getFilterableInScopes(),
+				entityAttributeSchema.getSortableInScopes(),
+				this.localized,
 				entityAttributeSchema.isNullable(),
 				entityAttributeSchema.isRepresentative(),
 				(Class)entityAttributeSchema.getType(),
 				entityAttributeSchema.getDefaultValue(),
 				entityAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else {
+		} else if (attributeSchema instanceof AttributeSchema theAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
-				name,
-				attributeSchema.getNameVariants(),
-				attributeSchema.getDescription(),
-				attributeSchema.getDeprecationNotice(),
-				attributeSchema.getUniquenessType(),
-				attributeSchema.isFilterable(),
-				attributeSchema.isSortable(),
-				localized,
-				attributeSchema.isNullable(),
+				this.name,
+				theAttributeSchema.getNameVariants(),
+				theAttributeSchema.getDescription(),
+				theAttributeSchema.getDeprecationNotice(),
+				theAttributeSchema.getUniquenessTypeInScopes(),
+				theAttributeSchema.getFilterableInScopes(),
+				theAttributeSchema.getSortableInScopes(),
+				this.localized,
+				theAttributeSchema.isNullable(),
 				(Class) attributeSchema.getType(),
-				attributeSchema.getDefaultValue(),
-				attributeSchema.getIndexedDecimalPlaces()
+				theAttributeSchema.getDefaultValue(),
+				theAttributeSchema.getIndexedDecimalPlaces()
 			);
+		} else {
+			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
 		}
 	}
 

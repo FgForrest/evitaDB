@@ -43,6 +43,11 @@ public enum Scope {
 	/**
 	 * Entities that are no longer active and reside in the archive block.
 	 */
-	ARCHIVED
+	ARCHIVED;
+
+	/**
+	 * Empty array of scopes.
+	 */
+	public static final Scope[] NO_SCOPE = new Scope[0];
 
 }

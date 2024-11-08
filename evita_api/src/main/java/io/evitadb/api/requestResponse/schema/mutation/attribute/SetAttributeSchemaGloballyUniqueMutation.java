@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -46,6 +47,10 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
+import java.util.EnumMap;
+
+import static io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema.toGlobalUniquenessEnumMap;
 
 /**
  * Mutation is responsible for setting value to a {@link GlobalAttributeSchemaContract#isUniqueGlobally()}
@@ -63,11 +68,30 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -2200571466479594746L;
 	@Getter @Nonnull private final String name;
-	@Getter private final GlobalAttributeUniquenessType uniqueGlobally;
+	@Getter private final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes;
 
-	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nonnull GlobalAttributeUniquenessType uniqueGlobally) {
+	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nonnull GlobalAttributeUniquenessType unique) {
+		this(
+			name,
+			new ScopedGlobalAttributeUniquenessType[]{new ScopedGlobalAttributeUniquenessType(Scope.LIVE, unique)}
+		);
+	}
+
+	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes) {
 		this.name = name;
-		this.uniqueGlobally = uniqueGlobally;
+		this.uniqueGloballyInScopes = uniqueGloballyInScopes == null ?
+			new ScopedGlobalAttributeUniquenessType[]{
+				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.NOT_UNIQUE)
+			} : uniqueGloballyInScopes;
+	}
+
+	@Nonnull
+	public GlobalAttributeUniquenessType getUniqueGlobally() {
+		return Arrays.stream(this.uniqueGloballyInScopes)
+			.filter(scope -> scope.scope() == Scope.LIVE)
+			.map(ScopedGlobalAttributeUniquenessType::uniquenessType)
+			.findFirst()
+			.orElse(GlobalAttributeUniquenessType.NOT_UNIQUE);
 	}
 
 	@Nullable
@@ -85,23 +109,29 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
-			//noinspection unchecked,rawtypes
-			return (S) GlobalAttributeSchema._internalBuild(
-				name,
-				globalAttributeSchema.getNameVariants(),
-				globalAttributeSchema.getDescription(),
-				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.getUniquenessType(),
-				uniqueGlobally,
-				globalAttributeSchema.isFilterable(),
-				globalAttributeSchema.isSortable(),
-				globalAttributeSchema.isLocalized(),
-				globalAttributeSchema.isNullable(),
-				globalAttributeSchema.isRepresentative(),
-				(Class) globalAttributeSchema.getType(),
-				globalAttributeSchema.getDefaultValue(),
-				globalAttributeSchema.getIndexedDecimalPlaces()
-			);
+			final EnumMap<Scope, GlobalAttributeUniquenessType> uniqueGlobally = toGlobalUniquenessEnumMap(this.uniqueGloballyInScopes);
+			if (uniqueGlobally.equals(globalAttributeSchema.getGlobalUniquenessTypeInScopes())) {
+				//noinspection unchecked
+				return (S) globalAttributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) GlobalAttributeSchema._internalBuild(
+					this.name,
+					globalAttributeSchema.getNameVariants(),
+					globalAttributeSchema.getDescription(),
+					globalAttributeSchema.getDeprecationNotice(),
+					globalAttributeSchema.getUniquenessTypeInScopes(),
+					uniqueGlobally,
+					globalAttributeSchema.getFilterableInScopes(),
+					globalAttributeSchema.getSortableInScopes(),
+					globalAttributeSchema.isLocalized(),
+					globalAttributeSchema.isNullable(),
+					globalAttributeSchema.isRepresentative(),
+					(Class) globalAttributeSchema.getType(),
+					globalAttributeSchema.getDefaultValue(),
+					globalAttributeSchema.getIndexedDecimalPlaces()
+				);
+			}
 		} else {
 			throw new GenericEvitaInternalError("Unexpected input!");
 		}
@@ -133,7 +163,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	@Override
 	public String toString() {
 		return "Set attribute `" + name + "` schema: " +
-			"uniqueGlobally=" + uniqueGlobally;
+			", uniqueGlobally=(" + (Arrays.stream(this.uniqueGloballyInScopes).map(it -> it.scope() + ": " + it.uniquenessType().name())) + ")";
 	}
 
 }

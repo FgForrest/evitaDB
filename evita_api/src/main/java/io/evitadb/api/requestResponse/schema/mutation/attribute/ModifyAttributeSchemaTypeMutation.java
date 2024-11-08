@@ -139,17 +139,19 @@ public class ModifyAttributeSchemaTypeMutation
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		@SuppressWarnings("rawtypes")
 		final Class newType = EvitaDataTypes.toWrappedForm(type);
-		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		if (newType.equals(attributeSchema.getType())) {
+			return attributeSchema;
+		} else if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
 			//noinspection unchecked
 			return (S) GlobalAttributeSchema._internalBuild(
 				name,
 				globalAttributeSchema.getNameVariants(),
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.getUniquenessType(),
-				globalAttributeSchema.getGlobalUniquenessType(),
-				globalAttributeSchema.isFilterable(),
-				globalAttributeSchema.isSortable(),
+				globalAttributeSchema.getUniquenessTypeInScopes(),
+				globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
+				globalAttributeSchema.getFilterableInScopes(),
+				globalAttributeSchema.getSortableInScopes(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
 				globalAttributeSchema.isRepresentative(),
@@ -162,13 +164,13 @@ public class ModifyAttributeSchemaTypeMutation
 		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
 			//noinspection unchecked
 			return (S) EntityAttributeSchema._internalBuild(
-				name,
+				this.name,
 				entityAttributeSchema.getNameVariants(),
 				entityAttributeSchema.getDescription(),
 				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.getUniquenessType(),
-				entityAttributeSchema.isFilterable(),
-				entityAttributeSchema.isSortable(),
+				entityAttributeSchema.getUniquenessTypeInScopes(),
+				entityAttributeSchema.getFilterableInScopes(),
+				entityAttributeSchema.getSortableInScopes(),
 				entityAttributeSchema.isLocalized(),
 				entityAttributeSchema.isNullable(),
 				entityAttributeSchema.isRepresentative(),
@@ -176,26 +178,28 @@ public class ModifyAttributeSchemaTypeMutation
 				ofNullable(entityAttributeSchema.getDefaultValue())
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
-				indexedDecimalPlaces
+				this.indexedDecimalPlaces
 			);
-		} else {
+		} else if (attributeSchema instanceof AttributeSchema theAttributeSchema) {
 			//noinspection unchecked
 			return (S) AttributeSchema._internalBuild(
-				name,
-				attributeSchema.getNameVariants(),
-				attributeSchema.getDescription(),
-				attributeSchema.getDeprecationNotice(),
-				attributeSchema.getUniquenessType(),
-				attributeSchema.isFilterable(),
-				attributeSchema.isSortable(),
-				attributeSchema.isLocalized(),
-				attributeSchema.isNullable(),
+				this.name,
+				theAttributeSchema.getNameVariants(),
+				theAttributeSchema.getDescription(),
+				theAttributeSchema.getDeprecationNotice(),
+				theAttributeSchema.getUniquenessTypeInScopes(),
+				theAttributeSchema.getFilterableInScopes(),
+				theAttributeSchema.getSortableInScopes(),
+				theAttributeSchema.isLocalized(),
+				theAttributeSchema.isNullable(),
 				newType,
-				ofNullable(attributeSchema.getDefaultValue())
+				ofNullable(theAttributeSchema.getDefaultValue())
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
-				indexedDecimalPlaces
+				this.indexedDecimalPlaces
 			);
+		} else {
+			throw new InvalidSchemaMutationException("Unsupported schema type: " + attributeSchema.getClass());
 		}
 	}
 

@@ -412,3 +412,19 @@ message GrpcNameVariant {
   // the name in the particular naming convention
   string name = 2;
 }
+
+// uniqueness type associated with particular scope
+message GrpcScopedAttributeUniquenessType {
+  // scope of entities where uniqueness is enforced
+  GrpcEntityScope scope = 1;
+  // type of uniqueness
+  GrpcAttributeUniquenessType uniquenessType = 2;
+}
+
+// uniqueness type associated with particular scope
+message GrpcScopedGlobalAttributeUniquenessType {
+  // scope of entities where uniqueness is enforced
+  GrpcEntityScope scope = 1;
+  // type of uniqueness
+  GrpcGlobalAttributeUniquenessType uniquenessType = 2;
+}

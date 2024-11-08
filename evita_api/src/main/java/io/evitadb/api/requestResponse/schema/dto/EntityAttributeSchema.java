@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,9 @@
 package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -34,10 +37,15 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Internal implementation of {@link EntityAttributeSchemaContract}.
+ *
+ * TODO JNO - tady se pak některé _internalCreate metody určitě budou dát odstranit
  */
 @Immutable
 @ThreadSafe
@@ -47,35 +55,13 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 
 	@Getter private final boolean representative;
 
-	public <T extends Serializable> EntityAttributeSchema(
-		@Nonnull String name,
-		@Nonnull Map<NamingConvention, String> nameVariants,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		@Nullable AttributeUniquenessType unique,
-		boolean filterable,
-		boolean sortable,
-		boolean localized,
-		boolean nullable,
-		boolean representative,
-		@Nonnull Class<T> type,
-		@Nullable T defaultValue,
-		int indexedDecimalPlaces
-	) {
-		super(
-			name, nameVariants, description, deprecationNotice,
-			unique, filterable, sortable, localized, nullable,
-			type, defaultValue, indexedDecimalPlaces
-		);
-		this.representative = representative;
-	}
-
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static EntityAttributeSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull Class<? extends Serializable> type,
@@ -84,7 +70,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			null, false, false, localized, false, false,
+			null, null, null,
+			localized, false, false,
 			type, null,
 			0
 		);
@@ -96,21 +83,29 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
 		@Nonnull String name,
-		@Nullable AttributeUniquenessType unique,
-		boolean filterable,
-		boolean sortable,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue
 	) {
+		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
+		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
+		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortableInScopes);
+
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			unique, filterable, sortable, localized, nullable, representative,
+			theUniquenessType,
+			theFilterableInScopes,
+			theSortableInScopes,
+			localized, nullable, representative,
 			type, defaultValue,
 			0
 		);
@@ -122,13 +117,14 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable AttributeUniquenessType unique,
-		boolean filterable,
-		boolean sortable,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		boolean representative,
@@ -136,10 +132,17 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces
 	) {
+		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
+		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
+		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortableInScopes);
+
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
 			description, deprecationNotice,
-			unique, filterable, sortable, localized, nullable, representative,
+			theUniquenessType,
+			theFilterableInScopes,
+			theSortableInScopes,
+			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces
 		);
@@ -151,14 +154,48 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
+	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable EnumMap<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable EnumSet<Scope> filterableInScopes,
+		@Nullable EnumSet<Scope> sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
+		return new EntityAttributeSchema(
+			name, NamingConvention.generate(name),
+			description, deprecationNotice,
+			uniqueInScopes,
+			filterableInScopes,
+			sortableInScopes,
+			localized, nullable, representative,
+			type, defaultValue,
+			indexedDecimalPlaces
+		);
+	}
+
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
+	 * different package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
 	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable AttributeUniquenessType unique,
-		boolean filterable,
-		boolean sortable,
+		@Nullable EnumMap<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable EnumSet<Scope> filterableInScopes,
+		@Nullable EnumSet<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		boolean representative,
@@ -169,24 +206,89 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		return new EntityAttributeSchema(
 			name, nameVariants,
 			description, deprecationNotice,
-			unique, filterable, sortable, localized, nullable, representative,
+			uniqueInScopes,
+			filterableInScopes,
+			sortableInScopes,
+			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces
 		);
 	}
 
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
+	 * different package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
+	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
+		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
+		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
+		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortableInScopes);
+
+		return new EntityAttributeSchema(
+			name, nameVariants,
+			description, deprecationNotice,
+			theUniquenessType,
+			theFilterableInScopes,
+			theSortableInScopes,
+			localized, nullable, representative,
+			type, defaultValue,
+			indexedDecimalPlaces
+		);
+	}
+
+	<T extends Serializable> EntityAttributeSchema(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable EnumMap<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable EnumSet<Scope> filterableInScopes,
+		@Nullable EnumSet<Scope> sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
+		super(
+			name, nameVariants, description, deprecationNotice,
+			uniqueInScopes, filterableInScopes, sortableInScopes,
+			localized, nullable,
+			type, defaultValue, indexedDecimalPlaces
+		);
+		this.representative = representative;
+	}
+
 	@Override
 	public String toString() {
 		return "EntityAttributeSchema{" +
-			"name='" + getName() + '\'' +
-			", unique=" + getUniquenessType() +
-			", filterable=" + isFilterable() +
-			", sortable=" + isSortable() +
-			", localized=" + isLocalized() +
-			", nullable=" + isNullable() +
-			", representative=" + isRepresentative() +
-			", type=" + getType() +
-			", indexedDecimalPlaces=" + getIndexedDecimalPlaces() +
+			"name='" + this.name + '\'' + (this.deprecationNotice == null ? "" : " (deprecated)") +
+			", unique=(" + (this.uniquenessTypeInScopes.entrySet().stream().map(it -> it.getKey() + ": " + it.getValue().name())) + ")" +
+			", filterable=" + (this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + this.filterableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
+			", sortable=" + (this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + this.sortableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
+			", localized=" + this.localized +
+			", nullable=" + this.nullable +
+			", type=" + this.type +
+			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
+			", defaultValue=" + this.defaultValue +
 			'}';
 	}
 

@@ -678,14 +678,14 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 722: {
-            io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.Builder subBuilder = null;
+            io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.Builder subBuilder = null;
             if (mutationCase_ == 90) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_).toBuilder();
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation) mutation_).toBuilder();
             }
             mutation_ =
-                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.parser(), extensionRegistry);
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_);
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation) mutation_);
               mutation_ = subBuilder.buildPartial();
             }
             mutationCase_ = 90;
@@ -2817,7 +2817,7 @@ private static final long serialVersionUID = 0L;
    * Mutation can be used for altering also the existing `ReferenceSchema` alone.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
    * @return Whether the setReferenceSchemaIndexedMutation field is set.
    */
   @java.lang.Override
@@ -2830,15 +2830,15 @@ private static final long serialVersionUID = 0L;
    * Mutation can be used for altering also the existing `ReferenceSchema` alone.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
    * @return The setReferenceSchemaIndexedMutation.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation getSetReferenceSchemaIndexedMutation() {
+  public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation getSetReferenceSchemaIndexedMutation() {
     if (mutationCase_ == 90) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_;
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation) mutation_;
     }
-    return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.getDefaultInstance();
+    return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.getDefaultInstance();
   }
   /**
    * <pre>
@@ -2846,14 +2846,14 @@ private static final long serialVersionUID = 0L;
    * Mutation can be used for altering also the existing `ReferenceSchema` alone.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutationOrBuilder getSetReferenceSchemaIndexedMutationOrBuilder() {
+  public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutationOrBuilder getSetReferenceSchemaIndexedMutationOrBuilder() {
     if (mutationCase_ == 90) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_;
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation) mutation_;
     }
-    return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.getDefaultInstance();
+    return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.getDefaultInstance();
   }
 
   public static final int CREATEREFLECTEDREFERENCESCHEMAMUTATION_FIELD_NUMBER = 91;
@@ -3095,7 +3095,7 @@ private static final long serialVersionUID = 0L;
       output.writeMessage(89, (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation) mutation_);
     }
     if (mutationCase_ == 90) {
-      output.writeMessage(90, (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_);
+      output.writeMessage(90, (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation) mutation_);
     }
     if (mutationCase_ == 91) {
       output.writeMessage(91, (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_);
@@ -3286,7 +3286,7 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 90) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(90, (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_);
+        .computeMessageSize(90, (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation) mutation_);
     }
     if (mutationCase_ == 91) {
       size += com.google.protobuf.CodedOutputStream
@@ -12323,14 +12323,14 @@ private static final long serialVersionUID = 0L;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutationOrBuilder> setReferenceSchemaIndexedMutationBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutationOrBuilder> setReferenceSchemaIndexedMutationBuilder_;
     /**
      * <pre>
      * Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
      * Mutation can be used for altering also the existing `ReferenceSchema` alone.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
      * @return Whether the setReferenceSchemaIndexedMutation field is set.
      */
     @java.lang.Override
@@ -12343,21 +12343,21 @@ private static final long serialVersionUID = 0L;
      * Mutation can be used for altering also the existing `ReferenceSchema` alone.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
      * @return The setReferenceSchemaIndexedMutation.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation getSetReferenceSchemaIndexedMutation() {
+    public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation getSetReferenceSchemaIndexedMutation() {
       if (setReferenceSchemaIndexedMutationBuilder_ == null) {
         if (mutationCase_ == 90) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_;
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation) mutation_;
         }
-        return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.getDefaultInstance();
+        return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.getDefaultInstance();
       } else {
         if (mutationCase_ == 90) {
           return setReferenceSchemaIndexedMutationBuilder_.getMessage();
         }
-        return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.getDefaultInstance();
+        return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.getDefaultInstance();
       }
     }
     /**
@@ -12366,9 +12366,9 @@ private static final long serialVersionUID = 0L;
      * Mutation can be used for altering also the existing `ReferenceSchema` alone.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
      */
-    public Builder setSetReferenceSchemaIndexedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation value) {
+    public Builder setSetReferenceSchemaIndexedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation value) {
       if (setReferenceSchemaIndexedMutationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -12387,10 +12387,10 @@ private static final long serialVersionUID = 0L;
      * Mutation can be used for altering also the existing `ReferenceSchema` alone.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
      */
     public Builder setSetReferenceSchemaIndexedMutation(
-        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.Builder builderForValue) {
+        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.Builder builderForValue) {
       if (setReferenceSchemaIndexedMutationBuilder_ == null) {
         mutation_ = builderForValue.build();
         onChanged();
@@ -12406,13 +12406,13 @@ private static final long serialVersionUID = 0L;
      * Mutation can be used for altering also the existing `ReferenceSchema` alone.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
      */
-    public Builder mergeSetReferenceSchemaIndexedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation value) {
+    public Builder mergeSetReferenceSchemaIndexedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation value) {
       if (setReferenceSchemaIndexedMutationBuilder_ == null) {
         if (mutationCase_ == 90 &&
-            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.getDefaultInstance()) {
-          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_)
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation) mutation_)
               .mergeFrom(value).buildPartial();
         } else {
           mutation_ = value;
@@ -12433,7 +12433,7 @@ private static final long serialVersionUID = 0L;
      * Mutation can be used for altering also the existing `ReferenceSchema` alone.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
      */
     public Builder clearSetReferenceSchemaIndexedMutation() {
       if (setReferenceSchemaIndexedMutationBuilder_ == null) {
@@ -12457,9 +12457,9 @@ private static final long serialVersionUID = 0L;
      * Mutation can be used for altering also the existing `ReferenceSchema` alone.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.Builder getSetReferenceSchemaIndexedMutationBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.Builder getSetReferenceSchemaIndexedMutationBuilder() {
       return getSetReferenceSchemaIndexedMutationFieldBuilder().getBuilder();
     }
     /**
@@ -12468,17 +12468,17 @@ private static final long serialVersionUID = 0L;
      * Mutation can be used for altering also the existing `ReferenceSchema` alone.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutationOrBuilder getSetReferenceSchemaIndexedMutationOrBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutationOrBuilder getSetReferenceSchemaIndexedMutationOrBuilder() {
       if ((mutationCase_ == 90) && (setReferenceSchemaIndexedMutationBuilder_ != null)) {
         return setReferenceSchemaIndexedMutationBuilder_.getMessageOrBuilder();
       } else {
         if (mutationCase_ == 90) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_;
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation) mutation_;
         }
-        return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.getDefaultInstance();
+        return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.getDefaultInstance();
       }
     }
     /**
@@ -12487,18 +12487,18 @@ private static final long serialVersionUID = 0L;
      * Mutation can be used for altering also the existing `ReferenceSchema` alone.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutationOrBuilder>
         getSetReferenceSchemaIndexedMutationFieldBuilder() {
       if (setReferenceSchemaIndexedMutationBuilder_ == null) {
         if (!(mutationCase_ == 90)) {
-          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.getDefaultInstance();
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.getDefaultInstance();
         }
         setReferenceSchemaIndexedMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutationOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_,
+            io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation) mutation_,
                 getParentForChildren(),
                 isClean());
         mutation_ = null;

@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchem
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -51,6 +52,8 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
+import java.util.EnumMap;
 
 /**
  * Mutation is responsible for setting value to a {@link AttributeSchemaContract#isUnique()}
@@ -69,12 +72,32 @@ public class SetAttributeSchemaUniqueMutation
 	implements GlobalAttributeSchemaMutation, EntityAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 9015269199183582415L;
+
 	@Getter @Nonnull private final String name;
-	@Getter @Nonnull private final AttributeUniquenessType unique;
+	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;
 
 	public SetAttributeSchemaUniqueMutation(@Nonnull String name, @Nonnull AttributeUniquenessType unique) {
+		this(
+			name,
+			new ScopedAttributeUniquenessType[]{new ScopedAttributeUniquenessType(Scope.LIVE, unique)}
+		);
+	}
+
+	public SetAttributeSchemaUniqueMutation(@Nonnull String name, @Nullable ScopedAttributeUniquenessType[] uniqueInScopes) {
 		this.name = name;
-		this.unique = unique;
+		this.uniqueInScopes = uniqueInScopes == null ?
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+			} : uniqueInScopes;
+	}
+
+	@Nonnull
+	public AttributeUniquenessType getUnique() {
+		return Arrays.stream(this.uniqueInScopes)
+			.filter(scope -> scope.scope() == Scope.LIVE)
+			.map(ScopedAttributeUniquenessType::uniquenessType)
+			.findFirst()
+			.orElse(AttributeUniquenessType.NOT_UNIQUE);
 	}
 
 	@Nullable
@@ -105,57 +128,72 @@ public class SetAttributeSchemaUniqueMutation
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
+		final EnumMap<Scope, AttributeUniquenessType> unique = AttributeSchema.toUniquenessEnumMap(this.uniqueInScopes);
 		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
-			//noinspection unchecked,rawtypes
-			return (S) GlobalAttributeSchema._internalBuild(
-				name,
-				globalAttributeSchema.getNameVariants(),
-				globalAttributeSchema.getDescription(),
-				globalAttributeSchema.getDeprecationNotice(),
-				unique,
-				globalAttributeSchema.getGlobalUniquenessType(),
-				globalAttributeSchema.isFilterable(),
-				globalAttributeSchema.isSortable(),
-				globalAttributeSchema.isLocalized(),
-				globalAttributeSchema.isNullable(),
-				globalAttributeSchema.isRepresentative(),
-				(Class) globalAttributeSchema.getType(),
-				globalAttributeSchema.getDefaultValue(),
-				globalAttributeSchema.getIndexedDecimalPlaces()
-			);
+			if (globalAttributeSchema.getUniquenessTypeInScopes().equals(unique)) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) GlobalAttributeSchema._internalBuild(
+					this.name,
+					globalAttributeSchema.getNameVariants(),
+					globalAttributeSchema.getDescription(),
+					globalAttributeSchema.getDeprecationNotice(),
+					unique,
+					globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
+					globalAttributeSchema.getFilterableInScopes(),
+					globalAttributeSchema.getSortableInScopes(),
+					globalAttributeSchema.isLocalized(),
+					globalAttributeSchema.isNullable(),
+					globalAttributeSchema.isRepresentative(),
+					(Class) globalAttributeSchema.getType(),
+					globalAttributeSchema.getDefaultValue(),
+					globalAttributeSchema.getIndexedDecimalPlaces()
+				);
+			}
 		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
-			//noinspection unchecked,rawtypes
-			return (S) EntityAttributeSchema._internalBuild(
-				name,
-				entityAttributeSchema.getNameVariants(),
-				entityAttributeSchema.getDescription(),
-				entityAttributeSchema.getDeprecationNotice(),
-				unique,
-				entityAttributeSchema.isFilterable(),
-				entityAttributeSchema.isSortable(),
-				entityAttributeSchema.isLocalized(),
-				entityAttributeSchema.isNullable(),
-				entityAttributeSchema.isRepresentative(),
-				(Class)entityAttributeSchema.getType(),
-				entityAttributeSchema.getDefaultValue(),
-				entityAttributeSchema.getIndexedDecimalPlaces()
-			);
+			if (entityAttributeSchema.getFilterableInScopes().equals(unique)) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) EntityAttributeSchema._internalBuild(
+					this.name,
+					entityAttributeSchema.getNameVariants(),
+					entityAttributeSchema.getDescription(),
+					entityAttributeSchema.getDeprecationNotice(),
+					unique,
+					entityAttributeSchema.getFilterableInScopes(),
+					entityAttributeSchema.getSortableInScopes(),
+					entityAttributeSchema.isLocalized(),
+					entityAttributeSchema.isNullable(),
+					entityAttributeSchema.isRepresentative(),
+					(Class) entityAttributeSchema.getType(),
+					entityAttributeSchema.getDefaultValue(),
+					entityAttributeSchema.getIndexedDecimalPlaces()
+				);
+			}
+		} else if (attributeSchema instanceof AttributeSchema theAttributeSchema) {
+			if (theAttributeSchema.getUniquenessTypeInScopes().equals(unique)) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) AttributeSchema._internalBuild(
+					this.name,
+					theAttributeSchema.getNameVariants(),
+					theAttributeSchema.getDescription(),
+					theAttributeSchema.getDeprecationNotice(),
+					unique,
+					theAttributeSchema.getFilterableInScopes(),
+					theAttributeSchema.getSortableInScopes(),
+					theAttributeSchema.isLocalized(),
+					theAttributeSchema.isNullable(),
+					(Class) theAttributeSchema.getType(),
+					theAttributeSchema.getDefaultValue(),
+					theAttributeSchema.getIndexedDecimalPlaces()
+				);
+			}
 		} else {
-			//noinspection unchecked,rawtypes
-			return (S) AttributeSchema._internalBuild(
-				name,
-				attributeSchema.getNameVariants(),
-				attributeSchema.getDescription(),
-				attributeSchema.getDeprecationNotice(),
-				unique,
-				attributeSchema.isFilterable(),
-				attributeSchema.isSortable(),
-				attributeSchema.isLocalized(),
-				attributeSchema.isNullable(),
-				(Class) attributeSchema.getType(),
-				attributeSchema.getDefaultValue(),
-				attributeSchema.getIndexedDecimalPlaces()
-			);
+			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
 		}
 	}
 
@@ -216,6 +254,6 @@ public class SetAttributeSchemaUniqueMutation
 	@Override
 	public String toString() {
 		return "Set attribute `" + name + "` schema: " +
-			", unique=" + unique;
+			", unique=(" + (Arrays.stream(this.uniqueInScopes).map(it -> it.scope() + ": " + it.uniquenessType().name())) + ")";
 	}
 }

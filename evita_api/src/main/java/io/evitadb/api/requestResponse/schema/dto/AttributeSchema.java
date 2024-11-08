@@ -24,11 +24,14 @@
 package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -40,31 +43,58 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import static java.util.Optional.ofNullable;
 
 
 /**
  * Internal implementation of {@link AttributeSchemaContract}.
+ *
+ * TODO JNO - tady se pak některé _internalCreate metody určitě budou dát odstranit
  */
 @Immutable
 @ThreadSafe
 @EqualsAndHashCode
 public sealed class AttributeSchema implements AttributeSchemaContract permits EntityAttributeSchema, GlobalAttributeSchema {
 	@Serial private static final long serialVersionUID = 1340876688998990217L;
+	@Getter @Nonnull protected final String name;
+	@Getter @Nonnull protected final Map<NamingConvention, String> nameVariants;
+	@Getter @Nullable protected final Serializable defaultValue;
+	@Getter @Nullable protected final String deprecationNotice;
+	@Getter @Nullable protected final String description;
+	@Getter protected final boolean localized;
+	@Getter protected final boolean nullable;
+	@Getter protected final EnumMap<Scope, AttributeUniquenessType> uniquenessTypeInScopes;
+	@Getter protected final EnumSet<Scope> filterableInScopes;
+	@Getter protected final EnumSet<Scope> sortableInScopes;
+	@Getter @Nonnull protected final Class<? extends Serializable> type;
+	@Getter @Nonnull protected final Class<? extends Serializable> plainType;
+	@Getter protected final int indexedDecimalPlaces;
 
-	@Getter @Nonnull private final String name;
-	@Getter @Nonnull private final Map<NamingConvention, String> nameVariants;
-	@Getter @Nullable private final String description;
-	@Getter @Nullable private final String deprecationNotice;
-	@Getter private final AttributeUniquenessType uniquenessType;
-	@Getter private final boolean filterable;
-	@Getter private final boolean sortable;
-	@Getter private final boolean localized;
-	@Getter private final boolean nullable;
-	@Getter @Nonnull private final Class<? extends Serializable> type;
-	@Getter @Nullable private final Serializable defaultValue;
-	@Getter @Nonnull private final Class<? extends Serializable> plainType;
-	@Getter private final int indexedDecimalPlaces;
+	/**
+	 * Converts an array of ScopedAttributeUniquenessType objects into an EnumMap linking Scope to AttributeUniquenessType.
+	 * If the input array is null, it initializes the map with a default value of Scope.LIVE mapped to AttributeUniquenessType.NOT_UNIQUE.
+	 *
+	 * @param uniqueInScopes An array of ScopedAttributeUniquenessType to be converted. Can be null.
+	 * @return An EnumMap where each Scope is associated with its corresponding AttributeUniquenessType.
+	 */
+	@Nonnull
+	public static EnumMap<Scope, AttributeUniquenessType> toUniquenessEnumMap(@Nullable ScopedAttributeUniquenessType[] uniqueInScopes) {
+		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = new EnumMap<>(Scope.class);
+		if (uniqueInScopes != null) {
+			for (ScopedAttributeUniquenessType uniqueInScope : uniqueInScopes) {
+				theUniquenessType.put(uniqueInScope.scope(), uniqueInScope.uniquenessType());
+			}
+		} else {
+			theUniquenessType.put(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE);
+		}
+		return theUniquenessType;
+	}
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of AttributeSchema from
@@ -81,7 +111,10 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			null, false, false, localized, false,
+			toUniquenessEnumMap(null),
+			EnumSet.noneOf(Scope.class),
+			EnumSet.noneOf(Scope.class),
+			localized, false,
 			type, null,
 			0
 		);
@@ -96,15 +129,19 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	@Nonnull
 	public static <T extends Serializable> AttributeSchema _internalBuild(
 		@Nonnull String name,
-		@Nullable AttributeUniquenessType unique,
-		boolean filterable,
-		boolean sortable,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue
 	) {
-		if ((filterable || sortable) && BigDecimal.class.equals(type)) {
+		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
+		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
+		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortableInScopes);
+
+		if ((!theFilterableInScopes.isEmpty() || !theSortableInScopes.isEmpty()) && BigDecimal.class.equals(type)) {
 			throw new EvitaInvalidUsageException(
 				"IndexedDecimalPlaces must be specified for attributes of type BigDecimal (attribute: " + name + ")!"
 			);
@@ -112,7 +149,10 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			unique, filterable, sortable, localized, nullable,
+			theUniquenessType,
+			theFilterableInScopes,
+			theSortableInScopes,
+			localized, nullable,
 			type, defaultValue,
 			0
 		);
@@ -129,9 +169,51 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable AttributeUniquenessType unique,
-		boolean filterable,
-		boolean sortable,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
+		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
+		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
+		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortableInScopes);
+
+		if ((!theFilterableInScopes.isEmpty() || !theSortableInScopes.isEmpty()) && BigDecimal.class.equals(type)) {
+			throw new EvitaInvalidUsageException(
+				"IndexedDecimalPlaces must be specified for attributes of type BigDecimal (attribute: " + name + ")!"
+			);
+		}
+
+		return new AttributeSchema(
+			name, NamingConvention.generate(name),
+			description, deprecationNotice,
+			theUniquenessType,
+			theFilterableInScopes,
+			theSortableInScopes,
+			localized, nullable,
+			type, defaultValue,
+			indexedDecimalPlaces
+		);
+	}
+
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of AttributeSchema from
+	 * different package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
+	public static <T extends Serializable> AttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable EnumMap<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
+		@Nullable EnumSet<Scope> filterableInScopes,
+		@Nullable EnumSet<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		@Nonnull Class<T> type,
@@ -141,7 +223,10 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
 			description, deprecationNotice,
-			unique, filterable, sortable, localized, nullable,
+			uniquenessTypeInScopes,
+			filterableInScopes,
+			sortableInScopes,
+			localized, nullable,
 			type, defaultValue,
 			indexedDecimalPlaces
 		);
@@ -159,9 +244,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable AttributeUniquenessType unique,
-		boolean filterable,
-		boolean sortable,
+		@Nullable EnumMap<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
+		@Nullable EnumSet<Scope> filterableInScopes,
+		@Nullable EnumSet<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		@Nonnull Class<T> type,
@@ -171,7 +256,53 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		return new AttributeSchema(
 			name, nameVariants,
 			description, deprecationNotice,
-			unique, filterable, sortable, localized, nullable,
+			uniquenessTypeInScopes,
+			filterableInScopes,
+			sortableInScopes,
+			localized, nullable,
+			type, defaultValue,
+			indexedDecimalPlaces
+		);
+	}
+
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of AttributeSchema from
+	 * different package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
+	public static <T extends Serializable> AttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
+		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
+		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
+		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortableInScopes);
+
+		if ((!theFilterableInScopes.isEmpty() || !theSortableInScopes.isEmpty()) && BigDecimal.class.equals(type)) {
+			throw new EvitaInvalidUsageException(
+				"IndexedDecimalPlaces must be specified for attributes of type BigDecimal (attribute: " + name + ")!"
+			);
+		}
+
+		return new AttributeSchema(
+			name, nameVariants,
+			description, deprecationNotice,
+			theUniquenessType,
+			theFilterableInScopes,
+			theSortableInScopes,
+			localized, nullable,
 			type, defaultValue,
 			indexedDecimalPlaces
 		);
@@ -182,9 +313,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable AttributeUniquenessType uniquenessType,
-		boolean filterable,
-		boolean sortable,
+		@Nullable EnumMap<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
+		@Nullable EnumSet<Scope> filterableInScopes,
+		@Nullable EnumSet<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		@Nonnull Class<T> type,
@@ -195,9 +326,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		this.nameVariants = nameVariants;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.uniquenessType = uniquenessType == null ? AttributeUniquenessType.NOT_UNIQUE : uniquenessType;
-		this.filterable = filterable;
-		this.sortable = sortable;
+		this.uniquenessTypeInScopes = uniquenessTypeInScopes == null ? new EnumMap<>(Scope.class) : uniquenessTypeInScopes;
+		this.filterableInScopes = filterableInScopes == null ? EnumSet.noneOf(Scope.class) : filterableInScopes;
+		this.sortableInScopes = sortableInScopes == null ? EnumSet.noneOf(Scope.class) : sortableInScopes;
 		this.localized = localized;
 		this.nullable = nullable;
 		this.type = EvitaDataTypes.toWrappedForm(type);
@@ -215,12 +346,38 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 
 	@Override
 	public boolean isUnique() {
-		return uniquenessType != AttributeUniquenessType.NOT_UNIQUE;
+		return this.uniquenessTypeInScopes.get(Scope.LIVE) != AttributeUniquenessType.NOT_UNIQUE;
+	}
+
+	@Override
+	public boolean isUnique(@Nonnull Scope scope) {
+		return this.uniquenessTypeInScopes.get(scope) != AttributeUniquenessType.NOT_UNIQUE;
 	}
 
 	@Override
 	public boolean isUniqueWithinLocale() {
-		return uniquenessType == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
+		return this.uniquenessTypeInScopes.get(Scope.LIVE) == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
+	}
+
+	@Override
+	public boolean isUniqueWithinLocale(@Nonnull Scope scope) {
+		return this.uniquenessTypeInScopes.get(scope) == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<AttributeUniquenessType> getUniquenessType(@Nonnull Scope scope) {
+		return ofNullable(this.uniquenessTypeInScopes.get(scope));
+	}
+
+	@Override
+	public boolean isFilterable(@Nonnull Scope scope) {
+		return this.filterableInScopes.contains(scope);
+	}
+
+	@Override
+	public boolean isSortable(@Nonnull Scope scope) {
+		return this.sortableInScopes.contains(scope);
 	}
 
 	/**
@@ -232,14 +389,14 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	@Nonnull
 	public AttributeSchemaContract withInvertedType() {
 		if (Predecessor.class.equals(this.plainType)) {
-			return AttributeSchema._internalBuild(
+			return new AttributeSchema(
 				this.name,
 				this.nameVariants,
 				this.description,
 				this.deprecationNotice,
-				this.uniquenessType,
-				this.filterable,
-				this.sortable,
+				this.uniquenessTypeInScopes,
+				this.filterableInScopes,
+				this.sortableInScopes,
 				this.localized,
 				this.nullable,
 				ReferencedEntityPredecessor.class,
@@ -247,14 +404,14 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 				this.indexedDecimalPlaces
 			);
 		} else if (ReferencedEntityPredecessor.class.equals(this.plainType)) {
-			return AttributeSchema._internalBuild(
+			return new AttributeSchema(
 				this.name,
 				this.nameVariants,
 				this.description,
 				this.deprecationNotice,
-				this.uniquenessType,
-				this.filterable,
-				this.sortable,
+				this.uniquenessTypeInScopes,
+				this.filterableInScopes,
+				this.sortableInScopes,
 				this.localized,
 				this.nullable,
 				Predecessor.class,
@@ -271,14 +428,15 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	@Override
 	public String toString() {
 		return "AttributeSchema{" +
-			"name='" + name + '\'' +
-			", unique=" + uniquenessType +
-			", filterable=" + filterable +
-			", sortable=" + sortable +
-			", localized=" + localized +
-			", nullable=" + nullable +
-			", type=" + type +
-			", indexedDecimalPlaces=" + indexedDecimalPlaces +
+			"name='" + this.name + '\'' + (this.deprecationNotice == null ? "" : " (deprecated)") +
+			", unique=(" + (this.uniquenessTypeInScopes.entrySet().stream().map(it -> it.getKey() + ": " + it.getValue().name())) + ")" +
+			", filterable=" + (this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + this.filterableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
+			", sortable=" + (this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + this.sortableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
+			", localized=" + this.localized +
+			", nullable=" + this.nullable +
+			", type=" + this.type +
+			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
+			", defaultValue=" + this.defaultValue +
 			'}';
 	}
 }

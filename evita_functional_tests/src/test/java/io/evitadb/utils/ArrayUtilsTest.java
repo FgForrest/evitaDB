@@ -27,6 +27,7 @@ import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import java.util.EnumSet;
 import java.util.function.IntBinaryOperator;
 import java.util.function.UnaryOperator;
 
@@ -41,6 +42,41 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class ArrayUtilsTest {
+
+	@Test
+	void testToEnumSetWithValidInput() {
+		TestEnum[] input = {TestEnum.VALUE1, TestEnum.VALUE2};
+		EnumSet<TestEnum> result = ArrayUtils.toEnumSet(TestEnum.class, input);
+		assertEquals(EnumSet.of(TestEnum.VALUE1, TestEnum.VALUE2), result);
+	}
+
+	@Test
+	void testToEnumSetWithSingleValueInput() {
+		TestEnum[] input = {TestEnum.VALUE1};
+		EnumSet<TestEnum> result = ArrayUtils.toEnumSet(TestEnum.class, input);
+		assertEquals(EnumSet.of(TestEnum.VALUE1), result);
+	}
+
+	@Test
+	void testToEnumSetWithEmptyInput() {
+		TestEnum[] input = {};
+		EnumSet<TestEnum> result = ArrayUtils.toEnumSet(TestEnum.class, input);
+		assertTrue(result.isEmpty());
+	}
+
+	@Test
+	void testToEnumSetWithNullInput() {
+		TestEnum[] input = null;
+		EnumSet<TestEnum> result = ArrayUtils.toEnumSet(TestEnum.class, input);
+		assertTrue(result.isEmpty());
+	}
+
+	@Test
+	void testToEnumSetWithNullValues() {
+		TestEnum[] input = {null, TestEnum.VALUE1};
+		EnumSet<TestEnum> result = ArrayUtils.toEnumSet(TestEnum.class, input);
+		assertEquals(EnumSet.of(TestEnum.VALUE1), result);
+	}
 
 	@Test
 	void shouldReturnTrueForEmptyObjectArray() {
@@ -203,7 +239,7 @@ class ArrayUtilsTest {
 		final String[] external = {"F", "B", "D", "A", "E", "I"};
 		ArrayUtils.sortArray(String.CASE_INSENSITIVE_ORDER, external);
 		assertArrayEquals(
-			new String[] {"A", "B", "D", "E", "F", "I"},
+			new String[]{"A", "B", "D", "E", "F", "I"},
 			external
 		);
 	}
@@ -269,57 +305,61 @@ class ArrayUtilsTest {
 	@Test
 	void shouldExtractSubarrayList() {
 		final Integer[] theArray = {7, 1, 9, 4, 5};
-		assertArrayEquals(new Object[] {1, 9, 4}, ArrayUtils.asList(theArray, 1, 4).toArray());
-		assertArrayEquals(new Object[] {7}, ArrayUtils.asList(theArray, 0, 1).toArray());
-		assertArrayEquals(new Object[] {5}, ArrayUtils.asList(theArray, 4, 5).toArray());
+		assertArrayEquals(new Object[]{1, 9, 4}, ArrayUtils.asList(theArray, 1, 4).toArray());
+		assertArrayEquals(new Object[]{7}, ArrayUtils.asList(theArray, 0, 1).toArray());
+		assertArrayEquals(new Object[]{5}, ArrayUtils.asList(theArray, 4, 5).toArray());
 	}
 
 	@Test
 	void shouldExtractSubarray() {
 		final Serializable[] theArray = {7, 1, 9, 4, 5};
-		assertArrayEquals(new Integer[] {1, 9, 4}, ArrayUtils.copyOf(theArray, Integer.class, 1, 4));
-		assertArrayEquals(new Integer[] {7}, ArrayUtils.copyOf(theArray, Integer.class, 0, 1));
-		assertArrayEquals(new Integer[] {5}, ArrayUtils.copyOf(theArray, Integer.class, 4, 5));
+		assertArrayEquals(new Integer[]{1, 9, 4}, ArrayUtils.copyOf(theArray, Integer.class, 1, 4));
+		assertArrayEquals(new Integer[]{7}, ArrayUtils.copyOf(theArray, Integer.class, 0, 1));
+		assertArrayEquals(new Integer[]{5}, ArrayUtils.copyOf(theArray, Integer.class, 4, 5));
 	}
 
 	@Test
 	void shouldSortArray() {
-		final int[] sortedArray = new int[] {8, 5, 6, 2, 9, 7, 1, 3};
+		final int[] sortedArray = new int[]{8, 5, 6, 2, 9, 7, 1, 3};
 		final UnaryOperator<int[]> converter = (in) -> {
 			ArrayUtils.sortAlong(sortedArray, in);
 			return in;
 		};
-		assertArrayEquals(new int[] {5, 1, 3}, converter.apply(new int[] {1, 3, 5}));
-		assertArrayEquals(new int[] {8, 5, 2, 1, 3}, converter.apply(new int[] {1, 2, 3, 5, 8}));
-		assertArrayEquals(new int[] {8, 5, 2, 4, 10}, converter.apply(new int[] {2, 4, 5, 8, 10}));
+		assertArrayEquals(new int[]{5, 1, 3}, converter.apply(new int[]{1, 3, 5}));
+		assertArrayEquals(new int[]{8, 5, 2, 1, 3}, converter.apply(new int[]{1, 2, 3, 5, 8}));
+		assertArrayEquals(new int[]{8, 5, 2, 4, 10}, converter.apply(new int[]{2, 4, 5, 8, 10}));
 	}
 
 	@Test
 	void shouldSortArrayWithDuplicateValues() {
-		final int[] sortedArray = new int[] {8, 5, 5, 6, 2, 9, 7, 1, 3};
+		final int[] sortedArray = new int[]{8, 5, 5, 6, 2, 9, 7, 1, 3};
 		final UnaryOperator<int[]> converter = (in) -> {
 			ArrayUtils.sortAlong(sortedArray, in);
 			return in;
 		};
-		assertArrayEquals(new int[] {5, 1, 3}, converter.apply(new int[] {1, 3, 5}));
-		assertArrayEquals(new int[] {5, 1, 3, 3}, converter.apply(new int[] {1, 3, 3, 5}));
+		assertArrayEquals(new int[]{5, 1, 3}, converter.apply(new int[]{1, 3, 5}));
+		assertArrayEquals(new int[]{5, 1, 3, 3}, converter.apply(new int[]{1, 3, 3, 5}));
 	}
 
 	@Test
 	void shouldRemoveRangeFromArray() {
-		final int[] someArray = new int[] {8, 5, 6, 2, 9, 7, 1, 3};
-		assertArrayEquals(new int[] {2, 9, 7, 1, 3}, ArrayUtils.removeRangeFromArray(someArray, 0, 3));
-		assertArrayEquals(new int[] {8, 2, 9, 7, 1, 3}, ArrayUtils.removeRangeFromArray(someArray, 1, 3));
-		assertArrayEquals(new int[] {8, 5, 6, 2, 7, 1, 3}, ArrayUtils.removeRangeFromArray(someArray, 4, 5));
-		assertArrayEquals(new int[] {8, 5, 6, 2, 9, 7}, ArrayUtils.removeRangeFromArray(someArray, 6, 8));
+		final int[] someArray = new int[]{8, 5, 6, 2, 9, 7, 1, 3};
+		assertArrayEquals(new int[]{2, 9, 7, 1, 3}, ArrayUtils.removeRangeFromArray(someArray, 0, 3));
+		assertArrayEquals(new int[]{8, 2, 9, 7, 1, 3}, ArrayUtils.removeRangeFromArray(someArray, 1, 3));
+		assertArrayEquals(new int[]{8, 5, 6, 2, 7, 1, 3}, ArrayUtils.removeRangeFromArray(someArray, 4, 5));
+		assertArrayEquals(new int[]{8, 5, 6, 2, 9, 7}, ArrayUtils.removeRangeFromArray(someArray, 6, 8));
 	}
 
-	private void assertInsertPosition(InsertionPosition insertionPosition, boolean found, int index) {
+	private static void assertInsertPosition(InsertionPosition insertionPosition, boolean found, int index) {
 		if (found) {
 			assertTrue(insertionPosition.alreadyPresent());
 		} else {
 			assertFalse(insertionPosition.alreadyPresent());
 		}
 		assertEquals(index, insertionPosition.position());
+	}
+
+	private enum TestEnum {
+		VALUE1, VALUE2, VALUE3
 	}
 }

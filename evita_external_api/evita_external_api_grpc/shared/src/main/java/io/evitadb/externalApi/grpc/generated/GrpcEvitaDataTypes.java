@@ -232,6 +232,16 @@ public final class GrpcEvitaDataTypes {
   static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcNameVariant_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedAttributeUniquenessType_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedAttributeUniquenessType_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedGlobalAttributeUniquenessType_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedGlobalAttributeUniquenessType_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -428,8 +438,18 @@ public final class GrpcEvitaDataTypes {
       "zeOnDiskInBytes\030\004 \001(\003\"v\n\017GrpcNameVariant" +
       "\022U\n\020namingConvention\030\001 \001(\0162;.io.evitadb." +
       "externalApi.grpc.generated.GrpcNamingCon" +
-      "vention\022\014\n\004name\030\002 \001(\tB\014P\001\252\002\007EvitaDBb\006pro" +
-      "to3"
+      "vention\022\014\n\004name\030\002 \001(\t\"\306\001\n!GrpcScopedAttr" +
+      "ibuteUniquenessType\022E\n\005scope\030\001 \001(\01626.io." +
+      "evitadb.externalApi.grpc.generated.GrpcE" +
+      "ntityScope\022Z\n\016uniquenessType\030\002 \001(\0162B.io." +
+      "evitadb.externalApi.grpc.generated.GrpcA" +
+      "ttributeUniquenessType\"\322\001\n\'GrpcScopedGlo" +
+      "balAttributeUniquenessType\022E\n\005scope\030\001 \001(" +
+      "\01626.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcEntityScope\022`\n\016uniquenessType\030\002 \001(" +
+      "\0162H.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcGlobalAttributeUniquenessTypeB\014P\001\252" +
+      "\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -672,6 +692,18 @@ public final class GrpcEvitaDataTypes {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcNameVariant_descriptor,
         new java.lang.String[] { "NamingConvention", "Name", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedAttributeUniquenessType_descriptor =
+      getDescriptor().getMessageTypes().get(39);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedAttributeUniquenessType_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedAttributeUniquenessType_descriptor,
+        new java.lang.String[] { "Scope", "UniquenessType", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedGlobalAttributeUniquenessType_descriptor =
+      getDescriptor().getMessageTypes().get(40);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedGlobalAttributeUniquenessType_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedGlobalAttributeUniquenessType_descriptor,
+        new java.lang.String[] { "Scope", "UniquenessType", });
     com.google.protobuf.TimestampProto.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();

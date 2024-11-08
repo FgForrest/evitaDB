@@ -24,12 +24,15 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 /**
  * Converts between {@link SetAttributeSchemaSortableMutation} and {@link GrpcSetAttributeSchemaSortableMutation} in both directions.
@@ -42,9 +45,17 @@ public class SetAttributeSchemaSortableMutationConverter implements SchemaMutati
 
 	@Nonnull
 	public SetAttributeSchemaSortableMutation convert(@Nonnull GrpcSetAttributeSchemaSortableMutation mutation) {
+		final Scope[] sortableInScopes = mutation.getSortableInScopesList().isEmpty() ?
+			(mutation.getSortable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			:
+			mutation.getSortableInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+
 		return new SetAttributeSchemaSortableMutation(
 			mutation.getName(),
-			mutation.getSortable()
+			sortableInScopes
 		);
 	}
 
@@ -53,6 +64,11 @@ public class SetAttributeSchemaSortableMutationConverter implements SchemaMutati
 		return GrpcSetAttributeSchemaSortableMutation.newBuilder()
 			.setName(mutation.getName())
 			.setSortable(mutation.isSortable())
+			.addAllSortableInScopes(
+				Arrays.stream(mutation.getSortableInScopes())
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.build();
 	}
 }

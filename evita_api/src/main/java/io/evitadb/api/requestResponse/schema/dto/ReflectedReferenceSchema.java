@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -48,19 +49,13 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Optional;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Internal implementation of {@link ReflectedReferenceSchemaContract}.
@@ -97,7 +92,11 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 */
 	private final boolean cardinalityInherited;
 	/**
-	 * Contains TRUE if the faceted flag of the reflected reference is inherited from the target reference.
+	 * Contains TRUE if the indexed scopes of the reflected reference is inherited from the target reference.
+	 */
+	private final boolean indexedInherited;
+	/**
+	 * Contains TRUE if the faceted scopes of the reflected reference is inherited from the target reference.
 	 */
 	private final boolean facetedInherited;
 	/**
@@ -138,6 +137,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			entityType,
 			reflectedReferenceName,
 			null,
+			null,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -160,19 +160,28 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull String entityType,
 		@Nonnull String reflectedReferenceName,
 		@Nullable Cardinality cardinality,
-		@Nullable Boolean faceted,
+		@Nullable Scope[] indexedInScopes,
+		@Nullable Scope[] facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
 		@Nullable String[] attributesExcludedFromInheritance
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
+		// we cannot validate here that all faceted scopes are also indexed, in case indexed scopes are inherited
+		final EnumSet<Scope> indexedScopes = indexedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
+		final EnumSet<Scope> facetedScopes = facetedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
+		if (indexedInScopes != null && facetedInScopes != null) {
+			validateScopeSettings(facetedScopes, indexedScopes);
+		}
+
 		return new ReflectedReferenceSchema(
 			name, NamingConvention.generate(name),
 			description, deprecationNotice, cardinality,
 			entityType,
 			reflectedReferenceName,
-			faceted,
+			indexedScopes,
+			facetedScopes,
 			attributes,
 			sortableAttributeCompounds,
 			attributesInherited,
@@ -196,19 +205,28 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull String entityType,
 		@Nonnull String reflectedReferenceName,
 		@Nullable Cardinality cardinality,
-		@Nullable Boolean faceted,
+		@Nullable Scope[] indexedInScopes,
+		@Nullable Scope[] facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
 		@Nullable String[] attributesExcludedFromInheritance
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
+		// we cannot validate here that all faceted scopes are also indexed, in case indexed scopes are inherited
+		final EnumSet<Scope> indexedScopes = indexedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
+		final EnumSet<Scope> facetedScopes = facetedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
+		if (indexedInScopes != null && facetedInScopes != null) {
+			validateScopeSettings(facetedScopes, indexedScopes);
+		}
+
 		return new ReflectedReferenceSchema(
 			name, nameVariants,
 			description, deprecationNotice, cardinality,
 			entityType,
 			reflectedReferenceName,
-			faceted,
+			indexedScopes,
+			facetedScopes,
 			attributes,
 			sortableAttributeCompounds,
 			attributesInherited,
@@ -236,30 +254,42 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		boolean referencedGroupManaged,
 		@Nonnull String reflectedReferenceName,
 		@Nullable Cardinality cardinality,
-		@Nullable Boolean faceted,
+		@Nullable Scope[] indexedInScopes,
+		@Nullable Scope[] facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		boolean descriptionInherited,
 		boolean deprecatedInherited,
 		boolean cardinalityInherited,
+		boolean indexedInherited,
 		boolean facetedInherited,
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
 		@Nullable String[] attributesExcludedFromInheritance,
 		@Nullable ReferenceSchemaContract reflectedReference
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
+
+		// we cannot validate here that all faceted scopes are also indexed, in case indexed scopes are inherited
+		final EnumSet<Scope> indexedScopes = ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
+		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
+		if (!indexedInherited && !facetedInherited) {
+			validateScopeSettings(facetedScopes, indexedScopes);
+		}
+
 		return new ReflectedReferenceSchema(
 			name, nameVariants,
 			description, deprecationNotice, cardinality,
 			entityType, entityTypeVariants,
 			referencedGroupType, groupTypeVariants, referencedGroupManaged,
 			reflectedReferenceName,
-			faceted,
+			indexedScopes,
+			facetedScopes,
 			attributes,
 			sortableAttributeCompounds,
 			descriptionInherited,
 			deprecatedInherited,
 			cardinalityInherited,
+			indexedInherited,
 			facetedInherited,
 			attributesInherited,
 			attributesExcludedFromInheritance == null ? new String[0] : attributesExcludedFromInheritance,
@@ -364,7 +394,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Cardinality cardinality,
 		@Nonnull String referencedEntityType,
 		@Nonnull String reflectedReferenceName,
-		@Nullable Boolean faceted,
+		@Nullable EnumSet<Scope> indexedInScopes,
+		@Nullable EnumSet<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
@@ -381,8 +412,24 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			reflectedReference != null ? reflectedReference.getReferencedGroupType() : null,
 			Map.of(),
 			reflectedReference != null && reflectedReference.isReferencedGroupTypeManaged(),
-			true,
-			faceted == null ? reflectedReference != null && reflectedReference.isFaceted() : faceted,
+			indexedInScopes == null ?
+				ofNullable(reflectedReference)
+					.map(
+						rr -> Arrays.stream(Scope.values())
+							.filter(rr::isIndexed)
+							.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class)))
+					)
+					.orElseGet(() -> EnumSet.of(Scope.LIVE))
+				: indexedInScopes,
+			facetedInScopes == null ?
+				ofNullable(reflectedReference)
+					.map(
+						rr -> Arrays.stream(Scope.values())
+							.filter(rr::isFaceted)
+							.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class)))
+					)
+					.orElseGet(() -> EnumSet.noneOf(Scope.class))
+				: facetedInScopes,
 			reflectedReference == null ?
 				attributes :
 				union(
@@ -417,10 +464,15 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.cardinalityInherited || cardinality != null,
 			"Cardinality must be either inherited or specified explicitly!"
 		);
-		this.facetedInherited = faceted == null;
+		this.indexedInherited = indexedInScopes == null;
 		Assert.isTrue(
-			this.facetedInherited || faceted != null,
-			"Faceted must be either inherited or specified explicitly!"
+			this.indexedInherited || (indexedInScopes != null && !indexedInScopes.isEmpty()),
+			"Indexed scopes must be either inherited or specified explicitly!"
+		);
+		this.facetedInherited = facetedInScopes == null;
+		Assert.isTrue(
+			this.facetedInherited || (facetedInScopes != null && !facetedInScopes.isEmpty()),
+			"Faceted scopes must be either inherited or specified explicitly!"
 		);
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? new String[0] : attributeInheritanceFilter;
@@ -443,7 +495,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		}
 	}
 
-	public ReflectedReferenceSchema(
+	ReflectedReferenceSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
@@ -455,12 +507,14 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Map<NamingConvention, String> groupTypeVariants,
 		boolean referencedGroupManaged,
 		@Nonnull String reflectedReferenceName,
-		@Nullable Boolean faceted,
+		@Nullable EnumSet<Scope> indexedInScopes,
+		@Nullable EnumSet<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		boolean descriptionInherited,
 		boolean deprecatedInherited,
 		boolean cardinalityInherited,
+		boolean indexedInherited,
 		boolean facetedInherited,
 		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter,
@@ -477,8 +531,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			referencedGroupType,
 			groupTypeVariants == null ? Map.of() : groupTypeVariants,
 			referencedGroupManaged,
-			true,
-			faceted,
+			indexedInScopes,
+			facetedInScopes,
 			attributes,
 			sortableAttributeCompounds
 		);
@@ -487,6 +541,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		this.descriptionInherited = descriptionInherited;
 		this.deprecatedInherited = deprecatedInherited;
 		this.cardinalityInherited = cardinalityInherited;
+		this.indexedInherited = indexedInherited;
 		this.facetedInherited = facetedInherited;
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? new String[0] : attributeInheritanceFilter;
@@ -528,6 +583,11 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	@Override
 	public boolean isCardinalityInherited() {
 		return this.cardinalityInherited;
+	}
+
+	@Override
+	public boolean isIndexedInherited() {
+		return this.indexedInherited;
 	}
 
 	@Override
@@ -745,7 +805,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.cardinalityInherited ? null : this.getCardinality(),
 			newReferencedEntityType,
 			this.reflectedReferenceName,
-			this.facetedInherited ? null : this.isFaceted(),
+			this.indexedInherited ? null : this.indexedInScopes,
+			this.facetedInherited ? null : this.facetedInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				super.getAttributes() :
@@ -785,19 +846,29 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		if (!super.equals(o)) return false;
 
 		ReflectedReferenceSchema that = (ReflectedReferenceSchema) o;
-		return descriptionInherited == that.descriptionInherited && deprecatedInherited == that.deprecatedInherited && cardinalityInherited == that.cardinalityInherited && facetedInherited == that.facetedInherited && attributesInheritanceBehavior == that.attributesInheritanceBehavior && reflectedReferenceName.equals(that.reflectedReferenceName) && Arrays.equals(attributeInheritanceFilter, that.attributeInheritanceFilter);
+		return this.descriptionInherited == that.descriptionInherited &&
+			this.deprecatedInherited == that.deprecatedInherited &&
+			this.cardinalityInherited == that.cardinalityInherited &&
+			this.indexedInherited == that.indexedInherited &&
+			Objects.equals(this.indexedInScopes, that.indexedInScopes) &&
+			this.facetedInherited == that.facetedInherited &&
+			Objects.equals(this.facetedInScopes, that.facetedInScopes) &&
+			this.attributesInheritanceBehavior == that.attributesInheritanceBehavior &&
+			this.reflectedReferenceName.equals(that.reflectedReferenceName) &&
+			Arrays.equals(this.attributeInheritanceFilter, that.attributeInheritanceFilter);
 	}
 
 	@Override
 	public int hashCode() {
 		int result = super.hashCode();
-		result = 31 * result + reflectedReferenceName.hashCode();
-		result = 31 * result + Boolean.hashCode(descriptionInherited);
-		result = 31 * result + Boolean.hashCode(deprecatedInherited);
-		result = 31 * result + Boolean.hashCode(cardinalityInherited);
-		result = 31 * result + Boolean.hashCode(facetedInherited);
-		result = 31 * result + attributesInheritanceBehavior.hashCode();
-		result = 31 * result + Arrays.hashCode(attributeInheritanceFilter);
+		result = 31 * result + this.reflectedReferenceName.hashCode();
+		result = 31 * result + Boolean.hashCode(this.descriptionInherited);
+		result = 31 * result + Boolean.hashCode(this.deprecatedInherited);
+		result = 31 * result + Boolean.hashCode(this.cardinalityInherited);
+		result = 31 * result + Boolean.hashCode(this.indexedInherited) + (this.indexedInherited ? 0 : this.indexedInScopes.hashCode());
+		result = 31 * result + Boolean.hashCode(this.facetedInherited) + (this.facetedInherited ? 0 : this.facetedInScopes.hashCode());
+		result = 31 * result + this.attributesInheritanceBehavior.hashCode();
+		result = 31 * result + Arrays.hashCode(this.attributeInheritanceFilter);
 		return result;
 	}
 
@@ -868,7 +939,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
-			this.faceted,
+			this.indexedInScopes,
+			this.facetedInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				super.getAttributes() :
@@ -890,6 +962,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.descriptionInherited,
 			this.deprecatedInherited,
 			this.cardinalityInherited,
+			this.indexedInherited,
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
@@ -917,7 +990,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
-			this.faceted,
+			this.indexedInScopes,
+			this.facetedInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				super.getAttributes() :
@@ -939,6 +1013,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			description == null,
 			this.deprecatedInherited,
 			this.cardinalityInherited,
+			this.indexedInherited,
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
@@ -966,7 +1041,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
-			this.faceted,
+			this.indexedInScopes,
+			this.facetedInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				super.getAttributes() :
@@ -988,6 +1064,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.descriptionInherited,
 			deprecationNotice == null,
 			this.cardinalityInherited,
+			this.indexedInherited,
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
@@ -1015,7 +1092,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
-			this.faceted,
+			this.indexedInScopes,
+			this.facetedInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				super.getAttributes() :
@@ -1037,6 +1115,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.descriptionInherited,
 			this.deprecatedInherited,
 			cardinality == null,
+			this.indexedInherited,
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
@@ -1045,13 +1124,15 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	}
 
 	/**
-	 * Creates a copy of this instance with different settings for:
+	 * Creates a copy of this instance with different settings for indexed property. The NULL value has specific meaning.
+	 * It means that the indexed property is inherited from the reflected reference. Empty array means that the reflected
+	 * reference is not indexed.
 	 *
-	 * @param faceted new value of faceted property
+	 * @param indexedInScopes new value of indexed property
 	 * @return copy of the schema with applied changes
 	 */
 	@Nonnull
-	public ReflectedReferenceSchemaContract withFaceted(@Nullable Boolean faceted) {
+	public ReflectedReferenceSchemaContract withIndexed(@Nullable Scope[] indexedInScopes) {
 		return new ReflectedReferenceSchema(
 			this.name,
 			this.nameVariants,
@@ -1064,7 +1145,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
-			faceted,
+			indexedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, indexedInScopes),
+			this.facetedInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				super.getAttributes() :
@@ -1086,7 +1168,61 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.descriptionInherited,
 			this.deprecatedInherited,
 			this.cardinalityInherited,
-			faceted == null,
+			indexedInScopes == null,
+			this.facetedInherited,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
+			this.reflectedReference
+		);
+	}
+
+	/**
+	 * Creates a copy of this instance with different settings for faceted property. The NULL value has specific meaning.
+	 * It means that the faceted property is inherited from the reflected reference. Empty array means that the reflected
+	 * reference is not faceted.
+	 *
+	 * @param facetedInScopes new value of faceted property
+	 * @return copy of the schema with applied changes
+	 */
+	@Nonnull
+	public ReflectedReferenceSchemaContract withFaceted(@Nullable Scope[] facetedInScopes) {
+		return new ReflectedReferenceSchema(
+			this.name,
+			this.nameVariants,
+			this.description,
+			this.deprecationNotice,
+			this.cardinality,
+			this.referencedEntityType,
+			this.entityTypeNameVariants,
+			this.referencedGroupType,
+			this.groupTypeNameVariants,
+			this.referencedGroupTypeManaged,
+			this.reflectedReferenceName,
+			this.indexedInScopes,
+			facetedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, facetedInScopes),
+			this.reflectedReference == null ?
+				// when reflected reference is not present, only attributes unique for reflected ones are present
+				super.getAttributes() :
+				// if the reflected reference is present, attributes are merged using union function and we need to
+				// filter them out to leave attributes added on the reflected reference only
+				intersect(
+					this.getAttributes(),
+					attributeName -> this.reflectedReference.getAttribute(attributeName).isPresent()
+				),
+			this.reflectedReference == null ?
+				// when reflected reference is not present, only attributes unique for reflected ones are present
+				super.getSortableAttributeCompounds() :
+				// if the reflected reference is present, attributes are merged using union function and we need to
+				// filter them out to leave attributes added on the reflected reference only
+				intersect(
+					this.getSortableAttributeCompounds(),
+					sortableAttributeCompoundName -> this.reflectedReference.getSortableAttributeCompound(sortableAttributeCompoundName).isPresent()
+				),
+			this.descriptionInherited,
+			this.deprecatedInherited,
+			this.cardinalityInherited,
+			this.indexedInherited,
+			facetedInScopes == null,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
 			this.reflectedReference
@@ -1117,7 +1253,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
-			this.faceted,
+			this.indexedInScopes,
+			this.facetedInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				super.getAttributes() :
@@ -1139,6 +1276,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.descriptionInherited,
 			this.deprecatedInherited,
 			this.cardinalityInherited,
+			this.indexedInherited,
 			this.facetedInherited,
 			inheritanceBehavior,
 			attributeInheritanceFilter,
@@ -1168,7 +1306,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
-			this.faceted,
+			this.indexedInScopes,
+			this.facetedInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				newlyDeclaredAttributes :
@@ -1192,6 +1331,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.descriptionInherited,
 			this.deprecatedInherited,
 			this.cardinalityInherited,
+			this.indexedInherited,
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
@@ -1221,7 +1361,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
-			this.faceted,
+			this.indexedInScopes,
+			this.facetedInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				super.getAttributes() :
@@ -1245,6 +1386,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.descriptionInherited,
 			this.deprecatedInherited,
 			this.cardinalityInherited,
+			this.indexedInherited,
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,
@@ -1267,6 +1409,18 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					"` must be indexed in order to propagate changes to reflected reference `" + getName() + "`!"
 			)
 		);
+		final EnumSet<Scope> indexedScopes = this.indexedInherited ?
+			Arrays.stream(Scope.values())
+				.filter(originalReference::isIndexed)
+				.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class))) :
+			this.indexedInScopes;
+		final EnumSet<Scope> facetedScopes = this.facetedInherited ?
+			Arrays.stream(Scope.values())
+				.filter(originalReference::isFaceted)
+				.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class))) :
+			this.facetedInScopes;
+		validateScopeSettings(facetedScopes, indexedScopes);
+
 		return new ReflectedReferenceSchema(
 			this.name,
 			this.nameVariants,
@@ -1279,7 +1433,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
-			this.facetedInherited ? originalReference.isFaceted() : this.faceted,
+			indexedScopes,
+			facetedScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
 				union(
@@ -1315,6 +1470,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.descriptionInherited,
 			this.deprecatedInherited,
 			this.cardinalityInherited,
+			this.indexedInherited,
 			this.facetedInherited,
 			this.attributesInheritanceBehavior,
 			this.attributeInheritanceFilter,

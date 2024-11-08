@@ -33,6 +33,8 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -42,7 +44,9 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Optional;
 
 /**
@@ -60,11 +64,33 @@ import java.util.Optional;
 public class SetReferenceSchemaIndexedMutation
 	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -4329391051963284444L;
-	@Getter private final Boolean indexed;
+	@Getter private final Scope[] indexedInScopes;
 
-	public SetReferenceSchemaIndexedMutation(@Nonnull String name, @Nullable Boolean indexed) {
+	public SetReferenceSchemaIndexedMutation(
+		@Nonnull String name,
+		@Nullable Boolean indexed
+	) {
+		this(
+			name,
+			indexed == null ? null : (indexed ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE)
+		);
+	}
+
+	public SetReferenceSchemaIndexedMutation(
+		@Nonnull String name,
+		@Nullable Scope[] indexedInScopes
+	) {
 		super(name);
-		this.indexed = indexed;
+		this.indexedInScopes = indexedInScopes;
+	}
+
+	@Nullable
+	public Boolean getIndexed() {
+		if (this.indexedInScopes == null) {
+			return null;
+		} else {
+			return !ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes);
+		}
 	}
 
 	@Nullable
@@ -85,35 +111,45 @@ public class SetReferenceSchemaIndexedMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		final EnumSet<Scope> indexedScopes = ArrayUtils.toEnumSet(Scope.class, this.indexedInScopes);
 		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-			return reflectedReferenceSchema;
-		} else {
-			if (referenceSchema.isIndexed() == this.indexed) {
-				// schema is already indexed
-				return referenceSchema;
+			if ((reflectedReferenceSchema.isIndexedInherited() && this.indexedInScopes == null) ||
+				(!reflectedReferenceSchema.isIndexedInherited() && reflectedReferenceSchema.getIndexedInScopes().equals(indexedScopes))) {
+				return reflectedReferenceSchema;
 			} else {
-				if (!this.indexed) {
-					verifyNoAttributeRequiresIndex(entitySchema, referenceSchema);
+				return reflectedReferenceSchema.withIndexed(this.indexedInScopes);
+			}
+		} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
+			if (theReferenceSchema.getIndexedInScopes().equals(indexedScopes)) {
+				// schema is already indexed
+				return theReferenceSchema;
+			} else {
+				if (indexedScopes.isEmpty()) {
+					verifyNoAttributeRequiresIndex(entitySchema, theReferenceSchema);
 				}
 
 				return ReferenceSchema._internalBuild(
 					this.name,
-					referenceSchema.getNameVariants(),
-					referenceSchema.getDescription(),
-					referenceSchema.getDeprecationNotice(),
-					referenceSchema.getReferencedEntityType(),
-					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-					referenceSchema.isReferencedEntityTypeManaged(),
-					referenceSchema.getCardinality(),
-					referenceSchema.getReferencedGroupType(),
-					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-					referenceSchema.isReferencedGroupTypeManaged(),
-					this.indexed,
-					referenceSchema.isFaceted(),
-					referenceSchema.getAttributes(),
-					referenceSchema.getSortableAttributeCompounds()
+					theReferenceSchema.getNameVariants(),
+					theReferenceSchema.getDescription(),
+					theReferenceSchema.getDeprecationNotice(),
+					theReferenceSchema.getCardinality(),
+					theReferenceSchema.getReferencedEntityType(),
+					theReferenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
+					theReferenceSchema.isReferencedEntityTypeManaged(),
+					theReferenceSchema.getReferencedGroupType(),
+					theReferenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
+					theReferenceSchema.isReferencedGroupTypeManaged(),
+					indexedScopes,
+					theReferenceSchema.getFacetedInScopes(),
+					theReferenceSchema.getAttributes(),
+					theReferenceSchema.getSortableAttributeCompounds()
 				);
 			}
+		} else {
+			throw new InvalidSchemaMutationException(
+				"Unsupported reference schema type: " + referenceSchema.getClass().getName()
+			);
 		}
 	}
 
@@ -143,7 +179,7 @@ public class SetReferenceSchemaIndexedMutation
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
-			// ups, the associated data is missing
+			// ups, the reference schema is missing
 			throw new InvalidSchemaMutationException(
 				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
@@ -158,7 +194,8 @@ public class SetReferenceSchemaIndexedMutation
 
 	@Override
 	public String toString() {
+		final Boolean indexed = getIndexed();
 		return "Set entity reference `" + this.name + "` schema: " +
-			"indexed=" + this.indexed;
+			"indexed=" + (indexed == null ? "(inherited)" : (indexed ? "(indexed in scopes: " + Arrays.toString(this.indexedInScopes) + ")" : "(not indexed)"));
 	}
 }

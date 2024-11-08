@@ -1278,7 +1278,7 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
    * Mutation can be used for altering also the existing `ReferenceSchema` alone.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
    * @return Whether the setReferenceSchemaIndexedMutation field is set.
    */
   boolean hasSetReferenceSchemaIndexedMutation();
@@ -1288,19 +1288,19 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
    * Mutation can be used for altering also the existing `ReferenceSchema` alone.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
    * @return The setReferenceSchemaIndexedMutation.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation getSetReferenceSchemaIndexedMutation();
+  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation getSetReferenceSchemaIndexedMutation();
   /**
    * <pre>
    * Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
    * Mutation can be used for altering also the existing `ReferenceSchema` alone.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutationOrBuilder getSetReferenceSchemaIndexedMutationOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutationOrBuilder getSetReferenceSchemaIndexedMutationOrBuilder();
 
   /**
    * <pre>

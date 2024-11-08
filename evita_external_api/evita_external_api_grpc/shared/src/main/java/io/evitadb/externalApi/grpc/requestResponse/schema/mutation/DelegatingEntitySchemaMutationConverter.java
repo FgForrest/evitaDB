@@ -126,7 +126,7 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 		TO_GRPC_CONVERTERS.put(ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class, new ToGrpc((b, m) -> b.setModifyReflectedReferenceAttributeInheritanceSchemaMutation((GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) m), ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(RemoveReferenceSchemaMutation.class, new ToGrpc((b, m) -> b.setRemoveReferenceSchemaMutation((GrpcRemoveReferenceSchemaMutation) m), RemoveReferenceSchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetReferenceSchemaFacetedMutation.class, new ToGrpc((b, m) -> b.setSetReferenceSchemaFacetedMutation((GrpcSetReferenceSchemaFacetedMutation) m), SetReferenceSchemaFacetedMutationConverter.INSTANCE));
-		TO_GRPC_CONVERTERS.put(SetReferenceSchemaIndexedMutation.class, new ToGrpc((b, m) -> b.setSetReferenceSchemaIndexedMutation((GrpcSetReferenceSchemaFilterableMutation) m), SetReferenceSchemaFilterableMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(SetReferenceSchemaIndexedMutation.class, new ToGrpc((b, m) -> b.setSetReferenceSchemaIndexedMutation((GrpcSetReferenceSchemaIndexedMutation) m), SetReferenceSchemaIndexedMutationConverter.INSTANCE));
 
 		TO_JAVA_CONVERTERS = createHashMap(50);
 		// associated data schema mutations
@@ -178,7 +178,7 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 		TO_JAVA_CONVERTERS.put(MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getModifyReflectedReferenceAttributeInheritanceSchemaMutation, ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(REMOVEREFERENCESCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getRemoveReferenceSchemaMutation, RemoveReferenceSchemaMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETREFERENCESCHEMAFACETEDMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetReferenceSchemaFacetedMutation, SetReferenceSchemaFacetedMutationConverter.INSTANCE));
-		TO_JAVA_CONVERTERS.put(SETREFERENCESCHEMAINDEXEDMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetReferenceSchemaIndexedMutation, SetReferenceSchemaFilterableMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(SETREFERENCESCHEMAINDEXEDMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetReferenceSchemaIndexedMutation, SetReferenceSchemaIndexedMutationConverter.INSTANCE));
 	}
 
 	@SuppressWarnings("unchecked")

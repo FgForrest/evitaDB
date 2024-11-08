@@ -107,13 +107,13 @@ public class ModifyAttributeSchemaNameMutation
 		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) GlobalAttributeSchema._internalBuild(
-				newName,
+				this.newName,
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.getUniquenessType(),
-				globalAttributeSchema.getGlobalUniquenessType(),
-				globalAttributeSchema.isFilterable(),
-				globalAttributeSchema.isSortable(),
+				globalAttributeSchema.getUniquenessTypeInScopes(),
+				globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
+				globalAttributeSchema.getFilterableInScopes(),
+				globalAttributeSchema.getSortableInScopes(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
 				globalAttributeSchema.isRepresentative(),
@@ -124,12 +124,12 @@ public class ModifyAttributeSchemaNameMutation
 		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) EntityAttributeSchema._internalBuild(
-				newName,
+				this.newName,
 				entityAttributeSchema.getDescription(),
 				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.getUniquenessType(),
-				entityAttributeSchema.isFilterable(),
-				entityAttributeSchema.isSortable(),
+				entityAttributeSchema.getUniquenessTypeInScopes(),
+				entityAttributeSchema.getFilterableInScopes(),
+				entityAttributeSchema.getSortableInScopes(),
 				entityAttributeSchema.isLocalized(),
 				entityAttributeSchema.isNullable(),
 				entityAttributeSchema.isRepresentative(),
@@ -137,21 +137,23 @@ public class ModifyAttributeSchemaNameMutation
 				entityAttributeSchema.getDefaultValue(),
 				entityAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else {
+		} else if (attributeSchema instanceof AttributeSchema theAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
-				newName,
-				attributeSchema.getDescription(),
-				attributeSchema.getDeprecationNotice(),
-				attributeSchema.getUniquenessType(),
-				attributeSchema.isFilterable(),
-				attributeSchema.isSortable(),
-				attributeSchema.isLocalized(),
-				attributeSchema.isNullable(),
-				(Class) attributeSchema.getType(),
-				attributeSchema.getDefaultValue(),
-				attributeSchema.getIndexedDecimalPlaces()
+				this.newName,
+				theAttributeSchema.getDescription(),
+				theAttributeSchema.getDeprecationNotice(),
+				theAttributeSchema.getUniquenessTypeInScopes(),
+				theAttributeSchema.getFilterableInScopes(),
+				theAttributeSchema.getSortableInScopes(),
+				theAttributeSchema.isLocalized(),
+				theAttributeSchema.isNullable(),
+				(Class) theAttributeSchema.getType(),
+				theAttributeSchema.getDefaultValue(),
+				theAttributeSchema.getIndexedDecimalPlaces()
 			);
+		} else {
+			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
 		}
 	}
 

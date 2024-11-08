@@ -35,7 +35,9 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -326,9 +328,20 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getNameVariants(),
 				attributeSchemaContract.getDescription(),
 				attributeSchemaContract.getDeprecationNotice(),
-				attributeSchemaContract.getUniquenessType(),
-				attributeSchemaContract.isFilterable(),
-				attributeSchemaContract.isSortable(),
+				Arrays.stream(Scope.values())
+					.map(
+						scope -> attributeSchemaContract.getUniquenessType(scope)
+							.map(it -> new ScopedAttributeUniquenessType(scope, it))
+							.orElse(null)
+					)
+					.filter(Objects::nonNull)
+					.toArray(ScopedAttributeUniquenessType[]::new),
+				Arrays.stream(Scope.values())
+					.filter(attributeSchemaContract::isFilterable)
+					.toArray(Scope[]::new),
+				Arrays.stream(Scope.values())
+					.filter(attributeSchemaContract::isSortable)
+					.toArray(Scope[]::new),
 				attributeSchemaContract.isLocalized(),
 				attributeSchemaContract.isNullable(),
 				attributeSchemaContract.isRepresentative(),
@@ -353,9 +366,20 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getNameVariants(),
 				attributeSchemaContract.getDescription(),
 				attributeSchemaContract.getDeprecationNotice(),
-				attributeSchemaContract.getUniquenessType(),
-				attributeSchemaContract.isFilterable(),
-				attributeSchemaContract.isSortable(),
+				Arrays.stream(Scope.values())
+					.map(
+						scope -> attributeSchemaContract.getUniquenessType(scope)
+							.map(it -> new ScopedAttributeUniquenessType(scope, it))
+							.orElse(null)
+					)
+					.filter(Objects::nonNull)
+					.toArray(ScopedAttributeUniquenessType[]::new),
+				Arrays.stream(Scope.values())
+					.filter(attributeSchemaContract::isFilterable)
+					.toArray(Scope[]::new),
+				Arrays.stream(Scope.values())
+					.filter(attributeSchemaContract::isSortable)
+					.toArray(Scope[]::new),
 				attributeSchemaContract.isLocalized(),
 				attributeSchemaContract.isNullable(),
 				(Class) attributeSchemaContract.getType(),
@@ -420,8 +444,12 @@ public final class EntitySchema implements EntitySchemaContract {
 				referenceSchemaContract.getReferencedGroupType(),
 				referenceSchemaContract.getGroupTypeNameVariants(entityType -> null),
 				referenceSchemaContract.isReferencedGroupTypeManaged(),
-				referenceSchemaContract.isIndexed(),
-				referenceSchemaContract.isFaceted(),
+				Arrays.stream(Scope.values())
+					.filter(referenceSchemaContract::isIndexed)
+					.toArray(Scope[]::new),
+				Arrays.stream(Scope.values())
+					.filter(referenceSchemaContract::isFaceted)
+					.toArray(Scope[]::new),
 				referenceSchemaContract.getAttributes(),
 				referenceSchemaContract.getSortableAttributeCompounds()
 			);
@@ -500,7 +528,7 @@ public final class EntitySchema implements EntitySchemaContract {
 					)
 				)
 		);
-		;
+
 		this.referenceNameIndex = _internalGenerateNameVariantIndex(this.references.values(), ReferenceSchemaContract::getNameVariants);
 		this.reflectedReferences = this.references
 			.values()

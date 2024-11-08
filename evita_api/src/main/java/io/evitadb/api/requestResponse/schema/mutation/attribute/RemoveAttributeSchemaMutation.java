@@ -217,32 +217,34 @@ public class RemoveAttributeSchemaMutation implements
 								)
 							)
 					);
-			} else {
+			} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
 				return ReferenceSchema._internalBuild(
-					referenceSchema.getName(),
-					referenceSchema.getNameVariants(),
-					referenceSchema.getDescription(),
-					referenceSchema.getDeprecationNotice(),
-					referenceSchema.getReferencedEntityType(),
-					referenceSchema.getEntityTypeNameVariants(entityType -> null),
-					referenceSchema.isReferencedEntityTypeManaged(),
-					referenceSchema.getCardinality(),
-					referenceSchema.getReferencedGroupType(),
-					referenceSchema.getGroupTypeNameVariants(entityType -> null),
-					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.isIndexed(),
-					referenceSchema.isFaceted(),
-					referenceSchema.getAttributes().values()
+					theReferenceSchema.getName(),
+					theReferenceSchema.getNameVariants(),
+					theReferenceSchema.getDescription(),
+					theReferenceSchema.getDeprecationNotice(),
+					theReferenceSchema.getCardinality(),
+					theReferenceSchema.getReferencedEntityType(),
+					theReferenceSchema.getEntityTypeNameVariants(entityType -> null),
+					theReferenceSchema.isReferencedEntityTypeManaged(),
+					theReferenceSchema.getReferencedGroupType(),
+					theReferenceSchema.getGroupTypeNameVariants(entityType -> null),
+					theReferenceSchema.isReferencedGroupTypeManaged(),
+					theReferenceSchema.getIndexedInScopes(),
+					theReferenceSchema.getFacetedInScopes(),
+					theReferenceSchema.getAttributes().values()
 						.stream()
-						.filter(it -> !it.getName().equals(name))
+						.filter(it -> !it.getName().equals(this.name))
 						.collect(
 							Collectors.toMap(
 								AttributeSchemaContract::getName,
 								Function.identity()
 							)
 						),
-					referenceSchema.getSortableAttributeCompounds()
+					theReferenceSchema.getSortableAttributeCompounds()
 				);
+			} else {
+				throw new IllegalStateException("Unsupported reference schema type: " + referenceSchema.getClass().getName());
 			}
 		}
 	}

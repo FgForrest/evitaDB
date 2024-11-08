@@ -31,19 +31,13 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaTypeMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNullableMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.*;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 
@@ -51,7 +45,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
@@ -127,105 +123,135 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Override
 	@Nonnull
-	public T filterable() {
+	public T filterable(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaFilterableMutation(
 					baseSchema.getName(),
-					true
+					inScope
 				)
 			)
 		);
 		return (T) this;
 	}
 
-	@Override
 	@Nonnull
-	public T filterable(@Nonnull BooleanSupplier decider) {
+	@Override
+	public T nonFilterable(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaFilterableMutation(
 					baseSchema.getName(),
-					decider.getAsBoolean()
+					Arrays.stream(Scope.values())
+						.filter(it -> !isFilterable(it) || !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
 				)
 			)
 		);
 		return (T) this;
 	}
 
-	@Override
 	@Nonnull
-	public T unique() {
+	@Override
+	public T unique(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaUniqueMutation(
 					baseSchema.getName(),
-					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+					Arrays.stream(inScope)
+						.map(it -> new ScopedAttributeUniquenessType(it, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
+						.toArray(ScopedAttributeUniquenessType[]::new)
 				)
 			)
 		);
 		return (T) this;
 	}
 
-	@Override
 	@Nonnull
-	public T uniqueWithinLocale() {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				new SetAttributeSchemaUniqueMutation(
-					baseSchema.getName(),
-					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
-				)
-			)
-		);
-		return (T) this;
-	}
-
 	@Override
-	@Nonnull
-	public T unique(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				new SetAttributeSchemaUniqueMutation(
-					baseSchema.getName(),
-					decider.getAsBoolean() ?
-						AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION : AttributeUniquenessType.NOT_UNIQUE
-				)
-			)
-		);
-		return (T) this;
-	}
-
-	@Override
-	@Nonnull
-	public T uniqueWithinLocale(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				new SetAttributeSchemaUniqueMutation(
-					baseSchema.getName(),
-					decider.getAsBoolean() ?
-						AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE : AttributeUniquenessType.NOT_UNIQUE
-				)
-			)
-		);
-		return (T) this;
-	}
-
-	@Override
-	@Nonnull
-	public T sortable() {
+	public T nonUnique(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaSortableMutation(
 					baseSchema.getName(),
-					true
+					Arrays.stream(Scope.values())
+						.filter(it -> !isUnique(it) || !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T uniqueWithinLocale(@Nonnull Scope... inScope) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaUniqueMutation(
+					baseSchema.getName(),
+					Arrays.stream(inScope)
+						.map(it -> new ScopedAttributeUniquenessType(it, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE))
+						.toArray(ScopedAttributeUniquenessType[]::new)
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
+	public T nonUniqueWithinLocale(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaUniqueMutation(
+					baseSchema.getName(),
+					Arrays.stream(Scope.values())
+						.filter(it -> !isUniqueWithinLocale(it) || !excludedScopes.contains(it))
+						.map(it -> new ScopedAttributeUniquenessType(it, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE))
+						.toArray(ScopedAttributeUniquenessType[]::new)
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
+	public T sortable(@Nonnull Scope... inScope) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaSortableMutation(
+					baseSchema.getName(),
+					inScope
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
+	public T nonSortable(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaSortableMutation(
+					baseSchema.getName(),
+					Arrays.stream(Scope.values())
+						.filter(it -> !isSortable(it) || !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
 				)
 			)
 		);
@@ -240,7 +266,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			addMutations(
 				new SetAttributeSchemaSortableMutation(
 					baseSchema.getName(),
-					decider.getAsBoolean()
+					decider.getAsBoolean() ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE
 				)
 			)
 		);
@@ -278,6 +304,20 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	}
 
 	@Override
+	public T nonLocalized() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaLocalizedMutation(
+					baseSchema.getName(),
+					false
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
 	@Nonnull
 	public T nullable() {
 		this.updatedSchemaDirty = updateMutationImpact(
@@ -301,6 +341,21 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				new SetAttributeSchemaNullableMutation(
 					baseSchema.getName(),
 					decider.getAsBoolean()
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
+	public T nonNullable() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaNullableMutation(
+					baseSchema.getName(),
+					false
 				)
 			)
 		);

@@ -23,7 +23,10 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType;
 import io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -31,6 +34,11 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
+
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toAttributeUniquenessType;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcAttributeUniquenessType;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
 
 /**
  * Converts between {@link SetAttributeSchemaUniqueMutation} and {@link GrpcSetAttributeSchemaUniqueMutation} in both directions.
@@ -43,9 +51,18 @@ public class SetAttributeSchemaUniqueMutationConverter implements SchemaMutation
 
 	@Nonnull
 	public SetAttributeSchemaUniqueMutation convert(@Nonnull GrpcSetAttributeSchemaUniqueMutation mutation) {
+		final ScopedAttributeUniquenessType[] uniqueInScopes = mutation.getUniqueInScopesList().isEmpty() ?
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.LIVE, toAttributeUniquenessType(mutation.getUnique()))
+			}
+			:
+			mutation.getUniqueInScopesList()
+				.stream()
+				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedAttributeUniquenessType[]::new);
 		return new SetAttributeSchemaUniqueMutation(
 			mutation.getName(),
-			EvitaEnumConverter.toAttributeUniquenessType(mutation.getUnique())
+			uniqueInScopes
 		);
 	}
 
@@ -53,7 +70,17 @@ public class SetAttributeSchemaUniqueMutationConverter implements SchemaMutation
 	public GrpcSetAttributeSchemaUniqueMutation convert(@Nonnull SetAttributeSchemaUniqueMutation mutation) {
 		return GrpcSetAttributeSchemaUniqueMutation.newBuilder()
 			.setName(mutation.getName())
-			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(mutation.getUnique()))
+			.setUnique(toGrpcAttributeUniquenessType(mutation.getUnique()))
+			.addAllUniqueInScopes(
+				Arrays.stream(mutation.getUniqueInScopes())
+					.map(
+						it -> GrpcScopedAttributeUniquenessType.newBuilder()
+							.setScope(EvitaEnumConverter.toGrpcScope(it.scope()))
+							.setUniquenessType(toGrpcAttributeUniquenessType(it.uniquenessType()))
+							.build()
+					)
+					.toList()
+			)
 			.build();
 	}
 }

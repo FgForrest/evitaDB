@@ -34,6 +34,9 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -500,7 +503,40 @@ public class EntitySchemaConverter {
 	 * Creates {@link AttributeSchema} from the {@link GrpcAttributeSchema}.
 	 */
 	@Nonnull
-	private static <T extends AttributeSchemaContract> T toAttributeSchema(@Nonnull GrpcAttributeSchema attributeSchema, @Nonnull Class<T> expectedType) {
+	static <T extends AttributeSchemaContract> T toAttributeSchema(@Nonnull GrpcAttributeSchema attributeSchema, @Nonnull Class<T> expectedType) {
+		final ScopedAttributeUniquenessType[] uniqueInScopes = attributeSchema.getUniqueInScopesList().isEmpty() ?
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.LIVE, toAttributeUniquenessType(attributeSchema.getUnique()))
+			}
+			:
+			attributeSchema.getUniqueInScopesList()
+				.stream()
+				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedAttributeUniquenessType[]::new);
+		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = attributeSchema.getUniqueGloballyInScopesList().isEmpty() ?
+			new ScopedGlobalAttributeUniquenessType[]{
+				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()))
+			}
+			:
+			attributeSchema.getUniqueGloballyInScopesList()
+				.stream()
+				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
+		final Scope[] filterableInScopes = attributeSchema.getFilterableInScopesList().isEmpty() ?
+			(attributeSchema.getFilterable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			:
+			attributeSchema.getFilterableInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+		final Scope[] sortableInScopes = attributeSchema.getSortableInScopesList().isEmpty() ?
+			(attributeSchema.getSortable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			:
+			attributeSchema.getSortableInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+
 		if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.GLOBAL) {
 			if (expectedType.isAssignableFrom(GlobalAttributeSchema.class)) {
 				//noinspection unchecked
@@ -509,10 +545,10 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
-					EvitaEnumConverter.toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()),
-					attributeSchema.getFilterable(),
-					attributeSchema.getSortable(),
+					uniqueInScopes,
+					uniqueGloballyInScopes,
+					filterableInScopes,
+					sortableInScopes,
 					attributeSchema.getLocalized(),
 					attributeSchema.getNullable(),
 					attributeSchema.getRepresentative(),
@@ -531,9 +567,9 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
-					attributeSchema.getFilterable(),
-					attributeSchema.getSortable(),
+					uniqueInScopes,
+					filterableInScopes,
+					sortableInScopes,
 					attributeSchema.getLocalized(),
 					attributeSchema.getNullable(),
 					attributeSchema.getRepresentative(),
@@ -552,9 +588,9 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
-					attributeSchema.getFilterable(),
-					attributeSchema.getSortable(),
+					uniqueInScopes,
+					filterableInScopes,
+					sortableInScopes,
 					attributeSchema.getLocalized(),
 					attributeSchema.getNullable(),
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
@@ -590,6 +626,21 @@ public class EntitySchemaConverter {
 	@Nonnull
 	private static ReferenceSchemaContract toReferenceSchema(@Nonnull GrpcReferenceSchema referenceSchema) {
 		final Cardinality cardinality = toCardinality(referenceSchema.getCardinality());
+		final Scope[] indexedInScopes = referenceSchema.getIndexedInScopesList().isEmpty() ?
+			(referenceSchema.getIndexed() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			:
+			referenceSchema.getIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+		final Scope[] facetedInScopes = referenceSchema.getFacetedInScopesList().isEmpty() ?
+			(referenceSchema.getFaceted() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			:
+			referenceSchema.getFacetedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+
 		if (referenceSchema.hasReflectedReferenceName()) {
 			return ReflectedReferenceSchema._internalBuild(
 				referenceSchema.getName(),
@@ -599,13 +650,13 @@ public class EntitySchemaConverter {
 				referenceSchema.getEntityType(),
 				NamingConvention.generate(referenceSchema.getEntityType()),
 				referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
-				referenceSchema.getReferencedGroupTypeManaged()
-					? Collections.emptyMap()
-					: NamingConvention.generate(referenceSchema.getGroupType().getValue()),
+				referenceSchema.getReferencedGroupTypeManaged() ?
+					Collections.emptyMap() : NamingConvention.generate(referenceSchema.getGroupType().getValue()),
 				referenceSchema.getReferencedGroupTypeManaged(),
 				referenceSchema.getReflectedReferenceName().getValue(),
 				cardinality,
-				referenceSchema.getFaceted(),
+				indexedInScopes,
+				facetedInScopes,
 				referenceSchema.getAttributesMap()
 					.entrySet()
 					.stream()
@@ -625,6 +676,7 @@ public class EntitySchemaConverter {
 				referenceSchema.getDescriptionInherited(),
 				referenceSchema.getDeprecationNoticeInherited(),
 				referenceSchema.getCardinalityInherited(),
+				referenceSchema.getIndexedInherited(),
 				referenceSchema.getFacetedInherited(),
 				toAttributeInheritanceBehavior(referenceSchema.getAttributeInheritanceBehavior()),
 				referenceSchema.getAttributeInheritanceFilterList().toArray(String[]::new),
@@ -642,8 +694,8 @@ public class EntitySchemaConverter {
 					referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
 					Map.of(),
 					referenceSchema.getReferencedGroupTypeManaged(),
-					referenceSchema.getIndexed(),
-					referenceSchema.getFaceted(),
+					indexedInScopes,
+					facetedInScopes,
 					referenceSchema.getAttributesMap()
 						.entrySet()
 						.stream()
@@ -681,8 +733,8 @@ public class EntitySchemaConverter {
 					? Collections.emptyMap()
 					: NamingConvention.generate(referenceSchema.getGroupType().getValue()),
 				referenceSchema.getReferencedGroupTypeManaged(),
-				referenceSchema.getIndexed(),
-				referenceSchema.getFaceted(),
+				indexedInScopes,
+				facetedInScopes,
 				referenceSchema.getAttributesMap()
 					.entrySet()
 					.stream()

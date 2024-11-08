@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,7 +67,17 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T filterable();
+	default T filterable() {
+		return filterable(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T filterable(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
@@ -81,7 +92,25 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T filterable(@Nonnull BooleanSupplier decider);
+	default T filterable(@Nonnull BooleanSupplier decider) {
+		return decider.getAsBoolean() ? filterable() : nonFilterable();
+	}
+
+	/**
+	 * Makes attribute not filterable. This means it will not be possible to filter entities by this attribute anymore.
+	 */
+	@Nonnull
+	default T nonFilterable() {
+		return nonFilterable(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T nonFilterable(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
@@ -97,7 +126,17 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T unique();
+	default T unique() {
+		return unique(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T unique(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
@@ -115,7 +154,25 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T unique(@Nonnull BooleanSupplier decider);
+	default T unique(@Nonnull BooleanSupplier decider) {
+		return decider.getAsBoolean() ? unique() : nonUnique();
+	}
+	/**
+	 * Makes attribute not unique among other attributes. This method resets all unique constraints on the attribute,
+	 * no matter whether they are global or locale specific.
+	 */
+	@Nonnull
+	default T nonUnique() {
+		return nonUnique(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T nonUnique(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
@@ -134,7 +191,34 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T uniqueWithinLocale();
+	default T uniqueWithinLocale() {
+		return uniqueWithinLocale(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T uniqueWithinLocale(@Nonnull Scope... inScope);
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	default T nonUniqueWithinLocale() {
+		return nonUniqueWithinLocale(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T nonUniqueWithinLocale(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
@@ -156,7 +240,10 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T uniqueWithinLocale(@Nonnull BooleanSupplier decider);
+	default T uniqueWithinLocale(@Nonnull BooleanSupplier decider) {
+		return decider.getAsBoolean() ?
+			uniqueWithinLocale() : nonUniqueWithinLocale();
+	}
 
 	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
@@ -167,7 +254,25 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T sortable();
+	default T sortable() {
+		return sortable(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T sortable(@Nonnull Scope... inScope);
+
+	/**
+	 * Makes reference as not sortable. This means it will not be possible to sort entities by this attribute anymore.
+	 */
+	@Nonnull
+	default T nonSortable() {
+		return nonSortable(Scope.LIVE);
+	}
 
 	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
@@ -180,6 +285,14 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	T sortable(@Nonnull BooleanSupplier decider);
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T nonSortable(@Nonnull Scope... inScope);
 
 	/**
 	 * Localized attribute has to be ALWAYS used in connection with specific {@link java.util.Locale}. In other
@@ -201,6 +314,12 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	T localized(@Nonnull BooleanSupplier decider);
 
 	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	T nonLocalized();
+
+	/**
 	 * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
 	 * non-null checks upon upserting of the entity.
 	 *
@@ -218,6 +337,15 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	T nullable(@Nonnull BooleanSupplier decider);
+
+	/**
+	 * When attribute is non-nullable, its value is mandatory. If no value is provided, and the {@link #getDefaultValue()}
+	 * is null, the system will throw an error.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonNullable();
 
 	/**
 	 * Determines how many fractional places are important when entities are compared during filtering or sorting. It is

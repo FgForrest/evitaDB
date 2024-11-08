@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -103,7 +104,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<SortableAttributeCompoundSchemaContract> existingAttributeSchema = entitySchema.getSortableAttributeCompound(name);
+		final Optional<SortableAttributeCompoundSchemaContract> existingAttributeSchema = entitySchema.getSortableAttributeCompound(this.name);
 		if (existingAttributeSchema.isEmpty()) {
 			// the sortable attribute compound schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
@@ -128,7 +129,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 				entitySchema.getSortableAttributeCompounds()
 					.entrySet()
 					.stream()
-					.filter(it -> !Objects.equals(name, it.getKey()))
+					.filter(it -> !Objects.equals(this.name, it.getKey()))
 					.collect(
 						Collectors.toMap(
 							Map.Entry::getKey,
@@ -143,7 +144,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final Optional<SortableAttributeCompoundSchemaContract> existingCompoundSchema = getReferenceSortableAttributeCompoundSchema(referenceSchema, name);
+		final Optional<SortableAttributeCompoundSchemaContract> existingCompoundSchema = getReferenceSortableAttributeCompoundSchema(referenceSchema, this.name);
 		if (existingCompoundSchema.isEmpty()) {
 			// the attribute schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
@@ -155,7 +156,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 						reflectedReferenceSchema.getDeclaredSortableAttributeCompounds()
 							.entrySet()
 							.stream()
-							.filter(it -> !Objects.equals(name, it.getKey()))
+							.filter(it -> !Objects.equals(this.name, it.getKey()))
 							.collect(
 								Collectors.toMap(
 									Map.Entry::getKey,
@@ -163,32 +164,36 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 								)
 							)
 					);
-			} else {
+			} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
 				return ReferenceSchema._internalBuild(
-					referenceSchema.getName(),
-					referenceSchema.getNameVariants(),
-					referenceSchema.getDescription(),
-					referenceSchema.getDeprecationNotice(),
-					referenceSchema.getReferencedEntityType(),
-					referenceSchema.getEntityTypeNameVariants(entityType -> null),
-					referenceSchema.isReferencedEntityTypeManaged(),
-					referenceSchema.getCardinality(),
-					referenceSchema.getReferencedGroupType(),
-					referenceSchema.getGroupTypeNameVariants(entityType -> null),
-					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.isIndexed(),
-					referenceSchema.isFaceted(),
-					referenceSchema.getAttributes(),
-					referenceSchema.getSortableAttributeCompounds()
+					theReferenceSchema.getName(),
+					theReferenceSchema.getNameVariants(),
+					theReferenceSchema.getDescription(),
+					theReferenceSchema.getDeprecationNotice(),
+					theReferenceSchema.getCardinality(),
+					theReferenceSchema.getReferencedEntityType(),
+					theReferenceSchema.getEntityTypeNameVariants(entityType -> null),
+					theReferenceSchema.isReferencedEntityTypeManaged(),
+					theReferenceSchema.getReferencedGroupType(),
+					theReferenceSchema.getGroupTypeNameVariants(entityType -> null),
+					theReferenceSchema.isReferencedGroupTypeManaged(),
+					theReferenceSchema.getIndexedInScopes(),
+					theReferenceSchema.getFacetedInScopes(),
+					theReferenceSchema.getAttributes(),
+					theReferenceSchema.getSortableAttributeCompounds()
 						.entrySet()
 						.stream()
-						.filter(it -> !Objects.equals(name, it.getKey()))
+						.filter(it -> !Objects.equals(this.name, it.getKey()))
 						.collect(
 							Collectors.toMap(
 								Map.Entry::getKey,
 								Map.Entry::getValue
 							)
 						)
+				);
+			} else {
+				throw new InvalidSchemaMutationException(
+					"Unsupported reference schema type: " + referenceSchema.getClass().getName()
 				);
 			}
 		}
@@ -203,7 +208,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 	@Override
 	public String toString() {
 		return "Remove sortable attribute compound schema: " +
-			"name='" + name + '\'';
+			"name='" + this.name + '\'';
 	}
 
 }

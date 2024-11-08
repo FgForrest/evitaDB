@@ -31,8 +31,10 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 
 /**
@@ -41,27 +43,30 @@ import java.util.Collection;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>> extends
+public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> extends
 	ReferenceSchemaContract,
-	NamedSchemaWithDeprecationEditor<S>,
-	AttributeProviderSchemaEditor<S, AttributeSchemaContract, AttributeSchemaEditor.AttributeSchemaBuilder>,
-	SortableAttributeCompoundSchemaProviderEditor<S, AttributeSchemaContract>
+	NamedSchemaWithDeprecationEditor<T>,
+	AttributeProviderSchemaEditor<T, AttributeSchemaContract, AttributeSchemaEditor.AttributeSchemaBuilder>,
+	SortableAttributeCompoundSchemaProviderEditor<T, AttributeSchemaContract>
 {
 
 	/**
 	 * Specifies that reference of this type will be related to external entity not maintained in Evita.
 	 */
-	S withGroupType(@Nonnull String groupType);
+	@Nonnull
+	T withGroupType(@Nonnull String groupType);
 
 	/**
 	 * Specifies that reference of this type will be related to another entity maintained in Evita ({@link Entity#getType()}).
 	 */
-	S withGroupTypeRelatedToEntity(@Nonnull String groupType);
+	@Nonnull
+	T withGroupTypeRelatedToEntity(@Nonnull String groupType);
 
 	/**
 	 * Specifies that this reference will not be grouped to a specific groups. This is default setting for the reference.
 	 */
-	S withoutGroupType();
+	@Nonnull
+	T withoutGroupType();
 
 	/**
 	 * Contains TRUE if evitaDB should create and maintain searchable index for this reference allowing to filter by
@@ -72,13 +77,35 @@ public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>> exten
 	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
 	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
 	 */
-	S indexed();
+	@Nonnull
+	default T indexed() {
+		return indexed(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T indexed(@Nullable Scope... inScope);
 
 	/**
 	 * Makes reference as non-faceted. This means reference information will be available on entity when loaded but
 	 * cannot be used in filtering.
 	 */
-	S nonIndexed();
+	@Nonnull
+	default T nonIndexed() {
+		return nonIndexed(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T nonIndexed(@Nullable Scope... inScope);
 
 	/**
 	 * Makes reference faceted. That means that statistics data for this reference should be maintained and this
@@ -88,7 +115,17 @@ public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>> exten
 	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
 	 * indexed reference occupies (memory/disk) space in the form of index.
 	 */
-	S faceted();
+	@Nonnull
+	default T faceted() {
+		return faceted(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	T faceted(@Nonnull Scope... inScope);
 
 	/**
 	 * Makes reference as non-faceted. This means reference information will be available on entity when loaded but
@@ -96,7 +133,18 @@ public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>> exten
 	 *
 	 * @return builder to continue with configuration
 	 */
-	S nonFaceted();
+	@Nonnull
+	default T nonFaceted() {
+		return nonFaceted(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScope
+	 * @return
+	 */
+	@Nonnull
+	T nonFaceted(@Nonnull Scope... inScope);
 
 	/**
 	 * Interface that simply combines {@link ReferenceSchemaEditor} and {@link ReferenceSchemaContract} entity contracts

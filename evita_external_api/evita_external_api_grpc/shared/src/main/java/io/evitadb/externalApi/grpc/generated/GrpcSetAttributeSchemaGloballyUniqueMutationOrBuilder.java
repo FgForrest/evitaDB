@@ -54,20 +54,73 @@ public interface GrpcSetAttributeSchemaGloballyUniqueMutationOrBuilder extends
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
    * entity having certain value of this attribute in entire catalog.
+   * deprecated in favor of `uniqueGloballyInScopes`
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
+   * @deprecated
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
-  int getUniqueGloballyValue();
+  @java.lang.Deprecated int getUniqueGloballyValue();
+  /**
+   * <pre>
+   * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+   * entity having certain value of this attribute in entire catalog.
+   * deprecated in favor of `uniqueGloballyInScopes`
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
+   * @deprecated
+   * @return The uniqueGlobally.
+   */
+  @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally();
+
   /**
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
    * entity having certain value of this attribute in entire catalog.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2;</code>
-   * @return The uniqueGlobally.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally();
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType>
+      getUniqueGloballyInScopesList();
+  /**
+   * <pre>
+   * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+   * entity having certain value of this attribute in entire catalog.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType getUniqueGloballyInScopes(int index);
+  /**
+   * <pre>
+   * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+   * entity having certain value of this attribute in entire catalog.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;</code>
+   */
+  int getUniqueGloballyInScopesCount();
+  /**
+   * <pre>
+   * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+   * entity having certain value of this attribute in entire catalog.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder>
+      getUniqueGloballyInScopesOrBuilderList();
+  /**
+   * <pre>
+   * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+   * entity having certain value of this attribute in entire catalog.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessTypeOrBuilder getUniqueGloballyInScopesOrBuilder(
+      int index);
 }

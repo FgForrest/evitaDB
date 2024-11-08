@@ -56,7 +56,7 @@ public final class GrpcEntitySchemaMutationOuterClass {
       "ributeSchemaMutations.proto\032\'GrpcAssocia" +
       "tedDataSchemaMutations.proto\032\037GrpcEntity" +
       "SchemaMutations.proto\032\"GrpcReferenceSche" +
-      "maMutations.proto\"\2230\n\030GrpcEntitySchemaMu" +
+      "maMutations.proto\"\2200\n\030GrpcEntitySchemaMu" +
       "tation\022{\n\"createAssociatedDataSchemaMuta" +
       "tion\030\001 \001(\0132M.io.evitadb.externalApi.grpc" +
       ".generated.GrpcCreateAssociatedDataSchem" +
@@ -199,19 +199,19 @@ public final class GrpcEntitySchemaMutationOuterClass {
       "hemaMutationH\000\022y\n!setReferenceSchemaFace" +
       "tedMutation\030Y \001(\0132L.io.evitadb.externalA" +
       "pi.grpc.generated.GrpcSetReferenceSchema" +
-      "FacetedMutationH\000\022|\n!setReferenceSchemaI" +
-      "ndexedMutation\030Z \001(\0132O.io.evitadb.extern" +
+      "FacetedMutationH\000\022y\n!setReferenceSchemaI" +
+      "ndexedMutation\030Z \001(\0132L.io.evitadb.extern" +
       "alApi.grpc.generated.GrpcSetReferenceSch" +
-      "emaFilterableMutationH\000\022\203\001\n&createReflec" +
-      "tedReferenceSchemaMutation\030[ \001(\0132Q.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcCre" +
-      "ateReflectedReferenceSchemaMutationH\000\022\253\001" +
-      "\n:modifyReflectedReferenceAttributeInher" +
-      "itanceSchemaMutation\030\\ \001(\0132e.io.evitadb." +
-      "externalApi.grpc.generated.GrpcModifyRef" +
-      "lectedReferenceAttributeInheritanceSchem" +
-      "aMutationH\000B\n\n\010mutationB\014P\001\252\002\007EvitaDBb\006p" +
-      "roto3"
+      "emaIndexedMutationH\000\022\203\001\n&createReflected" +
+      "ReferenceSchemaMutation\030[ \001(\0132Q.io.evita" +
+      "db.externalApi.grpc.generated.GrpcCreate" +
+      "ReflectedReferenceSchemaMutationH\000\022\253\001\n:m" +
+      "odifyReflectedReferenceAttributeInherita" +
+      "nceSchemaMutation\030\\ \001(\0132e.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcModifyReflec" +
+      "tedReferenceAttributeInheritanceSchemaMu" +
+      "tationH\000B\n\n\010mutationB\014P\001\252\002\007EvitaDBb\006prot" +
+      "o3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

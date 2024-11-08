@@ -50,6 +50,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Objects;
 
 /**
  * Mutation is responsible for setting value to a {@link AttributeSchemaContract#getDescription()}
@@ -104,16 +105,18 @@ public class ModifyAttributeSchemaDescriptionMutation
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
-		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		if (Objects.equals(attributeSchema.getDescription(), this.description)) {
+			return attributeSchema;
+		} else if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) GlobalAttributeSchema._internalBuild(
 				globalAttributeSchema.getName(),
-				description,
+				this.description,
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.getUniquenessType(),
-				globalAttributeSchema.getGlobalUniquenessType(),
-				globalAttributeSchema.isFilterable(),
-				globalAttributeSchema.isSortable(),
+				globalAttributeSchema.getUniquenessTypeInScopes(),
+				globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
+				globalAttributeSchema.getFilterableInScopes(),
+				globalAttributeSchema.getSortableInScopes(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
 				globalAttributeSchema.isRepresentative(),
@@ -125,11 +128,11 @@ public class ModifyAttributeSchemaDescriptionMutation
 			//noinspection unchecked,rawtypes
 			return (S) EntityAttributeSchema._internalBuild(
 				entityAttributeSchema.getName(),
-				description,
+				this.description,
 				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.getUniquenessType(),
-				entityAttributeSchema.isFilterable(),
-				entityAttributeSchema.isSortable(),
+				entityAttributeSchema.getUniquenessTypeInScopes(),
+				entityAttributeSchema.getFilterableInScopes(),
+				entityAttributeSchema.getSortableInScopes(),
 				entityAttributeSchema.isLocalized(),
 				entityAttributeSchema.isNullable(),
 				entityAttributeSchema.isRepresentative(),
@@ -137,21 +140,23 @@ public class ModifyAttributeSchemaDescriptionMutation
 				entityAttributeSchema.getDefaultValue(),
 				entityAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else {
+		} else if (attributeSchema instanceof AttributeSchema theAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
-				attributeSchema.getName(),
-				description,
-				attributeSchema.getDeprecationNotice(),
-				attributeSchema.getUniquenessType(),
-				attributeSchema.isFilterable(),
-				attributeSchema.isSortable(),
-				attributeSchema.isLocalized(),
-				attributeSchema.isNullable(),
-				(Class) attributeSchema.getType(),
-				attributeSchema.getDefaultValue(),
-				attributeSchema.getIndexedDecimalPlaces()
+				theAttributeSchema.getName(),
+				this.description,
+				theAttributeSchema.getDeprecationNotice(),
+				theAttributeSchema.getUniquenessTypeInScopes(),
+				theAttributeSchema.getFilterableInScopes(),
+				theAttributeSchema.getSortableInScopes(),
+				theAttributeSchema.isLocalized(),
+				theAttributeSchema.isNullable(),
+				(Class) theAttributeSchema.getType(),
+				theAttributeSchema.getDefaultValue(),
+				theAttributeSchema.getIndexedDecimalPlaces()
 			);
+		} else {
+			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
 		}
 	}
 

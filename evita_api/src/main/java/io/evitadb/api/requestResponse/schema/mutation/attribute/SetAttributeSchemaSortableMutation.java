@@ -41,6 +41,8 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchem
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -50,6 +52,10 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
+import java.util.EnumSet;
+
+import static io.evitadb.dataType.Scope.NO_SCOPE;
 
 /**
  * Mutation is responsible for setting value to a {@link AttributeSchemaContract#isSortable()}
@@ -68,12 +74,27 @@ public class SetAttributeSchemaSortableMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 5362264895300132417L;
+
 	@Getter @Nonnull private final String name;
-	@Getter private final boolean sortable;
+	@Getter private final Scope[] sortableInScopes;
 
 	public SetAttributeSchemaSortableMutation(@Nonnull String name, boolean sortable) {
+		this(
+			name,
+			sortable ? new Scope[]{Scope.LIVE} : NO_SCOPE
+		);
+	}
+
+	public SetAttributeSchemaSortableMutation(
+		@Nonnull String name,
+		@Nullable Scope[] sortableInScopes
+	) {
 		this.name = name;
-		this.sortable = sortable;
+		this.sortableInScopes = sortableInScopes == null ? NO_SCOPE : sortableInScopes;
+	}
+
+	public boolean isSortable() {
+		return !ArrayUtils.isEmptyOrItsValuesNull(this.sortableInScopes);
 	}
 
 	@Nullable
@@ -104,57 +125,72 @@ public class SetAttributeSchemaSortableMutation
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
+		final EnumSet<Scope> newSortableInScopes = ArrayUtils.toEnumSet(Scope.class, this.sortableInScopes);
 		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
-			//noinspection unchecked,rawtypes
-			return (S) GlobalAttributeSchema._internalBuild(
-				name,
-				globalAttributeSchema.getNameVariants(),
-				globalAttributeSchema.getDescription(),
-				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.getUniquenessType(),
-				globalAttributeSchema.getGlobalUniquenessType(),
-				globalAttributeSchema.isFilterable(),
-				sortable,
-				globalAttributeSchema.isLocalized(),
-				globalAttributeSchema.isNullable(),
-				globalAttributeSchema.isRepresentative(),
-				(Class) globalAttributeSchema.getType(),
-				globalAttributeSchema.getDefaultValue(),
-				globalAttributeSchema.getIndexedDecimalPlaces()
-			);
+			if (globalAttributeSchema.getSortableInScopes().equals(newSortableInScopes)) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) GlobalAttributeSchema._internalBuild(
+					this.name,
+					globalAttributeSchema.getNameVariants(),
+					globalAttributeSchema.getDescription(),
+					globalAttributeSchema.getDeprecationNotice(),
+					globalAttributeSchema.getUniquenessTypeInScopes(),
+					globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
+					globalAttributeSchema.getFilterableInScopes(),
+					newSortableInScopes,
+					globalAttributeSchema.isLocalized(),
+					globalAttributeSchema.isNullable(),
+					globalAttributeSchema.isRepresentative(),
+					(Class) globalAttributeSchema.getType(),
+					globalAttributeSchema.getDefaultValue(),
+					globalAttributeSchema.getIndexedDecimalPlaces()
+				);
+			}
 		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
-			//noinspection unchecked,rawtypes
-			return (S) EntityAttributeSchema._internalBuild(
-				name,
-				entityAttributeSchema.getNameVariants(),
-				entityAttributeSchema.getDescription(),
-				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.getUniquenessType(),
-				entityAttributeSchema.isFilterable(),
-				sortable,
-				entityAttributeSchema.isLocalized(),
-				entityAttributeSchema.isNullable(),
-				entityAttributeSchema.isRepresentative(),
-				(Class)entityAttributeSchema.getType(),
-				entityAttributeSchema.getDefaultValue(),
-				entityAttributeSchema.getIndexedDecimalPlaces()
-			);
+			if (entityAttributeSchema.getSortableInScopes().equals(newSortableInScopes)) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) EntityAttributeSchema._internalBuild(
+					this.name,
+					entityAttributeSchema.getNameVariants(),
+					entityAttributeSchema.getDescription(),
+					entityAttributeSchema.getDeprecationNotice(),
+					entityAttributeSchema.getUniquenessTypeInScopes(),
+					entityAttributeSchema.getFilterableInScopes(),
+					newSortableInScopes,
+					entityAttributeSchema.isLocalized(),
+					entityAttributeSchema.isNullable(),
+					entityAttributeSchema.isRepresentative(),
+					(Class) entityAttributeSchema.getType(),
+					entityAttributeSchema.getDefaultValue(),
+					entityAttributeSchema.getIndexedDecimalPlaces()
+				);
+			}
+		} else if (attributeSchema instanceof AttributeSchema theAttributeSchema) {
+			if (theAttributeSchema.getSortableInScopes().equals(newSortableInScopes)) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) AttributeSchema._internalBuild(
+					this.name,
+					theAttributeSchema.getNameVariants(),
+					theAttributeSchema.getDescription(),
+					theAttributeSchema.getDeprecationNotice(),
+					theAttributeSchema.getUniquenessTypeInScopes(),
+					theAttributeSchema.getFilterableInScopes(),
+					newSortableInScopes,
+					theAttributeSchema.isLocalized(),
+					theAttributeSchema.isNullable(),
+					(Class) attributeSchema.getType(),
+					theAttributeSchema.getDefaultValue(),
+					theAttributeSchema.getIndexedDecimalPlaces()
+				);
+			}
 		} else {
-			//noinspection unchecked,rawtypes
-			return (S) AttributeSchema._internalBuild(
-				name,
-				attributeSchema.getNameVariants(),
-				attributeSchema.getDescription(),
-				attributeSchema.getDeprecationNotice(),
-				attributeSchema.getUniquenessType(),
-				attributeSchema.isFilterable(),
-				sortable,
-				attributeSchema.isLocalized(),
-				attributeSchema.isNullable(),
-				(Class) attributeSchema.getType(),
-				attributeSchema.getDefaultValue(),
-				attributeSchema.getIndexedDecimalPlaces()
-			);
+			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
 		}
 	}
 
@@ -215,7 +251,7 @@ public class SetAttributeSchemaSortableMutation
 	@Override
 	public String toString() {
 		return "Set attribute `" + name + "` schema: " +
-			"sortable=" + sortable;
+			", sortable=" + (isSortable() ? "(in scopes: " + Arrays.toString(this.sortableInScopes) + ")" : "no");
 	}
 
 }
