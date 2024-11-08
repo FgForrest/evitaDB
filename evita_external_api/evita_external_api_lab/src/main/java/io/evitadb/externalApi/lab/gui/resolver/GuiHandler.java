@@ -29,6 +29,7 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.QueryParamsBuilder;
+import com.linecorp.armeria.common.ServerCacheControl;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.file.HttpFile;
@@ -123,13 +124,23 @@ public class GuiHandler implements HttpService {
 			return HttpResponse.builder()
 				.status(HttpStatus.SEE_OTHER)
 				.header(HttpHeaderNames.LOCATION, ctx.path() + "?" + newQueryString)
+				// we don't want to cache evitaLab index file because in development environments, developers often
+				// switch evitaDB server under same hostname and each evitaDB server may have different version or config
+				// therefore we need to make sure that the initialization of evitaLab is always fresh
+				.header(HttpHeaderNames.CACHE_CONTROL, ServerCacheControl.DISABLED.asHeaderValue())
 				.build();
 		}
 
-		return HttpFile.of(
+		return HttpFile.builder(
 			classLoader,
 			createJarResourceLocationWithForwardSlashes(fsPath.resolve("index.html"))
 		)
+			// we don't want to cache evitaLab index file because in development environments, developers often
+			// switch evitaDB server under same hostname and each evitaDB server may have different version or config
+			// therefore we need to make sure that the initialization of evitaLab is always fresh
+			.lastModified(false)
+			.cacheControl(ServerCacheControl.DISABLED)
+			.build()
 			.asService()
 			.serve(ctx, req);
 	}
@@ -140,12 +151,15 @@ public class GuiHandler implements HttpService {
 	                                 @Nonnull ClassLoader classLoader,
 									 @Nonnull String path,
 	                                 @Nonnull Path fsPath) throws Exception {
-		return HttpFile.of(
+		return HttpFile.builder(
 			classLoader,
 			createJarResourceLocationWithForwardSlashes(
 				fsPath.resolve(Paths.get(path.substring(1)))
 			)
 		)
+			// all assets are versioned so we can cache them for long and never change
+			.cacheControl(ServerCacheControl.IMMUTABLE)
+			.build()
 			.asService()
 			.serve(ctx, req);
 	}
