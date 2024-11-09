@@ -27,6 +27,7 @@ package io.evitadb.api.requestResponse.data.annotation;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -130,5 +131,16 @@ public @interface ReflectedReference {
 	 *   this filter
 	 */
 	String[] attributeInheritanceFilter() default {};
+
+	/**
+	 * Allows to define different settings for different scopes. If not specified, the general settings apply only to
+	 * the {@link Scope#LIVE} and in the {@link Scope#ARCHIVED} the reference and its attributes are not indexed
+	 * whatsoever (not filterable, not sortable, not unique, not faceted). If scope settings are specified for
+	 * {@link Scope#LIVE}, the general settings are ignored completely.
+	 *
+	 * The entities in different scopes are never not connected by the reflected reference. The reflected references
+	 * connect only entities in the same scope.
+	 */
+	ScopeReferenceSettings[] scope() default {};
 
 }
