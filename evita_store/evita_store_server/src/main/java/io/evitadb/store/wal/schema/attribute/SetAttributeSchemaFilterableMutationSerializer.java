@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,9 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 
+import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.readScopeArray;
+import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.writeScopeArray;
+
 /**
  * Serializer for {@link SetAttributeSchemaFilterableMutation}.
  *
@@ -39,14 +42,14 @@ public class SetAttributeSchemaFilterableMutationSerializer extends Serializer<S
 	@Override
 	public void write(Kryo kryo, Output output, SetAttributeSchemaFilterableMutation mutation) {
 		output.writeString(mutation.getName());
-		output.writeBoolean(mutation.isFilterable());
+		writeScopeArray(kryo, output, mutation.getFilterableInScopes());
 	}
 
 	@Override
 	public SetAttributeSchemaFilterableMutation read(Kryo kryo, Input input, Class<? extends SetAttributeSchemaFilterableMutation> type) {
 		return new SetAttributeSchemaFilterableMutation(
 			input.readString(),
-			input.readBoolean()
+			readScopeArray(kryo, input)
 		);
 	}
 

@@ -45,16 +45,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
 
-import static io.evitadb.store.schema.serializer.AttributeSchemaSerializer.readScopeSet;
-import static io.evitadb.store.schema.serializer.AttributeSchemaSerializer.writeScopeSet;
-
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated
 @RequiredArgsConstructor
-public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
+public class ReferenceSchemaSerializer_2024_11 extends Serializer<ReferenceSchema> {
 	private static final Function<String, EntitySchemaContract> IMPOSSIBLE_EXCEPTION_PRODUCER = s -> {
 		throw new GenericEvitaInternalError("Sanity check!");
 	};
@@ -88,10 +86,8 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			output.writeVarInt(entry.getKey().ordinal(), true);
 			output.writeString(entry.getValue());
 		}
-
-		writeScopeSet(kryo, output, referenceSchema.getIndexedInScopes());
-		writeScopeSet(kryo, output, referenceSchema.getFacetedInScopes());
-
+		output.writeBoolean(referenceSchema.isIndexed());
+		output.writeBoolean(referenceSchema.isFaceted());
 		kryo.writeObject(output, referenceSchema.getAttributes());
 
 		if (referenceSchema.getDescription() != null) {
@@ -147,9 +143,8 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 				input.readString()
 			);
 		}
-		final EnumSet<Scope> indexedInScopes = readScopeSet(kryo, input);
-		final EnumSet<Scope> facetedInScopes = readScopeSet(kryo, input);
-
+		final boolean indexed = input.readBoolean();
+		final boolean faceted = input.readBoolean();
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
@@ -169,8 +164,8 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			cardinality,
 			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
 			groupType, groupTypeNameVariants, referencedGroupTypeManaged,
-			indexedInScopes,
-			facetedInScopes,
+			(indexed ? EnumSet.of(Scope.LIVE) : EnumSet.noneOf(Scope.class)),
+			(faceted ? EnumSet.of(Scope.LIVE) : EnumSet.noneOf(Scope.class)),
 			attributes, sortableAttributeCompounds
 		);
 	}

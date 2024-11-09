@@ -66,7 +66,7 @@ import static java.util.Optional.ofNullable;
 @Immutable
 @ThreadSafe
 public final class ReflectedReferenceSchema extends ReferenceSchema implements ReflectedReferenceSchemaContract {
-	@Serial private static final long serialVersionUID = 4857683151308476440L;
+	@Serial private static final long serialVersionUID = -9183685599546687429L;
 
 	/**
 	 * Contains name of the original reference of the {@link #getReferencedEntityType()} this reference reflects.
@@ -205,8 +205,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull String entityType,
 		@Nonnull String reflectedReferenceName,
 		@Nullable Cardinality cardinality,
-		@Nullable Scope[] indexedInScopes,
-		@Nullable Scope[] facetedInScopes,
+		@Nullable EnumSet<Scope> indexedInScopes,
+		@Nullable EnumSet<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull AttributeInheritanceBehavior attributesInherited,
@@ -214,10 +214,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 		// we cannot validate here that all faceted scopes are also indexed, in case indexed scopes are inherited
-		final EnumSet<Scope> indexedScopes = indexedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
-		final EnumSet<Scope> facetedScopes = facetedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
 		if (indexedInScopes != null && facetedInScopes != null) {
-			validateScopeSettings(facetedScopes, indexedScopes);
+			validateScopeSettings(facetedInScopes, indexedInScopes);
 		}
 
 		return new ReflectedReferenceSchema(
@@ -225,8 +223,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			description, deprecationNotice, cardinality,
 			entityType,
 			reflectedReferenceName,
-			indexedScopes,
-			facetedScopes,
+			indexedInScopes,
+			facetedInScopes,
 			attributes,
 			sortableAttributeCompounds,
 			attributesInherited,

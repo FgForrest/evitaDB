@@ -76,7 +76,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 @EqualsAndHashCode
 public class CreateGlobalAttributeSchemaMutation
 	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
-	@Serial private static final long serialVersionUID = -7082514745878566818L;
+	@Serial private static final long serialVersionUID = 496202593310308290L;
 
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;

@@ -66,7 +66,7 @@ import static io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema.to
 @EqualsAndHashCode
 public class SetAttributeSchemaGloballyUniqueMutation
 	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation {
-	@Serial private static final long serialVersionUID = -2200571466479594746L;
+	@Serial private static final long serialVersionUID = 6770930613525155912L;
 	@Getter @Nonnull private final String name;
 	@Getter private final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes;
 

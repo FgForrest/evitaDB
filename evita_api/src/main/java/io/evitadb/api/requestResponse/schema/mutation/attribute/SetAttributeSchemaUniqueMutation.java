@@ -71,7 +71,7 @@ import java.util.EnumMap;
 public class SetAttributeSchemaUniqueMutation
 	implements GlobalAttributeSchemaMutation, EntityAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
-	@Serial private static final long serialVersionUID = 9015269199183582415L;
+	@Serial private static final long serialVersionUID = -6712334156291456184L;
 
 	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;

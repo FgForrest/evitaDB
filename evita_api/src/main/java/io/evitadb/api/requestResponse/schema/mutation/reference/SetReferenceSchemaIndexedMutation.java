@@ -63,7 +63,7 @@ import java.util.Optional;
 @EqualsAndHashCode(callSuper = true)
 public class SetReferenceSchemaIndexedMutation
 	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -4329391051963284444L;
+	@Serial private static final long serialVersionUID = 9004841790854082119L;
 	@Getter private final Scope[] indexedInScopes;
 
 	public SetReferenceSchemaIndexedMutation(

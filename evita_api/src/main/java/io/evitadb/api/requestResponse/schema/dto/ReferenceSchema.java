@@ -73,7 +73,7 @@ import static java.util.Optional.ofNullable;
 @Immutable
 @ThreadSafe
 public sealed class ReferenceSchema implements ReferenceSchemaContract permits ReflectedReferenceSchema {
-	@Serial private static final long serialVersionUID = 2018566260261489037L;
+	@Serial private static final long serialVersionUID = -5640763435228403921L;
 	@Getter @Nonnull protected final String name;
 	@Getter @Nonnull protected final Cardinality cardinality;
 	@Getter @Nullable protected final String deprecationNotice;

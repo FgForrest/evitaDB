@@ -29,6 +29,9 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 
+import static io.evitadb.store.wal.schema.reference.CreateReferenceSchemaMutationSerializer.readScopeArray;
+import static io.evitadb.store.wal.schema.reference.CreateReferenceSchemaMutationSerializer.writeScopeArray;
+
 /**
  * Serializer for {@link SetReferenceSchemaIndexedMutation}.
  *
@@ -39,16 +42,20 @@ public class SetReferenceSchemaIndexedMutationSerializer extends Serializer<SetR
 	@Override
 	public void write(Kryo kryo, Output output, SetReferenceSchemaIndexedMutation mutation) {
 		output.writeString(mutation.getName());
-		final Boolean indexed = mutation.getIndexed();
-		output.writeBoolean(indexed != null);
-		output.writeBoolean(indexed);
+
+		if (mutation.getIndexedInScopes() == null) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			writeScopeArray(kryo, output, mutation.getIndexedInScopes());
+		}
 	}
 
 	@Override
 	public SetReferenceSchemaIndexedMutation read(Kryo kryo, Input input, Class<? extends SetReferenceSchemaIndexedMutation> type) {
 		return new SetReferenceSchemaIndexedMutation(
 			input.readString(),
-			input.readBoolean() ? input.readBoolean() : null
+			input.readBoolean() ? readScopeArray(kryo, input) : null
 		);
 	}
 }

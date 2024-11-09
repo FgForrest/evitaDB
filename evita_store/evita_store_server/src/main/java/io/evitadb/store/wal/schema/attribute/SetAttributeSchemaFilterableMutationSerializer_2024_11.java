@@ -21,41 +21,33 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.wal.schema.reference;
+package io.evitadb.store.wal.schema.attribute;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
-
-import static io.evitadb.store.wal.schema.reference.CreateReferenceSchemaMutationSerializer.readScopeArray;
-import static io.evitadb.store.wal.schema.reference.CreateReferenceSchemaMutationSerializer.writeScopeArray;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 
 /**
- * Serializer for {@link SetReferenceSchemaFacetedMutation}.
+ * Serializer for {@link SetAttributeSchemaFilterableMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SetReferenceSchemaFacetedMutationSerializer extends Serializer<SetReferenceSchemaFacetedMutation> {
+@Deprecated
+public class SetAttributeSchemaFilterableMutationSerializer_2024_11 extends Serializer<SetAttributeSchemaFilterableMutation> {
 
 	@Override
-	public void write(Kryo kryo, Output output, SetReferenceSchemaFacetedMutation mutation) {
+	public void write(Kryo kryo, Output output, SetAttributeSchemaFilterableMutation mutation) {
 		output.writeString(mutation.getName());
-
-		if (mutation.getFacetedInScopes() == null) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			writeScopeArray(kryo, output, mutation.getFacetedInScopes());
-		}
+		output.writeBoolean(mutation.isFilterable());
 	}
 
 	@Override
-	public SetReferenceSchemaFacetedMutation read(Kryo kryo, Input input, Class<? extends SetReferenceSchemaFacetedMutation> type) {
-		return new SetReferenceSchemaFacetedMutation(
+	public SetAttributeSchemaFilterableMutation read(Kryo kryo, Input input, Class<? extends SetAttributeSchemaFilterableMutation> type) {
+		return new SetAttributeSchemaFilterableMutation(
 			input.readString(),
-			input.readBoolean() ? readScopeArray(kryo, input) : null
+			input.readBoolean()
 		);
 	}
 

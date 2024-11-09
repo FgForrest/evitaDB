@@ -44,14 +44,12 @@ import java.util.stream.Collectors;
 
 /**
  * Internal implementation of {@link EntityAttributeSchemaContract}.
- *
- * TODO JNO - tady se pak některé _internalCreate metody určitě budou dát odstranit
  */
 @Immutable
 @ThreadSafe
 @EqualsAndHashCode(callSuper = true)
 public final class EntityAttributeSchema extends AttributeSchema implements EntityAttributeSchemaContract {
-	@Serial private static final long serialVersionUID = 8204057625761013999L;
+	@Serial private static final long serialVersionUID = 8168305590483159082L;
 
 	@Getter private final boolean representative;
 

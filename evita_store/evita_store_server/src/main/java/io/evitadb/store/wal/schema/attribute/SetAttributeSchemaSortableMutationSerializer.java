@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,9 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
 
+import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.readScopeArray;
+import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.writeScopeArray;
+
 /**
  * Serializer for {@link SetAttributeSchemaSortableMutation}.
  *
@@ -39,14 +42,14 @@ public class SetAttributeSchemaSortableMutationSerializer extends Serializer<Set
 	@Override
 	public void write(Kryo kryo, Output output, SetAttributeSchemaSortableMutation mutation) {
 		output.writeString(mutation.getName());
-		output.writeBoolean(mutation.isSortable());
+		writeScopeArray(kryo, output, mutation.getSortableInScopes());
 	}
 
 	@Override
 	public SetAttributeSchemaSortableMutation read(Kryo kryo, Input input, Class<? extends SetAttributeSchemaSortableMutation> type) {
 		return new SetAttributeSchemaSortableMutation(
 			input.readString(),
-			input.readBoolean()
+			readScopeArray(kryo, input)
 		);
 	}
 }

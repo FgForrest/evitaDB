@@ -73,7 +73,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 public class SetAttributeSchemaSortableMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
-	@Serial private static final long serialVersionUID = 5362264895300132417L;
+	@Serial private static final long serialVersionUID = -427671510596792137L;
 
 	@Getter @Nonnull private final String name;
 	@Getter private final Scope[] sortableInScopes;

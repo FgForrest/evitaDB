@@ -29,15 +29,14 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
-import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -46,42 +45,12 @@ import java.util.Map.Entry;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated
 @RequiredArgsConstructor
-public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
-
-	/**
-	 * Serializes an EnumSet of Scope objects to the given Kryo output.
-	 *
-	 * @param kryo   the Kryo instance to use for serialization
-	 * @param output the Output instance to write to
-	 * @param scopes the EnumSet of Scope objects to serialize
-	 */
-	static void writeScopeSet(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull EnumSet<Scope> scopes) {
-		output.writeVarInt(scopes.size(), true);
-		for (Scope filterableInScope : scopes) {
-			kryo.writeObject(output, filterableInScope);
-		}
-	}
-
-	/**
-	 * Reads an EnumSet of Scope objects from the given Kryo input.
-	 *
-	 * @param kryo  the Kryo instance to use for deserialization
-	 * @param input the Input instance to read from
-	 * @return the EnumSet of Scope objects that were read from the input
-	 */
-	@Nonnull
-	static EnumSet<Scope> readScopeSet(@Nonnull Kryo kryo, @Nonnull Input input) {
-		int size = input.readVarInt(true);
-		final EnumSet<Scope> scopes = EnumSet.noneOf(Scope.class);
-		for (int i = 0; i < size; i++) {
-			scopes.add(kryo.readObject(input, Scope.class));
-		}
-		return scopes;
-	}
+public class EntityAttributeSchemaSerializer_2024_11 extends Serializer<EntityAttributeSchema> {
 
 	@Override
-	public void write(Kryo kryo, Output output, AttributeSchema attributeSchema) {
+	public void write(Kryo kryo, Output output, EntityAttributeSchema attributeSchema) {
 		output.writeString(attributeSchema.getName());
 		output.writeVarInt(attributeSchema.getNameVariants().size(), true);
 		for (Entry<NamingConvention, String> entry : attributeSchema.getNameVariants().entrySet()) {
@@ -95,19 +64,12 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 			output.writeBoolean(true);
 			kryo.writeClassAndObject(output, attributeSchema.getDefaultValue());
 		}
-
-		final EnumMap<Scope, AttributeUniquenessType> uniqueness = attributeSchema.getUniquenessTypeInScopes();
-		output.writeVarInt(uniqueness.size(), true);
-		for (Entry<Scope, AttributeUniquenessType> entry : uniqueness.entrySet()) {
-			kryo.writeObject(output, entry.getKey());
-			kryo.writeObject(output, entry.getValue());
-		}
-
-		writeScopeSet(kryo, output, attributeSchema.getFilterableInScopes());
-		writeScopeSet(kryo, output, attributeSchema.getSortableInScopes());
-
+		output.writeVarInt(attributeSchema.getUniquenessType().ordinal(), true);
 		output.writeBoolean(attributeSchema.isLocalized());
+		output.writeBoolean(attributeSchema.isFilterable());
+		output.writeBoolean(attributeSchema.isSortable());
 		output.writeBoolean(attributeSchema.isNullable());
+		output.writeBoolean(attributeSchema.isRepresentative());
 		output.writeInt(attributeSchema.getIndexedDecimalPlaces());
 		if (attributeSchema.getDescription() != null) {
 			output.writeBoolean(true);
@@ -125,7 +87,7 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Override
-	public AttributeSchema read(Kryo kryo, Input input, Class<? extends AttributeSchema> aClass) {
+	public EntityAttributeSchema read(Kryo kryo, Input input, Class<? extends EntityAttributeSchema> aClass) {
 		final String name = input.readString();
 		final int nameVariantCount = input.readVarInt(true);
 		final Map<NamingConvention, String> nameVariants = CollectionUtils.createLinkedHashMap(nameVariantCount);
@@ -137,26 +99,23 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 		}
 		final Class type = kryo.readClass(input).getType();
 		final Object defaultValue = input.readBoolean() ? kryo.readClassAndObject(input) : null;
-
-		final int uqSize = input.readVarInt(true);
-		final EnumMap<Scope, AttributeUniquenessType> unique = new EnumMap<>(Scope.class);
-		for (int i = 0; i < uqSize; i++) {
-			final Scope scope = kryo.readObject(input, Scope.class);
-			final AttributeUniquenessType uqType = kryo.readObject(input, AttributeUniquenessType.class);
-			unique.put(scope, uqType);
-		}
-
-		final EnumSet<Scope> filterable = readScopeSet(kryo, input);
-		final EnumSet<Scope> sortable = readScopeSet(kryo, input);
-
+		final AttributeUniquenessType unique = AttributeUniquenessType.values()[input.readVarInt(true)];
 		final boolean localized = input.readBoolean();
+		final boolean filterable = input.readBoolean();
+		final boolean sortable = input.readBoolean();
 		final boolean nullable = input.readBoolean();
+		final boolean representative = input.readBoolean();
 		final int indexedDecimalPlaces = input.readInt();
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
-		return AttributeSchema._internalBuild(
+		return EntityAttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			unique, filterable, sortable, localized, nullable,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, unique)
+			},
+			(filterable ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE),
+			(sortable ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE),
+			localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces
 		);
 	}

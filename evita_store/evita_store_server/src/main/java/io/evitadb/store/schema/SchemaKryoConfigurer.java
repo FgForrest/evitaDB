@@ -45,15 +45,7 @@ import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.entity.model.schema.EntitySchemaStoragePart;
 import io.evitadb.store.entity.serializer.CatalogSchemaStoragePartSerializer;
 import io.evitadb.store.entity.serializer.EntitySchemaStoragePartSerializer;
-import io.evitadb.store.schema.serializer.AssociatedDataSchemaSerializer;
-import io.evitadb.store.schema.serializer.AttributeSchemaSerializer;
-import io.evitadb.store.schema.serializer.CatalogSchemaSerializer;
-import io.evitadb.store.schema.serializer.EntityAttributeSchemaSerializer;
-import io.evitadb.store.schema.serializer.EntitySchemaSerializer;
-import io.evitadb.store.schema.serializer.GlobalAttributeSchemaSerializer;
-import io.evitadb.store.schema.serializer.ReferenceSchemaSerializer;
-import io.evitadb.store.schema.serializer.ReflectedReferenceSchemaSerializer;
-import io.evitadb.store.schema.serializer.SortableAttributeCompoundSchemaSerializer;
+import io.evitadb.store.schema.serializer.*;
 import io.evitadb.utils.Assert;
 
 import java.util.function.Consumer;
@@ -73,18 +65,43 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(CatalogSchemaStoragePart.class, new SerialVersionBasedSerializer<>(new CatalogSchemaStoragePartSerializer(), CatalogSchemaStoragePart.class), index++);
 		kryo.register(EntitySchema.class, new SerialVersionBasedSerializer<>(new EntitySchemaSerializer(), EntitySchema.class), index++);
 		kryo.register(EntitySchemaStoragePart.class, new SerialVersionBasedSerializer<>(new EntitySchemaStoragePartSerializer(), EntitySchemaStoragePart.class), index++);
-		kryo.register(AttributeSchema.class, new SerialVersionBasedSerializer<>(new AttributeSchemaSerializer(), AttributeSchema.class), index++);
-		kryo.register(GlobalAttributeSchema.class, new SerialVersionBasedSerializer<>(new GlobalAttributeSchemaSerializer(), GlobalAttributeSchema.class), index++);
-		kryo.register(EntityAttributeSchema.class, new SerialVersionBasedSerializer<>(new EntityAttributeSchemaSerializer(), EntityAttributeSchema.class), index++);
+		kryo.register(
+			AttributeSchema.class,
+			new SerialVersionBasedSerializer<>(new AttributeSchemaSerializer(), AttributeSchema.class)
+				.addBackwardCompatibleSerializer(1340876688998990217L, new AttributeSchemaSerializer_2024_11()),
+			index++
+		);
+		kryo.register(
+			GlobalAttributeSchema.class,
+			new SerialVersionBasedSerializer<>(new GlobalAttributeSchemaSerializer(), GlobalAttributeSchema.class)
+				.addBackwardCompatibleSerializer(-4016156218004708457L, new GlobalAttributeSchemaSerializer_2024_11()),
+			index++
+		);
+		kryo.register(
+			EntityAttributeSchema.class,
+			new SerialVersionBasedSerializer<>(new EntityAttributeSchemaSerializer(), EntityAttributeSchema.class)
+				.addBackwardCompatibleSerializer(8204057625761013999L, new EntityAttributeSchemaSerializer_2024_11()),
+			index++
+		);
 		kryo.register(AssociatedDataSchema.class, new SerialVersionBasedSerializer<>(new AssociatedDataSchemaSerializer(), AssociatedDataSchema.class), index++);
-		kryo.register(ReferenceSchema.class, new SerialVersionBasedSerializer<>(new ReferenceSchemaSerializer(), ReferenceSchema.class), index++);
+		kryo.register(
+			ReferenceSchema.class,
+			new SerialVersionBasedSerializer<>(new ReferenceSchemaSerializer(), ReferenceSchema.class)
+				.addBackwardCompatibleSerializer(2018566260261489037L, new ReferenceSchemaSerializer_2024_11()),
+			index++
+		);
 		kryo.register(SortableAttributeCompoundSchema.class, new SerialVersionBasedSerializer<>(new SortableAttributeCompoundSchemaSerializer(), SortableAttributeCompoundSchema.class), index++);
 		kryo.register(EvolutionMode.class, new EnumNameSerializer<>(), index++);
 		kryo.register(CatalogEvolutionMode.class, new EnumNameSerializer<>(), index++);
 		kryo.register(Cardinality.class, new EnumNameSerializer<>(), index++);
 		kryo.register(OrderDirection.class, new EnumNameSerializer<>(), index++);
 		kryo.register(OrderBehaviour.class, new EnumNameSerializer<>(), index++);
-		kryo.register(ReflectedReferenceSchema.class, new SerialVersionBasedSerializer<>(new ReflectedReferenceSchemaSerializer(), ReflectedReferenceSchema.class), index++);
+		kryo.register(
+			ReflectedReferenceSchema.class,
+			new SerialVersionBasedSerializer<>(new ReflectedReferenceSchemaSerializer(), ReflectedReferenceSchema.class)
+				.addBackwardCompatibleSerializer(4857683151308476440L, new ReflectedReferenceSchemaSerializer_2024_11()),
+			index++
+		);
 		kryo.register(AttributeInheritanceBehavior.class, new EnumNameSerializer<>(), index++);
 
 		Assert.isPremiseValid(index < 500, "Index count overflow.");

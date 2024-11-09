@@ -29,47 +29,14 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
-import io.evitadb.dataType.Scope;
-
-import javax.annotation.Nonnull;
 
 /**
  * Serializer for {@link CreateReferenceSchemaMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateReferenceSchemaMutation> {
-
-	/**
-	 * Serializes an array of Scope objects to the given Kryo output.
-	 *
-	 * @param kryo   the Kryo instance to use for serialization
-	 * @param output the Output instance to write to
-	 * @param scopes the array of Scope objects to serialize
-	 */
-	static void writeScopeArray(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull Scope[] scopes) {
-		output.writeVarInt(scopes.length, true);
-		for (Scope scope : scopes) {
-			kryo.writeObject(output, scope);
-		}
-	}
-
-	/**
-	 * Reads an array of Scope objects from the given Kryo input.
-	 *
-	 * @param kryo  the Kryo instance to use for deserialization
-	 * @param input the Input instance to read from
-	 * @return the array of Scope objects that were read from the input
-	 */
-	@Nonnull
-	static Scope[] readScopeArray(@Nonnull Kryo kryo, @Nonnull Input input) {
-		int size = input.readVarInt(true);
-		Scope[] scopes = new Scope[size];
-		for (int i = 0; i < size; i++) {
-			scopes[i] = kryo.readObject(input, Scope.class);
-		}
-		return scopes;
-	}
+@Deprecated
+public class CreateReferenceSchemaMutationSerializer_2024_11 extends Serializer<CreateReferenceSchemaMutation> {
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateReferenceSchemaMutation mutation) {
@@ -81,8 +48,8 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		output.writeBoolean(mutation.isReferencedEntityTypeManaged());
 		output.writeString(mutation.getReferencedGroupType());
 		output.writeBoolean(mutation.isReferencedGroupTypeManaged());
-		writeScopeArray(kryo, output, mutation.getIndexedInScopes());
-		writeScopeArray(kryo, output, mutation.getFacetedInScopes());
+		output.writeBoolean(mutation.isIndexed());
+		output.writeBoolean(mutation.isFaceted());
 	}
 
 	@Override
@@ -95,10 +62,8 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		final boolean referencedEntityTypeManaged = input.readBoolean();
 		final String referencedGroupType = input.readString();
 		final boolean referencedGroupTypeManaged = input.readBoolean();
-
-		final Scope[] indexedInScopes = readScopeArray(kryo, input);
-		final Scope[] facetedInScopes = readScopeArray(kryo, input);
-
+		final boolean indexed = input.readBoolean();
+		final boolean faceted = input.readBoolean();
 		return new CreateReferenceSchemaMutation(
 			name,
 			description,
@@ -108,8 +73,8 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 			referencedEntityTypeManaged,
 			referencedGroupType,
 			referencedGroupTypeManaged,
-			indexedInScopes,
-			facetedInScopes
+			indexed,
+			faceted
 		);
 	}
 

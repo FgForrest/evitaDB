@@ -145,21 +145,51 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(SetAssociatedDataSchemaLocalizedMutation.class, new SerialVersionBasedSerializer<>(new SetAssociatedDataSchemaLocalizedMutationSerializer(), SetAssociatedDataSchemaLocalizedMutation.class), index++);
 		kryo.register(SetAssociatedDataSchemaNullableMutation.class, new SerialVersionBasedSerializer<>(new SetAssociatedDataSchemaNullableMutationSerializer(), SetAssociatedDataSchemaNullableMutation.class), index++);
 
-		kryo.register(CreateAttributeSchemaMutation.class, new SerialVersionBasedSerializer<>(new CreateAttributeSchemaMutationSerializer(), CreateAttributeSchemaMutation.class), index++);
-		kryo.register(CreateGlobalAttributeSchemaMutation.class, new SerialVersionBasedSerializer<>(new CreateGlobalAttributeSchemaMutationSerializer(), CreateGlobalAttributeSchemaMutation.class), index++);
+		kryo.register(
+			CreateAttributeSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(new CreateAttributeSchemaMutationSerializer(), CreateAttributeSchemaMutation.class)
+				.addBackwardCompatibleSerializer(-7082514745878566818L, new CreateAttributeSchemaMutationSerializer_2024_11()),
+			index++
+		);
+		kryo.register(
+			CreateGlobalAttributeSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(new CreateGlobalAttributeSchemaMutationSerializer(), CreateGlobalAttributeSchemaMutation.class)
+				.addBackwardCompatibleSerializer(-7082514745878566818L, new CreateGlobalAttributeSchemaMutationSerializer_2024_11()),
+			index++
+		);
 		kryo.register(ModifyAttributeSchemaDefaultValueMutation.class, new SerialVersionBasedSerializer<>(new ModifyAttributeSchemaDefaultValueMutationSerializer(), ModifyAttributeSchemaDefaultValueMutation.class), index++);
 		kryo.register(ModifyAttributeSchemaDeprecationNoticeMutation.class, new SerialVersionBasedSerializer<>(new ModifyAttributeSchemaDeprecationNoticeMutationSerializer(), ModifyAttributeSchemaDeprecationNoticeMutation.class), index++);
 		kryo.register(ModifyAttributeSchemaDescriptionMutation.class, new SerialVersionBasedSerializer<>(new ModifyAttributeSchemaDescriptionMutationSerializer(), ModifyAttributeSchemaDescriptionMutation.class), index++);
 		kryo.register(ModifyAttributeSchemaNameMutation.class, new SerialVersionBasedSerializer<>(new ModifyAttributeSchemaNameMutationSerializer(), ModifyAttributeSchemaNameMutation.class), index++);
 		kryo.register(ModifyAttributeSchemaTypeMutation.class, new SerialVersionBasedSerializer<>(new ModifyAttributeSchemaTypeMutationSerializer(), ModifyAttributeSchemaTypeMutation.class), index++);
 		kryo.register(RemoveAttributeSchemaMutation.class, new SerialVersionBasedSerializer<>(new RemoveAttributeSchemaMutationSerializer(), RemoveAttributeSchemaMutation.class), index++);
-		kryo.register(SetAttributeSchemaFilterableMutation.class, new SerialVersionBasedSerializer<>(new SetAttributeSchemaFilterableMutationSerializer(), SetAttributeSchemaFilterableMutation.class), index++);
-		kryo.register(SetAttributeSchemaGloballyUniqueMutation.class, new SerialVersionBasedSerializer<>(new SetAttributeSchemaGloballyUniqueMutationSerializer(), SetAttributeSchemaGloballyUniqueMutation.class), index++);
+		kryo.register(
+			SetAttributeSchemaFilterableMutation.class,
+			new SerialVersionBasedSerializer<>(new SetAttributeSchemaFilterableMutationSerializer(), SetAttributeSchemaFilterableMutation.class)
+				.addBackwardCompatibleSerializer(2640270593395210307L, new SetAttributeSchemaFilterableMutationSerializer_2024_11()),
+			index++
+		);
+		kryo.register(
+			SetAttributeSchemaGloballyUniqueMutation.class,
+			new SerialVersionBasedSerializer<>(new SetAttributeSchemaGloballyUniqueMutationSerializer(), SetAttributeSchemaGloballyUniqueMutation.class)
+				.addBackwardCompatibleSerializer(-2200571466479594746L, new SetAttributeSchemaGloballyUniqueMutationSerializer_2024_11()),
+			index++
+		);
 		kryo.register(SetAttributeSchemaLocalizedMutation.class, new SerialVersionBasedSerializer<>(new SetAttributeSchemaLocalizedMutationSerializer(), SetAttributeSchemaLocalizedMutation.class), index++);
 		kryo.register(SetAttributeSchemaNullableMutation.class, new SerialVersionBasedSerializer<>(new SetAttributeSchemaNullableMutationSerializer(), SetAttributeSchemaNullableMutation.class), index++);
 		kryo.register(SetAttributeSchemaRepresentativeMutation.class, new SerialVersionBasedSerializer<>(new SetAttributeSchemaRepresentativeMutationSerializer(), SetAttributeSchemaRepresentativeMutation.class), index++);
-		kryo.register(SetAttributeSchemaSortableMutation.class, new SerialVersionBasedSerializer<>(new SetAttributeSchemaSortableMutationSerializer(), SetAttributeSchemaSortableMutation.class), index++);
-		kryo.register(SetAttributeSchemaUniqueMutation.class, new SerialVersionBasedSerializer<>(new SetAttributeSchemaUniqueMutationSerializer(), SetAttributeSchemaUniqueMutation.class), index++);
+		kryo.register(
+			SetAttributeSchemaSortableMutation.class,
+			new SerialVersionBasedSerializer<>(new SetAttributeSchemaSortableMutationSerializer(), SetAttributeSchemaSortableMutation.class)
+				.addBackwardCompatibleSerializer(5362264895300132417L, new SetAttributeSchemaSortableMutationSerializer_2024_11()),
+			index++
+		);
+		kryo.register(
+			SetAttributeSchemaUniqueMutation.class,
+			new SerialVersionBasedSerializer<>(new SetAttributeSchemaUniqueMutationSerializer(), SetAttributeSchemaUniqueMutation.class)
+				.addBackwardCompatibleSerializer(9015269199183582415L, new SetAttributeSchemaUniqueMutationSerializer_2024_11()),
+			index++
+		);
 		kryo.register(UseGlobalAttributeSchemaMutation.class, new SerialVersionBasedSerializer<>(new UseGlobalAttributeSchemaMutationSerializer(), UseGlobalAttributeSchemaMutation.class), index++);
 
 		kryo.register(AllowEvolutionModeInCatalogSchemaMutation.class, new SerialVersionBasedSerializer<>(new AllowEvolutionModeInCatalogSchemaMutationSerializer(), AllowEvolutionModeInCatalogSchemaMutation.class), index++);
@@ -186,7 +216,12 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(SetEntitySchemaWithHierarchyMutation.class, new SerialVersionBasedSerializer<>(new SetEntitySchemaWithHierarchyMutationSerializer(), SetEntitySchemaWithHierarchyMutation.class), index++);
 		kryo.register(SetEntitySchemaWithPriceMutation.class, new SerialVersionBasedSerializer<>(new SetEntitySchemaWithPriceMutationSerializer(), SetEntitySchemaWithPriceMutation.class), index++);
 
-		kryo.register(CreateReferenceSchemaMutation.class, new SerialVersionBasedSerializer<>(new CreateReferenceSchemaMutationSerializer(), CreateReferenceSchemaMutation.class), index++);
+		kryo.register(
+			CreateReferenceSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(new CreateReferenceSchemaMutationSerializer(), CreateReferenceSchemaMutation.class)
+				.addBackwardCompatibleSerializer(-1736213837309810284L, new CreateReferenceSchemaMutationSerializer_2024_11()),
+			index++
+		);
 		kryo.register(ModifyReferenceAttributeSchemaMutation.class, new SerialVersionBasedSerializer<>(new ModifyReferenceAttributeSchemaMutationSerializer(), ModifyReferenceAttributeSchemaMutation.class), index++);
 		kryo.register(ModifyReferenceSchemaCardinalityMutation.class, new SerialVersionBasedSerializer<>(new ModifyReferenceSchemaCardinalityMutationSerializer(), ModifyReferenceSchemaCardinalityMutation.class), index++);
 		kryo.register(ModifyReferenceSchemaDeprecationNoticeMutation.class, new SerialVersionBasedSerializer<>(new ModifyReferenceSchemaDeprecationNoticeMutationSerializer(), ModifyReferenceSchemaDeprecationNoticeMutation.class), index++);
@@ -199,13 +234,15 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			SetReferenceSchemaFacetedMutation.class,
 			new SerialVersionBasedSerializer<>(new SetReferenceSchemaFacetedMutationSerializer(), SetReferenceSchemaFacetedMutation.class)
-				.addBackwardCompatibleSerializer(-8866197153007138452L, new SetReferenceSchemaFacetedMutationSerializer_2024_10()),
+				.addBackwardCompatibleSerializer(-8866197153007138452L, new SetReferenceSchemaFacetedMutationSerializer_2024_10())
+				.addBackwardCompatibleSerializer(4847175066828277710L, new SetReferenceSchemaFacetedMutationSerializer_2024_11()),
 			index++
 		);
 		kryo.register(
 			SetReferenceSchemaIndexedMutation.class,
 			new SerialVersionBasedSerializer<>(new SetReferenceSchemaIndexedMutationSerializer(), SetReferenceSchemaIndexedMutation.class)
-				.addBackwardCompatibleSerializer(6302709513348603359L, new SetReferenceSchemaIndexedMutationSerializer_2024_10()),
+				.addBackwardCompatibleSerializer(6302709513348603359L, new SetReferenceSchemaIndexedMutationSerializer_2024_10())
+				.addBackwardCompatibleSerializer(-4329391051963284444L, new SetReferenceSchemaIndexedMutationSerializer_2024_11()),
 			index++
 		);
 
@@ -235,7 +272,12 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 
 		kryo.register(TransactionMutation.class, new SerialVersionBasedSerializer<>(new TransactionMutationSerializer(), TransactionMutation.class), index++);
 
-		kryo.register(CreateReflectedReferenceSchemaMutation.class, new SerialVersionBasedSerializer<>(new CreateReflectedReferenceSchemaMutationSerializer(), CreateReflectedReferenceSchemaMutation.class), index++);
+		kryo.register(
+			CreateReflectedReferenceSchemaMutation.class,
+			new SerialVersionBasedSerializer<>(new CreateReflectedReferenceSchemaMutationSerializer(), CreateReflectedReferenceSchemaMutation.class)
+				.addBackwardCompatibleSerializer(4075653645885678621L, new CreateReflectedReferenceSchemaMutationSerializer_2024_11()),
+			index++
+		);
 		kryo.register(ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class, new SerialVersionBasedSerializer<>(new ModifyReflectedReferenceAttributeInheritanceSchemaMutationSerializer(), ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class), index++);
 		kryo.register(AttributeInheritanceBehavior.class, new EnumNameSerializer<>(), index++);
 

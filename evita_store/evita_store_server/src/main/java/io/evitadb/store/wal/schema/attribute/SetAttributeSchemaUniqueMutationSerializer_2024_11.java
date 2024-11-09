@@ -21,41 +21,34 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.wal.schema.reference;
+package io.evitadb.store.wal.schema.attribute;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
-
-import static io.evitadb.store.wal.schema.reference.CreateReferenceSchemaMutationSerializer.readScopeArray;
-import static io.evitadb.store.wal.schema.reference.CreateReferenceSchemaMutationSerializer.writeScopeArray;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 
 /**
- * Serializer for {@link SetReferenceSchemaFacetedMutation}.
+ * Serializer for {@link SetAttributeSchemaUniqueMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SetReferenceSchemaFacetedMutationSerializer extends Serializer<SetReferenceSchemaFacetedMutation> {
+@Deprecated
+public class SetAttributeSchemaUniqueMutationSerializer_2024_11 extends Serializer<SetAttributeSchemaUniqueMutation> {
 
 	@Override
-	public void write(Kryo kryo, Output output, SetReferenceSchemaFacetedMutation mutation) {
-		output.writeString(mutation.getName());
-
-		if (mutation.getFacetedInScopes() == null) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			writeScopeArray(kryo, output, mutation.getFacetedInScopes());
-		}
+	public void write(Kryo kryo, Output output, SetAttributeSchemaUniqueMutation object) {
+		output.writeString(object.getName());
+		kryo.writeObject(output, object.getUnique());
 	}
 
 	@Override
-	public SetReferenceSchemaFacetedMutation read(Kryo kryo, Input input, Class<? extends SetReferenceSchemaFacetedMutation> type) {
-		return new SetReferenceSchemaFacetedMutation(
+	public SetAttributeSchemaUniqueMutation read(Kryo kryo, Input input, Class<? extends SetAttributeSchemaUniqueMutation> type) {
+		return new SetAttributeSchemaUniqueMutation(
 			input.readString(),
-			input.readBoolean() ? readScopeArray(kryo, input) : null
+			kryo.readObject(input, AttributeUniquenessType.class)
 		);
 	}
 

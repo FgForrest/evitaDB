@@ -74,7 +74,7 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = 4075653645885678621L;
+	@Serial private static final long serialVersionUID = -2419676866574635677L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;

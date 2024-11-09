@@ -62,14 +62,14 @@ import java.util.Optional;
 @EqualsAndHashCode(callSuper = true)
 public class SetReferenceSchemaFacetedMutation
 	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = 4847175066828277710L;
+	@Serial private static final long serialVersionUID = 4479269384430732059L;
 	@Getter private final Scope[] facetedInScopes;
 
 	public SetReferenceSchemaFacetedMutation(
 		@Nonnull String name,
 		@Nullable Boolean faceted
 	) {
-		this(name, faceted == null ? null : (faceted ? new Scope[] {Scope.LIVE} : new Scope[0]));
+		this(name, faceted == null ? null : (faceted ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE));
 	}
 
 	public SetReferenceSchemaFacetedMutation(

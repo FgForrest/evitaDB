@@ -79,7 +79,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 @Immutable
 @EqualsAndHashCode
 public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMutation, CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -7082514745878566818L;
+	@Serial private static final long serialVersionUID = -469815390440407270L;
 
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;

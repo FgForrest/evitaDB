@@ -73,7 +73,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 public class SetAttributeSchemaFilterableMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
-	@Serial private static final long serialVersionUID = 2640270593395210307L;
+	@Serial private static final long serialVersionUID = -382658973541254821L;
 
 	@Getter @Nonnull private final String name;
 	@Getter private final Scope[] filterableInScopes;

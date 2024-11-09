@@ -46,14 +46,12 @@ import java.util.stream.Collectors;
 
 /**
  * Internal implementation of {@link GlobalAttributeSchemaContract}.
- *
- * TODO JNO - tady se pak některé _internalCreate metody určitě budou dát odstranit
  */
 @Immutable
 @ThreadSafe
 @EqualsAndHashCode(callSuper = true)
 public final class GlobalAttributeSchema extends AttributeSchema implements GlobalAttributeSchemaContract {
-	@Serial private static final long serialVersionUID = -4016156218004708457L;
+	@Serial private static final long serialVersionUID = -6027390261318420826L;
 
 	@Getter private final EnumMap<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes;
 	@Getter private final boolean representative;

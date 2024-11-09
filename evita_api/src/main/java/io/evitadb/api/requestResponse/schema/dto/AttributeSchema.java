@@ -61,7 +61,7 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 @EqualsAndHashCode
 public sealed class AttributeSchema implements AttributeSchemaContract permits EntityAttributeSchema, GlobalAttributeSchema {
-	@Serial private static final long serialVersionUID = 1340876688998990217L;
+	@Serial private static final long serialVersionUID = -4646684142378649904L;
 	@Getter @Nonnull protected final String name;
 	@Getter @Nonnull protected final Map<NamingConvention, String> nameVariants;
 	@Getter @Nullable protected final Serializable defaultValue;
