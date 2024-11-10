@@ -23,7 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
-import io.evitadb.dataType.Scope;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -32,32 +33,35 @@ import java.util.List;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation}.
+ * Descriptor representing {@link ScopedGlobalAttributeUniquenessType}.
  *
  * Note: this descriptor has static structure.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface SetAttributeSchemaFilterableMutationDescriptor extends AttributeSchemaMutationDescriptor {
+public interface ScopedGlobalAttributeUniquenessTypeDescriptor extends AttributeSchemaMutationDescriptor {
 
-	PropertyDescriptor FILTERABLE = PropertyDescriptor.builder()
-		.name("filterable")
+	PropertyDescriptor GLOBAL_UNIQUENESS_TYPE = PropertyDescriptor.builder()
+		.name("globalUniquenessType")
 		.description("""
-			When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
-			as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
-			(memory/disk) space in the form of index.
+			When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+			entity having certain value of this attribute in entire catalog.
+
+			As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and 
+			it's better to have this ensured by the database engine.
+            
+            If the attribute is localized you can choose between `UNIQUE_WITHIN_CATALOG` and `UNIQUE_WITHIN_CATALOG_LOCALE`
+			modes. The first will ensure there is only single value within entire catalog regardless of locale,
+			the second will ensure there is only single value within catalog and specific locale.
 			""")
-		.type(nonNull(Scope[].class))
+		.type(nonNull(GlobalAttributeUniquenessType.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetAttributeSchemaFilterableMutation")
+		.name("ScopedGlobalAttributeUniquenessType")
 		.description("""
-			Mutation is responsible for setting value to a `AttributeSchema.filterable`
-			in `EntitySchema`.
-			Mutation can be used for altering also the existing `AttributeSchema` or
-			`GlobalAttributeSchema` alone.
+			Represents combination of global uniqueness type and entity scope it should be applied to.
 			""")
-		.staticFields(List.of(NAME, FILTERABLE))
+		.staticFields(List.of(NAME, GLOBAL_UNIQUENESS_TYPE))
 		.build();
 }

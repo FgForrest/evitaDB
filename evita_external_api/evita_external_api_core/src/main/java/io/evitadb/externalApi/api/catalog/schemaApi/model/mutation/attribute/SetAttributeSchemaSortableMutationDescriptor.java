@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -46,7 +47,7 @@ public interface SetAttributeSchemaSortableMutationDescriptor extends AttributeS
 			as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
 			(memory/disk) space in the form of index.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nonNull(Scope[].class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()

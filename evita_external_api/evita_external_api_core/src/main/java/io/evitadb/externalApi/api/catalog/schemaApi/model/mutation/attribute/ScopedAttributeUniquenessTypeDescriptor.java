@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -32,16 +33,16 @@ import java.util.List;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation}.
+ * Descriptor representing {@link ScopedAttributeUniquenessType}.
  *
  * Note: this descriptor has static structure.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface SetAttributeSchemaUniqueMutationDescriptor extends AttributeSchemaMutationDescriptor {
+public interface ScopedAttributeUniquenessTypeDescriptor extends AttributeSchemaMutationDescriptor {
 
 	PropertyDescriptor UNIQUENESS_TYPE = PropertyDescriptor.builder()
-		.name("scopedUniquenessType")
+		.name("uniquenessType")
 		.description("""
 			When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
 			having certain value of this attribute among other entities in the same collection.
@@ -52,19 +53,14 @@ public interface SetAttributeSchemaUniqueMutationDescriptor extends AttributeSch
 			If the attribute is localized you can choose between `UNIQUE_WITHIN_COLLECTION` and `UNIQUE_WITHIN_COLLECTION_LOCALE`
 			modes. The first will ensure there is only single value within entire collection regardless of locale,
 			the second will ensure there is only single value within collection and specific locale.
-			
-			The uniqueness type can be set differently for different scopes of the entity (i.e. for live and archived entity).
 			""")
-		.type(nonNull(ScopedAttributeUniquenessType[].class))
+		.type(nonNull(AttributeUniquenessType.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetAttributeSchemaUniqueMutation")
+		.name("ScopedAttributeUniquenessType")
 		.description("""
-			Mutation is responsible for setting value to a `AttributeSchema.unique`
-			in `EntitySchema`.
-			Mutation can be used for altering also the existing `AttributeSchema` or
-			`GlobalAttributeSchema` alone.
+			Represents combination of uniqueness type and entity scope it should be applied to.
 			""")
 		.staticFields(List.of(NAME, UNIQUENESS_TYPE))
 		.build();
