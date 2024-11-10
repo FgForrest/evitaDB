@@ -164,6 +164,9 @@ public class EntityObjectBuilder {
 			.description(entitySchema.getDescription())
 			.withInterface(typeRef(GraphQLEntityDescriptor.THIS_CLASSIFIER.name()));
 
+		// build top level fields
+		entityObjectBuilder.field(GraphQLEntityDescriptor.SCOPE.to(fieldBuilderTransformer));
+
 		// build locale fields
 		if (!entitySchema.getLocales().isEmpty()) {
 			entityObjectBuilder.field(GraphQLEntityDescriptor.LOCALES.to(fieldBuilderTransformer));
