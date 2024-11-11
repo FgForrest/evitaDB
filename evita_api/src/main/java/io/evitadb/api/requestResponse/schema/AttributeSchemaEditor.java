@@ -64,6 +64,9 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
 	 * comparison on its {@link Object#toString()} will be used
 	 *
+	 * This method makes attribute filterable only in the {@link Scope#LIVE} scope, archived entities will not be
+	 * filterable by this attribute unless explicitly set via {@link #unique(Scope...)}.
+	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
@@ -72,9 +75,16 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+	 * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+	 * (memory/disk) space in the form of index.
+	 *
+	 * The attribute will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
+	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
+	 * comparison on its {@link Object#toString()} will be used
+	 *
+	 * @param inScope one or more scopes in which the attribute should be filterable
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T filterable(@Nonnull Scope... inScope);
@@ -97,23 +107,28 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	}
 
 	/**
-	 * Makes attribute not filterable. This means it will not be possible to filter entities by this attribute anymore.
+	 * Makes attribute not filterable in all scopes. This means it will not be possible to filter entities by this
+	 * attribute anymore.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T nonFilterable() {
-		return nonFilterable(Scope.LIVE);
+		return nonFilterable(Scope.values());
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * Makes attribute not filterable in specified scope(s). This means it will not be possible to filter entities by
+	 * this attribute in that scope anymore.
+	 *
+	 * @param inScope one or more scopes in which the attribute should not be filterable
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T nonFilterable(@Nonnull Scope... inScope);
 
 	/**
-	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+	 * When attribute value is unique it is automatically filterable, and it is ensured there is exactly one single entity
 	 * having certain value of this attribute.
 	 *
 	 * The attribute will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
@@ -123,6 +138,9 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
 	 * better to have this ensured by the database engine.
 	 *
+	 * This method makes attribute unique only in the {@link Scope#LIVE} scope, archived entities will not be unique
+	 * by this attribute unless explicitly set via {@link #unique(Scope...)}.
+	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
@@ -131,9 +149,18 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * When attribute value is unique it is automatically filterable, and it is ensured there is exactly one single entity
+	 * having certain value of this attribute.
+	 *
+	 * The attribute will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
+	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
+	 * comparison on its {@link Object#toString()} will be used
+	 *
+	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * @param inScope one or more scopes where the attribute should be unique
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T unique(@Nonnull Scope... inScope);
@@ -143,7 +170,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * having certain value of this attribute among other entities in the same collection.
 	 *
 	 *
-	 * The attribute will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
+	 * The attribute valuess will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
 	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
 	 * comparison on its {@link Object#toString()} will be used
 	 *
@@ -157,19 +184,26 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	default T unique(@Nonnull BooleanSupplier decider) {
 		return decider.getAsBoolean() ? unique() : nonUnique();
 	}
+
 	/**
-	 * Makes attribute not unique among other attributes. This method resets all unique constraints on the attribute,
-	 * no matter whether they are global or locale specific.
+	 * Makes attribute values not unique among other attributes in all scopes. This method resets all unique constraints
+	 * on the attribute, no matter whether they are global or locale specific. This means there might be duplicate values
+	 * for this type of attribute.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T nonUnique() {
-		return nonUnique(Scope.LIVE);
+		return nonUnique(Scope.values());
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * Makes attribute values not unique in specified scope(s). This method resets all unique constraints on
+	 * the attribute, no matter whether they are global or locale specific. This means there might be duplicate values
+	 * for this type of attribute.
+	 *
+	 * @param inScope one or more scopes in which the attribute should not be unique
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T nonUnique(@Nonnull Scope... inScope);
@@ -188,6 +222,9 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * This method differs from {@link #unique()} in that it is possible to have multiple entities with same value
 	 * of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different locales.
 	 *
+	 * This method makes attribute unique within locale only in the {@link Scope#LIVE} scope, archived entities will
+	 * not be unique by this attribute unless explicitly set via {@link #uniqueWithinLocale(Scope...)}.
+	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
@@ -196,26 +233,44 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+	 * having certain value of this attribute.
+	 *
+	 * The attribute will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
+	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
+	 * comparison on its {@link Object#toString()} will be used
+	 *
+	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #unique()} in that it is possible to have multiple entities with same value
+	 * of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different locales.
+	 *
+	 * @param inScope one or more scopes where the attribute should be unique within particular locale
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T uniqueWithinLocale(@Nonnull Scope... inScope);
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Makes attribute values not unique among other values in particular locale in all scopes. This method resets all
+	 * unique constraints on the attribute, no matter whether they are global or locale specific. This means there might
+	 * be duplicate values for this type of attribute.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T nonUniqueWithinLocale() {
-		return nonUniqueWithinLocale(Scope.LIVE);
+		return nonUniqueWithinLocale(Scope.values());
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * Makes attribute values not unique among other values in particular locale in particular scope(s). This method
+	 * resets all unique constraints on the attribute, no matter whether they are global or locale specific. This means
+	 * there might be duplicate values for this type of attribute.
+	 *
+	 * @param inScope one or more scopes in which the attribute should not be unique within particular locale
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T nonUniqueWithinLocale(@Nonnull Scope... inScope);
@@ -248,8 +303,11 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 	 * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
-	 * (memory/disk) space in the form of index. {@link AttributeSchemaContract#getType() Type} of the filterable attribute must
-	 * implement {@link Comparable} interface.
+	 * (memory/disk) space in the form of index. {@link AttributeSchemaContract#getType() Type} of the sortable
+	 * attribute must implement {@link Comparable} interface.
+	 *
+	 * This method makes attribute sortable only in the {@link Scope#LIVE} scope, archived entities will not be
+	 * sortable by this attribute unless explicitly set via {@link #unique(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
@@ -259,20 +317,37 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+	 * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+	 * (memory/disk) space in the form of index. {@link AttributeSchemaContract#getType() Type} of the sortable
+	 * attribute must implement {@link Comparable} interface.
+	 *
+	 * @param inScope one or more scopes where the attribute should be sortable
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T sortable(@Nonnull Scope... inScope);
 
 	/**
-	 * Makes reference as not sortable. This means it will not be possible to sort entities by this attribute anymore.
+	 * Makes attribute not sortable in all scopes. This means it will not be possible to sort entities by this
+	 * attribute anymore.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T nonSortable() {
-		return nonSortable(Scope.LIVE);
+		return nonSortable(Scope.values());
 	}
+
+	/**
+	 * Makes attribute not sortable in specified scope(s). This means it will not be possible to sort entities by
+	 * this attribute in that scope anymore.
+	 *
+	 * @param inScope one or more scopes in which the attribute should not be sortable
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonSortable(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
@@ -285,14 +360,6 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	T sortable(@Nonnull BooleanSupplier decider);
-
-	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
-	 */
-	@Nonnull
-	T nonSortable(@Nonnull Scope... inScope);
 
 	/**
 	 * Localized attribute has to be ALWAYS used in connection with specific {@link java.util.Locale}. In other
@@ -314,8 +381,10 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	T localized(@Nonnull BooleanSupplier decider);
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Makes attribute not localized. This method is opposite to {@link #localized()} and shares the value among all
+	 * locales of the entity.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	T nonLocalized();
 
