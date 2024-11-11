@@ -153,6 +153,7 @@ public class EntitySchemaObjectBuilder {
 		buildingContext.registerType(ModifyReferenceSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(RemoveReferenceSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(SetReferenceSchemaFacetedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(SetReferenceSchemaIndexedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
