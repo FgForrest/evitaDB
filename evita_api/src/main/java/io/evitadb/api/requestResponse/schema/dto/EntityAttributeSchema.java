@@ -40,6 +40,7 @@ import java.io.Serializable;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -157,9 +158,9 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable EnumMap<Scope, AttributeUniquenessType> uniqueInScopes,
-		@Nullable EnumSet<Scope> filterableInScopes,
-		@Nullable EnumSet<Scope> sortableInScopes,
+		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable Set<Scope> filterableInScopes,
+		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		boolean representative,
@@ -191,9 +192,9 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable EnumMap<Scope, AttributeUniquenessType> uniqueInScopes,
-		@Nullable EnumSet<Scope> filterableInScopes,
-		@Nullable EnumSet<Scope> sortableInScopes,
+		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable Set<Scope> filterableInScopes,
+		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		boolean representative,
@@ -256,9 +257,9 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable EnumMap<Scope, AttributeUniquenessType> uniqueInScopes,
-		@Nullable EnumSet<Scope> filterableInScopes,
-		@Nullable EnumSet<Scope> sortableInScopes,
+		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable Set<Scope> filterableInScopes,
+		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		boolean representative,

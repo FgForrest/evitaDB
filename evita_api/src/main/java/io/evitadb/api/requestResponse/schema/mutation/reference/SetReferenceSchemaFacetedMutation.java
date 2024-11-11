@@ -116,7 +116,6 @@ public class SetReferenceSchemaFacetedMutation
 				return reflectedReferenceSchema.withFaceted(this.facetedInScopes);
 			}
 		} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
-			Assert.isTrue(!ArrayUtils.isEmptyOrItsValuesNull(this.facetedInScopes), "Faceted scopes must be set!");
 			if (theReferenceSchema.getFacetedInScopes().equals(facetedScopes)) {
 				return theReferenceSchema;
 			} else {

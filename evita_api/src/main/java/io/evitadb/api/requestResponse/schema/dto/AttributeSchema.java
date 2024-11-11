@@ -32,6 +32,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -43,10 +44,12 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -54,8 +57,6 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Internal implementation of {@link AttributeSchemaContract}.
- *
- * TODO JNO - tady se pak některé _internalCreate metody určitě budou dát odstranit
  */
 @Immutable
 @ThreadSafe
@@ -69,9 +70,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	@Getter @Nullable protected final String description;
 	@Getter protected final boolean localized;
 	@Getter protected final boolean nullable;
-	@Getter protected final EnumMap<Scope, AttributeUniquenessType> uniquenessTypeInScopes;
-	@Getter protected final EnumSet<Scope> filterableInScopes;
-	@Getter protected final EnumSet<Scope> sortableInScopes;
+	@Getter protected final Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes;
+	@Getter protected final Set<Scope> filterableInScopes;
+	@Getter protected final Set<Scope> sortableInScopes;
 	@Getter @Nonnull protected final Class<? extends Serializable> type;
 	@Getter @Nonnull protected final Class<? extends Serializable> plainType;
 	@Getter protected final int indexedDecimalPlaces;
@@ -211,9 +212,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable EnumMap<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
-		@Nullable EnumSet<Scope> filterableInScopes,
-		@Nullable EnumSet<Scope> sortableInScopes,
+		@Nullable Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
+		@Nullable Set<Scope> filterableInScopes,
+		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		@Nonnull Class<T> type,
@@ -244,9 +245,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable EnumMap<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
-		@Nullable EnumSet<Scope> filterableInScopes,
-		@Nullable EnumSet<Scope> sortableInScopes,
+		@Nullable Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
+		@Nullable Set<Scope> filterableInScopes,
+		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		@Nonnull Class<T> type,
@@ -313,9 +314,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable EnumMap<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
-		@Nullable EnumSet<Scope> filterableInScopes,
-		@Nullable EnumSet<Scope> sortableInScopes,
+		@Nullable Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
+		@Nullable Set<Scope> filterableInScopes,
+		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		@Nonnull Class<T> type,
@@ -323,12 +324,18 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		int indexedDecimalPlaces
 	) {
 		this.name = name;
-		this.nameVariants = nameVariants;
+		this.nameVariants = CollectionUtils.toUnmodifiableMap(nameVariants);
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.uniquenessTypeInScopes = uniquenessTypeInScopes == null ? new EnumMap<>(Scope.class) : uniquenessTypeInScopes;
-		this.filterableInScopes = filterableInScopes == null ? EnumSet.noneOf(Scope.class) : filterableInScopes;
-		this.sortableInScopes = sortableInScopes == null ? EnumSet.noneOf(Scope.class) : sortableInScopes;
+		if (uniquenessTypeInScopes == null || uniquenessTypeInScopes.isEmpty()) {
+			final EnumMap<Scope, AttributeUniquenessType> theMap = new EnumMap<>(Scope.class);
+			this.uniquenessTypeInScopes = Collections.unmodifiableMap(theMap);
+			theMap.put(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE);
+		} else {
+			this.uniquenessTypeInScopes = CollectionUtils.toUnmodifiableMap(uniquenessTypeInScopes);
+		}
+		this.filterableInScopes = CollectionUtils.toUnmodifiableSet(filterableInScopes == null ? EnumSet.noneOf(Scope.class) : filterableInScopes);
+		this.sortableInScopes = CollectionUtils.toUnmodifiableSet(sortableInScopes == null ? EnumSet.noneOf(Scope.class) : sortableInScopes);
 		this.localized = localized;
 		this.nullable = nullable;
 		this.type = EvitaDataTypes.toWrappedForm(type);
