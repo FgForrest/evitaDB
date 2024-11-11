@@ -88,8 +88,8 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			""")
 		.type(nonNull(String.class))
 		.build();
-	PropertyDescriptor INDEXED = PropertyDescriptor.builder()
-		.name("indexed")
+	PropertyDescriptor INDEXED_IN_SCOPES = PropertyDescriptor.builder()
+		.name("indexedInScopes")
 		.description("""
 			Whether the index for this reference should be created and maintained allowing to filter by
 			`reference_{reference name}_having` filtering constraints. Index is also required when reference is
@@ -102,8 +102,8 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			""")
 		.type(nullable(Scope[].class))
 		.build();
-	PropertyDescriptor FACETED = PropertyDescriptor.builder()
-		.name("faceted")
+	PropertyDescriptor FACETED_IN_SCOPES = PropertyDescriptor.builder()
+		.name("facetedInScopes")
 		.description("""
 			Whether the statistics data for this reference should be maintained and this allowing to get
 			`facetSummary` for this reference or use `facet_{reference name}_inSet`
@@ -149,8 +149,8 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			CARDINALITY,
 			REFERENCED_ENTITY_TYPE,
 			REFLECTED_REFERENCE_NAME,
-			INDEXED,
-			FACETED
+			INDEXED_IN_SCOPES,
+			FACETED_IN_SCOPES
 		))
 		.build();
 }

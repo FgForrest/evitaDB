@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -61,9 +62,11 @@ class CreateAttributeSchemaMutationTest {
 			ATTRIBUTE_NAME,
 			"oldDescription",
 			"oldDeprecationNotice",
-			AttributeUniquenessType.NOT_UNIQUE,
-			false,
-			false,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+			},
+			Scope.NO_SCOPE,
+			Scope.NO_SCOPE,
 			false,
 			false,
 			false,
@@ -79,10 +82,14 @@ class CreateAttributeSchemaMutationTest {
 			ATTRIBUTE_NAME,
 			"description",
 			"deprecationNotice",
-			AttributeUniquenessType.NOT_UNIQUE,
-			GlobalAttributeUniquenessType.NOT_UNIQUE,
-			false,
-			false,
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+			},
+			new ScopedGlobalAttributeUniquenessType[]{
+				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.NOT_UNIQUE)
+			},
+			Scope.NO_SCOPE,
+			Scope.NO_SCOPE,
 			false,
 			false,
 			false,
@@ -98,9 +105,11 @@ class CreateAttributeSchemaMutationTest {
 			ATTRIBUTE_NAME,
 			"oldDescription",
 			"oldDeprecationNotice",
-			AttributeUniquenessType.NOT_UNIQUE,
-			false,
-			false,
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+			},
+			Scope.NO_SCOPE,
+			Scope.NO_SCOPE,
 			false,
 			false,
 			Integer.class,

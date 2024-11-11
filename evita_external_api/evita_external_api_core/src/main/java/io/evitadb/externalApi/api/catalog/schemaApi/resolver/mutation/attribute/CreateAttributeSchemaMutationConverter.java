@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,9 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
@@ -66,9 +67,9 @@ public class CreateAttributeSchemaMutationConverter extends AttributeSchemaMutat
 			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DESCRIPTION),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.UNIQUENESS_TYPE, AttributeUniquenessType.NOT_UNIQUE),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.FILTERABLE, false),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.SORTABLE, false),
+			(ScopedAttributeUniquenessType[]) input.getOptionalField(CreateAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES),
+			(Scope[]) input.getOptionalField(CreateAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES),
+			(Scope[]) input.getOptionalField(CreateAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.NULLABLE, false),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.REPRESENTATIVE, false),

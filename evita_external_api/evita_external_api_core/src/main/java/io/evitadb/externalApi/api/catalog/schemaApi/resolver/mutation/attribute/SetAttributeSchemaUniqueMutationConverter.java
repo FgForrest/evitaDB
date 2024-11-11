@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,11 +23,14 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectListMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaUniqueMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
@@ -54,9 +57,23 @@ public class SetAttributeSchemaUniqueMutationConverter extends AttributeSchemaMu
 	@Nonnull
 	@Override
 	protected SetAttributeSchemaUniqueMutation convert(@Nonnull Input input) {
+		final ScopedAttributeUniquenessType[] uniqueInScopes = input.getRequiredField(
+			SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES.name(),
+			new FieldObjectListMapper<>(
+				getMutationName(),
+				getExceptionFactory(),
+				SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES,
+				ScopedAttributeUniquenessType.class,
+				nestedInput -> new ScopedAttributeUniquenessType(
+					nestedInput.getRequiredField(ScopedAttributeUniquenessTypeDescriptor.SCOPE),
+					nestedInput.getRequiredField(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
+				)
+			)
+		);
+
 		return new SetAttributeSchemaUniqueMutation(
 			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetAttributeSchemaUniqueMutationDescriptor.UNIQUENESS_TYPE)
+			uniqueInScopes
 		);
 	}
 }

@@ -61,8 +61,8 @@ public class CreateReflectedReferenceSchemaMutationConverter extends ReferenceSc
 			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.CARDINALITY),
 			input.getRequiredField(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
 			input.getRequiredField(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME),
-			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.INDEXED),
-			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.FACETED),
+			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES),
+			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES),
 			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR),
 			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER)
 		);

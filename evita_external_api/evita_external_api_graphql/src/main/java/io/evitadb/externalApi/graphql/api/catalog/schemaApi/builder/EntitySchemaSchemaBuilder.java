@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder;
 
 import graphql.schema.GraphQLFieldDefinition;
-import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.GraphQLUnionType;
@@ -100,7 +99,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildAssociatedDataSchemaObject());
 		buildingContext.registerType(buildGenericReferenceSchemaObject());
-		final GraphQLInputObjectType scopedAttributeUniqueness = ScopedAttributeUniquenessTypeDescriptor.THIS.to(inputObjectBuilderTransformer).build();
+		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// entity schema mutations
 		buildingContext.registerType(AllowCurrencyInEntitySchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
@@ -143,14 +142,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerType(SetAttributeSchemaSortableMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(
-			SetAttributeSchemaUniqueMutationDescriptor.THIS
-				.to(inputObjectBuilderTransformer)
-				.field(SetAttributeSchemaUniqueMutationDescriptor.UNIQUENESS_TYPE.to(fieldBuilderTransformer)
-					.type(scopedAttributeUniqueness)
-					.build())
-				.build()
-		);
+		buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// sortable attribute compound schema mutations
 		buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());

@@ -39,7 +39,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ScopedGlobalAttributeUniquenessTypeDescriptor extends AttributeSchemaMutationDescriptor {
+public interface ScopedGlobalAttributeUniquenessTypeDescriptor extends ScopedDataDescriptor {
 
 	PropertyDescriptor GLOBAL_UNIQUENESS_TYPE = PropertyDescriptor.builder()
 		.name("globalUniquenessType")
@@ -62,6 +62,6 @@ public interface ScopedGlobalAttributeUniquenessTypeDescriptor extends Attribute
 		.description("""
 			Represents combination of global uniqueness type and entity scope it should be applied to.
 			""")
-		.staticFields(List.of(NAME, GLOBAL_UNIQUENESS_TYPE))
+		.staticFields(List.of(SCOPE, GLOBAL_UNIQUENESS_TYPE))
 		.build();
 }

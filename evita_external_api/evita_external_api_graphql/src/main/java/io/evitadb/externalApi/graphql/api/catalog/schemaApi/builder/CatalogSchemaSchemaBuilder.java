@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder;
 
 import graphql.schema.GraphQLFieldDefinition;
-import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -83,7 +82,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		// build reusable objects
 		buildingContext.registerType(buildEntitySchemaObject());
 		buildingContext.registerType(buildCatalogSchemaObject());
-		final GraphQLInputObjectType scopedGlobalAttributeUniqueness = ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(inputObjectBuilderTransformer).build();
+		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// catalog schema mutations
 		buildingContext.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
@@ -93,14 +92,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 
 		// global attribute schema mutations
 		buildingContext.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(
-			SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS
-				.to(inputObjectBuilderTransformer)
-				.field(SetAttributeSchemaGloballyUniqueMutationDescriptor.GLOBAL_UNIQUENESS_TYPE.to(fieldBuilderTransformer)
-					.type(scopedGlobalAttributeUniqueness)
-					.build())
-				.build()
-		);
+		buildingContext.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// other mutation objects should be already created by EntitySchemaSchemaBuilder
 		buildingContext.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());

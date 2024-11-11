@@ -37,6 +37,8 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -79,17 +81,19 @@ public class CreateReflectedReferenceSchemaMutationTest {
 			Cardinality.ZERO_OR_MORE,
 			GROUP_TYPE,
 			false,
-			indexed,
-			indexed,
+			indexed ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE,
+			indexed ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE,
 			Map.of(
 				REFERENCE_ATTRIBUTE_PRIORITY,
 				AttributeSchema._internalBuild(
 					REFERENCE_ATTRIBUTE_PRIORITY,
 					"oldDescription",
 					"oldDeprecationNotice",
-					AttributeUniquenessType.NOT_UNIQUE,
-					false,
-					false,
+					new ScopedAttributeUniquenessType[]{
+						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+					},
+					Scope.NO_SCOPE,
+					Scope.NO_SCOPE,
 					false,
 					false,
 					Integer.class,
@@ -101,9 +105,11 @@ public class CreateReflectedReferenceSchemaMutationTest {
 					REFERENCE_ATTRIBUTE_QUANTITY,
 					"oldDescription",
 					"oldDeprecationNotice",
-					AttributeUniquenessType.NOT_UNIQUE,
-					false,
-					false,
+					new ScopedAttributeUniquenessType[]{
+						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+					},
+					Scope.NO_SCOPE,
+					Scope.NO_SCOPE,
 					false,
 					false,
 					Integer.class,

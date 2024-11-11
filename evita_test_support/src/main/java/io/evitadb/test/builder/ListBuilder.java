@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,50 +27,39 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
- * Convenient map builder that uses {@link LinkedHashMap} to preserve order of keys. It is alternative to {@link Map#of()}.
- * It is directly compatible with {@link ListBuilder}.
+ * Convenient list builder. It is alternative to {@link List#of()}. It is directly compatible with {@link MapBuilder}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class MapBuilder {
+public class ListBuilder {
 
-	private final Map<String, Object> map = new LinkedHashMap<>();
+	private final List<Object> list = new LinkedList<>();
 
 	@Nonnull
-	public static MapBuilder map() {
-		return new MapBuilder();
-	}
-
-	@Nullable
-	public Object get(@Nonnull String key) {
-		return map.get(key);
+	public static ListBuilder list() {
+		return new ListBuilder();
 	}
 
 	@Nonnull
-	public MapBuilder e(@Nonnull String key, @Nullable Object value) {
-		if (value instanceof MapBuilder mapBuilder) {
-			map.put(key, mapBuilder.build());
-		} else if (value instanceof ListBuilder listBuilder) {
-			map.put(key, listBuilder.build());
+	public ListBuilder i(@Nonnull Object element) {
+		if (element instanceof MapBuilder mapBuilder) {
+			list.add(mapBuilder.build());
+		} else if (element instanceof ListBuilder listBuilder) {
+			list.add(listBuilder.build());
 		} else {
-			map.put(key, value);
+			list.add(element);
 		}
 		return this;
 	}
 
-	public boolean isEmpty() {
-		return map.isEmpty();
-	}
-
 	@Nonnull
-	public Map<String, Object> build() {
-		return Collections.unmodifiableMap(map);
+	public List<Object> build() {
+		return Collections.unmodifiableList(list);
 	}
 }

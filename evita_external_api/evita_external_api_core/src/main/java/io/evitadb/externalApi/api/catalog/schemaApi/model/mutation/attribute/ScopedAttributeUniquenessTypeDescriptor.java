@@ -39,7 +39,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ScopedAttributeUniquenessTypeDescriptor extends AttributeSchemaMutationDescriptor {
+public interface ScopedAttributeUniquenessTypeDescriptor extends ScopedDataDescriptor {
 
 	PropertyDescriptor UNIQUENESS_TYPE = PropertyDescriptor.builder()
 		.name("uniquenessType")
@@ -62,6 +62,6 @@ public interface ScopedAttributeUniquenessTypeDescriptor extends AttributeSchema
 		.description("""
 			Represents combination of uniqueness type and entity scope it should be applied to.
 			""")
-		.staticFields(List.of(NAME, UNIQUENESS_TYPE))
+		.staticFields(List.of(SCOPE, UNIQUENESS_TYPE))
 		.build();
 }

@@ -118,6 +118,7 @@ public class EntitySchemaMutationAggregateConverter extends MutationAggregateCon
 
 		// reference schema mutations
 		this.resolvers.put(CREATE_REFERENCE_SCHEMA_MUTATION.name(), new CreateReferenceSchemaMutationConverter(objectParser, exceptionFactory));
+		this.resolvers.put(CREATE_REFLECTED_REFERENCE_SCHEMA_MUTATION.name(), new CreateReflectedReferenceSchemaMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(MODIFY_REFERENCE_ATTRIBUTE_SCHEMA_MUTATION.name(), new ModifyReferenceAttributeSchemaMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(MODIFY_REFERENCE_SCHEMA_CARDINALITY_MUTATION.name(), new ModifyReferenceSchemaCardinalityMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(MODIFY_REFERENCE_SCHEMA_DEPRECATION_NOTICE_MUTATION.name(), new ModifyReferenceSchemaDeprecationNoticeMutationConverter(objectParser, exceptionFactory));

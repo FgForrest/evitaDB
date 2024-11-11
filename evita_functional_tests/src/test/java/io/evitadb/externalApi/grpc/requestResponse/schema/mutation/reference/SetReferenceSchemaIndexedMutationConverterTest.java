@@ -29,13 +29,13 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class SetReferenceSchemaFilterableMutationConverterTest {
+class SetReferenceSchemaIndexedMutationConverterTest {
 
-	private static SetReferenceSchemaFilterableMutationConverter converter;
+	private static SetReferenceSchemaIndexedMutationConverter converter;
 
 	@BeforeAll
 	static void setup() {
-		converter = SetReferenceSchemaFilterableMutationConverter.INSTANCE;
+		converter = SetReferenceSchemaIndexedMutationConverter.INSTANCE;
 	}
 
 	@Test

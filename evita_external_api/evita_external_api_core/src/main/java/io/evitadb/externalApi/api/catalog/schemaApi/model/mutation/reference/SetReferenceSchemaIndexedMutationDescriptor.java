@@ -41,8 +41,8 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface SetReferenceSchemaIndexedMutationDescriptor extends ReferenceSchemaMutationDescriptor {
 
-	PropertyDescriptor INDEXED = PropertyDescriptor.builder()
-		.name("indexed")
+	PropertyDescriptor INDEXED_IN_SCOPES = PropertyDescriptor.builder()
+		.name("indexedInScopes")
 		.description("""
 			Whether the index for this reference should be created and maintained allowing to filter by
 			`reference_{reference name}_having` filtering constraints. Index is also required when reference is
@@ -52,6 +52,8 @@ public interface SetReferenceSchemaIndexedMutationDescriptor extends ReferenceSc
 			Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed, 
 			the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded 
 			alongside other references if requested.
+			
+			This array defines in which scopes the reference will be indexed. It will not be indexed in not-specified scopes.
 			""")
 		.type(nullable(Scope[].class))
 		.build();
@@ -62,6 +64,6 @@ public interface SetReferenceSchemaIndexedMutationDescriptor extends ReferenceSc
 			Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(NAME, INDEXED))
+		.staticFields(List.of(NAME, INDEXED_IN_SCOPES))
 		.build();
 }

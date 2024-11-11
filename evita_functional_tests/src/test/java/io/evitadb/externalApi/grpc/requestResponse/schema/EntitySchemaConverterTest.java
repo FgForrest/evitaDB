@@ -42,6 +42,9 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
@@ -103,10 +106,14 @@ class EntitySchemaConverterTest {
 					"test2",
 					"description",
 					"depr",
-					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
-					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
-					true,
-					true,
+					new ScopedAttributeUniquenessType[]{
+						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+					},
+					new ScopedGlobalAttributeUniquenessType[]{
+						new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
+					},
+					new Scope[] { Scope.LIVE },
+					new Scope[] { Scope.LIVE },
 					true,
 					true,
 					false,
@@ -127,8 +134,8 @@ class EntitySchemaConverterTest {
 					Cardinality.ZERO_OR_MORE,
 					Entities.PARAMETER_GROUP,
 					false,
-					true,
-					true
+					new Scope[] { Scope.LIVE },
+					new Scope[] { Scope.LIVE }
 				),
 				"test2", ReferenceSchema._internalBuild(
 					"test2",
@@ -139,16 +146,18 @@ class EntitySchemaConverterTest {
 					Cardinality.ONE_OR_MORE,
 					null,
 					false,
-					true,
-					true,
+					new Scope[] { Scope.LIVE },
+					new Scope[] { Scope.LIVE },
 					Map.of(
 						"code", EntityAttributeSchema._internalBuild(
 							"code",
 							"description",
 							"depr",
-							AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
-							true,
-							true,
+							new ScopedAttributeUniquenessType[]{
+								new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+							},
+							new Scope[] { Scope.LIVE },
+							new Scope[] { Scope.LIVE },
 							true,
 							true,
 							true,

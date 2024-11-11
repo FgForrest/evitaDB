@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,8 +63,8 @@ public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutat
 			input.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
 			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
 			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.INDEXED, false),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.FACETED, false)
+			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES, false),
+			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES, false)
 		);
 	}
 }

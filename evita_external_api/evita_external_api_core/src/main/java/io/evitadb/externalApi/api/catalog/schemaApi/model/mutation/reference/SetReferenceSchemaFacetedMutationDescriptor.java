@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -32,7 +33,7 @@ import java.util.List;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation}.
+ * Descriptor representing {@link SetReferenceSchemaFacetedMutation}.
  *
  * Note: this descriptor has static structure.
  *
@@ -40,8 +41,8 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface SetReferenceSchemaFacetedMutationDescriptor extends ReferenceSchemaMutationDescriptor {
 
-	PropertyDescriptor FACETED = PropertyDescriptor.builder()
-		.name("faceted")
+	PropertyDescriptor FACETED_IN_SCOPES = PropertyDescriptor.builder()
+		.name("facetedInScopes")
 		.description("""
 			Whether the statistics data for this reference should be maintained and this allowing to get
 			`facetSummary` for this reference or use `facet_{reference name}_inSet`
@@ -50,6 +51,8 @@ public interface SetReferenceSchemaFacetedMutationDescriptor extends ReferenceSc
 			Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
 			occupies (memory/disk) space in the form of index.
 			Reference that was marked as faceted is called Facet.
+			
+			This array defines in which scopes the reference will be faceted. It will not be faceted in not-specified scopes.
 			""")
 		.type(nullable(Scope[].class))
 		.build();
@@ -61,6 +64,6 @@ public interface SetReferenceSchemaFacetedMutationDescriptor extends ReferenceSc
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(NAME, FACETED))
+		.staticFields(List.of(NAME, FACETED_IN_SCOPES))
 		.build();
 }
