@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -40,6 +42,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
 
 /**
  * Mutation is responsible for setting a {@link EntitySchemaContract#isWithHierarchy()}
@@ -54,8 +57,9 @@ import java.io.Serial;
 @EqualsAndHashCode
 @RequiredArgsConstructor
 public class SetEntitySchemaWithHierarchyMutation implements CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = 5706690342982246498L;
+	@Serial private static final long serialVersionUID = 4676810733910879126L;
 	@Getter private final boolean withHierarchy;
+	@Getter private final Scope[] indexedInScopes;
 
 	@Nullable
 	@Override
@@ -75,7 +79,7 @@ public class SetEntitySchemaWithHierarchyMutation implements CombinableLocalEnti
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (withHierarchy == entitySchema.isWithHierarchy()) {
+		if (this.withHierarchy == entitySchema.isWithHierarchy()) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -86,8 +90,12 @@ public class SetEntitySchemaWithHierarchyMutation implements CombinableLocalEnti
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
-				withHierarchy,
+				this.withHierarchy,
+				this.indexedInScopes,
 				entitySchema.isWithPrice(),
+				Arrays.stream(Scope.values())
+					.filter(entitySchema::isPriceIndexedInScope)
+					.toArray(Scope[]::new),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
@@ -108,7 +116,9 @@ public class SetEntitySchemaWithHierarchyMutation implements CombinableLocalEnti
 
 	@Override
 	public String toString() {
+		final boolean indexed = ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes);
 		return "Set entity schema: " +
-			"withHierarchy=" + withHierarchy;
+			"withHierarchy=" + withHierarchy +
+			", indexed=" + (indexed ? "(indexed in scopes: " + Arrays.toString(this.indexedInScopes) + ")" : "(not indexed)");
 	}
 }

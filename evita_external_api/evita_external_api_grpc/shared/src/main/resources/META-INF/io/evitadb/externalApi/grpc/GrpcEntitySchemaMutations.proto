@@ -84,6 +84,8 @@ message GrpcSetEntitySchemaWithHierarchyMutation {
   // Hierarchy can limit returned entities by using filtering constraints `hierarchy_{reference name}_within`. It's also used for
   // computation of extra data - such as `hierarchyParents`.
   bool withHierarchy = 1;
+  /* TODO JNO - document me */
+  repeated GrpcEntityScope indexedInScopes = 2;
 }
 
 // Mutation is responsible for setting a `EntitySchema.withPrice` in `EntitySchema`.
@@ -105,4 +107,6 @@ message GrpcSetEntitySchemaWithPriceMutation {
   // (either with or without tax) must not ever exceed maximum limits of `Integer` type when scaling
   // the number by the power of ten using `indexedPricePlaces` as exponent.
   int32 indexedPricePlaces = 2;
+  /* TODO JNO - document me */
+  repeated GrpcEntityScope indexedInScopes = 3;
 }

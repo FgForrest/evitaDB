@@ -77,13 +77,20 @@ public class ModifySortableAttributeCompoundSchemaNameMutation
 		@Nullable SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema
 	) {
 		Assert.isPremiseValid(sortableAttributeCompoundSchema != null, "Sortable attribute compound schema is mandatory!");
-		return SortableAttributeCompoundSchema._internalBuild(
-			newName,
-			sortableAttributeCompoundSchema.getNameVariants(),
-			sortableAttributeCompoundSchema.getDescription(),
-			sortableAttributeCompoundSchema.getDeprecationNotice(),
-			sortableAttributeCompoundSchema.getAttributeElements()
-		);
+		if (sortableAttributeCompoundSchema instanceof SortableAttributeCompoundSchema theSortableAttributeCompoundSchema) {
+			return SortableAttributeCompoundSchema._internalBuild(
+				this.newName,
+				theSortableAttributeCompoundSchema.getNameVariants(),
+				theSortableAttributeCompoundSchema.getDescription(),
+				theSortableAttributeCompoundSchema.getDeprecationNotice(),
+				theSortableAttributeCompoundSchema.getIndexedInScopes(),
+				theSortableAttributeCompoundSchema.getAttributeElements()
+			);
+		} else {
+			throw new InvalidSchemaMutationException(
+				"Unsupported sortable attribute compound schema type: " + entitySchema.getClass().getName()
+			);
+		}
 	}
 
 	@Nullable

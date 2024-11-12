@@ -5,6 +5,7 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "GrpcEntitySchema.proto";
+import "GrpcEnums.proto";
 import "google/protobuf/wrappers.proto";
 
 // Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
@@ -21,6 +22,8 @@ message GrpcCreateSortableAttributeCompoundSchemaMutation {
   google.protobuf.StringValue deprecationNotice = 3;
   // Defines list of individual elements forming this compound.
   repeated GrpcAttributeElement attributeElements = 4;
+  /* TODO JNO - document me */
+  repeated GrpcEntityScope indexedInScopes = 5;
 }
 
 // Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
@@ -52,6 +55,14 @@ message GrpcModifySortableAttributeCompoundSchemaNameMutation {
   string newName = 2;
 }
 
+/* TODO JNO - document me */
+message GrpcSetSortableAttributeCompoundIndexedMutation {
+  // Name of the sortable attribute compound the mutation is targeting.
+  string name = 1;
+  /* TODO JNO - document me */
+  repeated GrpcEntityScope indexedInScopes = 2;
+}
+
 // Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
 message GrpcRemoveSortableAttributeCompoundSchemaMutation {
   // Name of the sortable attribute compound the mutation is targeting.
@@ -65,5 +76,6 @@ message GrpcSortableAttributeCompoundSchemaMutation {
     GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;
     GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;
     GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;
+    GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;
   }
 }

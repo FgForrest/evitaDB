@@ -121,7 +121,9 @@ class EntityConverterTest {
 			"Alert! Deprecated!",
 			true,
 			false,
+			Scope.NO_SCOPE,
 			true,
+			new Scope[] { Scope.LIVE },
 			2,
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
 			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
@@ -141,7 +143,7 @@ class EntityConverterTest {
 			Map.of(
 				"compoundAttribute",
 				SortableAttributeCompoundSchema._internalBuild(
-					"compoundAttribute", "This is compound attribute", null,
+					"compoundAttribute", "This is compound attribute", null, new Scope[] { Scope.LIVE },
 					Arrays.asList(
 						new AttributeElement("test1", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement("test2", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -57,6 +58,13 @@ public interface CreateSortableAttributeCompoundSchemaMutationDescriptor extends
 			""")
 		.type(nullable(String.class))
 		.build();
+	PropertyDescriptor INDEXED_IN_SCOPES = PropertyDescriptor.builder()
+		.name("indexedInScopes")
+		.description("""
+			TODO JNO - document me
+			""")
+		.type(nullable(Scope[].class))
+		.build();
 	PropertyDescriptor ATTRIBUTE_ELEMENTS = PropertyDescriptor.builder()
 		.name("attributeElements")
 		.description("""
@@ -74,6 +82,7 @@ public interface CreateSortableAttributeCompoundSchemaMutationDescriptor extends
 		.staticField(NAME)
 		.staticField(DESCRIPTION)
 		.staticField(DEPRECATION_NOTICE)
+		.staticField(INDEXED_IN_SCOPES)
 		.staticField(ATTRIBUTE_ELEMENTS)
 		.build();
 }

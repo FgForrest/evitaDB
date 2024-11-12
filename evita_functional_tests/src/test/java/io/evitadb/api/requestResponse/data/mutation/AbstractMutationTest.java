@@ -54,7 +54,9 @@ public abstract class AbstractMutationTest {
 	protected final EntitySchema productSchema = EntitySchema._internalBuild(
 		1, "PRODUCT",
 		null, null,
-		true, false, true, 0,
+		true,
+		false, Scope.NO_SCOPE,
+		true, new Scope[] { Scope.LIVE }, 0,
 		Collections.emptySet(),
 		Collections.emptySet(),
 		Collections.emptyMap(),

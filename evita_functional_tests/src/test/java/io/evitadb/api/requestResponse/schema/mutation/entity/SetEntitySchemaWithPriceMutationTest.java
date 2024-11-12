@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -41,8 +42,8 @@ public class SetEntitySchemaWithPriceMutationTest {
 
 	@Test
 	void shouldOverridePriceSettingsOfPreviousMutationIfNamesMatch() {
-		SetEntitySchemaWithPriceMutation mutation = new SetEntitySchemaWithPriceMutation(true, 2);
-		SetEntitySchemaWithPriceMutation existingMutation = new SetEntitySchemaWithPriceMutation(false, 0);
+		SetEntitySchemaWithPriceMutation mutation = new SetEntitySchemaWithPriceMutation(true, new Scope[] { Scope.LIVE },2);
+		SetEntitySchemaWithPriceMutation existingMutation = new SetEntitySchemaWithPriceMutation(false, Scope.NO_SCOPE,0);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
@@ -55,7 +56,7 @@ public class SetEntitySchemaWithPriceMutationTest {
 
 	@Test
 	void shouldMutateEntitySchema() {
-		SetEntitySchemaWithPriceMutation mutation = new SetEntitySchemaWithPriceMutation(true, 2);
+		SetEntitySchemaWithPriceMutation mutation = new SetEntitySchemaWithPriceMutation(true, new Scope[] { Scope.LIVE },2);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.version()).thenReturn(1);
 		final EntitySchemaContract newEntitySchema = mutation.mutate(

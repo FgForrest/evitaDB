@@ -39,6 +39,8 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -71,10 +73,11 @@ import java.util.stream.Stream;
 public class CreateSortableAttributeCompoundSchemaMutation
 	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
 
-	@Serial private static final long serialVersionUID = 5667962046673510848L;
+	@Serial private static final long serialVersionUID = 4126462217562106850L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
+	@Getter @Nonnull private final Scope[] indexedInScopes;
 	@Getter @Nonnull private final AttributeElement[] attributeElements;
 
 	@Nullable
@@ -93,13 +96,25 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
+		@Nullable Scope[] indexedInScopes,
 		@Nonnull AttributeElement... attributeElements
 	) {
 
 		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
+		this.indexedInScopes = indexedInScopes == null ? Scope.NO_SCOPE : indexedInScopes;
 		this.attributeElements = attributeElements;
+	}
+
+	/**
+	 * Checks if the current instance has indexed scopes.
+	 *
+	 * @return true if the indexedInScopes array is neither empty nor contains null values,
+	 *         otherwise returns false.
+	 */
+	public boolean isIndexed() {
+		return !ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes);
 	}
 
 	@Nullable
@@ -135,6 +150,11 @@ public class CreateSortableAttributeCompoundSchemaMutation
 							createdVersion, existingVersion,
 							NamedSchemaWithDeprecationContract::getDeprecationNotice,
 							newValue -> new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(this.name, newValue)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingVersion,
+							sacs -> Arrays.stream(Scope.values()).filter(sacs::isIndexedInScope).toArray(Scope[]::new),
+							newValue -> new SetSortableAttributeCompoundIndexedMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)
@@ -153,7 +173,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		@Nullable SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema
 	) {
 		return SortableAttributeCompoundSchema._internalBuild(
-			this.name, this.description, this.deprecationNotice,
+			this.name, this.description, this.deprecationNotice, this.indexedInScopes,
 			Arrays.asList(this.attributeElements)
 		);
 	}
@@ -165,32 +185,40 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		final SortableAttributeCompoundSchemaContract newCompoundSchema = mutate(entitySchema, null, (SortableAttributeCompoundSchemaContract) null);
 		final SortableAttributeCompoundSchemaContract existingCompoundSchema = entitySchema.getSortableAttributeCompound(this.name).orElse(null);
 		if (existingCompoundSchema == null) {
-			return EntitySchema._internalBuild(
-				entitySchema.version() + 1,
-				entitySchema.getName(),
-				entitySchema.getNameVariants(),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.isWithPrice(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
-				entitySchema.getCurrencies(),
-				entitySchema.getAttributes(),
-				entitySchema.getAssociatedData(),
-				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode(),
-				Stream.concat(
-					entitySchema.getSortableAttributeCompounds().values().stream(),
-					Stream.of(newCompoundSchema)
-				).collect(
-					Collectors.toMap(
-						SortableAttributeCompoundSchemaContract::getName,
-						Function.identity()
+			if (entitySchema instanceof EntitySchema theEntitySchema) {
+				return EntitySchema._internalBuild(
+					theEntitySchema.version() + 1,
+					theEntitySchema.getName(),
+					theEntitySchema.getNameVariants(),
+					theEntitySchema.getDescription(),
+					theEntitySchema.getDeprecationNotice(),
+					theEntitySchema.isWithGeneratedPrimaryKey(),
+					theEntitySchema.isWithHierarchy(),
+					theEntitySchema.getHierarchyIndexedInScopes(),
+					theEntitySchema.isWithPrice(),
+					theEntitySchema.getPriceIndexedInScopes(),
+					theEntitySchema.getIndexedPricePlaces(),
+					theEntitySchema.getLocales(),
+					theEntitySchema.getCurrencies(),
+					theEntitySchema.getAttributes(),
+					theEntitySchema.getAssociatedData(),
+					theEntitySchema.getReferences(),
+					theEntitySchema.getEvolutionMode(),
+					Stream.concat(
+						theEntitySchema.getSortableAttributeCompounds().values().stream(),
+						Stream.of(newCompoundSchema)
+					).collect(
+						Collectors.toMap(
+							SortableAttributeCompoundSchemaContract::getName,
+							Function.identity()
+						)
 					)
-				)
-			);
+				);
+			} else {
+				throw new InvalidSchemaMutationException(
+					"Unsupported entity schema type: " + entitySchema.getClass().getName()
+				);
+			}
 		} else if (existingCompoundSchema.equals(newCompoundSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
 			return entitySchema;
@@ -284,6 +312,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 			"name='" + this.name + '\'' +
 			", description='" + this.description + '\'' +
 			", deprecationNotice='" + this.deprecationNotice + '\'' +
+			", indexed=" + (isIndexed() ? "(in scopes: " + Arrays.toString(this.indexedInScopes) + ")" : "no") +
 			", attributeElements=" + Arrays.stream(this.attributeElements).map(AttributeElement::toString).collect(Collectors.joining(", "));
 	}
 

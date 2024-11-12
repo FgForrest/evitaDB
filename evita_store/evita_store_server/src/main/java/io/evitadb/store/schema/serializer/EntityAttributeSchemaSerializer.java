@@ -72,8 +72,8 @@ public class EntityAttributeSchemaSerializer extends Serializer<EntityAttributeS
 			kryo.writeObject(output, entry.getValue());
 		}
 
-		AttributeSchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getFilterableInScopes());
-		AttributeSchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSortableInScopes());
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getFilterableInScopes());
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSortableInScopes());
 
 		output.writeBoolean(attributeSchema.isLocalized());
 		output.writeBoolean(attributeSchema.isNullable());
@@ -116,8 +116,8 @@ public class EntityAttributeSchemaSerializer extends Serializer<EntityAttributeS
 			unique.put(scope, uqType);
 		}
 
-		final EnumSet<Scope> filterable = AttributeSchemaSerializer.readScopeSet(kryo, input);
-		final EnumSet<Scope> sortable = AttributeSchemaSerializer.readScopeSet(kryo, input);
+		final EnumSet<Scope> filterable = EntitySchemaSerializer.readScopeSet(kryo, input);
+		final EnumSet<Scope> sortable = EntitySchemaSerializer.readScopeSet(kryo, input);
 
 		final boolean localized = input.readBoolean();
 		final boolean nullable = input.readBoolean();

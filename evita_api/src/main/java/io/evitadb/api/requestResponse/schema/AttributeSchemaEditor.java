@@ -86,6 +86,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @param inScope one or more scopes in which the attribute should be filterable
 	 * @return builder to continue with configuration
 	 */
+	/* TODO JNO - zvážit přejmenování na `filterableInScope` a u všech ostatních se scope taky */
 	@Nonnull
 	T filterable(@Nonnull Scope... inScope);
 

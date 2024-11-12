@@ -45,8 +45,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
 
-import static io.evitadb.store.schema.serializer.AttributeSchemaSerializer.readScopeSet;
-import static io.evitadb.store.schema.serializer.AttributeSchemaSerializer.writeScopeSet;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopeSet;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.

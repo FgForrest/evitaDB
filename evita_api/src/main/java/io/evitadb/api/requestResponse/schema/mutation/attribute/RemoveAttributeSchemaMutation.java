@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -164,20 +165,22 @@ public class RemoveAttributeSchemaMutation implements
 			// the attribute schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
 			return entitySchema;
-		} else {
+		} else if (entitySchema instanceof EntitySchema theEntitySchema) {
 			return EntitySchema._internalBuild(
-				entitySchema.version() + 1,
-				entitySchema.getName(),
-				entitySchema.getNameVariants(),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.isWithPrice(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
-				entitySchema.getCurrencies(),
-				entitySchema.getAttributes().values()
+				theEntitySchema.version() + 1,
+				theEntitySchema.getName(),
+				theEntitySchema.getNameVariants(),
+				theEntitySchema.getDescription(),
+				theEntitySchema.getDeprecationNotice(),
+				theEntitySchema.isWithGeneratedPrimaryKey(),
+				theEntitySchema.isWithHierarchy(),
+				theEntitySchema.getHierarchyIndexedInScopes(),
+				theEntitySchema.isWithPrice(),
+				theEntitySchema.getPriceIndexedInScopes(),
+				theEntitySchema.getIndexedPricePlaces(),
+				theEntitySchema.getLocales(),
+				theEntitySchema.getCurrencies(),
+				theEntitySchema.getAttributes().values()
 					.stream()
 					.filter(it -> !it.getName().equals(name))
 					.collect(
@@ -186,10 +189,14 @@ public class RemoveAttributeSchemaMutation implements
 							Function.identity()
 						)
 					),
-				entitySchema.getAssociatedData(),
-				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode(),
-				entitySchema.getSortableAttributeCompounds()
+				theEntitySchema.getAssociatedData(),
+				theEntitySchema.getReferences(),
+				theEntitySchema.getEvolutionMode(),
+				theEntitySchema.getSortableAttributeCompounds()
+			);
+		} else {
+			throw new InvalidSchemaMutationException(
+				"Unsupported entity schema type: " + entitySchema.getClass().getName()
 			);
 		}
 	}

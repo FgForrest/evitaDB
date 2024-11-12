@@ -63,7 +63,12 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		int index = SCHEMA_BASE;
 		kryo.register(CatalogSchema.class, new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class), index++);
 		kryo.register(CatalogSchemaStoragePart.class, new SerialVersionBasedSerializer<>(new CatalogSchemaStoragePartSerializer(), CatalogSchemaStoragePart.class), index++);
-		kryo.register(EntitySchema.class, new SerialVersionBasedSerializer<>(new EntitySchemaSerializer(), EntitySchema.class), index++);
+		kryo.register(
+			EntitySchema.class,
+			new SerialVersionBasedSerializer<>(new EntitySchemaSerializer(), EntitySchema.class)
+				.addBackwardCompatibleSerializer(-209500573660545111L, new EntitySchemaSerializer_2024_11()),
+			index++
+		);
 		kryo.register(EntitySchemaStoragePart.class, new SerialVersionBasedSerializer<>(new EntitySchemaStoragePartSerializer(), EntitySchemaStoragePart.class), index++);
 		kryo.register(
 			AttributeSchema.class,
@@ -90,7 +95,12 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 				.addBackwardCompatibleSerializer(2018566260261489037L, new ReferenceSchemaSerializer_2024_11()),
 			index++
 		);
-		kryo.register(SortableAttributeCompoundSchema.class, new SerialVersionBasedSerializer<>(new SortableAttributeCompoundSchemaSerializer(), SortableAttributeCompoundSchema.class), index++);
+		kryo.register(
+			SortableAttributeCompoundSchema.class,
+			new SerialVersionBasedSerializer<>(new SortableAttributeCompoundSchemaSerializer(), SortableAttributeCompoundSchema.class)
+				.addBackwardCompatibleSerializer(1640604843846015381L, new SortableAttributeCompoundSchemaSerializer_2024_11()),
+			index++
+		);
 		kryo.register(EvolutionMode.class, new EnumNameSerializer<>(), index++);
 		kryo.register(CatalogEvolutionMode.class, new EnumNameSerializer<>(), index++);
 		kryo.register(Cardinality.class, new EnumNameSerializer<>(), index++);

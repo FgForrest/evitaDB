@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,14 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity;
 
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithPriceMutation}.
@@ -56,6 +58,13 @@ public interface SetEntitySchemaWithPriceMutationDescriptor {
 			""")
 		.type(nonNull(Boolean.class))
 		.build();
+	PropertyDescriptor INDEXED_IN_SCOPES = PropertyDescriptor.builder()
+		.name("indexedInScopes")
+		.description("""
+			TODO JNO - DOCUMENT ME
+			""")
+		.type(nullable(Scope[].class))
+		.build();
 	PropertyDescriptor INDEXED_PRICE_PLACES = PropertyDescriptor.builder()
 		.name("indexedPricePlaces")
 		.description("""
@@ -73,6 +82,6 @@ public interface SetEntitySchemaWithPriceMutationDescriptor {
 			Mutation is responsible for setting a `EntitySchema.withPrice`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(WITH_PRICE, INDEXED_PRICE_PLACES))
+		.staticFields(List.of(WITH_PRICE, INDEXED_IN_SCOPES, INDEXED_PRICE_PLACES))
 		.build();
 }

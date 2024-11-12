@@ -79,7 +79,19 @@ public class EntitySchemaConverter {
 			.setName(entitySchema.getName())
 			.setWithGeneratedPrimaryKey(entitySchema.isWithGeneratedPrimaryKey())
 			.setWithHierarchy(entitySchema.isWithHierarchy())
+			.addAllHierarchyIndexedInScopes(
+				Arrays.stream(Scope.values())
+					.filter(entitySchema::isHierarchyIndexedInScope)
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setWithPrice(entitySchema.isWithPrice())
+			.addAllPriceIndexedInScopes(
+				Arrays.stream(Scope.values())
+					.filter(entitySchema::isPriceIndexedInScope)
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setIndexedPricePlaces(entitySchema.getIndexedPricePlaces())
 			.addAllLocales(entitySchema.getLocales().stream().map(EvitaDataTypesConverter::toGrpcLocale).toList())
 			.addAllCurrencies(entitySchema.getCurrencies().stream().map(EvitaDataTypesConverter::toGrpcCurrency).toList())
@@ -120,7 +132,15 @@ public class EntitySchemaConverter {
 			entitySchema.hasDeprecationNotice() ? entitySchema.getDeprecationNotice().getValue() : null,
 			entitySchema.getWithGeneratedPrimaryKey(),
 			entitySchema.getWithHierarchy(),
+			entitySchema.getHierarchyIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new),
 			entitySchema.getWithPrice(),
+			entitySchema.getPriceIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new),
 			entitySchema.getIndexedPricePlaces(),
 			entitySchema.getLocalesList()
 				.stream()
@@ -358,6 +378,12 @@ public class EntitySchemaConverter {
 		final GrpcSortableAttributeCompoundSchema.Builder builder = GrpcSortableAttributeCompoundSchema.newBuilder()
 			.setName(attributeCompoundSchema.getName())
 			.addAllAttributeElements(toGrpcAttributeElement(attributeCompoundSchema.getAttributeElements()))
+			.addAllIndexedInScopes(
+				Arrays.stream(Scope.values())
+					.filter(attributeCompoundSchema::isIndexedInScope)
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setInherited(inheritedPredicate.test(attributeCompoundSchema.getName()));
 
 		ofNullable(attributeCompoundSchema.getDescription())
@@ -786,12 +812,18 @@ public class EntitySchemaConverter {
 	 * Creates {@link SortableAttributeCompoundSchema} from the {@link GrpcSortableAttributeCompoundSchema}.
 	 */
 	@Nonnull
-	private static SortableAttributeCompoundSchemaContract toSortableAttributeCompoundSchema(@Nonnull GrpcSortableAttributeCompoundSchema sortableAttributeCompound) {
+	private static SortableAttributeCompoundSchemaContract toSortableAttributeCompoundSchema(
+		@Nonnull GrpcSortableAttributeCompoundSchema sortableAttributeCompound
+	) {
 		return SortableAttributeCompoundSchema._internalBuild(
 			sortableAttributeCompound.getName(),
 			NamingConvention.generate(sortableAttributeCompound.getName()),
 			sortableAttributeCompound.hasDescription() ? sortableAttributeCompound.getDescription().getValue() : null,
 			sortableAttributeCompound.hasDeprecationNotice() ? sortableAttributeCompound.getDeprecationNotice().getValue() : null,
+			sortableAttributeCompound.getIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new),
 			toAttributeElement(sortableAttributeCompound.getAttributeElementsList())
 		);
 	}

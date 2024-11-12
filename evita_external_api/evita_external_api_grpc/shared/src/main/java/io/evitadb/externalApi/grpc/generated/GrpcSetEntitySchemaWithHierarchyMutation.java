@@ -43,6 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcSetEntitySchemaWithHierarchyMutation() {
+    indexedInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -65,6 +66,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -78,6 +80,29 @@ private static final long serialVersionUID = 0L;
           case 8: {
 
             withHierarchy_ = input.readBool();
+            break;
+          }
+          case 16: {
+            int rawValue = input.readEnum();
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            indexedInScopes_.add(rawValue);
+            break;
+          }
+          case 18: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+                indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000001;
+              }
+              indexedInScopes_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
             break;
           }
           default: {
@@ -95,6 +120,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        indexedInScopes_ = java.util.Collections.unmodifiableList(indexedInScopes_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -133,6 +161,84 @@ private static final long serialVersionUID = 0L;
     return withHierarchy_;
   }
 
+  public static final int INDEXEDINSCOPES_FIELD_NUMBER = 2;
+  private java.util.List<java.lang.Integer> indexedInScopes_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope> indexedInScopes_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcEntityScope convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+   * @return A list containing the indexedInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(indexedInScopes_, indexedInScopes_converter_);
+  }
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+   * @return The count of indexedInScopes.
+   */
+  @java.lang.Override
+  public int getIndexedInScopesCount() {
+    return indexedInScopes_.size();
+  }
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+   * @param index The index of the element to return.
+   * @return The indexedInScopes at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
+    return indexedInScopes_converter_.convert(indexedInScopes_.get(index));
+  }
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+   * @return A list containing the enum numeric values on the wire for indexedInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getIndexedInScopesValueList() {
+    return indexedInScopes_;
+  }
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of indexedInScopes at the given index.
+   */
+  @java.lang.Override
+  public int getIndexedInScopesValue(int index) {
+    return indexedInScopes_.get(index);
+  }
+  private int indexedInScopesMemoizedSerializedSize;
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -147,8 +253,16 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (withHierarchy_ != false) {
       output.writeBool(1, withHierarchy_);
+    }
+    if (getIndexedInScopesList().size() > 0) {
+      output.writeUInt32NoTag(18);
+      output.writeUInt32NoTag(indexedInScopesMemoizedSerializedSize);
+    }
+    for (int i = 0; i < indexedInScopes_.size(); i++) {
+      output.writeEnumNoTag(indexedInScopes_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -162,6 +276,18 @@ private static final long serialVersionUID = 0L;
     if (withHierarchy_ != false) {
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(1, withHierarchy_);
+    }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < indexedInScopes_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(indexedInScopes_.get(i));
+      }
+      size += dataSize;
+      if (!getIndexedInScopesList().isEmpty()) {  size += 1;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }indexedInScopesMemoizedSerializedSize = dataSize;
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -180,6 +306,7 @@ private static final long serialVersionUID = 0L;
 
     if (getWithHierarchy()
         != other.getWithHierarchy()) return false;
+    if (!indexedInScopes_.equals(other.indexedInScopes_)) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -194,6 +321,10 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + WITHHIERARCHY_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getWithHierarchy());
+    if (getIndexedInScopesCount() > 0) {
+      hash = (37 * hash) + INDEXEDINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + indexedInScopes_.hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -333,6 +464,8 @@ private static final long serialVersionUID = 0L;
       super.clear();
       withHierarchy_ = false;
 
+      indexedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -359,7 +492,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation result = new io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation(this);
+      int from_bitField0_ = bitField0_;
       result.withHierarchy_ = withHierarchy_;
+      if (((bitField0_ & 0x00000001) != 0)) {
+        indexedInScopes_ = java.util.Collections.unmodifiableList(indexedInScopes_);
+        bitField0_ = (bitField0_ & ~0x00000001);
+      }
+      result.indexedInScopes_ = indexedInScopes_;
       onBuilt();
       return result;
     }
@@ -411,6 +550,16 @@ private static final long serialVersionUID = 0L;
       if (other.getWithHierarchy() != false) {
         setWithHierarchy(other.getWithHierarchy());
       }
+      if (!other.indexedInScopes_.isEmpty()) {
+        if (indexedInScopes_.isEmpty()) {
+          indexedInScopes_ = other.indexedInScopes_;
+          bitField0_ = (bitField0_ & ~0x00000001);
+        } else {
+          ensureIndexedInScopesIsMutable();
+          indexedInScopes_.addAll(other.indexedInScopes_);
+        }
+        onChanged();
+      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -439,6 +588,7 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
+    private int bitField0_;
 
     private boolean withHierarchy_ ;
     /**
@@ -475,7 +625,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setWithHierarchy(boolean value) {
-      
+
       withHierarchy_ = value;
       onChanged();
       return this;
@@ -495,8 +645,196 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWithHierarchy() {
-      
+
       withHierarchy_ = false;
+      onChanged();
+      return this;
+    }
+
+    private java.util.List<java.lang.Integer> indexedInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureIndexedInScopesIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>(indexedInScopes_);
+        bitField0_ |= 0x00000001;
+      }
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @return A list containing the indexedInScopes.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(indexedInScopes_, indexedInScopes_converter_);
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @return The count of indexedInScopes.
+     */
+    public int getIndexedInScopesCount() {
+      return indexedInScopes_.size();
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @param index The index of the element to return.
+     * @return The indexedInScopes at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
+      return indexedInScopes_converter_.convert(indexedInScopes_.get(index));
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @param index The index to set the value at.
+     * @param value The indexedInScopes to set.
+     * @return This builder for chaining.
+     */
+    public Builder setIndexedInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureIndexedInScopesIsMutable();
+      indexedInScopes_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @param value The indexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addIndexedInScopes(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureIndexedInScopesIsMutable();
+      indexedInScopes_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @param values The indexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllIndexedInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
+      ensureIndexedInScopesIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
+        indexedInScopes_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearIndexedInScopes() {
+      indexedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @return A list containing the enum numeric values on the wire for indexedInScopes.
+     */
+    public java.util.List<java.lang.Integer>
+    getIndexedInScopesValueList() {
+      return java.util.Collections.unmodifiableList(indexedInScopes_);
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of indexedInScopes at the given index.
+     */
+    public int getIndexedInScopesValue(int index) {
+      return indexedInScopes_.get(index);
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of indexedInScopes at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setIndexedInScopesValue(
+        int index, int value) {
+      ensureIndexedInScopesIsMutable();
+      indexedInScopes_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @param value The enum numeric value on the wire for indexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addIndexedInScopesValue(int value) {
+      ensureIndexedInScopesIsMutable();
+      indexedInScopes_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * TODO JNO - document me
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+     * @param values The enum numeric values on the wire for indexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllIndexedInScopesValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureIndexedInScopesIsMutable();
+      for (int value : values) {
+        indexedInScopes_.add(value);
+      }
       onChanged();
       return this;
     }

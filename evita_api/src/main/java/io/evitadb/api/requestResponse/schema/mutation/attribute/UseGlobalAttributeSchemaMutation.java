@@ -86,33 +86,41 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 					" has different definition. To alter existing attribute schema you need to use different mutations."
 			);
 		} else if (existingAttributeSchema == null || !existingAttributeSchema.equals(newAttributeSchema)) {
-			return EntitySchema._internalBuild(
-				entitySchema.version() + 1,
-				entitySchema.getName(),
-				entitySchema.getNameVariants(),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.isWithPrice(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
-				entitySchema.getCurrencies(),
-				Stream.concat(
-						entitySchema.getAttributes().values().stream().filter(it -> !it.getName().equals(name)),
-						Stream.of(newAttributeSchema)
-					)
-					.collect(
-						Collectors.toMap(
-							AttributeSchemaContract::getName,
-							Function.identity()
+			if (entitySchema instanceof EntitySchema theEntitySchema) {
+				return EntitySchema._internalBuild(
+					theEntitySchema.version() + 1,
+					theEntitySchema.getName(),
+					theEntitySchema.getNameVariants(),
+					theEntitySchema.getDescription(),
+					theEntitySchema.getDeprecationNotice(),
+					theEntitySchema.isWithGeneratedPrimaryKey(),
+					theEntitySchema.isWithHierarchy(),
+					theEntitySchema.getHierarchyIndexedInScopes(),
+					theEntitySchema.isWithPrice(),
+					theEntitySchema.getPriceIndexedInScopes(),
+					theEntitySchema.getIndexedPricePlaces(),
+					theEntitySchema.getLocales(),
+					theEntitySchema.getCurrencies(),
+					Stream.concat(
+							theEntitySchema.getAttributes().values().stream().filter(it -> !it.getName().equals(name)),
+							Stream.of(newAttributeSchema)
 						)
-					),
-				entitySchema.getAssociatedData(),
-				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode(),
-				entitySchema.getSortableAttributeCompounds()
-			);
+						.collect(
+							Collectors.toMap(
+								AttributeSchemaContract::getName,
+								Function.identity()
+							)
+						),
+					theEntitySchema.getAssociatedData(),
+					theEntitySchema.getReferences(),
+					theEntitySchema.getEvolutionMode(),
+					theEntitySchema.getSortableAttributeCompounds()
+				);
+			} else {
+				throw new InvalidSchemaMutationException(
+					"Unsupported entity schema type: " + entitySchema.getClass().getName()
+				);
+			}
 		} else {
 			// the mutation must have been applied previously - return the schema we don't need to alter
 			return entitySchema;

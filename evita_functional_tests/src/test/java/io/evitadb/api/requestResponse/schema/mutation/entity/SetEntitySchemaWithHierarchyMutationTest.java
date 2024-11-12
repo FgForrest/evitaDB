@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -41,8 +42,8 @@ public class SetEntitySchemaWithHierarchyMutationTest {
 
 	@Test
 	void shouldOverrideHierarchySettingsOfPreviousMutationIfNamesMatch() {
-		SetEntitySchemaWithHierarchyMutation mutation = new SetEntitySchemaWithHierarchyMutation(true);
-		SetEntitySchemaWithHierarchyMutation existingMutation = new SetEntitySchemaWithHierarchyMutation(false);
+		SetEntitySchemaWithHierarchyMutation mutation = new SetEntitySchemaWithHierarchyMutation(true, new Scope[] { Scope.LIVE });
+		SetEntitySchemaWithHierarchyMutation existingMutation = new SetEntitySchemaWithHierarchyMutation(false, Scope.NO_SCOPE);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
@@ -54,7 +55,7 @@ public class SetEntitySchemaWithHierarchyMutationTest {
 
 	@Test
 	void shouldMutateEntitySchema() {
-		SetEntitySchemaWithHierarchyMutation mutation = new SetEntitySchemaWithHierarchyMutation(true);
+		SetEntitySchemaWithHierarchyMutation mutation = new SetEntitySchemaWithHierarchyMutation(true, new Scope[] { Scope.LIVE });
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.version()).thenReturn(1);
 		final EntitySchemaContract newEntitySchema = mutation.mutate(

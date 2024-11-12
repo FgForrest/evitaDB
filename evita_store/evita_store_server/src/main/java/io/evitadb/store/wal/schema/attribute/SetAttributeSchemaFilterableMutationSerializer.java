@@ -28,16 +28,14 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
-
-import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.readScopeArray;
-import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.writeScopeArray;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 /**
  * Serializer for {@link SetAttributeSchemaFilterableMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SetAttributeSchemaFilterableMutationSerializer extends Serializer<SetAttributeSchemaFilterableMutation> {
+public class SetAttributeSchemaFilterableMutationSerializer extends Serializer<SetAttributeSchemaFilterableMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, SetAttributeSchemaFilterableMutation mutation) {

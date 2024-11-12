@@ -300,33 +300,41 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 		final EntityAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null, EntityAttributeSchemaContract.class);
 		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name).orElse(null);
 		if (existingAttributeSchema == null) {
-			return EntitySchema._internalBuild(
-				entitySchema.version() + 1,
-				entitySchema.getName(),
-				entitySchema.getNameVariants(),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.isWithPrice(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
-				entitySchema.getCurrencies(),
-				Stream.concat(
-						entitySchema.getAttributes().values().stream(),
-						Stream.of(newAttributeSchema)
-					)
-					.collect(
-						Collectors.toMap(
-							AttributeSchemaContract::getName,
-							Function.identity()
+			if (entitySchema instanceof EntitySchema theEntitySchema) {
+				return EntitySchema._internalBuild(
+					theEntitySchema.version() + 1,
+					theEntitySchema.getName(),
+					theEntitySchema.getNameVariants(),
+					theEntitySchema.getDescription(),
+					theEntitySchema.getDeprecationNotice(),
+					theEntitySchema.isWithGeneratedPrimaryKey(),
+					theEntitySchema.isWithHierarchy(),
+					theEntitySchema.getHierarchyIndexedInScopes(),
+					theEntitySchema.isWithPrice(),
+					theEntitySchema.getPriceIndexedInScopes(),
+					theEntitySchema.getIndexedPricePlaces(),
+					theEntitySchema.getLocales(),
+					theEntitySchema.getCurrencies(),
+					Stream.concat(
+							theEntitySchema.getAttributes().values().stream(),
+							Stream.of(newAttributeSchema)
 						)
-					),
-				entitySchema.getAssociatedData(),
-				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode(),
-				entitySchema.getSortableAttributeCompounds()
-			);
+						.collect(
+							Collectors.toMap(
+								AttributeSchemaContract::getName,
+								Function.identity()
+							)
+						),
+					theEntitySchema.getAssociatedData(),
+					theEntitySchema.getReferences(),
+					theEntitySchema.getEvolutionMode(),
+					theEntitySchema.getSortableAttributeCompounds()
+				);
+			} else {
+				throw new InvalidSchemaMutationException(
+					"Unsupported entity schema type: " + entitySchema.getClass().getName()
+				);
+			}
 		} else if (existingAttributeSchema.equals(newAttributeSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
 			return entitySchema;

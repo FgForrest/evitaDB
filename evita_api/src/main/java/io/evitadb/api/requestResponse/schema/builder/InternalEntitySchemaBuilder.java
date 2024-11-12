@@ -49,7 +49,9 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NamingConvention;
@@ -181,12 +183,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withHierarchy() {
+	public EntitySchemaBuilder withIndexedHierarchy(@Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithHierarchyMutation(true)
+				new SetEntitySchemaWithHierarchyMutation(true, inScopes)
 			)
 		);
 		return this;
@@ -199,7 +201,27 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithHierarchyMutation(false)
+				new SetEntitySchemaWithHierarchyMutation(false, Scope.NO_SCOPE)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withoutIndexedHierarchy(@Nonnull Scope... inScopes) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScopes);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithHierarchyMutation(
+					true,
+					Arrays.stream(Scope.values())
+						.filter(this::isHierarchyIndexedInScope)
+						.filter(it -> !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
+				)
 			)
 		);
 		return this;
@@ -207,12 +229,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withPrice() {
+	public EntitySchemaBuilder withIndexedPrice(@Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithPriceMutation(true, 2)
+				new SetEntitySchemaWithPriceMutation(true, inScopes, 2)
 			)
 		);
 		return this;
@@ -220,12 +242,26 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withPrice(int indexedDecimalPlaces) {
+	public EntitySchemaBuilder withIndexedPrice(int indexedDecimalPlaces, @Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithPriceMutation(true, indexedDecimalPlaces)
+				new SetEntitySchemaWithPriceMutation(true, inScopes, indexedDecimalPlaces)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withIndexedPriceInCurrency(@Nonnull Currency[] currency, @Nonnull Scope... inScopes) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithPriceMutation(true, inScopes, 2),
+				new AllowCurrencyInEntitySchemaMutation(currency)
 			)
 		);
 		return this;
@@ -233,18 +269,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withPriceInCurrency(@Nonnull Currency... currency) {
-		return withPriceInCurrency(2, currency);
-	}
-
-	@Override
-	@Nonnull
-	public EntitySchemaBuilder withPriceInCurrency(int indexedPricePlaces, @Nonnull Currency... currency) {
+	public EntitySchemaBuilder withIndexedPriceInCurrency(int indexedPricePlaces, @Nonnull Currency[] currency, @Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithPriceMutation(true, indexedPricePlaces),
+				new SetEntitySchemaWithPriceMutation(true, inScopes, indexedPricePlaces),
 				new AllowCurrencyInEntitySchemaMutation(currency)
 			)
 		);
@@ -258,7 +288,28 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithPriceMutation(false, 0)
+				new SetEntitySchemaWithPriceMutation(false, Scope.NO_SCOPE, 0)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withoutIndexedPrice(@Nonnull Scope... inScopes) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScopes);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithPriceMutation(
+					true,
+					Arrays.stream(Scope.values())
+						.filter(this::isPriceIndexedInScope)
+						.filter(it -> !excludedScopes.contains(it))
+						.toArray(Scope[]::new),
+					getIndexedPricePlaces()
+				)
 			)
 		);
 		return this;
@@ -656,6 +707,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		);
 	}
 
+	@Nonnull
 	@Override
 	public EntitySchemaBuilder withSortableAttributeCompound(
 		@Nonnull String name,
@@ -725,6 +777,9 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 					compoundSchema.getName(),
 					compoundSchema.getDescription(),
 					compoundSchema.getDeprecationNotice(),
+					Arrays.stream(Scope.values())
+						.filter(compoundSchema::isIndexedInScope)
+						.toArray(Scope[]::new),
 					attributeElements
 				)
 			)

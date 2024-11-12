@@ -34,13 +34,11 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
-import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link AttributeSchema} from/to binary format.
@@ -49,37 +47,6 @@ import java.util.Set;
  */
 @RequiredArgsConstructor
 public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
-
-	/**
-	 * Serializes an EnumSet of Scope objects to the given Kryo output.
-	 *
-	 * @param kryo   the Kryo instance to use for serialization
-	 * @param output the Output instance to write to
-	 * @param scopes the EnumSet of Scope objects to serialize
-	 */
-	static void writeScopeSet(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull Set<Scope> scopes) {
-		output.writeVarInt(scopes.size(), true);
-		for (Scope filterableInScope : scopes) {
-			kryo.writeObject(output, filterableInScope);
-		}
-	}
-
-	/**
-	 * Reads an EnumSet of Scope objects from the given Kryo input.
-	 *
-	 * @param kryo  the Kryo instance to use for deserialization
-	 * @param input the Input instance to read from
-	 * @return the EnumSet of Scope objects that were read from the input
-	 */
-	@Nonnull
-	static EnumSet<Scope> readScopeSet(@Nonnull Kryo kryo, @Nonnull Input input) {
-		int size = input.readVarInt(true);
-		final EnumSet<Scope> scopes = EnumSet.noneOf(Scope.class);
-		for (int i = 0; i < size; i++) {
-			scopes.add(kryo.readObject(input, Scope.class));
-		}
-		return scopes;
-	}
 
 	@Override
 	public void write(Kryo kryo, Output output, AttributeSchema attributeSchema) {
@@ -104,8 +71,8 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 			kryo.writeObject(output, entry.getValue());
 		}
 
-		writeScopeSet(kryo, output, attributeSchema.getFilterableInScopes());
-		writeScopeSet(kryo, output, attributeSchema.getSortableInScopes());
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getFilterableInScopes());
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSortableInScopes());
 
 		output.writeBoolean(attributeSchema.isLocalized());
 		output.writeBoolean(attributeSchema.isNullable());
@@ -147,8 +114,8 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 			unique.put(scope, uqType);
 		}
 
-		final EnumSet<Scope> filterable = readScopeSet(kryo, input);
-		final EnumSet<Scope> sortable = readScopeSet(kryo, input);
+		final EnumSet<Scope> filterable = EntitySchemaSerializer.readScopeSet(kryo, input);
+		final EnumSet<Scope> sortable = EntitySchemaSerializer.readScopeSet(kryo, input);
 
 		final boolean localized = input.readBoolean();
 		final boolean nullable = input.readBoolean();

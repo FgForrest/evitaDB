@@ -110,33 +110,41 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 			// so we can simply return current schema
 			return entitySchema;
 		} else {
-			return EntitySchema._internalBuild(
-				entitySchema.version() + 1,
-				entitySchema.getName(),
-				entitySchema.getNameVariants(),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.isWithPrice(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
-				entitySchema.getCurrencies(),
-				entitySchema.getAttributes(),
-				entitySchema.getAssociatedData(),
-				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode(),
-				entitySchema.getSortableAttributeCompounds()
-					.entrySet()
-					.stream()
-					.filter(it -> !Objects.equals(this.name, it.getKey()))
-					.collect(
-						Collectors.toMap(
-							Map.Entry::getKey,
-							Map.Entry::getValue
+			if (entitySchema instanceof EntitySchema theEntitySchema) {
+				return EntitySchema._internalBuild(
+					theEntitySchema.version() + 1,
+					theEntitySchema.getName(),
+					theEntitySchema.getNameVariants(),
+					theEntitySchema.getDescription(),
+					theEntitySchema.getDeprecationNotice(),
+					theEntitySchema.isWithGeneratedPrimaryKey(),
+					theEntitySchema.isWithHierarchy(),
+					theEntitySchema.getHierarchyIndexedInScopes(),
+					theEntitySchema.isWithPrice(),
+					theEntitySchema.getPriceIndexedInScopes(),
+					theEntitySchema.getIndexedPricePlaces(),
+					theEntitySchema.getLocales(),
+					theEntitySchema.getCurrencies(),
+					theEntitySchema.getAttributes(),
+					theEntitySchema.getAssociatedData(),
+					theEntitySchema.getReferences(),
+					theEntitySchema.getEvolutionMode(),
+					theEntitySchema.getSortableAttributeCompounds()
+						.entrySet()
+						.stream()
+						.filter(it -> !Objects.equals(this.name, it.getKey()))
+						.collect(
+							Collectors.toMap(
+								Map.Entry::getKey,
+								Map.Entry::getValue
+							)
 						)
-					)
-			);
+				);
+			} else {
+				throw new InvalidSchemaMutationException(
+					"Unsupported entity schema type: " + entitySchema.getClass().getName()
+				);
+			}
 		}
 	}
 

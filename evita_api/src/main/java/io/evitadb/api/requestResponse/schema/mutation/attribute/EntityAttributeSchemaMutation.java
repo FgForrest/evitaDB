@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -55,21 +56,23 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 		if (existingAttributeSchema.equals(updatedAttributeSchema)) {
 			// we don't need to update entity schema - the associated data already contains the requested change
 			return entitySchema;
-		} else {
+		} else if (entitySchema instanceof EntitySchema theEntitySchema) {
 			return EntitySchema._internalBuild(
-				entitySchema.version() + 1,
-				entitySchema.getName(),
-				entitySchema.getNameVariants(),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.isWithPrice(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
-				entitySchema.getCurrencies(),
+				theEntitySchema.version() + 1,
+				theEntitySchema.getName(),
+				theEntitySchema.getNameVariants(),
+				theEntitySchema.getDescription(),
+				theEntitySchema.getDeprecationNotice(),
+				theEntitySchema.isWithGeneratedPrimaryKey(),
+				theEntitySchema.isWithHierarchy(),
+				theEntitySchema.getHierarchyIndexedInScopes(),
+				theEntitySchema.isWithPrice(),
+				theEntitySchema.getPriceIndexedInScopes(),
+				theEntitySchema.getIndexedPricePlaces(),
+				theEntitySchema.getLocales(),
+				theEntitySchema.getCurrencies(),
 				Stream.concat(
-						entitySchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
+						theEntitySchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
 						Stream.of(updatedAttributeSchema)
 					)
 					.collect(
@@ -78,10 +81,14 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 							Function.identity()
 						)
 					),
-				entitySchema.getAssociatedData(),
-				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode(),
-				entitySchema.getSortableAttributeCompounds()
+				theEntitySchema.getAssociatedData(),
+				theEntitySchema.getReferences(),
+				theEntitySchema.getEvolutionMode(),
+				theEntitySchema.getSortableAttributeCompounds()
+			);
+		} else {
+			throw new InvalidSchemaMutationException(
+				"Unsupported entity schema type: " + entitySchema.getClass().getName()
 			);
 		}
 	}

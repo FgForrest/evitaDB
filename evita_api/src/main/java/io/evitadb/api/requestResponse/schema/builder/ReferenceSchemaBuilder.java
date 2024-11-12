@@ -394,6 +394,7 @@ public final class ReferenceSchemaBuilder
 		);
 	}
 
+	@Nonnull
 	@Override
 	public ReferenceSchemaBuilder withSortableAttributeCompound(
 		@Nonnull String name,

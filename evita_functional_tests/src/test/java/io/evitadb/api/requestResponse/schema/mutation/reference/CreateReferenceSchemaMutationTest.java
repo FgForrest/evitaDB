@@ -123,6 +123,7 @@ public class CreateReferenceSchemaMutationTest {
 					REFERENCE_ATTRIBUTE_COMPOUND,
 					"oldDescription",
 					"oldDeprecationNotice",
+					new Scope[] { Scope.LIVE },
 					List.of(
 						new AttributeElement(REFERENCE_ATTRIBUTE_PRIORITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement(REFERENCE_ATTRIBUTE_QUANTITY, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)

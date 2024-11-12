@@ -39,13 +39,18 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -83,7 +88,10 @@ public final class SortableAttributeCompoundSchemaBuilder
 		this.referenceSchema = referenceSchema;
 		this.baseSchema = existingSchema == null ?
 			SortableAttributeCompoundSchema._internalBuild(
-				name, null, null, attributeElements
+				name, null, null,
+				// by default sortable attribute compound is indexed in LIVE scope
+				new Scope[] {Scope.LIVE},
+				attributeElements
 			) :
 			existingSchema;
 		if (createNew) {
@@ -92,6 +100,9 @@ public final class SortableAttributeCompoundSchemaBuilder
 					baseSchema.getName(),
 					baseSchema.getDescription(),
 					baseSchema.getDeprecationNotice(),
+					Arrays.stream(Scope.values())
+						.filter(baseSchema::isIndexedInScope)
+						.toArray(Scope[]::new),
 					attributeElements.toArray(AttributeElement[]::new)
 				)
 			);
@@ -136,6 +147,39 @@ public final class SortableAttributeCompoundSchemaBuilder
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(getName(), null)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public SortableAttributeCompoundSchemaBuilder indexed(@Nullable Scope... inScope) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetSortableAttributeCompoundIndexedMutation(getName(), inScope)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public SortableAttributeCompoundSchemaBuilder nonIndexed(@Nullable Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetSortableAttributeCompoundIndexedMutation(
+					getName(),
+					Arrays.stream(Scope.values())
+						.filter(this::isIndexedInScope)
+						.filter(it -> !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
+				)
 			)
 		);
 		return this;

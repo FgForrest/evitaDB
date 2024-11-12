@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.Refl
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 
 import javax.annotation.Nonnull;
@@ -129,13 +130,30 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * entities in case requirement {@link HierarchyOfSelf} is used.
 	 */
 	@Nonnull
-	S withHierarchy();
+	default S withHierarchy() {
+		return withIndexedHierarchy(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	S withIndexedHierarchy(@Nonnull Scope... inScopes);
 
 	/**
 	 * Disables hierarchy structure for this type of entity. This is default setting for new entity types.
 	 */
 	@Nonnull
 	S withoutHierarchy();
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScopes
+	 * @return
+	 */
+	@Nonnull
+	S withoutIndexedHierarchy(@Nonnull Scope... inScopes);
 
 	/**
 	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
@@ -155,7 +173,16 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * This method variant expects that prices may have up to two decimal places.
 	 */
 	@Nonnull
-	S withPrice();
+	default S withPrice() {
+		return withIndexedPrice(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	S withIndexedPrice(@Nonnull Scope... inScopes);
 
 	/**
 	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
@@ -173,7 +200,16 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * can be used in query as well.
 	 */
 	@Nonnull
-	S withPrice(int indexedDecimalPlaces);
+	default S withPrice(int indexedDecimalPlaces) {
+		return withIndexedPrice(indexedDecimalPlaces, Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	S withIndexedPrice(int indexedDecimalPlaces, @Nonnull Scope... inScopes);
 
 	/**
 	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
@@ -194,7 +230,18 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * allowed currencies.
 	 */
 	@Nonnull
-	S withPriceInCurrency(@Nonnull Currency... currency);
+	default S withPriceInCurrency(@Nonnull Currency... currency) {
+		return withIndexedPriceInCurrency(currency, Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param currency
+	 * @param inScopes
+	 * @return
+	 */
+	@Nonnull
+	S withIndexedPriceInCurrency(@Nonnull Currency[] currency, @Nonnull Scope... inScopes);
 
 	/**
 	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
@@ -215,13 +262,32 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * allowed currencies.
 	 */
 	@Nonnull
-	S withPriceInCurrency(int indexedPricePlaces, @Nonnull Currency... currency);
+	default S withPriceInCurrency(int indexedPricePlaces, @Nonnull Currency... currency) {
+		return withIndexedPriceInCurrency(indexedPricePlaces, currency, Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param indexedPricePlaces
+	 * @param currency
+	 * @return
+	 */
+	@Nonnull
+	S withIndexedPriceInCurrency(int indexedPricePlaces, @Nonnull Currency[] currency, @Nonnull Scope... inScopes);
 
 	/**
 	 * Disables price related data for this type of entity. This is default setting for new entity types.
 	 */
 	@Nonnull
 	S withoutPrice();
+
+	/**
+	 * TODO JNO - document me
+	 * @param inScopes
+	 * @return
+	 */
+	@Nonnull
+	S withoutIndexedPrice(@Nonnull Scope... inScopes);
 
 	/**
 	 * Disables set of allowed currencies for this entity type.

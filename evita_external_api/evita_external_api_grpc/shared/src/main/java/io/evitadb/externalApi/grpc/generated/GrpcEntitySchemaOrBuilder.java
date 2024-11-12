@@ -195,7 +195,7 @@ public interface GrpcEntitySchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale>
       getLocalesList();
   /**
    * <pre>
@@ -223,7 +223,7 @@ public interface GrpcEntitySchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
       getLocalesOrBuilderList();
   /**
    * <pre>
@@ -243,7 +243,7 @@ public interface GrpcEntitySchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency>
       getCurrenciesList();
   /**
    * <pre>
@@ -268,7 +268,7 @@ public interface GrpcEntitySchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
       getCurrenciesOrBuilderList();
   /**
    * <pre>
@@ -702,7 +702,7 @@ public interface GrpcEntitySchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
       getNameVariantList();
   /**
    * <pre>
@@ -727,7 +727,7 @@ public interface GrpcEntitySchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getNameVariantOrBuilderList();
   /**
    * <pre>
@@ -738,4 +738,102 @@ public interface GrpcEntitySchemaOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+   * @return A list containing the hierarchyIndexedInScopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getHierarchyIndexedInScopesList();
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+   * @return The count of hierarchyIndexedInScopes.
+   */
+  int getHierarchyIndexedInScopesCount();
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+   * @param index The index of the element to return.
+   * @return The hierarchyIndexedInScopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getHierarchyIndexedInScopes(int index);
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+   * @return A list containing the enum numeric values on the wire for hierarchyIndexedInScopes.
+   */
+  java.util.List<java.lang.Integer>
+  getHierarchyIndexedInScopesValueList();
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of hierarchyIndexedInScopes at the given index.
+   */
+  int getHierarchyIndexedInScopesValue(int index);
+
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+   * @return A list containing the priceIndexedInScopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getPriceIndexedInScopesList();
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+   * @return The count of priceIndexedInScopes.
+   */
+  int getPriceIndexedInScopesCount();
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+   * @param index The index of the element to return.
+   * @return The priceIndexedInScopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getPriceIndexedInScopes(int index);
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+   * @return A list containing the enum numeric values on the wire for priceIndexedInScopes.
+   */
+  java.util.List<java.lang.Integer>
+  getPriceIndexedInScopesValueList();
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of priceIndexedInScopes at the given index.
+   */
+  int getPriceIndexedInScopesValue(int index);
 }

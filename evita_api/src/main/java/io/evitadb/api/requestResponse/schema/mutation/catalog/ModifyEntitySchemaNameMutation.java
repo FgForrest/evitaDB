@@ -92,24 +92,30 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 		if (newName.equals(catalogSchema.getName())) {
 			// nothing has changed - we can return existing schema
 			return entitySchema;
-		} else {
+		} else if (entitySchema instanceof EntitySchema theEntitySchema) {
 			return EntitySchema._internalBuild(
-				entitySchema.version() + 1,
+				theEntitySchema.version() + 1,
 				newName,
 				NamingConvention.generate(newName),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.isWithPrice(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
-				entitySchema.getCurrencies(),
-				entitySchema.getAttributes(),
-				entitySchema.getAssociatedData(),
-				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode(),
-				entitySchema.getSortableAttributeCompounds()
+				theEntitySchema.getDescription(),
+				theEntitySchema.getDeprecationNotice(),
+				theEntitySchema.isWithGeneratedPrimaryKey(),
+				theEntitySchema.isWithHierarchy(),
+				theEntitySchema.getHierarchyIndexedInScopes(),
+				theEntitySchema.isWithPrice(),
+				theEntitySchema.getPriceIndexedInScopes(),
+				theEntitySchema.getIndexedPricePlaces(),
+				theEntitySchema.getLocales(),
+				theEntitySchema.getCurrencies(),
+				theEntitySchema.getAttributes(),
+				theEntitySchema.getAssociatedData(),
+				theEntitySchema.getReferences(),
+				theEntitySchema.getEvolutionMode(),
+				theEntitySchema.getSortableAttributeCompounds()
+			);
+		} else {
+			throw new InvalidSchemaMutationException(
+				"Unsupported entity schema type: " + entitySchema.getClass().getName()
 			);
 		}
 	}

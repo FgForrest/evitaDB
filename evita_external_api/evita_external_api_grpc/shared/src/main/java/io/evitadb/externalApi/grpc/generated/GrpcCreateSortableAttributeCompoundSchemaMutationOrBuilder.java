@@ -120,7 +120,7 @@ public interface GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder exte
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement>
       getAttributeElementsList();
   /**
    * <pre>
@@ -145,7 +145,7 @@ public interface GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder exte
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>
       getAttributeElementsOrBuilderList();
   /**
    * <pre>
@@ -156,4 +156,53 @@ public interface GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder exte
    */
   io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder getAttributeElementsOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 5;</code>
+   * @return A list containing the indexedInScopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 5;</code>
+   * @return The count of indexedInScopes.
+   */
+  int getIndexedInScopesCount();
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 5;</code>
+   * @param index The index of the element to return.
+   * @return The indexedInScopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index);
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 5;</code>
+   * @return A list containing the enum numeric values on the wire for indexedInScopes.
+   */
+  java.util.List<java.lang.Integer>
+  getIndexedInScopesValueList();
+  /**
+   * <pre>
+   * TODO JNO - document me
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 5;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of indexedInScopes at the given index.
+   */
+  int getIndexedInScopesValue(int index);
 }

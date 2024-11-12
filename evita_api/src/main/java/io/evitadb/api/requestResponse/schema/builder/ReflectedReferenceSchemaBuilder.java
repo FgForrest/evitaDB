@@ -534,6 +534,7 @@ public final class ReflectedReferenceSchemaBuilder
 		);
 	}
 
+	@Nonnull
 	@Override
 	public ReflectedReferenceSchemaBuilder withSortableAttributeCompound(
 		@Nonnull String name,

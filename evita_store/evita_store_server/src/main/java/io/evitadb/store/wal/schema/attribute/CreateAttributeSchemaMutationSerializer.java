@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -40,21 +41,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAttributeSchemaMutation> {
-
-	/**
-	 * Serializes an array of Scope objects to the given Kryo output.
-	 *
-	 * @param kryo   the Kryo instance to use for serialization
-	 * @param output the Output instance to write to
-	 * @param scopes the array of Scope objects to serialize
-	 */
-	static void writeScopeArray(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull Scope[] scopes) {
-		output.writeVarInt(scopes.length, true);
-		for (Scope scope : scopes) {
-			kryo.writeObject(output, scope);
-		}
-	}
+public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAttributeSchemaMutation> implements MutationSerializationFunctions {
 
 	/**
 	 * Serializes an array of ScopedAttributeUniquenessType objects to the given Kryo output.
@@ -69,23 +56,6 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 			kryo.writeObject(output, scopedUniquenessType.scope());
 			kryo.writeObject(output, scopedUniquenessType.uniquenessType());
 		}
-	}
-
-	/**
-	 * Reads an array of Scope objects from the given Kryo input.
-	 *
-	 * @param kryo  the Kryo instance to use for deserialization
-	 * @param input the Input instance to read from
-	 * @return the array of Scope objects that were read from the input
-	 */
-	@Nonnull
-	static Scope[] readScopeArray(@Nonnull Kryo kryo, @Nonnull Input input) {
-		int size = input.readVarInt(true);
-		Scope[] scopes = new Scope[size];
-		for (int i = 0; i < size; i++) {
-			scopes[i] = kryo.readObject(input, Scope.class);
-		}
-		return scopes;
 	}
 
 

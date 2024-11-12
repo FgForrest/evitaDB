@@ -32,13 +32,12 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttr
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 
-import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.readScopeArray;
 import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.readScopedUniquenessTypesMap;
-import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.writeScopeArray;
 import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.writeScopedUniquenessTypesMap;
 
 /**
@@ -46,7 +45,7 @@ import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutatio
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<CreateGlobalAttributeSchemaMutation> {
+public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<CreateGlobalAttributeSchemaMutation> implements MutationSerializationFunctions {
 
 	/**
 	 * Serializes an array of ScopedGlobalAttributeUniquenessType objects to the given Kryo output.

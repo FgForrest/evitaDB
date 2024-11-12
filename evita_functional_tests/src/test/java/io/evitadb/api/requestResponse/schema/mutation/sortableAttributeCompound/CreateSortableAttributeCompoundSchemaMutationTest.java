@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -49,6 +50,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * This test verifies {@link CreateSortableAttributeCompoundSchemaMutation} class.
  *
+ * TODO JNO - DOPSAT TEST PRO SET COMPOUND INDEXED MUTACI, a asi i chybí testy na mutace pro reflected reference a možná i další nové mutace
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class CreateSortableAttributeCompoundSchemaMutationTest {
@@ -61,6 +64,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 			ATTRIBUTE_COMPOUND_NAME,
 			"oldDescription",
 			"oldDeprecationNotice",
+			new Scope[] { Scope.LIVE },
 			List.of(
 				new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 				new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
@@ -79,7 +83,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldBeReplacedWithIndividualMutationsWhenAttributeWasRemovedAndCreatedWithDifferentSettings() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -102,7 +106,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentCompoundData() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -113,7 +117,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldCreateSortableAttributeCompound() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -135,7 +139,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldCreateAttributeInEntity() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -158,7 +162,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldCreateAttributeInReference() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -182,7 +186,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithExistingAttribute() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -202,7 +206,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldThrowExceptionWhenMutatingReferenceSchemaWithExistingAttribute() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);

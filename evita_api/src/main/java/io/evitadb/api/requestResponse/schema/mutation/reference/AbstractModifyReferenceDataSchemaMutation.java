@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -67,33 +68,41 @@ abstract class AbstractModifyReferenceDataSchemaMutation implements ReferenceSch
 			// we don't need to update entity schema - the associated data already contains the requested change
 			return entitySchema;
 		} else {
-			return EntitySchema._internalBuild(
-				entitySchema.version() + 1,
-				entitySchema.getName(),
-				entitySchema.getNameVariants(),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.isWithPrice(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
-				entitySchema.getCurrencies(),
-				entitySchema.getAttributes(),
-				entitySchema.getAssociatedData(),
-				Stream.concat(
-						entitySchema.getReferences().values().stream().filter(it -> !existingReferenceSchema.getName().equals(it.getName())),
-						Stream.of(updatedReferenceSchema)
-					)
-					.collect(
-						Collectors.toMap(
-							ReferenceSchemaContract::getName,
-							Function.identity()
+			if (entitySchema instanceof EntitySchema theEntitySchema) {
+				return EntitySchema._internalBuild(
+					theEntitySchema.version() + 1,
+					theEntitySchema.getName(),
+					theEntitySchema.getNameVariants(),
+					theEntitySchema.getDescription(),
+					theEntitySchema.getDeprecationNotice(),
+					theEntitySchema.isWithGeneratedPrimaryKey(),
+					theEntitySchema.isWithHierarchy(),
+					theEntitySchema.getHierarchyIndexedInScopes(),
+					theEntitySchema.isWithPrice(),
+					theEntitySchema.getPriceIndexedInScopes(),
+					theEntitySchema.getIndexedPricePlaces(),
+					theEntitySchema.getLocales(),
+					theEntitySchema.getCurrencies(),
+					theEntitySchema.getAttributes(),
+					theEntitySchema.getAssociatedData(),
+					Stream.concat(
+							theEntitySchema.getReferences().values().stream().filter(it -> !existingReferenceSchema.getName().equals(it.getName())),
+							Stream.of(updatedReferenceSchema)
 						)
-					),
-				entitySchema.getEvolutionMode(),
-				entitySchema.getSortableAttributeCompounds()
-			);
+						.collect(
+							Collectors.toMap(
+								ReferenceSchemaContract::getName,
+								Function.identity()
+							)
+						),
+					theEntitySchema.getEvolutionMode(),
+					theEntitySchema.getSortableAttributeCompounds()
+				);
+			} else {
+				throw new InvalidSchemaMutationException(
+					"Unsupported entity schema type: " + entitySchema.getClass().getName()
+				);
+			}
 		}
 	}
 

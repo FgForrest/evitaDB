@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -40,6 +42,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
 
 /**
  * Mutation is responsible for setting a {@link EntitySchemaContract#isWithPrice()} ()}
@@ -56,6 +59,7 @@ import java.io.Serial;
 public class SetEntitySchemaWithPriceMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 1203377065876143030L;
 	@Getter private final boolean withPrice;
+	@Getter private final Scope[] indexedInScopes;
 	@Getter private final int indexedPricePlaces;
 
 	@Nullable
@@ -76,7 +80,7 @@ public class SetEntitySchemaWithPriceMutation implements CombinableLocalEntitySc
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (withPrice == entitySchema.isWithPrice() && indexedPricePlaces == entitySchema.getIndexedPricePlaces()) {
+		if (this.withPrice == entitySchema.isWithPrice() && this.indexedPricePlaces == entitySchema.getIndexedPricePlaces()) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -88,8 +92,12 @@ public class SetEntitySchemaWithPriceMutation implements CombinableLocalEntitySc
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
-				withPrice,
-				indexedPricePlaces,
+				Arrays.stream(Scope.values())
+					.filter(entitySchema::isHierarchyIndexedInScope)
+					.toArray(Scope[]::new),
+				this.withPrice,
+				this.indexedInScopes,
+				this.indexedPricePlaces,
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
 				entitySchema.getAttributes(),
@@ -109,8 +117,10 @@ public class SetEntitySchemaWithPriceMutation implements CombinableLocalEntitySc
 
 	@Override
 	public String toString() {
+		final boolean indexed = ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes);
 		return "Set entity schema: " +
 			"withPrice=" + withPrice +
-			", indexedPricePlaces=" + indexedPricePlaces;
+			", indexedPricePlaces=" + indexedPricePlaces +
+			", indexed=" + (indexed ? "(indexed in scopes: " + Arrays.toString(this.indexedInScopes) + ")" : "(not indexed)");
 	}
 }

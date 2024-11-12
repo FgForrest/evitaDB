@@ -96,7 +96,9 @@ class EntitySchemaConverterTest {
 			"Alert! Deprecated!",
 			true,
 			false,
+			Scope.NO_SCOPE,
 			true,
+			new Scope[] { Scope.LIVE },
 			2,
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
 			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
@@ -174,7 +176,7 @@ class EntitySchemaConverterTest {
 					Map.of(
 						"compound1",
 						SortableAttributeCompoundSchema._internalBuild(
-							"compound1", "This is compound 1", null,
+							"compound1", "This is compound 1", null, new Scope[] { Scope.LIVE },
 							Arrays.asList(
 								new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 								new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
@@ -182,7 +184,7 @@ class EntitySchemaConverterTest {
 						),
 						"compound2",
 						SortableAttributeCompoundSchema._internalBuild(
-							"compound2", "This is compound 2", null,
+							"compound2", "This is compound 2", null, new Scope[] { Scope.LIVE },
 							Arrays.asList(
 								new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 								new AttributeElement("age", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST)
@@ -195,7 +197,7 @@ class EntitySchemaConverterTest {
 			Map.of(
 				"compound1",
 				SortableAttributeCompoundSchema._internalBuild(
-					"compound1", "This is compound 1", null,
+					"compound1", "This is compound 1", null, new Scope[] { Scope.LIVE },
 					Arrays.asList(
 						new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)

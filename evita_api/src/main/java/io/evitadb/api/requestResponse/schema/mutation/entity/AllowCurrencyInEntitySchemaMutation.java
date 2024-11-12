@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.entity;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -109,28 +110,34 @@ public class AllowCurrencyInEntitySchemaMutation implements CombinableLocalEntit
 		if (Arrays.stream(currencies).allMatch(entitySchema::supportsCurrency)) {
 			// no need to change the schema
 			return entitySchema;
-		} else {
+		} else if (entitySchema instanceof EntitySchema theEntitySchema) {
 			return EntitySchema._internalBuild(
-				entitySchema.version() + 1,
-				entitySchema.getName(),
-				entitySchema.getNameVariants(),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.isWithPrice(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
+				theEntitySchema.version() + 1,
+				theEntitySchema.getName(),
+				theEntitySchema.getNameVariants(),
+				theEntitySchema.getDescription(),
+				theEntitySchema.getDeprecationNotice(),
+				theEntitySchema.isWithGeneratedPrimaryKey(),
+				theEntitySchema.isWithHierarchy(),
+				theEntitySchema.getHierarchyIndexedInScopes(),
+				theEntitySchema.isWithPrice(),
+				theEntitySchema.getPriceIndexedInScopes(),
+				theEntitySchema.getIndexedPricePlaces(),
+				theEntitySchema.getLocales(),
 				Stream.concat(
-						entitySchema.getCurrencies().stream(),
+						theEntitySchema.getCurrencies().stream(),
 						Arrays.stream(currencies)
 					)
 					.collect(Collectors.toSet()),
-				entitySchema.getAttributes(),
-				entitySchema.getAssociatedData(),
-				entitySchema.getReferences(),
-				entitySchema.getEvolutionMode(),
-				entitySchema.getSortableAttributeCompounds()
+				theEntitySchema.getAttributes(),
+				theEntitySchema.getAssociatedData(),
+				theEntitySchema.getReferences(),
+				theEntitySchema.getEvolutionMode(),
+				theEntitySchema.getSortableAttributeCompounds()
+			);
+		} else {
+			throw new InvalidSchemaMutationException(
+				"Unsupported entity schema type: " + entitySchema.getClass().getName()
 			);
 		}
 	}

@@ -28,8 +28,10 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 
 /**
@@ -40,6 +42,38 @@ import java.util.Collection;
  */
 public interface SortableAttributeCompoundSchemaEditor<S extends SortableAttributeCompoundSchemaEditor<S>> extends
 	SortableAttributeCompoundSchemaContract, NamedSchemaWithDeprecationEditor<S> {
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	default S indexed() {
+		return indexed(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	S indexed(@Nullable Scope... inScope);
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	default S nonIndexed() {
+		return nonIndexed(Scope.values());
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	S nonIndexed(@Nullable Scope... inScope);
 
 	/**
 	 * Interface that simply combines {@link SortableAttributeCompoundSchemaEditor} and

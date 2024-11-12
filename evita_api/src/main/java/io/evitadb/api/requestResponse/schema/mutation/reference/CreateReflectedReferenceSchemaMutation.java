@@ -86,6 +86,18 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 	@Getter @Nonnull private final AttributeInheritanceBehavior attributesInheritanceBehavior;
 	@Getter @Nullable private final String[] attributeInheritanceFilter;
 
+	@Nullable
+	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
+		@Nonnull ReflectedReferenceSchemaContract createdVersion,
+		@Nonnull ReflectedReferenceSchemaContract existingVersion,
+		@Nonnull Function<ReflectedReferenceSchemaContract, T> propertyRetriever,
+		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
+	) {
+		final T newValue = propertyRetriever.apply(createdVersion);
+		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
+			null : mutationCreator.apply(newValue);
+	}
+
 	public CreateReflectedReferenceSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -102,7 +114,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			// by default reflected reference is indexed in the same scope as the entity
 			null,
 			// by default reflected reference is not faceted unless explicitly set
-			faceted == null ? null : faceted ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE,
+			faceted == null ? null : faceted ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE,
 			attributesInheritanceBehavior, attributeInheritanceFilter
 		);
 	}
@@ -234,33 +246,41 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			.orElse(newReferenceSchema);
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
 		if (existingReferenceSchema.isEmpty()) {
-			return EntitySchema._internalBuild(
-				entitySchema.version() + 1,
-				entitySchema.getName(),
-				entitySchema.getNameVariants(),
-				entitySchema.getDescription(),
-				entitySchema.getDeprecationNotice(),
-				entitySchema.isWithGeneratedPrimaryKey(),
-				entitySchema.isWithHierarchy(),
-				entitySchema.isWithPrice(),
-				entitySchema.getIndexedPricePlaces(),
-				entitySchema.getLocales(),
-				entitySchema.getCurrencies(),
-				entitySchema.getAttributes(),
-				entitySchema.getAssociatedData(),
-				Stream.concat(
-						entitySchema.getReferences().values().stream(),
-						Stream.of(referenceToInsert)
-					)
-					.collect(
-						Collectors.toMap(
-							ReferenceSchemaContract::getName,
-							Function.identity()
+			if (entitySchema instanceof EntitySchema theEntitySchema) {
+				return EntitySchema._internalBuild(
+					theEntitySchema.version() + 1,
+					theEntitySchema.getName(),
+					theEntitySchema.getNameVariants(),
+					theEntitySchema.getDescription(),
+					theEntitySchema.getDeprecationNotice(),
+					theEntitySchema.isWithGeneratedPrimaryKey(),
+					theEntitySchema.isWithHierarchy(),
+					theEntitySchema.getHierarchyIndexedInScopes(),
+					theEntitySchema.isWithPrice(),
+					theEntitySchema.getPriceIndexedInScopes(),
+					theEntitySchema.getIndexedPricePlaces(),
+					theEntitySchema.getLocales(),
+					theEntitySchema.getCurrencies(),
+					theEntitySchema.getAttributes(),
+					theEntitySchema.getAssociatedData(),
+					Stream.concat(
+							theEntitySchema.getReferences().values().stream(),
+							Stream.of(referenceToInsert)
 						)
-					),
-				entitySchema.getEvolutionMode(),
-				entitySchema.getSortableAttributeCompounds()
-			);
+						.collect(
+							Collectors.toMap(
+								ReferenceSchemaContract::getName,
+								Function.identity()
+							)
+						),
+					theEntitySchema.getEvolutionMode(),
+					theEntitySchema.getSortableAttributeCompounds()
+				);
+			} else {
+				throw new InvalidSchemaMutationException(
+					"Unsupported entity schema type: " + entitySchema.getClass().getName()
+				);
+			}
 		} else if (existingReferenceSchema.get().equals(newReferenceSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
 			return entitySchema;
@@ -271,18 +291,6 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 					" has different definition. To alter existing reference schema you need to use different mutations."
 			);
 		}
-	}
-
-	@Nullable
-	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
-		@Nonnull ReflectedReferenceSchemaContract createdVersion,
-		@Nonnull ReflectedReferenceSchemaContract existingVersion,
-		@Nonnull Function<ReflectedReferenceSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
 	}
 
 	@Nonnull

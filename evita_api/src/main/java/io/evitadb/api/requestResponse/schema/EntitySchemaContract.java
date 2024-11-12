@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,9 +40,11 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Prices;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
@@ -111,6 +113,28 @@ public interface EntitySchemaContract extends
 	boolean isWithHierarchy();
 
 	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	default boolean isHierarchyIndexed() {
+		return isHierarchyIndexedInScope(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	default boolean isHierarchyIndexedInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isHierarchyIndexedInScope);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	boolean isHierarchyIndexedInScope(@Nonnull Scope scope);
+
+	/**
 	 * Returns TRUE when entities of this type holds price information.
 	 *
 	 * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
@@ -124,6 +148,28 @@ public interface EntitySchemaContract extends
 	 * {@link PriceHistogram}, {@link Prices}, {@link PriceType} can be used in query as well.
 	 */
 	boolean isWithPrice();
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	default boolean isPriceIndexed() {
+		return isPriceIndexedInScope(Scope.LIVE);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	default boolean isPriceIndexedInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isPriceIndexedInScope);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	boolean isPriceIndexedInScope(@Nonnull Scope scope);
 
 	/**
 	 * Determines how many fractional places are important when entities are compared during filtering or sorting. It is
