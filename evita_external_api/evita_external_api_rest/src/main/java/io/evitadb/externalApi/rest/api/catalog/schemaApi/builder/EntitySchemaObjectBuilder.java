@@ -84,7 +84,9 @@ public class EntitySchemaObjectBuilder {
 	public void buildCommonTypes() {
 		// build common reusable objects
 		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
 		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
 		buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());

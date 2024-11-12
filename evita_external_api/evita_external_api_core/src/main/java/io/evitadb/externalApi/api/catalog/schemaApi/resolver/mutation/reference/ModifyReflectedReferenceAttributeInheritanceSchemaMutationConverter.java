@@ -59,7 +59,7 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter
 	protected ModifyReflectedReferenceAttributeInheritanceSchemaMutation convert(@Nonnull Input input) {
 		return new ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
 			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			input.getOptionalField(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR),
+			input.getRequiredField(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR),
 			input.getOptionalField(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER)
 		);
 	}

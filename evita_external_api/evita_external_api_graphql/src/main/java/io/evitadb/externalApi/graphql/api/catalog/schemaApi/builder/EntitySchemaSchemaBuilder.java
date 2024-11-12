@@ -88,8 +88,10 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	@Override
 	public void build() {
 		// build common reusable types
-		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());
 		final GraphQLObjectType attributeSchemaObject = buildAttributeSchemaObject();
 		buildingContext.registerType(attributeSchemaObject);
 		final GraphQLObjectType entityAttributeSchemaObject= buildEntityAttributeSchemaObject();

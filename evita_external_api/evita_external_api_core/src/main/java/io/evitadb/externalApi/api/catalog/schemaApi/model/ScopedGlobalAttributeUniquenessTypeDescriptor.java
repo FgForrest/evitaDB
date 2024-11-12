@@ -65,4 +65,12 @@ public interface ScopedGlobalAttributeUniquenessTypeDescriptor extends ScopedDat
 			""")
 		.staticFields(List.of(SCOPE, UNIQUENESS_TYPE))
 		.build();
+
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.builder()
+		.name("InputScopedGlobalAttributeUniquenessType")
+		.description("""
+			Represents combination of global uniqueness type and entity scope it should be applied to.
+			""")
+		.staticFields(List.of(SCOPE, UNIQUENESS_TYPE))
+		.build();
 }

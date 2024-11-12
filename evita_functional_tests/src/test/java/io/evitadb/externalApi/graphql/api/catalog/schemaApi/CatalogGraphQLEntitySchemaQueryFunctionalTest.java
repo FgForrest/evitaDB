@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.test.Entities;
@@ -40,6 +41,8 @@ import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
@@ -199,7 +202,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 										scope
 										uniquenessType
 									}
-									filterableInScopes
+									filterable
 									localized
 									defaultValue
 								}
@@ -214,12 +217,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 									}
 									description
 									deprecationNotice
-									uniqueInScopes {
+									uniquenessType {
 										scope
 										uniquenessType
 									}
-									filterableInScopes
-									sortableInScopes
+									filterable
+									sortable
 									localized
 									nullable
 									defaultValue
@@ -249,9 +252,8 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.build())
 							.e(ATTRIBUTE_URL, map()
 								.e(TYPENAME_FIELD, GlobalAttributeSchemaDescriptor.THIS.name())
-								// todo lho 677
-								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), urlSchema.getUniquenessType().name())
-								.e(AttributeSchemaDescriptor.FILTERABLE.name(), urlSchema.isFilterable())
+								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(urlSchema))
+								.e(AttributeSchemaDescriptor.FILTERABLE.name(), createAttributeFilterableDto(urlSchema))
 								.e(AttributeSchemaDescriptor.LOCALIZED.name(), urlSchema.isLocalized())
 								.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), urlSchema.getDefaultValue())
 								.build())
@@ -266,10 +268,9 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 									.build())
 								.e(NamedSchemaDescriptor.DESCRIPTION.name(), quantitySchema.getDescription())
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), quantitySchema.getDeprecationNotice())
-								// todo lho 677
-								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), quantitySchema.getUniquenessType().name())
-								.e(AttributeSchemaDescriptor.FILTERABLE.name(), quantitySchema.isFilterable())
-								.e(AttributeSchemaDescriptor.SORTABLE.name(), quantitySchema.isSortable())
+								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(quantitySchema))
+								.e(AttributeSchemaDescriptor.FILTERABLE.name(), createAttributeFilterableDto(quantitySchema))
+								.e(AttributeSchemaDescriptor.SORTABLE.name(), createAttributeSortableDto(quantitySchema))
 								.e(AttributeSchemaDescriptor.LOCALIZED.name(), quantitySchema.isLocalized())
 								.e(AttributeSchemaDescriptor.NULLABLE.name(), quantitySchema.isNullable())
 								.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), quantitySchema.getDefaultValue().toString())
@@ -318,16 +319,16 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 									}
 									description
 									deprecationNotice
-									uniqueInScopes {
+									uniquenessType {
 										scope
 										uniquenessType
 									}
-									uniqueGloballyInScopes {
+									globalUniquenessType {
 										scope
 										uniquenessType
 									}
-									filterableInScopes
-									sortableInScopes
+									filterable
+									sortable
 									localized
 									nullable
 									defaultValue
@@ -360,11 +361,10 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 									.build())
 								.e(NamedSchemaDescriptor.DESCRIPTION.name(), codeSchema.getDescription())
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), codeSchema.getDeprecationNotice())
-								// todo lho 677
-								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), codeSchema.getUniquenessType().name())
-								.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), codeSchema.getGlobalUniquenessType().name())
-								.e(AttributeSchemaDescriptor.FILTERABLE.name(), codeSchema.isFilterable())
-								.e(AttributeSchemaDescriptor.SORTABLE.name(), codeSchema.isSortable())
+								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(codeSchema))
+								.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), createGlobalAttributeUniquenessTypeDto(codeSchema))
+								.e(AttributeSchemaDescriptor.FILTERABLE.name(), createAttributeFilterableDto(codeSchema))
+								.e(AttributeSchemaDescriptor.SORTABLE.name(), createAttributeSortableDto(codeSchema))
 								.e(AttributeSchemaDescriptor.LOCALIZED.name(), codeSchema.isLocalized())
 								.e(AttributeSchemaDescriptor.NULLABLE.name(), codeSchema.isNullable())
 								.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), Optional.ofNullable(codeSchema.getDefaultValue()).map(Object::toString).orElse(null))
@@ -397,8 +397,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 					return map()
 						.e(TYPENAME_FIELD, GlobalAttributeSchemaDescriptor.THIS.name())
 						.e(NamedSchemaDescriptor.NAME.name(), globalAttributeSchema.getName())
-						// todo lho 677
-						.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().name())
+						.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), createGlobalAttributeUniquenessTypeDto(globalAttributeSchema))
 						.build();
 				} else {
 					return map()
@@ -423,7 +422,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								... on GlobalAttributeSchema {
 									__typename
 									name
-									uniqueGloballyInScopes {
+									globalUniquenessType {
 										scope
 										uniquenessType
 									}
@@ -750,8 +749,8 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 										kebabCase
 									}
 									referencedGroupTypeManaged
-									indexedInScopes
-									facetedInScopes
+									indexed
+									faceted
 								}
 								obsoleteBrand {
 									deprecationNotice
@@ -813,9 +812,8 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), null)
 								.e(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), null)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), brandReferenceSchema.isReferencedGroupTypeManaged())
-								// todo lho 677
-								.e(ReferenceSchemaDescriptor.INDEXED.name(), brandReferenceSchema.isIndexed())
-								.e(ReferenceSchemaDescriptor.FACETED.name(), brandReferenceSchema.isFaceted())
+								.e(ReferenceSchemaDescriptor.INDEXED.name(), createReferenceIndexedDto(brandReferenceSchema))
+								.e(ReferenceSchemaDescriptor.FACETED.name(), createReferencedFacetedDto(brandReferenceSchema))
 								.build())
 							.e(REFERENCE_OBSOLETE_BRAND, map()
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), obsoleteBrandReferenceSchema.getDeprecationNotice())
@@ -880,12 +878,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 											}
 											description
 											deprecationNotice
-											uniqueInScopes {
+											uniquenessType {
 												scope
 												uniquenessType
 											}
-											filterableInScopes
-											sortableInScopes
+											filterable
+											sortable
 											localized
 											nullable
 											defaultValue
@@ -922,10 +920,9 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 											.build())
 										.e(NamedSchemaDescriptor.DESCRIPTION.name(), brandVisibleForB2CAttributeSchema.getDescription())
 										.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), brandVisibleForB2CAttributeSchema.getDeprecationNotice())
-										// todo lho 677
-										.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), brandVisibleForB2CAttributeSchema.getUniquenessType().name())
-										.e(AttributeSchemaDescriptor.FILTERABLE.name(), brandVisibleForB2CAttributeSchema.isFilterable())
-										.e(AttributeSchemaDescriptor.SORTABLE.name(), brandVisibleForB2CAttributeSchema.isSortable())
+										.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(brandVisibleForB2CAttributeSchema))
+										.e(AttributeSchemaDescriptor.FILTERABLE.name(), createAttributeFilterableDto(brandVisibleForB2CAttributeSchema))
+										.e(AttributeSchemaDescriptor.SORTABLE.name(), createAttributeSortableDto(brandVisibleForB2CAttributeSchema))
 										.e(AttributeSchemaDescriptor.LOCALIZED.name(), brandVisibleForB2CAttributeSchema.isLocalized())
 										.e(AttributeSchemaDescriptor.NULLABLE.name(), brandVisibleForB2CAttributeSchema.isNullable())
 										.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), brandVisibleForB2CAttributeSchema.getDefaultValue())

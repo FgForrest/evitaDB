@@ -161,16 +161,16 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 									}
 									description
 									deprecationNotice
-									uniqueInScopes {
+									uniquenessType {
 										scope
 										uniquenessType
 									}
-									uniqueGloballyInScopes {
+									globalUniquenessType {
 										scope
 										uniquenessType
 									}
-									filterableInScopes
-									sortableInScopes
+									filterable
+									sortable
 									localized
 									nullable
 									defaultValue
@@ -204,11 +204,10 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 									.build())
 								.e(NamedSchemaDescriptor.DESCRIPTION.name(), urlSchema.getDescription())
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), urlSchema.getDeprecationNotice())
-								// todo lho 677
-								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), urlSchema.getUniquenessType().name())
-								.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), urlSchema.getGlobalUniquenessType().name())
-								.e(AttributeSchemaDescriptor.FILTERABLE.name(), urlSchema.isFilterable())
-								.e(AttributeSchemaDescriptor.SORTABLE.name(), urlSchema.isSortable())
+								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(urlSchema))
+								.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), createGlobalAttributeUniquenessTypeDto(urlSchema))
+								.e(AttributeSchemaDescriptor.FILTERABLE.name(), createAttributeFilterableDto(urlSchema))
+								.e(AttributeSchemaDescriptor.SORTABLE.name(), createAttributeSortableDto(urlSchema))
 								.e(AttributeSchemaDescriptor.LOCALIZED.name(), urlSchema.isLocalized())
 								.e(AttributeSchemaDescriptor.NULLABLE.name(), urlSchema.isNullable())
 								.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), urlSchema.getDefaultValue() == null ? null : urlSchema.getDefaultValue().toString())

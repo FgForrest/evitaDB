@@ -74,7 +74,7 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
 			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
-		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS))
+		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor FILTERABLE_IN_SCOPES = PropertyDescriptor.builder()
 		.name("filterableInScopes")

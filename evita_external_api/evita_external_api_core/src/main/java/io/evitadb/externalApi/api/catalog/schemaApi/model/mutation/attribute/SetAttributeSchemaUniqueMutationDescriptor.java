@@ -53,7 +53,7 @@ public interface SetAttributeSchemaUniqueMutationDescriptor extends AttributeSch
 			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
 			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
-		.type(nonNullListRef(ScopedAttributeUniquenessTypeDescriptor.THIS))
+		.type(nonNullListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()

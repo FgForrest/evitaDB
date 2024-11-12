@@ -75,7 +75,7 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
 			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
-		.type(nonNullListRef(ScopedAttributeUniquenessTypeDescriptor.THIS))
+		.type(nonNullListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 
 	PropertyDescriptor UNIQUE_GLOBALLY_IN_SCOPES = PropertyDescriptor.builder()
@@ -91,7 +91,7 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
 			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
-		.type(nonNullListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS))
+		.type(nonNullListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor FILTERABLE_IN_SCOPES = PropertyDescriptor.builder()
 		.name("filterableInScopes")

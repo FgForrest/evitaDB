@@ -65,4 +65,12 @@ public interface ScopedAttributeUniquenessTypeDescriptor extends ScopedDataDescr
 			""")
 		.staticFields(List.of(SCOPE, UNIQUENESS_TYPE))
 		.build();
+
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.builder()
+		.name("InputScopedAttributeUniquenessType")
+		.description("""
+			Represents combination of uniqueness type and entity scope it should be applied to.
+			""")
+		.staticFields(List.of(SCOPE, UNIQUENESS_TYPE))
+		.build();
 }
