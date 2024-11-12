@@ -236,10 +236,10 @@ public class SetAttributeSchemaUniqueMutation
 		final List<Scope> nonIndexedScopes = Arrays.stream(this.uniqueInScopes)
 			.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
 			.map(ScopedAttributeUniquenessType::scope)
-			.filter(referenceSchema::isIndexed)
+			.filter(scope -> !referenceSchema.isIndexed(scope))
 			.toList();
 		Assert.isTrue(
-			consistencyChecks == ReferenceSchemaMutator.ConsistencyChecks.SKIP || !nonIndexedScopes.isEmpty(),
+			consistencyChecks == ReferenceSchemaMutator.ConsistencyChecks.SKIP || nonIndexedScopes.isEmpty(),
 			() -> new InvalidSchemaMutationException(
 				"The reference `" + referenceSchema.getName() + "` is in entity `" + entitySchema.getName() +
 					"` is not indexed in required scopes: " + nonIndexedScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + "! " +

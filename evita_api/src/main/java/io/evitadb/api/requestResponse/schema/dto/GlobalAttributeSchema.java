@@ -39,6 +39,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
@@ -311,11 +312,47 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 	) {
 		super(
 			name, nameVariants, description, deprecationNotice,
-			uniqueInScopes, filterableInScopes, sortableInScopes, localized, nullable,
+			verifyAndAlterUniquenessTypes(uniqueInScopes, globalUniquenessTypeInScopes),
+			filterableInScopes, sortableInScopes, localized, nullable,
 			type, defaultValue, indexedDecimalPlaces
 		);
-		this.globalUniquenessTypeInScopes = CollectionUtils.toUnmodifiableMap(new EnumMap<>(globalUniquenessTypeInScopes));
+		if (globalUniquenessTypeInScopes == null || globalUniquenessTypeInScopes.isEmpty()) {
+			final EnumMap<Scope, GlobalAttributeUniquenessType> theMap = new EnumMap<>(Scope.class);
+			this.globalUniquenessTypeInScopes = Collections.unmodifiableMap(theMap);
+			theMap.put(Scope.LIVE, GlobalAttributeUniquenessType.NOT_UNIQUE);
+		} else {
+			this.globalUniquenessTypeInScopes = CollectionUtils.toUnmodifiableMap(globalUniquenessTypeInScopes);
+		}
 		this.representative = representative;
+	}
+
+	@Nullable
+	private static Map<Scope, AttributeUniquenessType> verifyAndAlterUniquenessTypes(
+		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable Map<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes
+	) {
+		if ((uniqueInScopes == null || uniqueInScopes.isEmpty()) && (globalUniquenessTypeInScopes == null || globalUniquenessTypeInScopes.isEmpty())) {
+			return null;
+		} else {
+			final EnumMap<Scope, AttributeUniquenessType> theMap = new EnumMap<>(Scope.class);
+			for (Scope scope : Scope.values()) {
+				final AttributeUniquenessType attributeUniquenessType = uniqueInScopes == null ?
+					null : uniqueInScopes.get(scope);
+				final GlobalAttributeUniquenessType globalAttributeUniquenessType = globalUniquenessTypeInScopes == null ?
+					null : globalUniquenessTypeInScopes.get(scope);
+				if (attributeUniquenessType != null && (globalAttributeUniquenessType == null || globalAttributeUniquenessType == GlobalAttributeUniquenessType.NOT_UNIQUE)) {
+					theMap.put(scope, attributeUniquenessType);
+				} else if (globalAttributeUniquenessType != null) {
+					// global attribute setting has always precedence
+					switch (globalAttributeUniquenessType) {
+						case UNIQUE_WITHIN_CATALOG ->  theMap.put(scope, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION);
+						case UNIQUE_WITHIN_CATALOG_LOCALE -> theMap.put(scope, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE);
+						case NOT_UNIQUE -> theMap.put(scope, AttributeUniquenessType.NOT_UNIQUE);
+					}
+				}
+			}
+			return theMap;
+		}
 	}
 
 	@Override
@@ -340,7 +377,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 
 	@Override
 	public boolean isUniqueGlobally(@Nonnull Scope scope) {
-		return this.globalUniquenessTypeInScopes.get(scope) != GlobalAttributeUniquenessType.NOT_UNIQUE;
+		final GlobalAttributeUniquenessType globalAttributeUniquenessType = this.globalUniquenessTypeInScopes.get(scope);
+		return globalAttributeUniquenessType != null && globalAttributeUniquenessType != GlobalAttributeUniquenessType.NOT_UNIQUE;
 	}
 
 	@Override

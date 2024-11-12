@@ -63,8 +63,8 @@ class AbstractAttributeTranslator {
 		final EnumSet<Scope> scopes = filterByVisitor.getEvitaRequest().getScopes();
 		Assert.isTrue(
 			!attributeDefinition.isLocalized() || filterByVisitor.getLocale() != null ||
-				(scopes.stream().anyMatch(attributeDefinition::isUnique) && scopes.stream().noneMatch(attributeDefinition::isUniqueWithinLocale)),
-			() -> new EntityLocaleMissingException("Localized attribute `" + attributeName + "` requires locale specification in the input query!")
+				(scopes.stream().anyMatch(scope -> attributeDefinition.isUnique(scope) && !attributeDefinition.isUniqueWithinLocale(scope))),
+			() -> new EntityLocaleMissingException(attributeName)
 		);
 
 		return attributeDefinition.isLocalized() ?
