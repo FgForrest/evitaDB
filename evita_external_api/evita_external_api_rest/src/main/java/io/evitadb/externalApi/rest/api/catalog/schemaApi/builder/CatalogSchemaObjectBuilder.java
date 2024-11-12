@@ -33,7 +33,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaD
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
@@ -68,9 +68,6 @@ public class CatalogSchemaObjectBuilder {
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 
 	public void buildCommonTypes() {
-		// build reusable objects
-		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
-
 		// catalog schema mutations
 		buildingContext.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());

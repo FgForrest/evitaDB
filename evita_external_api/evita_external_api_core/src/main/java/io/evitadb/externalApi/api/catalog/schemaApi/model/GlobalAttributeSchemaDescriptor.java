@@ -23,19 +23,13 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-import io.evitadb.utils.StringUtils;
 
-import java.util.Arrays;
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 
 /**
  * Descriptor of {@link GlobalAttributeSchema} for schema-based external APIs. It describes what properties of global attribute schema are
@@ -60,7 +54,7 @@ public interface GlobalAttributeSchemaDescriptor extends EntityAttributeSchemaDe
 			modes. The first will ensure there is only single value within entire catalog regardless of locale,
 			the second will ensure there is only single value within catalog and specific locale.
 			""")
-		.type(nonNullRef(AttributeGlobalUniquenessTypesDescriptor.THIS))
+		.type(nonNullListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -98,24 +92,4 @@ public interface GlobalAttributeSchemaDescriptor extends EntityAttributeSchemaDe
 			INDEXED_DECIMAL_PLACES
 		))
 		.build();
-
-	/**
-	 * Descriptor for a map containing {@link GlobalAttributeUniquenessType}s for all scopes.
-	 */
-	interface AttributeGlobalUniquenessTypesDescriptor {
-
-		ObjectDescriptor THIS = ObjectDescriptor.builder()
-			.name("AttributeGlobalUniquenessTypes")
-			.description("""
-				Contains attribute global uniqueness types for all available scopes.
-				""")
-			.staticFields(Arrays.stream(Scope.values())
-				.map(scope -> PropertyDescriptor.builder()
-					.name(StringUtils.toCamelCase(scope.name()))
-					.description("Global uniqueness type in scope `" + scope.name() + "`.")
-					.type(nonNull(GlobalAttributeUniquenessType.class))
-					.build())
-				.toList())
-			.build();
-	}
 }

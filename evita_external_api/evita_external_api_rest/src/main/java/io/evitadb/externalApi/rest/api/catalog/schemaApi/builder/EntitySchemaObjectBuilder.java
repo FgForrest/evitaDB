@@ -83,6 +83,8 @@ public class EntitySchemaObjectBuilder {
 
 	public void buildCommonTypes() {
 		// build common reusable objects
+		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
@@ -90,7 +92,6 @@ public class EntitySchemaObjectBuilder {
 		buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
 		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(AssociatedDataSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
 
 		// entity schema mutations
 		buildingContext.registerType(AllowCurrencyInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());

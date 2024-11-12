@@ -30,7 +30,7 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 

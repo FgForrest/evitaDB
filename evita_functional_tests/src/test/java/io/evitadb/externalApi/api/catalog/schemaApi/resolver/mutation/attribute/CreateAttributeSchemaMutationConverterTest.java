@@ -32,11 +32,10 @@ import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateAttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.test.builder.ListBuilder.list;

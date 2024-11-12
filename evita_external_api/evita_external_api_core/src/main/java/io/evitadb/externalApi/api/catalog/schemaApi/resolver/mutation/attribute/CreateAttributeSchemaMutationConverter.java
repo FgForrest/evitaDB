@@ -25,7 +25,6 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectListMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
@@ -33,7 +32,7 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateAttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;

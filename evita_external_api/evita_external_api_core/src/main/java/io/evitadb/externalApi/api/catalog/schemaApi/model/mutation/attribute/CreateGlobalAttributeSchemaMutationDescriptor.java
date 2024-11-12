@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;

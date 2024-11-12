@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
+package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;

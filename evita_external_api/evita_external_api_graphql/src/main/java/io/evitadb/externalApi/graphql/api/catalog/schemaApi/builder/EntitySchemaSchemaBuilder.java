@@ -88,6 +88,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	@Override
 	public void build() {
 		// build common reusable types
+		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		final GraphQLObjectType attributeSchemaObject = buildAttributeSchemaObject();
 		buildingContext.registerType(attributeSchemaObject);
 		final GraphQLObjectType entityAttributeSchemaObject= buildEntityAttributeSchemaObject();
@@ -99,7 +101,6 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildAssociatedDataSchemaObject());
 		buildingContext.registerType(buildGenericReferenceSchemaObject());
-		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// entity schema mutations
 		buildingContext.registerType(AllowCurrencyInEntitySchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
@@ -281,7 +282,22 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			AttributeSchemaDescriptor.THIS,
 			AttributeSchemaDescriptor.TYPE,
-			new AttributeSchemaTypeDataFetcher()
+			AttributeSchemaTypeDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			AttributeSchemaDescriptor.THIS,
+			AttributeSchemaDescriptor.UNIQUENESS_TYPE,
+			AttributeSchemaUniquenessTypeDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			AttributeSchemaDescriptor.THIS,
+			AttributeSchemaDescriptor.FILTERABLE,
+			AttributeSchemaFilterableDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			AttributeSchemaDescriptor.THIS,
+			AttributeSchemaDescriptor.SORTABLE,
+			AttributeSchemaSortableDataFetcher.getInstance()
 		);
 
 		return AttributeSchemaDescriptor.THIS
@@ -293,8 +309,23 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private GraphQLObjectType buildEntityAttributeSchemaObject() {
 		buildingContext.registerDataFetcher(
 			EntityAttributeSchemaDescriptor.THIS,
-			AttributeSchemaDescriptor.TYPE,
-			new AttributeSchemaTypeDataFetcher()
+			EntityAttributeSchemaDescriptor.TYPE,
+			AttributeSchemaTypeDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			EntityAttributeSchemaDescriptor.THIS,
+			EntityAttributeSchemaDescriptor.UNIQUENESS_TYPE,
+			AttributeSchemaUniquenessTypeDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			EntityAttributeSchemaDescriptor.THIS,
+			EntityAttributeSchemaDescriptor.FILTERABLE,
+			AttributeSchemaFilterableDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			EntityAttributeSchemaDescriptor.THIS,
+			EntityAttributeSchemaDescriptor.SORTABLE,
+			AttributeSchemaSortableDataFetcher.getInstance()
 		);
 
 		return EntityAttributeSchemaDescriptor.THIS
@@ -306,8 +337,28 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private GraphQLObjectType buildGlobalAttributeSchemaObject() {
 		buildingContext.registerDataFetcher(
 			GlobalAttributeSchemaDescriptor.THIS,
-			AttributeSchemaDescriptor.TYPE,
-			new AttributeSchemaTypeDataFetcher()
+			GlobalAttributeSchemaDescriptor.TYPE,
+			AttributeSchemaTypeDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			GlobalAttributeSchemaDescriptor.THIS,
+			GlobalAttributeSchemaDescriptor.UNIQUENESS_TYPE,
+			AttributeSchemaUniquenessTypeDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			GlobalAttributeSchemaDescriptor.THIS,
+			GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE,
+			AttributeSchemaGlobalUniquenessTypeDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			GlobalAttributeSchemaDescriptor.THIS,
+			GlobalAttributeSchemaDescriptor.FILTERABLE,
+			AttributeSchemaFilterableDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			GlobalAttributeSchemaDescriptor.THIS,
+			GlobalAttributeSchemaDescriptor.SORTABLE,
+			AttributeSchemaSortableDataFetcher.getInstance()
 		);
 
 		return GlobalAttributeSchemaDescriptor.THIS
@@ -553,6 +604,16 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		);
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
+			ReferenceSchemaDescriptor.INDEXED,
+			ReferenceSchemaIndexedDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			ReferenceSchemaDescriptor.THIS_GENERIC,
+			ReferenceSchemaDescriptor.FACETED,
+			ReferenceSchemaFacetedDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			ReferenceSchemaDescriptor.THIS_GENERIC,
 			SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,
 			new AllSortableAttributeCompoundSchemasDataFetcher()
 		);
@@ -668,6 +729,16 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 				buildReferenceSortableAttributeCompoundSchemasField(entitySchema, referenceSchema)
 			);
 		}
+		buildingContext.registerDataFetcher(
+			objectName,
+			ReferenceSchemaDescriptor.INDEXED,
+			ReferenceSchemaIndexedDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			objectName,
+			ReferenceSchemaDescriptor.FACETED,
+			ReferenceSchemaFacetedDataFetcher.getInstance()
+		);
 		buildingContext.registerDataFetcher(
 			objectName,
 			SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS,

@@ -24,17 +24,14 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
-import io.evitadb.utils.StringUtils;
 
-import java.util.Arrays;
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -63,7 +60,7 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			modes. The first will ensure there is only single value within entire collection regardless of locale,
 			the second will ensure there is only single value within collection and specific locale.
 			""")
-		.type(nonNullRef(AttributeUniquenessTypesDescriptor.THIS))
+		.type(nonNullListRef(ScopedAttributeUniquenessTypeDescriptor.THIS))
 		.build();
 
 	PropertyDescriptor FILTERABLE = PropertyDescriptor.builder()
@@ -75,8 +72,10 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 						
 			When attribute is filterable, extra result `attributeHistogram`
 			can be requested for this attribute.
+			
+			Returns array of scope in which this attribute is filterable.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nonNull(Scope[].class))
 		.build();
 
 	PropertyDescriptor SORTABLE = PropertyDescriptor.builder()
@@ -84,9 +83,11 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 		.description("""
 			When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 			as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
-			(memory/disk) space in the form of index..
+			(memory/disk) space in the form of index.
+			
+			Returns array of scope in which this attribute is sortable.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nonNull(Scope[].class))
 		.build();
 
 	PropertyDescriptor LOCALIZED = PropertyDescriptor.builder()
@@ -169,24 +170,4 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			INDEXED_DECIMAL_PLACES
 		))
 		.build();
-
-	/**
-	 * Descriptor for a map containing {@link AttributeUniquenessType}s for all scopes.
-	 */
-	interface AttributeUniquenessTypesDescriptor {
-
-		ObjectDescriptor THIS = ObjectDescriptor.builder()
-			.name("AttributeUniquenessTypes")
-			.description("""
-			Contains attribute uniqueness types for all available scopes.
-			""")
-			.staticFields(Arrays.stream(Scope.values())
-				.map(scope -> PropertyDescriptor.builder()
-					.name(StringUtils.toCamelCase(scope.name()))
-					.description("Uniqueness type in scope `" + scope.name() + "`.")
-					.type(nonNull(AttributeUniquenessType.class))
-					.build())
-				.toList())
-			.build();
-	}
 }

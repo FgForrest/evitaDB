@@ -23,37 +23,43 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
+import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.dataType.Scope;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.List;
 
 /**
- * Translates Java {@link AttributeSchemaContract#getType()} to GraphQL equivalent.
+ * Provides complete list of {@link AttributeSchemaContract#isFilterable(Scope)}
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class AttributeSchemaTypeDataFetcher extends SchemaTypeDataFetcher {
+public class AttributeSchemaFilterableDataFetcher implements DataFetcher<List<Scope>> {
 
 	@Nullable
-	private static AttributeSchemaTypeDataFetcher INSTANCE = null;
+	private static AttributeSchemaFilterableDataFetcher INSTANCE = null;
 
 	@Nonnull
-	public static AttributeSchemaTypeDataFetcher getInstance() {
+	public static AttributeSchemaFilterableDataFetcher getInstance() {
 		if (INSTANCE == null) {
-			INSTANCE = new AttributeSchemaTypeDataFetcher();
+			INSTANCE = new AttributeSchemaFilterableDataFetcher();
 		}
 		return INSTANCE;
 	}
 
-	@Nonnull
 	@Override
-	protected Class<?> getJavaType(@Nonnull DataFetchingEnvironment environment) {
+	@Nonnull
+	public List<Scope> get(DataFetchingEnvironment environment) throws Exception {
 		final AttributeSchemaContract attributeSchema = environment.getSource();
-		return attributeSchema.getType();
+		return Arrays.stream(Scope.values())
+			.filter(scope -> attributeSchema.isFilterable(scope))
+			.toList();
 	}
 }

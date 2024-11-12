@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
+package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
@@ -33,7 +33,8 @@ import java.util.List;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor representing {@link ScopedAttributeUniquenessType}.
+ * Descriptor representing scope-specific uniqueness type of attribute.
+ * It is used to represent both input ({@link ScopedAttributeUniquenessType}) in mutations and output in schemas.
  *
  * Note: this descriptor has static structure.
  *

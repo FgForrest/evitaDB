@@ -31,7 +31,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaUniqueMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
