@@ -26,7 +26,6 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetche
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.dto.ScopedAttributeUniquenessTypeDto;
 import lombok.AccessLevel;
@@ -36,8 +35,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Provides complete list of {@link AttributeSchemaContract#getUniquenessType(Scope)}
@@ -63,13 +60,7 @@ public class AttributeSchemaUniquenessTypeDataFetcher implements DataFetcher<Lis
 	public List<ScopedAttributeUniquenessTypeDto> get(DataFetchingEnvironment environment) throws Exception {
 		final AttributeSchemaContract attributeSchema = environment.getSource();
 		return Arrays.stream(Scope.values())
-			.map(scope -> {
-				final Optional<AttributeUniquenessType> uniquenessType = attributeSchema.getUniquenessType(scope);
-				return uniquenessType
-					.map(attributeUniquenessType -> new ScopedAttributeUniquenessTypeDto(scope, attributeUniquenessType))
-					.orElse(null);
-			})
-			.filter(Objects::nonNull)
+			.map(scope -> new ScopedAttributeUniquenessTypeDto(scope, attributeSchema.getUniquenessType(scope)))
 			.toList();
 	}
 }

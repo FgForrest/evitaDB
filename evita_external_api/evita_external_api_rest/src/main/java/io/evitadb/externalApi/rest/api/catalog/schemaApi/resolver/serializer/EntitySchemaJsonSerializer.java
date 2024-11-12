@@ -110,13 +110,22 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(attributeSchema.getNameVariants()));
 		attributeSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription());
 		attributeSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice());
-		/* TODO LHO - dady se to propisuje blbě */
-		attributeSchemaNode.put(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType().toString());
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
+			.map(scope -> serializeScopedAttributeUniquenessType(scope, attributeSchema))
+			.collect(objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll));
 		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
-			attributeSchemaNode.put(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().toString());
+			attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
+				.map(scope -> serializeScopedGlobalAttributeUniquenessType(scope, globalAttributeSchema))
+				.collect(objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll));
 		}
-		attributeSchemaNode.put(AttributeSchemaDescriptor.FILTERABLE.name(), attributeSchema.isFilterable());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.SORTABLE.name(), attributeSchema.isSortable());
+		attributeSchemaNode.putIfAbsent(
+			AttributeSchemaDescriptor.FILTERABLE.name(),
+			objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(attributeSchema::isFilterable).toArray(Scope[]::new)
+		));
+		attributeSchemaNode.putIfAbsent(
+			AttributeSchemaDescriptor.SORTABLE.name(),
+			objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(attributeSchema::isSortable).toArray(Scope[]::new)
+		));
 		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
 		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
@@ -132,6 +141,22 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		attributeSchemaNode.put(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces());
 
 		return attributeSchemaNode;
+	}
+
+	@Nonnull
+	private ObjectNode serializeScopedAttributeUniquenessType(@Nonnull Scope scope, @Nonnull AttributeSchemaContract attributeSchema) {
+		final ObjectNode attributeUniquenessType = objectJsonSerializer.objectNode();
+		attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
+		attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType(scope).name());
+		return attributeUniquenessType;
+	}
+
+	@Nonnull
+	private ObjectNode serializeScopedGlobalAttributeUniquenessType(@Nonnull Scope scope, @Nonnull GlobalAttributeSchemaContract attributeSchema) {
+		final ObjectNode attributeUniquenessType = objectJsonSerializer.objectNode();
+		attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
+		attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getGlobalUniquenessType(scope).name());
+		return attributeUniquenessType;
 	}
 
 	@Nonnull

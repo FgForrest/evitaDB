@@ -72,7 +72,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
 					.i(map()
 						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE)
-						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)))
+						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -83,7 +83,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
 					.i(map()
 						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
-						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
+						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
@@ -98,7 +98,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 					.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
 						.i(map()
 							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
-							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
+							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
 					.build()
 			)
 		);

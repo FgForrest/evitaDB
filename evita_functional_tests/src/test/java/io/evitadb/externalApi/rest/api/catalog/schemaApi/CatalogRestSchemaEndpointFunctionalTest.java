@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
@@ -42,7 +43,9 @@ import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
@@ -52,6 +55,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.builder.ListBuilder.list;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 
@@ -214,13 +218,21 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.build())
 			.e(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription())
 			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice())
-			.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType().name());
+			.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
+				.map(scope -> map()
+					.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType(scope).name())
+					.build())
+				.toList());
 		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
-			dtoBuilder.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().name());
+			dtoBuilder.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
+				.map(scope -> map()
+					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType(scope).name())));
 		}
 		dtoBuilder
-			.e(AttributeSchemaDescriptor.FILTERABLE.name(), attributeSchema.isFilterable())
-			.e(AttributeSchemaDescriptor.SORTABLE.name(), attributeSchema.isSortable())
+			.e(AttributeSchemaDescriptor.FILTERABLE.name(), Arrays.stream(Scope.values()).filter(attributeSchema::isFilterable).map(Enum::name).toList())
+			.e(AttributeSchemaDescriptor.SORTABLE.name(), Arrays.stream(Scope.values()).filter(attributeSchema::isSortable).map(Enum::name).toList())
 			.e(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized())
 			.e(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
 		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
@@ -315,8 +327,8 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.e(NameVariantsDescriptor.KEBAB_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.KEBAB_CASE))
 				.build())
 			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
-			.e(ReferenceSchemaDescriptor.INDEXED.name(), referenceSchema.isIndexed())
-			.e(ReferenceSchemaDescriptor.FACETED.name(), referenceSchema.isFaceted())
+			.e(ReferenceSchemaDescriptor.INDEXED.name(), Arrays.stream(Scope.values()).filter(referenceSchema::isIndexed).map(Enum::name).toList())
+			.e(ReferenceSchemaDescriptor.FACETED.name(), Arrays.stream(Scope.values()).filter(referenceSchema::isFaceted).map(Enum::name).toList())
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
 

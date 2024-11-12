@@ -88,7 +88,7 @@ public class CreateGlobalAttributeSchemaMutationConverter extends AttributeSchem
 				ScopedGlobalAttributeUniquenessType.class,
 				nestedInput -> new ScopedGlobalAttributeUniquenessType(
 					nestedInput.getRequiredField(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE),
-					nestedInput.getRequiredField(ScopedGlobalAttributeUniquenessTypeDescriptor.GLOBAL_UNIQUENESS_TYPE)
+					nestedInput.getRequiredField(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
 				)
 			)
 		);

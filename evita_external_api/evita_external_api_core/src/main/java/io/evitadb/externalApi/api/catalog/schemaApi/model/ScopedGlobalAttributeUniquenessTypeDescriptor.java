@@ -42,8 +42,8 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface ScopedGlobalAttributeUniquenessTypeDescriptor extends ScopedDataDescriptor {
 
-	PropertyDescriptor GLOBAL_UNIQUENESS_TYPE = PropertyDescriptor.builder()
-		.name("globalUniquenessType")
+	PropertyDescriptor UNIQUENESS_TYPE = PropertyDescriptor.builder()
+		.name("uniquenessType")
 		.description("""
 			When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
 			entity having certain value of this attribute in entire catalog.
@@ -63,6 +63,6 @@ public interface ScopedGlobalAttributeUniquenessTypeDescriptor extends ScopedDat
 		.description("""
 			Represents combination of global uniqueness type and entity scope it should be applied to.
 			""")
-		.staticFields(List.of(SCOPE, GLOBAL_UNIQUENESS_TYPE))
+		.staticFields(List.of(SCOPE, UNIQUENESS_TYPE))
 		.build();
 }
