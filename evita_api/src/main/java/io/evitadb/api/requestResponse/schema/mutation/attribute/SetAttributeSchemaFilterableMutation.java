@@ -230,9 +230,11 @@ public class SetAttributeSchemaFilterableMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final List<Scope> nonIndexedScopes = Arrays.stream(this.filterableInScopes).filter(referenceSchema::isIndexed).toList();
+		final List<Scope> nonIndexedScopes = Arrays.stream(this.filterableInScopes)
+			.filter(scope -> !referenceSchema.isIndexed(scope))
+			.toList();
 		Assert.isTrue(
-			consistencyChecks == ReferenceSchemaMutator.ConsistencyChecks.SKIP || !nonIndexedScopes.isEmpty(),
+			consistencyChecks == ReferenceSchemaMutator.ConsistencyChecks.SKIP || nonIndexedScopes.isEmpty(),
 			() -> new InvalidSchemaMutationException(
 				"The reference `" + referenceSchema.getName() + "` is in entity `" + entitySchema.getName() +
 					"` is not indexed in required scopes: " + nonIndexedScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + "! " +

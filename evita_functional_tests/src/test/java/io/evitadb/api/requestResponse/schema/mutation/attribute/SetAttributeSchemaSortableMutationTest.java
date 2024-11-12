@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -160,6 +161,7 @@ class SetAttributeSchemaSortableMutationTest {
 		);
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
 		Mockito.when(referenceSchema.isIndexed()).thenReturn(true);
+		Mockito.when(referenceSchema.isIndexed(Scope.LIVE)).thenReturn(true);
 		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingAttributeSchema()));
 		final ReferenceSchemaContract mutatedSchema = mutation.mutate(
 			Mockito.mock(EntitySchemaContract.class),
