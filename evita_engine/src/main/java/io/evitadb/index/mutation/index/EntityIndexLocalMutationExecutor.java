@@ -358,7 +358,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Method removes existing index from the existing set.
 	 */
-	public void removeIndex(EntityIndexKey entityIndexKey) {
+	public void removeIndex(@Nonnull EntityIndexKey entityIndexKey) {
 		this.entityIndexCreatingAccessor.removeIndex(entityIndexKey);
 	}
 
@@ -764,27 +764,29 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final Integer epk = entity.getPrimaryKey();
 		for (ReferenceContract reference : entity.getReferences()) {
 			final ReferenceKey referenceKey = reference.getReferenceKey();
-			final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
-			final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
-			final EntityIndex mainReferenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey, scope);
-			ReferenceIndexMutator.referenceRemoval(
-				epk, entitySchema, this,
-				globalIndex, referenceTypeIndex, mainReferenceIndex, referenceKey,
-				existingDataSupplierFactory,
-				this.undoActionsAppender
-			);
-			if (ReferenceIndexMutator.isFacetedReference(scope, referenceKey, this)) {
-				for (ReferenceContract otherReferences : entity.getReferences()) {
-					if (!referenceKey.equals(otherReferences.getReferenceKey())) {
-						final EntityIndex referenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey, scope);
-						ReferenceIndexMutator.removeFacetInIndex(
-							referenceIndex,
-							referenceKey,
-							this,
-							epk,
-							reference,
-							this.undoActionsAppender
-						);
+			if (ReferenceIndexMutator.isIndexedReference(reference, scope)) {
+				final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
+				final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
+				final EntityIndex mainReferenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey, scope);
+				ReferenceIndexMutator.referenceRemoval(
+					epk, entitySchema, this,
+					globalIndex, referenceTypeIndex, mainReferenceIndex, referenceKey,
+					existingDataSupplierFactory,
+					this.undoActionsAppender
+				);
+				if (ReferenceIndexMutator.isFacetedReference(scope, referenceKey, this)) {
+					for (ReferenceContract otherReferences : entity.getReferences()) {
+						if (!referenceKey.equals(otherReferences.getReferenceKey())) {
+							final EntityIndex referenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey, scope);
+							ReferenceIndexMutator.removeFacetInIndex(
+								referenceIndex,
+								referenceKey,
+								this,
+								epk,
+								reference,
+								this.undoActionsAppender
+							);
+						}
 					}
 				}
 			}
@@ -1028,27 +1030,29 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final int epk = entity.getPrimaryKey();
 		for (ReferenceContract reference : entity.getReferences()) {
 			final ReferenceKey referenceKey = reference.getReferenceKey();
-			final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
-			final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
-			final EntityIndex mainReferenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey, scope);
-			ReferenceIndexMutator.referenceInsert(
-				epk, entitySchema, this,
-				globalIndex, referenceTypeIndex, mainReferenceIndex, referenceKey,
-				existingDataSupplierFactory,
-				this.undoActionsAppender
-			);
-			if (ReferenceIndexMutator.isFacetedReference(scope, referenceKey, this)) {
-				for (ReferenceContract otherReferences : entity.getReferences()) {
-					if (!referenceKey.equals(otherReferences.getReferenceKey())) {
-						final EntityIndex referenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey, scope);
-						ReferenceIndexMutator.addFacetToIndex(
-							referenceIndex,
-							referenceKey,
-							reference.getGroup().filter(Droppable::exists).map(GroupEntityReference::getPrimaryKey).orElse(null),
-							this,
-							epk,
-							this.undoActionsAppender
-						);
+			if (ReferenceIndexMutator.isIndexedReference(reference, scope)) {
+				final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
+				final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
+				final EntityIndex mainReferenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey, scope);
+				ReferenceIndexMutator.referenceInsert(
+					epk, entitySchema, this,
+					globalIndex, referenceTypeIndex, mainReferenceIndex, referenceKey,
+					existingDataSupplierFactory,
+					this.undoActionsAppender
+				);
+				if (ReferenceIndexMutator.isFacetedReference(scope, referenceKey, this)) {
+					for (ReferenceContract otherReferences : entity.getReferences()) {
+						if (!referenceKey.equals(otherReferences.getReferenceKey())) {
+							final EntityIndex referenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey, scope);
+							ReferenceIndexMutator.addFacetToIndex(
+								referenceIndex,
+								referenceKey,
+								reference.getGroup().filter(Droppable::exists).map(GroupEntityReference::getPrimaryKey).orElse(null),
+								this,
+								epk,
+								this.undoActionsAppender
+							);
+						}
 					}
 				}
 			}

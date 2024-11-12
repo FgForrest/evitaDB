@@ -327,7 +327,7 @@ public interface ReferenceIndexMutator {
 		final Scope scope = executor.getScope();
 		final ReferencesStoragePart referencesStorageContainer = executor.getContainerAccessor().getReferencesStoragePart(entityType, entityPrimaryKey);
 		for (ReferenceContract reference : referencesStorageContainer.getReferences()) {
-			if (reference.exists() && isIndexed(reference, scope) && referencePredicate.test(reference)) {
+			if (reference.exists() && isIndexedReference(reference, scope) && referencePredicate.test(reference)) {
 				final EntityIndex targetIndex = getReferencedEntityIndex(executor, reference.getReferenceKey(), scope);
 				referenceIndexConsumer.accept(targetIndex);
 			}
@@ -460,6 +460,15 @@ public interface ReferenceIndexMutator {
 			);
 			index.addFacet(referenceKey, null, entityPrimaryKey);
 		}
+	}
+
+	/**
+	 * Returns true if reference schema is configured and indexed.
+	 */
+	static boolean isIndexedReference(@Nonnull ReferenceContract reference, @Nonnull Scope scope) {
+		return reference.getReferenceSchema()
+			.map(it -> it.isIndexed(scope))
+			.orElse(false);
 	}
 
 	/**
@@ -854,15 +863,6 @@ public interface ReferenceIndexMutator {
 					)
 				);
 		}
-	}
-
-	/**
-	 * Returns true if reference schema is configured and indexed.
-	 */
-	private static boolean isIndexed(@Nonnull ReferenceContract reference, @Nonnull Scope scope) {
-		return reference.getReferenceSchema()
-			.map(it -> it.isIndexed(scope))
-			.orElse(false);
 	}
 
 }
