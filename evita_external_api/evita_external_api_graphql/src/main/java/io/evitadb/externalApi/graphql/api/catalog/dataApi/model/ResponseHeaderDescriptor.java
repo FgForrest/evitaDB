@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
 import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
@@ -40,9 +41,14 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
 public interface ResponseHeaderDescriptor {
 
 	/**
+	 * Ancestor descriptor for implementations of data chunk fields
+	 */
+	interface DataChunkFieldHeaderDescriptor extends ScopeAwareFieldHeaderDescriptor { }
+
+	/**
 	 * Descriptor of header arguments of field {@link ResponseDescriptor#RECORD_PAGE}
 	 */
-	interface RecordPageFieldHeaderDescriptor {
+	interface RecordPageFieldHeaderDescriptor extends DataChunkFieldHeaderDescriptor {
 
 		PropertyDescriptor NUMBER = PropertyDescriptor.builder()
 			.name("number")
@@ -71,7 +77,7 @@ public interface ResponseHeaderDescriptor {
 	/**
 	 * Descriptor of header arguments of field {@link ResponseDescriptor#RECORD_STRIP}
 	 */
-	interface RecordStripFieldHeaderDescriptor {
+	interface RecordStripFieldHeaderDescriptor extends DataChunkFieldHeaderDescriptor {
 
 		PropertyDescriptor OFFSET = PropertyDescriptor.builder()
 			.name("offset")

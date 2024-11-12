@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,23 +23,31 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.model.header;
 
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Ancestor for endpoint header arguments for endpoints that return unknown entities.
+ * Descriptor for headers of fields that change their behaviour based on defined {@link Scope}
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public interface UnknownEntityEndpointHeaderDescriptor extends FetchEntityEndpointHeaderDescriptor, ScopeAwareEndpointHeaderDescriptor {
+public interface ScopeAwareEndpointHeaderDescriptor {
 
-	PropertyDescriptor FILTER_JOIN = PropertyDescriptor.builder()
-		.name("filterJoin")
+	PropertyDescriptor SCOPE = PropertyDescriptor.builder()
+		.name("scope")
 		.description("""
-			Defines how the filtering arguments are joined together into a single filter. By default, `AND` is used.
+			This `scope` parameter can be used to control the scope of the entity search. It accepts one or more scopes
+			 where the entity should be searched. The following scopes are supported:
+			
+			- LIVE: entities that are currently active and reside in the live data set indexes
+			- ARCHIVED: entities that are no longer active and reside in the archive indexes (with limited accessibility)
+			
+			By default, entities are searched only in the LIVE scope. The ARCHIVED scope is being searched only when explicitly
+			requested. Archived entities are considered to be "soft-deleted", can be still queried if necessary, and can be
+			restored back to the LIVE scope.
 			""")
-		.type(nullable(QueryHeaderFilterArgumentsJoinType.class))
-		.defaultValue(QueryHeaderFilterArgumentsJoinType.AND)
+		.type(nullable(Scope[].class))
 		.build();
 }

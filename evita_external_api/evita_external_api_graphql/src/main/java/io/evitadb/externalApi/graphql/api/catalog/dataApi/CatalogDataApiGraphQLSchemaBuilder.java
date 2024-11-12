@@ -301,7 +301,9 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.type(typeRef(LOCALE_ENUM.name())));
 		}
 
-		getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
+		getUnknownEntityFieldBuilder
+			.argument(UnknownEntityHeaderDescriptor.JOIN.to(argumentBuilderTransformer))
+			.argument(UnknownEntityHeaderDescriptor.SCOPE.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
 			getUnknownEntityFieldBuilder.build(),
@@ -354,7 +356,9 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.type(typeRef(LOCALE_ENUM.name())));
 		}
 
-		listUnknownEntityFieldBuilder.argument(ListUnknownEntitiesHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
+		listUnknownEntityFieldBuilder
+			.argument(ListUnknownEntitiesHeaderDescriptor.JOIN.to(argumentBuilderTransformer))
+			.argument(ListUnknownEntitiesHeaderDescriptor.SCOPE.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
 			listUnknownEntityFieldBuilder.build(),
@@ -400,6 +404,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.argument(GetEntityHeaderDescriptor.PRICE_VALID_NOW
 					.to(argumentBuilderTransformer))
 				.argument(GetEntityHeaderDescriptor.PRICE_TYPE
+					.to(argumentBuilderTransformer))
+				.argument(GetEntityHeaderDescriptor.SCOPE
 					.to(argumentBuilderTransformer));
 		}
 
@@ -447,6 +453,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.argument(ListEntitiesHeaderDescriptor.OFFSET
 				.to(argumentBuilderTransformer))
 			.argument(ListEntitiesHeaderDescriptor.LIMIT
+				.to(argumentBuilderTransformer))
+			.argument(ListEntitiesHeaderDescriptor.SCOPE
 				.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(

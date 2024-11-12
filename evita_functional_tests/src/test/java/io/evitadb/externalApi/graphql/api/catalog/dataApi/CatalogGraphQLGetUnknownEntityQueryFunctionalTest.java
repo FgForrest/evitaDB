@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -46,11 +47,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MARKET_SHARE;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_RELATIVE_URL;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
@@ -225,6 +228,87 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 						.build()
 				)
 			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return archived entity")
+	void shouldReturnArchivedEntity(Evita evita, GraphQLTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 2),
+					entityFetch(attributeContent(ATTRIBUTE_CODE)),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntity = map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), archivedEntity.getPrimaryKey())
+			.e(EntityDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
+			.build();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getEntity(
+	                        code: "%s"
+	                        scope: ARCHIVED
+	                    ) {
+                            primaryKey
+                            scope
+	                    }
+	                }
+					""",
+				archivedEntity.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_ENTITY_PATH, equalTo(expectedBodyOfArchivedEntity));
+	}
+
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should not return archived entity without scope")
+	void shouldNotReturnArchivedEntityWithoutScope(Evita evita, GraphQLTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 1),
+					entityFetch(),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listEntity(
+	                        code: ["%s"]
+                        ) {
+                            primaryKey
+	                        scope
+	                    }
+	                }
+					""",
+				archivedEntity.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_ENTITY_PATH, nullValue());
 	}
 
 	@Test

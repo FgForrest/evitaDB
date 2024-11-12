@@ -142,6 +142,7 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
         .staticField(PRIMARY_KEY)
         .staticField(TYPE)
         .staticField(VERSION)
+        .staticField(SCOPE)
         .build();
     /**
      * Used only to distinguish from entity classifier for clarity, that this is a final object that just references an

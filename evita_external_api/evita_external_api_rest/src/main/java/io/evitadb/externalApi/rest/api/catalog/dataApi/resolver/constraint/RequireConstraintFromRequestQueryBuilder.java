@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.DataInLocales;
@@ -32,8 +33,10 @@ import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.Require;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ScopeAwareEndpointHeaderDescriptor;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -47,6 +50,7 @@ import java.util.Map;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.scope;
 
 /**
  * Creates {@link Require} constraint for Evita query from request parameters
@@ -63,15 +67,20 @@ public class RequireConstraintFromRequestQueryBuilder {
 	 */
 	@Nullable
 	public static Require buildRequire(@Nonnull Map<String, Object> parameters) {
-		final EntityContentRequire[] contentRequires = getEntityContentRequires(parameters);
+		final List<RequireConstraint> requireConstraints = new LinkedList<>();
 
-		if(contentRequires.length == 0 && !isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.BODY_FETCH)) {
-			return null;
+		final EntityContentRequire[] contentRequires = getEntityContentRequires(parameters);
+		if(contentRequires.length > 0 || isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.BODY_FETCH)) {
+			requireConstraints.add(entityFetch(contentRequires));
 		}
 
-		return require(
-			entityFetch(contentRequires)
-		);
+		//noinspection unchecked
+		final List<Scope> scopes = (List<Scope>) parameters.get(ScopeAwareEndpointHeaderDescriptor.SCOPE.name());
+		if (scopes != null) {
+			requireConstraints.add(scope(scopes.toArray(Scope[]::new)));
+		}
+
+		return require(requireConstraints.toArray(RequireConstraint[]::new));
 	}
 
 	@Nonnull

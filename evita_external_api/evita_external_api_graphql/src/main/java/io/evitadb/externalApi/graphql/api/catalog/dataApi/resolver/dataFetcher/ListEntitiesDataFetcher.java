@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
@@ -68,6 +69,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.api.query.QueryConstraints.strip;
 
 /**
@@ -187,13 +189,17 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             );
         }
 
+        if (arguments.scopes() != null) {
+            requireConstraints.add(scope(arguments.scopes()));
+        }
+
         return require(
             requireConstraints.toArray(RequireConstraint[]::new)
         );
     }
 
     @Nonnull
-    private EntityQueryContext buildResultContext(@Nonnull Query query) {
+    private static EntityQueryContext buildResultContext(@Nonnull Query query) {
         final Locale desiredLocale = Optional.ofNullable(QueryUtils.findFilter(query, EntityLocaleEquals.class))
             .map(EntityLocaleEquals::getLocale)
             .orElse(null);
@@ -234,15 +240,23 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
     private record Arguments(@Nullable Object filterBy,
                              @Nullable Object orderBy,
                              @Nullable Integer offset,
-                             @Nullable Integer limit) {
+                             @Nullable Integer limit,
+                             @Nullable Scope[] scopes) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
             final Object filterBy = environment.getArgument(ListEntitiesHeaderDescriptor.FILTER_BY.name());
             final Object orderBy = environment.getArgument(ListEntitiesHeaderDescriptor.ORDER_BY.name());
             final Integer offset = environment.getArgument(ListEntitiesHeaderDescriptor.OFFSET.name());
             final Integer limit = environment.getArgument(ListEntitiesHeaderDescriptor.LIMIT.name());
+            final List<Scope> scopes = environment.getArgument(ListEntitiesHeaderDescriptor.SCOPE.name());
 
-            return new Arguments(filterBy, orderBy, offset, limit);
+            return new Arguments(
+                filterBy,
+                orderBy,
+                offset,
+                limit,
+                (scopes != null ? scopes.toArray(Scope[]::new) : null)
+            );
         }
     }
 

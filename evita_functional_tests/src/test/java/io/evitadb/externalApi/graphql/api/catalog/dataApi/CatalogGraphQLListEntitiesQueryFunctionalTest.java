@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
@@ -58,15 +59,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_CREATED;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MANUFACTURED;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MARKET_SHARE;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -89,7 +88,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_LIST, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUpForEmptyList(Evita evita) {
-		return super.setUpData(evita, 0);
+		return super.setUpData(evita, 0, false);
 	}
 
 	@Test
@@ -198,6 +197,156 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.body(PRODUCT_LIST_PATH, equalTo(expectedBody));
 	}
 
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return archived entities")
+	void shouldReturnArchivedEntities(Evita evita, GraphQLTester tester) {
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 2),
+					entityFetch(),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntities = archivedEntities.stream()
+			.map(entity ->
+				map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
+					.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: [%d, %d]
+	                        },
+	                        scope: ARCHIVED
+	                    ) {
+                            primaryKey
+	                        scope
+	                    }
+	                }
+					""",
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, equalTo(expectedBodyOfArchivedEntities));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return both live and archived entities explicitly")
+	void shouldReturnBothLiveAndArchivedEntitiesExplicitly(Evita evita, GraphQLTester tester) {
+		final List<SealedEntity> liveEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 2),
+					entityFetch(),
+					scope(Scope.LIVE)
+				)
+			),
+			SealedEntity.class
+		);
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 2),
+					entityFetch(),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntities = Stream.concat(liveEntities.stream(), archivedEntities.stream())
+			.map(entity ->
+				map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
+					.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: [%d, %d, %d, %d]
+	                        },
+	                        scope: [LIVE, ARCHIVED]
+	                    ) {
+                            primaryKey
+	                        scope
+	                    }
+	                }
+					""",
+				liveEntities.get(0).getPrimaryKey(),
+				liveEntities.get(1).getPrimaryKey(),
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, equalTo(expectedBodyOfArchivedEntities));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should not return archived entity without scope")
+	void shouldNotReturnArchivedEntityWithoutScope(Evita evita, GraphQLTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 1),
+					entityFetch(),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                         filterBy: {
+							     entityPrimaryKeyInSet: %d
+							 }
+                        ) {
+                            primaryKey
+	                        scope
+	                    }
+	                }
+					""",
+				archivedEntity.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, emptyIterable());
+	}
 
 	@Test
 	@UseDataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_LIST, destroyAfterTest = true)

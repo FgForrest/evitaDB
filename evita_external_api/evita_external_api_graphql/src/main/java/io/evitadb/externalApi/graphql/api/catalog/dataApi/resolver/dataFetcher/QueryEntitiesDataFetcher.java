@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
@@ -98,6 +99,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
+	@Nonnull private final ScopeRequireResolver scopeRequireResolver;
 	@Nonnull private final PagingRequireResolver pagingRequireResolver;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 	@Nonnull private final AttributeHistogramResolver attributeHistogramResolver;
@@ -136,6 +138,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			catalogSchema,
 			new AtomicReference<>(filterConstraintResolver)
 		);
+		this.scopeRequireResolver = new ScopeRequireResolver();
 		this.pagingRequireResolver = new PagingRequireResolver(entitySchema, requireConstraintResolver);
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
@@ -246,8 +249,12 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		if (recordFields.isEmpty()) {
 			requireConstraints.add(strip(0, 0));
 		} else {
-			// build paging require
 			final SelectedField recordField = recordFields.get(0);
+
+			// build scope require
+			scopeRequireResolver.resolve(recordField).ifPresent(requireConstraints::add);
+
+			// build paging require
 			requireConstraints.add(pagingRequireResolver.resolve(recordField));
 
 			// build content requires

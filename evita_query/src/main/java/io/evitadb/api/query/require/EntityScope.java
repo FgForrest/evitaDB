@@ -24,7 +24,10 @@
 package io.evitadb.api.query.require;
 
 
+import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -55,7 +58,12 @@ import java.util.EnumSet;
  * @see Scope
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class EntityScope extends AbstractRequireConstraintLeaf {
+@ConstraintDefinition(
+	name = "scope",
+	shortDescription = "Constraint can be used to control the scope of the entity search. It has single vararg argument that accepts one or more scopes where the entity should be searched",
+	userDocsLink = "/documentation/query/requirements/fetching#scope" // TODO JNO: revise path when documentation is ready
+)
+public class EntityScope extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -7172389493449298316L;
 	public static final String CONSTRAINT_NAME = "scope";
 	private final EnumSet<Scope> theScope;
@@ -65,6 +73,7 @@ public class EntityScope extends AbstractRequireConstraintLeaf {
 		this.theScope = getScope();
 	}
 
+	@Creator
 	public EntityScope(@Nonnull Scope... scope) {
 		super(CONSTRAINT_NAME, scope);
 		this.theScope = getScope();

@@ -178,6 +178,7 @@ public class EntityFetchRequireResolver {
 
 	private boolean needsEntityBody(@Nonnull SelectionSetAggregator selectionSetAggregator, @Nonnull EntitySchemaContract currentEntitySchema) {
 		return needsVersion(selectionSetAggregator) ||
+			needsScope(selectionSetAggregator) ||
 			needsParent(selectionSetAggregator) ||
 			needsParents(selectionSetAggregator) ||
 			needsLocales(selectionSetAggregator) ||
@@ -189,6 +190,10 @@ public class EntityFetchRequireResolver {
 
 	private boolean needsVersion(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.VERSION.name());
+	}
+
+	private boolean needsScope(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.SCOPE.name());
 	}
 
 	private boolean needsParent(@Nonnull SelectionSetAggregator selectionSetAggregator) {

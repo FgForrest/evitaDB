@@ -30,6 +30,7 @@ import graphql.schema.SelectedField;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -40,7 +41,9 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryHeaderArgumentsJoinType;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UnknownEntityHeaderDescriptor;
@@ -61,6 +64,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -144,7 +148,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
 
         final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
             final FilterBy filterBy = buildFilterBy(arguments);
-            final Require require = buildInitialRequire(environment);
+            final Require require = buildInitialRequire(environment, arguments);
             return query(
                 filterBy,
                 require
@@ -203,22 +207,30 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
     }
 
     @Nonnull
-    private Require buildInitialRequire(@Nonnull DataFetchingEnvironment environment) {
-        final EntityFetch entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+    private Require buildInitialRequire(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
+        final List<RequireConstraint> requireConstraints = new LinkedList<>();
+
+        requireConstraints.add(
+            entityFetchRequireResolver.resolveEntityFetch(
                 SelectionSetAggregator.from(environment.getSelectionSet()),
                 null,
                 catalogSchema,
                 allPossibleLocales
             )
-            // we need to have at least a body, so we can enrich it later if needed
-            .orElse(entityFetch());
+                // we need to have at least a body, so we can enrich it later if needed
+                .orElse(entityFetch())
+        );
 
-        return require(entityFetch);
+        if (arguments.scopes() != null) {
+            requireConstraints.add(scope(arguments.scopes()));
+        }
+
+        return require(requireConstraints.toArray(RequireConstraint[]::new));
     }
 
     @Nonnull
     private Optional<EntityContentRequire[]> buildEnrichingRequires(@Nonnull DataFetchingEnvironment environment,
-                                                          @Nonnull String entityType) {
+                                                                    @Nonnull String entityType) {
         final List<SelectedField> targetEntityFields = SelectionSetAggregator.getImmediateFields(
             GlobalEntityDescriptor.TARGET_ENTITY.name(),
             environment.getSelectionSet()
@@ -253,25 +265,36 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
      */
     private record Arguments(@Nullable Locale locale,
                              @Nonnull QueryHeaderArgumentsJoinType join,
+                             @Nullable Scope[] scopes,
                              @Nonnull Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull CatalogSchemaContract catalogSchema) {
+            final HashMap<String, Object> arguments = new HashMap<>(environment.getArguments());
+
+            final Locale locale = (Locale) arguments.remove(UnknownEntityHeaderDescriptor.LOCALE.name());
+            final QueryHeaderArgumentsJoinType join = (QueryHeaderArgumentsJoinType) arguments.remove(UnknownEntityHeaderDescriptor.JOIN.name());
+            //noinspection unchecked
+            final List<Scope> scopes = (List<Scope>) arguments.remove(GetEntityHeaderDescriptor.SCOPE.name());
+
             // left over arguments are globally unique attribute filters as defined by schema
-            final Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes = extractUniqueAttributesFromArguments(environment.getArguments(), catalogSchema);
+            final Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes = extractUniqueAttributesFromArguments(arguments, catalogSchema);
 
             // validate that arguments contain at least one entity identifier
             if (globallyUniqueAttributes.isEmpty()) {
                 throw new GraphQLInvalidArgumentException("Missing globally unique attribute to identify entity.");
             }
 
-            final Locale locale = environment.getArgument(UnknownEntityHeaderDescriptor.LOCALE.name());
             if (locale == null &&
                 globallyUniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale)) {
                 throw new GraphQLInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
             }
-            final QueryHeaderArgumentsJoinType join = environment.getArgument(UnknownEntityHeaderDescriptor.JOIN.name());
 
-            return new Arguments(locale, join, globallyUniqueAttributes);
+            return new Arguments(
+                locale,
+                join,
+                (scopes != null ? scopes.toArray(Scope[]::new) : null),
+                globallyUniqueAttributes
+            );
         }
     }
 

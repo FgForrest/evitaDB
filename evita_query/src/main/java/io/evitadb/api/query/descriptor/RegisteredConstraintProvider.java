@@ -132,6 +132,7 @@ class RegisteredConstraintProvider {
 		Page.class,
 		Strip.class,
 		DataInLocales.class,
+		EntityScope.class,
 		QueryTelemetry.class,
 		// spacing,
 		Spacing.class,

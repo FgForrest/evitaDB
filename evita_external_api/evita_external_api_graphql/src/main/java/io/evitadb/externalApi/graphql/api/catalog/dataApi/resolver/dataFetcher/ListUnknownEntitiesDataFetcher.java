@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListUnknownEntitiesHeaderDescriptor;
@@ -64,6 +65,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -273,27 +275,38 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
     private record Arguments(@Nullable Locale locale,
                              @Nullable Integer limit,
                              @Nonnull QueryHeaderArgumentsJoinType join,
+                             @Nullable Scope[] scopes,
                              @Nonnull Map<GlobalAttributeSchemaContract, List<Object>> globallyUniqueAttributes) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull CatalogSchemaContract catalogSchema) {
+            final Map<String, Object> arguments = new HashMap<>(environment.getArguments());
+
+            final Locale locale = (Locale) arguments.remove(UnknownEntityHeaderDescriptor.LOCALE.name());
+            final Integer limit = (Integer) arguments.remove(ListUnknownEntitiesHeaderDescriptor.LIMIT.name());
+            final QueryHeaderArgumentsJoinType join = (QueryHeaderArgumentsJoinType) arguments.remove(ListUnknownEntitiesHeaderDescriptor.JOIN.name());
+	        //noinspection unchecked
+	        final List<Scope> scopes = (List<Scope>) arguments.remove(ListUnknownEntitiesHeaderDescriptor.SCOPE.name());
+
             // left over arguments are globally unique attribute filters as defined by schema
-            final Map<GlobalAttributeSchemaContract, List<Object>> globallyUniqueAttributes = extractUniqueAttributesFromArguments(environment.getArguments(), catalogSchema);
+            final Map<GlobalAttributeSchemaContract, List<Object>> globallyUniqueAttributes = extractUniqueAttributesFromArguments(arguments, catalogSchema);
 
             // validate that arguments contain at least one entity identifier
             if (globallyUniqueAttributes.isEmpty()) {
                 throw new GraphQLInvalidArgumentException("Missing globally unique attribute to identify entity.");
             }
 
-            final Locale locale = environment.getArgument(UnknownEntityHeaderDescriptor.LOCALE.name());
             if (locale == null &&
                 globallyUniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale)) {
                 throw new GraphQLInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
             }
-            final Integer limit = environment.getArgument(ListUnknownEntitiesHeaderDescriptor.LIMIT.name());
-            final QueryHeaderArgumentsJoinType join = environment.getArgument(ListUnknownEntitiesHeaderDescriptor.JOIN.name());
 
-
-            return new Arguments(locale, limit, join, globallyUniqueAttributes);
+            return new Arguments(
+                locale,
+                limit,
+                join,
+                (scopes != null ? scopes.toArray(Scope[]::new) : null),
+                globallyUniqueAttributes
+            );
         }
 
         private static Map<GlobalAttributeSchemaContract, List<Object>> extractUniqueAttributesFromArguments(
