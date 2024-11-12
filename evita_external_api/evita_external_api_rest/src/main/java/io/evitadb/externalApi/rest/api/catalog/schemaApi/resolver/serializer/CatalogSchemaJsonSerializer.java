@@ -24,11 +24,14 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
@@ -36,12 +39,15 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaD
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
@@ -108,11 +114,20 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(globalAttributeSchema.getNameVariants()));
 		attributeSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), globalAttributeSchema.getDescription());
 		attributeSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), globalAttributeSchema.getDeprecationNotice());
-		/* TODO LHO - dady se to propisuje blbě */
-		attributeSchemaNode.put(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), globalAttributeSchema.getUniquenessType().toString());
-		attributeSchemaNode.put(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().toString());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.FILTERABLE.name(), globalAttributeSchema.isFilterable());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.SORTABLE.name(), globalAttributeSchema.isSortable());
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
+			.map(scope -> serializeScopedAttributeUniquenessType(scope, globalAttributeSchema))
+			.collect(objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll));
+		attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
+			.map(scope -> serializeScopedGlobalAttributeUniquenessType(scope, globalAttributeSchema))
+			.collect(objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll));
+		attributeSchemaNode.putIfAbsent(
+			AttributeSchemaDescriptor.FILTERABLE.name(),
+			objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(globalAttributeSchema::isFilterable).toArray(Scope[]::new)
+		));
+		attributeSchemaNode.putIfAbsent(
+			AttributeSchemaDescriptor.SORTABLE.name(),
+			objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(globalAttributeSchema::isSortable).toArray(Scope[]::new)
+		));
 		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), globalAttributeSchema.isLocalized());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.NULLABLE.name(), globalAttributeSchema.isNullable());
 		attributeSchemaNode.put(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), globalAttributeSchema.isRepresentative());
@@ -145,5 +160,21 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 		}
 
 		return entitySchemasMap;
+	}
+
+	@Nonnull
+	private ObjectNode serializeScopedAttributeUniquenessType(@Nonnull Scope scope, @Nonnull AttributeSchemaContract attributeSchema) {
+		final ObjectNode attributeUniquenessType = objectJsonSerializer.objectNode();
+		attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
+		attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType(scope).name());
+		return attributeUniquenessType;
+	}
+
+	@Nonnull
+	private ObjectNode serializeScopedGlobalAttributeUniquenessType(@Nonnull Scope scope, @Nonnull GlobalAttributeSchemaContract attributeSchema) {
+		final ObjectNode attributeUniquenessType = objectJsonSerializer.objectNode();
+		attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
+		attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getGlobalUniquenessType(scope).name());
+		return attributeUniquenessType;
 	}
 }

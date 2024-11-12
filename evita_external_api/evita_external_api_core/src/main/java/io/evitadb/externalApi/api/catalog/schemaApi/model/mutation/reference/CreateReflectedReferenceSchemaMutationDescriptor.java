@@ -123,7 +123,7 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			- INHERIT_ALL_EXCEPT: All attributes are inherited by default, except those listed in the `attributeInheritanceFilter`.
 			- INHERIT_ONLY_SPECIFIED: No attributes are inherited by default, only those explicitly listed in the `attributeInheritanceFilter`.
 			""")
-		.type(nullable(AttributeInheritanceBehavior.class))
+		.type(nonNull(AttributeInheritanceBehavior.class))
 		.build();
 	PropertyDescriptor ATTRIBUTE_INHERITANCE_FILTER = PropertyDescriptor.builder()
 		.name("attributeInheritanceFilter")

@@ -267,7 +267,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 								name
 								description
 								deprecationNotice
-								uniqueInScopes {
+								uniquenessType {
 									scope
 									uniquenessType
 				    	        }

@@ -80,6 +80,9 @@ public class RequireConstraintFromRequestQueryBuilder {
 			requireConstraints.add(scope(scopes.toArray(Scope[]::new)));
 		}
 
+		if (requireConstraints.isEmpty()) {
+			return null;
+		}
 		return require(requireConstraints.toArray(RequireConstraint[]::new));
 	}
 

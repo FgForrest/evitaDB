@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.server.EvitaServer;
@@ -48,6 +49,7 @@ import java.util.Map;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ENTITY_EMPTY;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.builder.ListBuilder.list;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -195,9 +197,14 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						{
 							"createAttributeSchemaMutation": {
 								"name": "mySpecialCode",
-								"uniquenessType": "UNIQUE_WITHIN_COLLECTION",
-								"filterable": true,
-								"sortable": true,
+								"uniqueInScopes": [
+									{
+										"scope": "LIVE",
+										"uniquenessType": "UNIQUE_WITHIN_COLLECTION"
+									}
+								],
+								"filterableInScopes": ["LIVE"],
+								"sortableInScopes": ["LIVE"],
 								"localized": false,
 								"nullable": false,
 								"type": "String",
@@ -235,9 +242,9 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 							.build())
 						.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
 						.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
-						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
-						.e(AttributeSchemaDescriptor.FILTERABLE.name(), true)
-						.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
+						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
+						.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
+						.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
 						.e(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), false)
@@ -286,9 +293,9 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 							.build())
 						.e(NamedSchemaDescriptor.DESCRIPTION.name(), "desc")
 						.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
-						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
-						.e(AttributeSchemaDescriptor.FILTERABLE.name(), true)
-						.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
+						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
+						.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
+						.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
 						.e(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), false)
@@ -658,8 +665,8 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 								"referencedEntityType": "tag",
 								"referencedEntityTypeManaged": false,
 								"referencedGroupTypeManaged": false,
-								"indexed": true,
-								"faceted": true
+								"indexedInScopes": ["LIVE"],
+								"facetedInScopes": ["LIVE"]
 							}
 						}
 					]
@@ -712,8 +719,8 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 							.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), null)
 							.e(NameVariantsDescriptor.KEBAB_CASE.name(), null))
 						.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-						.e(ReferenceSchemaDescriptor.INDEXED.name(), true)
-						.e(ReferenceSchemaDescriptor.FACETED.name(), true)
+						.e(ReferenceSchemaDescriptor.INDEXED.name(), list().i(Scope.LIVE.name()))
+						.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
 						.e(ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
 						.build()
@@ -740,8 +747,8 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 									"createAttributeSchemaMutation": {
 										"name": "mySpecialCode",
 										"unique": false,
-										"filterable": true,
-										"sortable": false,
+										"filterableInScopes": ["LIVE"],
+										"sortableInScopes": [],
 										"localized": false,
 										"nullable": false,
 										"type": "String",

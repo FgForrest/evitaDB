@@ -33,6 +33,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
+import io.evitadb.test.builder.MapBuilder;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -59,11 +60,16 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	}
 
 	@Nonnull
-	protected static Map<String, Object> createAttributeUniquenessTypeDto(@Nonnull AttributeUniquenessType uniquenessType) {
-		return map()
-			.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
-			.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), uniquenessType.name())
-			.build();
+	protected static List<Map<String, Object>> createAttributeUniquenessTypeDto(@Nonnull AttributeUniquenessType uniquenessType) {
+		return Arrays.stream(Scope.values())
+			.map(scope -> {
+				final AttributeUniquenessType finalUniquenessType = (scope == Scope.LIVE) ? uniquenessType : AttributeUniquenessType.NOT_UNIQUE;
+				return map()
+					.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), finalUniquenessType.name())
+					.build();
+			})
+			.toList();
 	}
 
 	@Nonnull
@@ -77,11 +83,16 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	}
 
 	@Nonnull
-	protected static Map<String, Object> createGlobalAttributeUniquenessTypeDto(@Nonnull GlobalAttributeUniquenessType uniquenessType) {
-		return map()
-			.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
-			.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), uniquenessType.name())
-			.build();
+	protected static List<Map<String, Object>> createGlobalAttributeUniquenessTypeDto(@Nonnull GlobalAttributeUniquenessType uniquenessType) {
+		return Arrays.stream(Scope.values())
+			.map(scope -> {
+				final GlobalAttributeUniquenessType finalUniquenessType = (scope == Scope.LIVE) ? uniquenessType : GlobalAttributeUniquenessType.NOT_UNIQUE;
+				return map()
+					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), finalUniquenessType.name())
+					.build();
+			})
+			.toList();
 	}
 
 	@Nonnull
