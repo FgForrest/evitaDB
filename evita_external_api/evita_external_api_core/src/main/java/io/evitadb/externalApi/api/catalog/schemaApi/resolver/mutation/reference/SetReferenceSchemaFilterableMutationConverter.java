@@ -58,7 +58,7 @@ public class SetReferenceSchemaFilterableMutationConverter extends ReferenceSche
 	protected SetReferenceSchemaIndexedMutation convert(@Nonnull Input input) {
 		return new SetReferenceSchemaIndexedMutation(
 			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			(Scope[]) input.getRequiredField(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES)
+			(Scope[]) input.getOptionalField(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES)
 		);
 	}
 }

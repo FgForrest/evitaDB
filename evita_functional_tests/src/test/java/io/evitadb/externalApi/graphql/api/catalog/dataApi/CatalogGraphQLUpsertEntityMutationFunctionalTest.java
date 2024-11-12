@@ -78,7 +78,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita) {
-		return super.setUpData(evita, 50);
+		return super.setUpData(evita, 50, false);
 	}
 
 	@Test

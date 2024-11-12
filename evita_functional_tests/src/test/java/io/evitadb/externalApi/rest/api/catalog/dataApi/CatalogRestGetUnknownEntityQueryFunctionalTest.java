@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,9 +28,11 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UnknownEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
+import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
@@ -38,18 +40,21 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.ATTRIBUTE_RELATIVE_URL;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -59,6 +64,56 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
 class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
+
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return archived entity")
+	void shouldReturnArchivedEntity(Evita evita, RestTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 2),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntities = createEntityDto(archivedEntity);
+
+		tester.test(TEST_CATALOG)
+			.get("/entity/get")
+			.requestParam(ATTRIBUTE_CODE, archivedEntity.getAttribute(ATTRIBUTE_CODE))
+			.executeAndThen()
+			.statusCode(200)
+			.body("", equalTo(expectedBodyOfArchivedEntities));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should not return archived entity without scope")
+	void shouldNotReturnArchivedEntityWithoutScope(Evita evita, RestTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 1),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.get("/entity/get")
+			.requestParam(ATTRIBUTE_CODE, Arrays.asList(archivedEntity.getAttribute(ATTRIBUTE_CODE)))
+			.executeAndThen()
+			.statusCode(404);
+	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)

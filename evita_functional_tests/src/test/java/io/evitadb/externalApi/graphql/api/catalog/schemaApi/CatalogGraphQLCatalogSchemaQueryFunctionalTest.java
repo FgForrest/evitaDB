@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -161,10 +161,16 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 									}
 									description
 									deprecationNotice
-									uniquenessType
-									globalUniquenessType
-									filterable
-									sortable
+									uniqueInScopes {
+										scope
+										uniquenessType
+									}
+									uniqueGloballyInScopes {
+										scope
+										uniquenessType
+									}
+									filterableInScopes
+									sortableInScopes
 									localized
 									nullable
 									defaultValue
@@ -198,6 +204,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 									.build())
 								.e(NamedSchemaDescriptor.DESCRIPTION.name(), urlSchema.getDescription())
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), urlSchema.getDeprecationNotice())
+								// todo lho 677
 								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), urlSchema.getUniquenessType().name())
 								.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), urlSchema.getGlobalUniquenessType().name())
 								.e(AttributeSchemaDescriptor.FILTERABLE.name(), urlSchema.isFilterable())

@@ -84,7 +84,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	@Override
 	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		return super.setUpData(evita, evitaServer, 50);
+		return super.setUpData(evita, evitaServer, 50, false);
 	}
 
 	@Test

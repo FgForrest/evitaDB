@@ -201,6 +201,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 
 	public static void createEntityBodyDto(@Nonnull MapBuilder entityDto, @Nonnull SealedEntity entity, boolean localized) {
 		entityDto.e(EntityDescriptor.VERSION.name(), entity.version());
+		entityDto.e(EntityDescriptor.SCOPE.name(), entity.getScope().name());
 
 		if (entity.parentAvailable()) {
 			entity.getParentEntity().ifPresent(parent -> entityDto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(parent, localized)));

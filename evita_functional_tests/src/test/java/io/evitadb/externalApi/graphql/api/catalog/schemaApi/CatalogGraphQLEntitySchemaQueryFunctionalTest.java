@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -195,8 +195,11 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								}
 								url {
 									__typename
-									uniquenessType
-									filterable
+									uniqueInScopes {
+										scope
+										uniquenessType
+									}
+									filterableInScopes
 									localized
 									defaultValue
 								}
@@ -211,9 +214,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 									}
 									description
 									deprecationNotice
-									uniquenessType
-									filterable
-									sortable
+									uniqueInScopes {
+										scope
+										uniquenessType
+									}
+									filterableInScopes
+									sortableInScopes
 									localized
 									nullable
 									defaultValue
@@ -243,6 +249,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.build())
 							.e(ATTRIBUTE_URL, map()
 								.e(TYPENAME_FIELD, GlobalAttributeSchemaDescriptor.THIS.name())
+								// todo lho 677
 								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), urlSchema.getUniquenessType().name())
 								.e(AttributeSchemaDescriptor.FILTERABLE.name(), urlSchema.isFilterable())
 								.e(AttributeSchemaDescriptor.LOCALIZED.name(), urlSchema.isLocalized())
@@ -259,6 +266,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 									.build())
 								.e(NamedSchemaDescriptor.DESCRIPTION.name(), quantitySchema.getDescription())
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), quantitySchema.getDeprecationNotice())
+								// todo lho 677
 								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), quantitySchema.getUniquenessType().name())
 								.e(AttributeSchemaDescriptor.FILTERABLE.name(), quantitySchema.isFilterable())
 								.e(AttributeSchemaDescriptor.SORTABLE.name(), quantitySchema.isSortable())
@@ -310,10 +318,16 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 									}
 									description
 									deprecationNotice
-									uniquenessType
-									globalUniquenessType
-									filterable
-									sortable
+									uniqueInScopes {
+										scope
+										uniquenessType
+									}
+									uniqueGloballyInScopes {
+										scope
+										uniquenessType
+									}
+									filterableInScopes
+									sortableInScopes
 									localized
 									nullable
 									defaultValue
@@ -346,6 +360,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 									.build())
 								.e(NamedSchemaDescriptor.DESCRIPTION.name(), codeSchema.getDescription())
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), codeSchema.getDeprecationNotice())
+								// todo lho 677
 								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), codeSchema.getUniquenessType().name())
 								.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), codeSchema.getGlobalUniquenessType().name())
 								.e(AttributeSchemaDescriptor.FILTERABLE.name(), codeSchema.isFilterable())
@@ -382,6 +397,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 					return map()
 						.e(TYPENAME_FIELD, GlobalAttributeSchemaDescriptor.THIS.name())
 						.e(NamedSchemaDescriptor.NAME.name(), globalAttributeSchema.getName())
+						// todo lho 677
 						.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().name())
 						.build();
 				} else {
@@ -407,7 +423,10 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								... on GlobalAttributeSchema {
 									__typename
 									name
-									globalUniquenessType
+									uniqueGloballyInScopes {
+										scope
+										uniquenessType
+									}
 								}
 							}
 						}
@@ -731,8 +750,8 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 										kebabCase
 									}
 									referencedGroupTypeManaged
-									indexed
-									faceted
+									indexedInScopes
+									facetedInScopes
 								}
 								obsoleteBrand {
 									deprecationNotice
@@ -794,6 +813,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), null)
 								.e(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), null)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), brandReferenceSchema.isReferencedGroupTypeManaged())
+								// todo lho 677
 								.e(ReferenceSchemaDescriptor.INDEXED.name(), brandReferenceSchema.isIndexed())
 								.e(ReferenceSchemaDescriptor.FACETED.name(), brandReferenceSchema.isFaceted())
 								.build())
@@ -860,9 +880,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 											}
 											description
 											deprecationNotice
-											uniquenessType
-											filterable
-											sortable
+											uniqueInScopes {
+												scope
+												uniquenessType
+											}
+											filterableInScopes
+											sortableInScopes
 											localized
 											nullable
 											defaultValue
@@ -899,6 +922,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 											.build())
 										.e(NamedSchemaDescriptor.DESCRIPTION.name(), brandVisibleForB2CAttributeSchema.getDescription())
 										.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), brandVisibleForB2CAttributeSchema.getDeprecationNotice())
+										// todo lho 677
 										.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), brandVisibleForB2CAttributeSchema.getUniquenessType().name())
 										.e(AttributeSchemaDescriptor.FILTERABLE.name(), brandVisibleForB2CAttributeSchema.isFilterable())
 										.e(AttributeSchemaDescriptor.SORTABLE.name(), brandVisibleForB2CAttributeSchema.isSortable())

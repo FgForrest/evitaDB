@@ -49,6 +49,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
@@ -83,6 +84,7 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
@@ -139,8 +141,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/PRODUCT/query")
-			.httpMethod(Request.METHOD_POST)
+			.post("/PRODUCT/query")
 			.requestBody("""
                     {
 						"filterBy": {
@@ -158,6 +159,145 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return archived entities")
+	void shouldReturnArchivedEntities(Evita evita, RestTester tester) {
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 2),
+					entityFetch(),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntities = archivedEntities.stream()
+			.map(entity ->
+				map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
+					.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/query")
+			.requestBody(
+				"""
+	                {
+						"filterBy": {
+						    "entityPrimaryKeyInSet": [%d, %d]
+						},
+						"require": {
+						    "scope": ["ARCHIVED"]
+					    }
+					}
+					""",
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(expectedBodyOfArchivedEntities));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return both live and archived entities explicitly")
+	void shouldReturnBothLiveAndArchivedEntitiesExplicitly(Evita evita, RestTester tester) {
+		final List<SealedEntity> liveEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 2),
+					entityFetch(),
+					scope(Scope.LIVE)
+				)
+			),
+			SealedEntity.class
+		);
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 2),
+					entityFetch(),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntities = Stream.concat(liveEntities.stream(), archivedEntities.stream())
+			.map(entity ->
+				map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
+					.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/query")
+			.requestBody(
+				"""
+	                {
+						"filterBy": {
+						    "entityPrimaryKeyInSet": [%d, %d, %d, %d]
+						},
+						"require": {
+						    "scope": ["LIVE", ARCHIVED"]
+					    }
+					}
+					""",
+				liveEntities.get(0).getPrimaryKey(),
+				liveEntities.get(1).getPrimaryKey(),
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(expectedBodyOfArchivedEntities));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should not return archived entity without scope")
+	void shouldNotReturnArchivedEntityWithoutScope(Evita evita, RestTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 1),
+					entityFetch(),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/query")
+			.requestBody(
+				"""
+	                {
+						"filterBy": {
+						    "entityPrimaryKeyInSet": %d
+						}
+					}
+					""",
+				archivedEntity.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(404);
 	}
 
 	@Test

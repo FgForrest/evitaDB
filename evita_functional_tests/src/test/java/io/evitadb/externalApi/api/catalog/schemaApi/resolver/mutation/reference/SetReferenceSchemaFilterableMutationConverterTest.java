@@ -81,24 +81,22 @@ class SetReferenceSchemaFilterableMutationConverterTest {
 	}
 
 	@Test
+	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
+		final SetReferenceSchemaIndexedMutation expectedMutation = new SetReferenceSchemaIndexedMutation(
+			"tags",
+			(Scope[]) null
+		);
+
+		final SetReferenceSchemaIndexedMutation convertedMutation1 = converter.convert(
+			map()
+				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation1);
+	}
+
+	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
-						.i(Scope.LIVE.name()))
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-					.build()
-			)
-		);
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
 	}

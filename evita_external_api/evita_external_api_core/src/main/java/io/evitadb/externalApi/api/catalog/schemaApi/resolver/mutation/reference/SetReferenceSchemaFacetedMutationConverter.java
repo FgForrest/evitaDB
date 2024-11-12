@@ -57,7 +57,7 @@ public class SetReferenceSchemaFacetedMutationConverter extends ReferenceSchemaM
 	protected SetReferenceSchemaFacetedMutation convert(@Nonnull Input input) {
 		return new SetReferenceSchemaFacetedMutation(
 			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			(Scope[]) input.getRequiredField(SetReferenceSchemaFacetedMutationDescriptor.FACETED_IN_SCOPES)
+			(Scope[]) input.getOptionalField(SetReferenceSchemaFacetedMutationDescriptor.FACETED_IN_SCOPES)
 		);
 	}
 }

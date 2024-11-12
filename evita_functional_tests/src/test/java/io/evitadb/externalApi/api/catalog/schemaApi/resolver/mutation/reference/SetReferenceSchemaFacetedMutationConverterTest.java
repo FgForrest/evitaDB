@@ -78,28 +78,25 @@ class SetReferenceSchemaFacetedMutationConverterTest {
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
+	}
 
+	@Test
+	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
+		final SetReferenceSchemaFacetedMutation expectedMutation = new SetReferenceSchemaFacetedMutation(
+			"tags",
+			(Scope[]) null
+		);
+
+		final SetReferenceSchemaFacetedMutation convertedMutation1 = converter.convert(
+			map()
+				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation1);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(SetReferenceSchemaFacetedMutationDescriptor.FACETED_IN_SCOPES.name(), list()
-						.i(Scope.LIVE.name()))
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-					.build()
-			)
-		);
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
 	}

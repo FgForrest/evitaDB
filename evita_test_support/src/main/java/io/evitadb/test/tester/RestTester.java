@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -144,6 +144,36 @@ public class RestTester extends JsonExternalApiTester<Request> {
 
 		public Request httpMethod(@Nonnull String httpMethod) {
 			this.httpMethod = httpMethod;
+			return this;
+		}
+
+		public Request post(String urlPathSuffix) {
+			this.urlPathSuffix(urlPathSuffix);
+			this.httpMethod(METHOD_POST);
+			return this;
+		}
+
+		public Request get(String urlPathSuffix) {
+			this.urlPathSuffix(urlPathSuffix);
+			this.httpMethod(METHOD_GET);
+			return this;
+		}
+
+		public Request delete(String urlPathSuffix) {
+			this.urlPathSuffix(urlPathSuffix);
+			this.httpMethod(METHOD_DELETE);
+			return this;
+		}
+
+		public Request put(String urlPathSuffix) {
+			this.urlPathSuffix(urlPathSuffix);
+			this.httpMethod(METHOD_PUT);
+			return this;
+		}
+
+		public Request patch(String urlPathSuffix) {
+			this.urlPathSuffix(urlPathSuffix);
+			this.httpMethod(METHOD_PATCH);
 			return this;
 		}
 

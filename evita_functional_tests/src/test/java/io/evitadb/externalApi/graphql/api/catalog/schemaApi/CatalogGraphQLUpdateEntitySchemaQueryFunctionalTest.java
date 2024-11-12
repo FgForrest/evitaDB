@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita) {
-		return super.setUpData(evita, 20);
+		return super.setUpData(evita, 20, false);
 	}
 
 	@Test
@@ -220,9 +220,14 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 							{
 								createAttributeSchemaMutation: {
 									name: "mySpecialCode"
-									uniquenessType: UNIQUE_WITHIN_COLLECTION
-									filterable: true
-									sortable: true
+									uniqueInScopes: [
+										{
+											scope: LIVE,
+											uniquenessType: UNIQUE_WITHIN_COLLECTION
+										}
+									]
+									filterableInScopes: [LIVE]
+									sortableInScopes: [LIVE]
 									localized: false
 									nullable: false
 									type: String
@@ -260,9 +265,12 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 								name
 								description
 								deprecationNotice
-								uniquenessType
-								filterable
-								sortable
+								uniqueInScopes {
+									scope
+									uniquenessType
+				    	        }
+								filterableInScopes
+								sortableInScopes
 								localized
 								nullable
 								type
@@ -286,6 +294,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 								.e(NamedSchemaDescriptor.NAME.name(), "mySpecialCode")
 								.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
+								// todo lho 677
 								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
 								.e(AttributeSchemaDescriptor.FILTERABLE.name(), true)
 								.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
@@ -744,8 +753,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 									referencedEntityType: "tag"
 									referencedEntityTypeManaged: false
 									referencedGroupTypeManaged: false
-									indexed: true
-									faceted: true
+									indexedInScopes: [LIVE]
+									facetedInScopes: [LIVE]
 								}
 							}
 						]
@@ -786,8 +795,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 								referencedEntityTypeManaged
 								referencedGroupType
 								referencedGroupTypeManaged
-								indexed
-								faceted
+								indexedInScopes
+								facetedInScopes
 							}
 						}
                     }
@@ -813,6 +822,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 								.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), false)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), null)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
+								// todo lho 677
 								.e(ReferenceSchemaDescriptor.INDEXED.name(), true)
 								.e(ReferenceSchemaDescriptor.FACETED.name(), true)
 								.build())
@@ -835,9 +845,14 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 									attributeSchemaMutation: {
 										createAttributeSchemaMutation: {
 											name: "mySpecialCode"
-											uniquenessType: NOT_UNIQUE
-											filterable: true
-											sortable: false
+											uniqueInScopes: [
+												{
+													scope: LIVE
+													uniquenessType: NOT_UNIQUE
+												}
+											]
+											filterableInScopes: [LIVE]
+											sortableInScopes: []
 											localized: false
 											nullable: false
 											type: String

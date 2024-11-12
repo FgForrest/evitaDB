@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
@@ -43,9 +45,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
@@ -97,6 +101,62 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.body("", equalTo(createEntityDto(entity)));
 	}
 
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return archived entity")
+	void shouldReturnArchivedEntity(Evita evita, RestTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 1),
+					entityFetch(),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntity = map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), archivedEntity.getPrimaryKey())
+			.e(EntityDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
+			.build();
+
+		tester.test(TEST_CATALOG)
+			.get("/PRODUCT/get")
+			.requestParams(map()
+				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), archivedEntity.getPrimaryKey())
+				.e(GetEntityEndpointHeaderDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
+				.build())
+			.executeAndThen()
+			.statusCode(200)
+			.body("", equalTo(expectedBodyOfArchivedEntity));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should not return archived entity without scope")
+	void shouldNotReturnArchivedEntityWithoutScope(Evita evita, RestTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					page(1, 1),
+					entityFetch(),
+					scope(Scope.ARCHIVED)
+				)
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/get")
+			.requestParam(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), archivedEntity.getPrimaryKey())
+			.executeAndThen()
+			.statusCode(404);
+	}
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by non-localized attribute")

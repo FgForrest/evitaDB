@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,12 +25,16 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
+import io.evitadb.utils.StringUtils;
 
+import java.util.Arrays;
 import java.util.List;
 
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -59,7 +63,7 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			modes. The first will ensure there is only single value within entire collection regardless of locale,
 			the second will ensure there is only single value within collection and specific locale.
 			""")
-		.type(nonNull(AttributeUniquenessType.class))
+		.type(nonNullRef(AttributeUniquenessTypesDescriptor.THIS))
 		.build();
 
 	PropertyDescriptor FILTERABLE = PropertyDescriptor.builder()
@@ -165,4 +169,24 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			INDEXED_DECIMAL_PLACES
 		))
 		.build();
+
+	/**
+	 * Descriptor for a map containing {@link AttributeUniquenessType}s for all scopes.
+	 */
+	interface AttributeUniquenessTypesDescriptor {
+
+		ObjectDescriptor THIS = ObjectDescriptor.builder()
+			.name("AttributeUniquenessTypes")
+			.description("""
+			Contains attribute uniqueness types for all available scopes.
+			""")
+			.staticFields(Arrays.stream(Scope.values())
+				.map(scope -> PropertyDescriptor.builder()
+					.name(StringUtils.toCamelCase(scope.name()))
+					.description("Uniqueness type in scope `" + scope.name() + "`.")
+					.type(nonNull(AttributeUniquenessType.class))
+					.build())
+				.toList())
+			.build();
+	}
 }

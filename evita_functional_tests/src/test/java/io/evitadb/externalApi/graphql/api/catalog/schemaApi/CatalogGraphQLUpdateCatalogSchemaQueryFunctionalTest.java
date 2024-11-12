@@ -69,7 +69,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita) {
-		return super.setUpData(evita, 20);
+		return super.setUpData(evita, 20, false);
 	}
 
 	@Test
@@ -182,10 +182,20 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 							{
 								createGlobalAttributeSchemaMutation: {
 									name: "mySpecialCode"
-									uniquenessType: UNIQUE_WITHIN_COLLECTION
-									globalUniquenessType: UNIQUE_WITHIN_CATALOG
-									filterable: true
-									sortable: true
+									uniqueInScopes: [
+										{
+											scope: LIVE,
+											uniquenessType: UNIQUE_WITHIN_COLLECTION
+										}
+									]
+									uniqueGloballyInScopes: [
+										{
+											scope: LIVE,
+											uniquenessType: UNIQUE_WITHIN_CATALOG
+										}
+									]
+									filterableInScopes: [LIVE]
+									sortableInScopes: [LIVE]
 									localized: false
 									nullable: false
 									type: String
@@ -222,8 +232,14 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 								name
 								description
 								deprecationNotice
-								uniquenessType
-								globalUniquenessType
+								uniqueInScopes {
+									scope
+									uniquenessType
+								}
+								uniqueGloballyInScopes {
+									scope
+									uniquenessType
+								}
 								filterable
 								sortable
 								localized
@@ -249,6 +265,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 								.e(NamedSchemaDescriptor.NAME.name(), "mySpecialCode")
 								.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
+								// todo lho 677
 								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
 								.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())
 								.e(AttributeSchemaDescriptor.FILTERABLE.name(), true)
@@ -408,9 +425,14 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 										{
 											createAttributeSchemaMutation: {
 												name: "code"
-												uniquenessType: UNIQUE_WITHIN_COLLECTION
-												filterable: true
-												sortable: true
+												uniqueInScopes: [
+													{
+														scope: LIVE,
+														uniquenessType: UNIQUE_WITHIN_COLLECTION
+													}
+												]
+												filterableInScopes: [LIVE]
+												sortableInScopes: [LIVE]
 												localized: false
 												nullable: false
 												type: String
@@ -421,8 +443,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 												referencedEntityType: "tag"
 												referencedEntityTypeManaged: false
 												referencedGroupTypeManaged: false
-												indexed: true
-												faceted: true
+												indexedInScopes: [LIVE]
+												facetedInScopes: [LIVE]
 											}
 										}
 									]
@@ -463,9 +485,12 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 								name
 								description
 								deprecationNotice
-								uniquenessType
-								filterable
-								sortable
+								uniqueInScopes {
+									scope: LIVE
+									uniquenessType
+								}
+								filterableInScopes
+								sortableInScopes
 								localized
 								nullable
 								type
@@ -486,8 +511,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 								referencedEntityTypeManaged
 								referencedGroupType
 								referencedGroupTypeManaged
-								indexed
-								faceted
+								indexedInScopes
+								facetedInScopes
 							}
 						}
                     }
@@ -508,6 +533,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 								.e(NamedSchemaDescriptor.NAME.name(), ATTRIBUTE_CODE)
 								.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
+								// todo lho 677
 								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
 								.e(AttributeSchemaDescriptor.FILTERABLE.name(), true)
 								.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
@@ -529,6 +555,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 								.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), false)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), null)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
+								// todo lho 677
 								.e(ReferenceSchemaDescriptor.INDEXED.name(), true)
 								.e(ReferenceSchemaDescriptor.FACETED.name(), true)
 								.build())
