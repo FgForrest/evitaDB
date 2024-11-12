@@ -497,12 +497,18 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertEquals("EU", productsAfterRestore.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
 	}
 
+	@Test
+	void shouldFailToSetUpReflectedReferencesIncompatiblyWithMainReference() {
+		// TODO JNO - Implement me
+	}
+
 	@DisplayName("Entity reflected references should be recreated in separate scopes")
 	@Test
 	void shouldRecreateReflectedReferencesInSeparateScopes() {
 		/* create schema for entity archival */
+		final Scope[] scopes = new Scope[] {Scope.LIVE, Scope.ARCHIVED};
 		evita.defineCatalog(TEST_CATALOG)
-			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally().sortable())
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally(scopes).sortable(scopes))
 			.updateViaNewSession(evita);
 
 		evita.updateCatalog(
@@ -515,7 +521,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						"products",
 						Entities.PRODUCT,
 						Entities.CATEGORY,
-						whichIs -> whichIs.indexed().withAttributesInherited()
+						whichIs -> whichIs.indexed(scopes).withAttributesInherited()
 					)
 					.withHierarchy()
 					.updateVia(session);
@@ -523,7 +529,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable().sortable())
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable(scopes).sortable(scopes))
 					.withSortableAttributeCompound(
 						ATTRIBUTE_CODE_NAME,
 						new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -535,9 +541,9 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						Entities.CATEGORY,
 						Cardinality.ZERO_OR_MORE,
 						thatIs -> thatIs
-							.indexed()
-							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable().sortable())
-							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable())
+							.indexed(scopes)
+							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable(scopes).sortable(scopes))
+							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable(scopes))
 							.withSortableAttributeCompound(
 								ATTRIBUTE_CATEGORY_MARKET_OPEN,
 								new AttributeElement(ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
