@@ -48,7 +48,6 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -373,8 +372,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 
 	@Nonnull
 	@Override
-	public Optional<AttributeUniquenessType> getUniquenessType(@Nonnull Scope scope) {
-		return ofNullable(this.uniquenessTypeInScopes.get(scope));
+	public AttributeUniquenessType getUniquenessType(@Nonnull Scope scope) {
+		return ofNullable(this.uniquenessTypeInScopes.get(scope)).orElse(AttributeUniquenessType.NOT_UNIQUE);
 	}
 
 	@Override

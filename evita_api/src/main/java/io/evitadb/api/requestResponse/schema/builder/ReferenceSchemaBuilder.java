@@ -113,8 +113,8 @@ public final class ReferenceSchemaBuilder
 					referencedEntityTypeManaged,
 					baseSchema.getReferencedGroupType(),
 					baseSchema.isReferencedGroupTypeManaged(),
-					baseSchema.isIndexed(),
-					baseSchema.isFaceted()
+					Arrays.stream(Scope.values()).filter(baseSchema::isIndexed).toArray(Scope[]::new),
+					Arrays.stream(Scope.values()).filter(baseSchema::isFaceted).toArray(Scope[]::new)
 				)
 			);
 		} else {

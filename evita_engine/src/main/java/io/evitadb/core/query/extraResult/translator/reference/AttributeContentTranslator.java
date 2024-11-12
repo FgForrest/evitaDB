@@ -103,7 +103,7 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 					new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
 			);
 			// unique attributes could provide implicit locale
-			if (attributeSchema.get().isLocalized() && !attributeSchema.get().isUnique()) {
+			if (attributeSchema.get().isLocalized() && !attributeSchema.get().isUniqueWithinLocaleInAnyScope()) {
 				missingLocalizedAttributes.add(attributeName);
 			}
 		}

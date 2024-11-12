@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -98,7 +98,8 @@ public class FilterByConstraintFromRequestQueryBuilder {
 		entitySchema.getAttributes()
 			.values()
 			.stream()
-			.filter(AttributeSchemaContract::isUnique)
+			/* TODO LHO - tady si nejsem jistý, jestli by se scope nemělo brát z requestu */
+			.filter(AttributeSchemaContract::isUniqueInAnyScope)
 			.map(attributeSchema -> attributeSchema.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
 			.forEach(name -> {
 				if (parameters.containsKey(name)) {
@@ -134,7 +135,8 @@ public class FilterByConstraintFromRequestQueryBuilder {
 
 		final Locale locale = (Locale) parameters.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
 		if (locale == null &&
-			uniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale)) {
+			/* TODO LHO - tady si nejsem jistý, jestli by se scope nemělo brát z requestu */
+			uniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocaleInAnyScope)) {
 			throw new RestInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
 		}
 		Optional.ofNullable(locale).ifPresent(it -> filterConstraints.add(entityLocaleEquals(it)));
@@ -178,7 +180,8 @@ public class FilterByConstraintFromRequestQueryBuilder {
 
 		final Locale locale = (Locale) parameters.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
 		if (locale == null &&
-			uniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale)) {
+			/* TODO LHO - tady si nejsem jistý, jestli by se scope nemělo brát z requestu */
+			uniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocaleInAnyScope)) {
 			throw new RestInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
 		}
 		Optional.ofNullable(locale).ifPresent(it -> filterConstraints.add(entityLocaleEquals(it)));
@@ -216,7 +219,8 @@ public class FilterByConstraintFromRequestQueryBuilder {
 				continue;
 			}
 			Assert.isPremiseValid(
-				attributeSchema.isUniqueGlobally(),
+				/* TODO LHO - tady si nejsem jistý, jestli by se scope nemělo brát z requestu */
+				attributeSchema.isUniqueGloballyInAnyScope(),
 				() -> new RestQueryResolvingInternalError(
 					"Cannot find entity by non-unique attribute `" + attributeName + "`."
 				)

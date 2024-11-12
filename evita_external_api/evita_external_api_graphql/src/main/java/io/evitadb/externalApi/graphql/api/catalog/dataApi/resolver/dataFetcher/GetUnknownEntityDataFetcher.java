@@ -314,7 +314,8 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
                 continue;
             }
             Assert.isPremiseValid(
-                attributeSchema.isUniqueGlobally(),
+                /* TODO LHO - tady si nejsem jistý, jestli by se scope nemělo brát z requestu */
+                attributeSchema.isUniqueGloballyInAnyScope(),
                 () -> new GraphQLQueryResolvingInternalError(
                     "Cannot find entity by non-unique attribute `" + attributeName + "`."
                 )

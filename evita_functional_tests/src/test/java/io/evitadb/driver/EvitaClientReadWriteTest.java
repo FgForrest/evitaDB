@@ -65,6 +65,7 @@ import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
@@ -1355,6 +1356,246 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldArchiveExistingEntity(EvitaClient evitaClient) {
+		final AtomicInteger newProductId = new AtomicInteger();
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityMutation entityMutation = createSomeNewProduct(session);
+				final SealedEntity updatedEntity = session.upsertAndFetchEntity(
+					entityMutation, entityFetchAll().getRequirements()
+				);
+				newProductId.set(updatedEntity.getPrimaryKey());
+				session.archiveEntity(Entities.PRODUCT, updatedEntity.getPrimaryKey());
+			}
+		);
+
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Optional<SealedEntity> loadedEntity = session.getEntity(
+					Entities.PRODUCT, newProductId.get(), entityFetchAllContent()
+				);
+				assertFalse(loadedEntity.isPresent());
+
+				final Optional<SealedEntity> loadedArchivedEntity = session.getEntity(
+					Entities.PRODUCT, newProductId.get(), new Scope[] {Scope.ARCHIVED}, entityFetchAllContent()
+				);
+				assertTrue(loadedArchivedEntity.isPresent());
+				assertEquals(Scope.ARCHIVED, loadedArchivedEntity.get().getScope());
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldArchiveAndFetchExistingEntity(EvitaClient evitaClient) {
+		final AtomicInteger newProductId = new AtomicInteger();
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityMutation entityMutation = createSomeNewProduct(session);
+
+				final SealedEntity updatedEntity = session.upsertAndFetchEntity(
+					entityMutation, entityFetchAll().getRequirements()
+				);
+				newProductId.set(updatedEntity.getPrimaryKey());
+
+				final SealedEntity archivedEntity = session.archiveEntity(
+					Entities.PRODUCT, updatedEntity.getPrimaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertSomeNewProductContent(archivedEntity);
+				assertEquals(Scope.ARCHIVED, archivedEntity.getScope());
+			}
+		);
+
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Optional<SealedEntity> loadedEntity = session.getEntity(
+					Entities.PRODUCT, newProductId.get(), entityFetchAllContent()
+				);
+				assertFalse(loadedEntity.isPresent());
+
+				final Optional<SealedEntity> loadedArchivedEntity = session.getEntity(
+					Entities.PRODUCT, newProductId.get(), new Scope[] {Scope.ARCHIVED}, entityFetchAllContent()
+				);
+				assertTrue(loadedArchivedEntity.isPresent());
+				assertEquals(Scope.ARCHIVED, loadedArchivedEntity.get().getScope());
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldArchiveAndFetchExistingCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories) {
+		final AtomicInteger newProductId = new AtomicInteger();
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityMutation entityMutation = createSomeNewProduct(session);
+
+				final SealedEntity updatedEntity = session.upsertAndFetchEntity(
+					entityMutation, entityFetchAll().getRequirements()
+				);
+				newProductId.set(updatedEntity.getPrimaryKey());
+
+				final ProductInterface archivedEntity = session.archiveEntity(
+					ProductInterface.class, updatedEntity.getPrimaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertProduct(updatedEntity, archivedEntity, originalCategories);
+			}
+		);
+
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Optional<ProductInterface> loadedEntity = session.getEntity(
+					ProductInterface.class, newProductId.get(), entityFetchAllContent()
+				);
+				assertFalse(loadedEntity.isPresent());
+
+				final Optional<SealedEntity> loadedArchivedEntity = session.getEntity(
+					Entities.PRODUCT, newProductId.get(), new Scope[] {Scope.ARCHIVED}, entityFetchAllContent()
+				);
+				assertTrue(loadedArchivedEntity.isPresent());
+				assertEquals(Scope.ARCHIVED, loadedArchivedEntity.get().getScope());
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldRestoreExistingEntity(EvitaClient evitaClient) {
+		final AtomicInteger newProductId = new AtomicInteger();
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityMutation entityMutation = createSomeNewProduct(session);
+				final SealedEntity updatedEntity = session.upsertAndFetchEntity(
+					entityMutation, entityFetchAll().getRequirements()
+				);
+				newProductId.set(updatedEntity.getPrimaryKey());
+				session.archiveEntity(Entities.PRODUCT, updatedEntity.getPrimaryKey());
+			}
+		);
+
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.restoreEntity(Entities.PRODUCT, newProductId.get());
+			}
+		);
+
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Optional<SealedEntity> loadedEntity = session.getEntity(
+					Entities.PRODUCT, newProductId.get(), entityFetchAllContent()
+				);
+				assertTrue(loadedEntity.isPresent());
+				assertEquals(Scope.LIVE, loadedEntity.get().getScope());
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRestoreAndFetchExistingEntity(EvitaClient evitaClient) {
+		final AtomicInteger newProductId = new AtomicInteger();
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityMutation entityMutation = createSomeNewProduct(session);
+
+				final SealedEntity updatedEntity = session.upsertAndFetchEntity(
+					entityMutation, entityFetchAll().getRequirements()
+				);
+				newProductId.set(updatedEntity.getPrimaryKey());
+
+				final SealedEntity archivedEntity = session.archiveEntity(
+					Entities.PRODUCT, updatedEntity.getPrimaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertSomeNewProductContent(archivedEntity);
+				assertEquals(Scope.ARCHIVED, archivedEntity.getScope());
+			}
+		);
+
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity restoredEntity = session.restoreEntity(
+					Entities.PRODUCT, newProductId.get(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertSomeNewProductContent(restoredEntity);
+				assertEquals(Scope.LIVE, restoredEntity.getScope());
+			}
+		);
+
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Optional<SealedEntity> loadedEntity = session.getEntity(
+					Entities.PRODUCT, newProductId.get(), entityFetchAllContent()
+				);
+				assertTrue(loadedEntity.isPresent());
+				assertEquals(Scope.LIVE, loadedEntity.get().getScope());
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldRestoreAndFetchExistingCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories) {
+		final AtomicInteger newProductId = new AtomicInteger();
+		final AtomicReference<SealedEntity> theEntity = new AtomicReference<>();
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EntityMutation entityMutation = createSomeNewProduct(session);
+
+				final SealedEntity updatedEntity = session.upsertAndFetchEntity(
+					entityMutation, entityFetchAll().getRequirements()
+				);
+				newProductId.set(updatedEntity.getPrimaryKey());
+				theEntity.set(updatedEntity);
+
+				final ProductInterface archivedEntity = session.archiveEntity(
+					ProductInterface.class, updatedEntity.getPrimaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertProduct(updatedEntity, archivedEntity, originalCategories);
+			}
+		);
+
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ProductInterface restoredEntity = session.restoreEntity(
+					ProductInterface.class, newProductId.get(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertProduct(theEntity.get(), restoredEntity, originalCategories);
+			}
+		);
+
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Optional<ProductInterface> loadedEntity = session.getEntity(
+					ProductInterface.class, newProductId.get(), entityFetchAllContent()
+				);
+				assertTrue(loadedEntity.isPresent());
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	void shouldDeleteExistingEntity(EvitaClient evitaClient) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		evitaClient.updateCatalog(
@@ -1518,6 +1759,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				assertFalse(loadedEntity.isPresent());
 			}
 		);
+	}
+
+	@Test
+	void shouldDeleteArchivedEntity() {
+		/* TODO JNO - Implement me */
 	}
 
 	@Test

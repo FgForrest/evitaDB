@@ -324,8 +324,18 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 	}
 
 	@Override
+	public boolean isUniqueInAnyScope() {
+		return super.isUniqueInAnyScope() || isUniqueGloballyInAnyScope();
+	}
+
+	@Override
 	public boolean isUniqueWithinLocale() {
 		return super.isUniqueWithinLocale() || isUniqueGloballyWithinLocale();
+	}
+
+	@Override
+	public boolean isUniqueWithinLocaleInAnyScope() {
+		return super.isUniqueWithinLocaleInAnyScope() || isUniqueGloballyWithinLocaleInAnyScope();
 	}
 
 	@Override
@@ -340,8 +350,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 
 	@Nonnull
 	@Override
-	public Optional<GlobalAttributeUniquenessType> getGlobalUniquenessType(@Nonnull Scope scope) {
-		return Optional.ofNullable(this.globalUniquenessTypeInScopes.get(Scope.LIVE));
+	public GlobalAttributeUniquenessType getGlobalUniquenessType(@Nonnull Scope scope) {
+		return Optional.ofNullable(this.globalUniquenessTypeInScopes.get(scope)).orElse(GlobalAttributeUniquenessType.NOT_UNIQUE);
 	}
 
 	@Override

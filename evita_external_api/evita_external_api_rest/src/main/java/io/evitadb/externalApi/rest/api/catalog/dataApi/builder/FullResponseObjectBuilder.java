@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -243,7 +243,8 @@ public class FullResponseObjectBuilder {
 			.getAttributes()
 			.values()
 			.stream()
-			.filter(attributeSchema -> attributeSchema.isFilterable() &&
+			/* TODO LHO - tady si nejsem jistý, jestli by se scope nemělo brát z requestu */
+			.filter(attributeSchema -> attributeSchema.isFilterableInAnyScope() &&
 				Number.class.isAssignableFrom(attributeSchema.getPlainType()))
 			.toList();
 
@@ -298,7 +299,8 @@ public class FullResponseObjectBuilder {
 			.getReferences()
 			.values()
 			.stream()
-			.filter(ReferenceSchemaContract::isFaceted)
+			/* TODO LHO - tady si nejsem jistý, jestli by se scope nemělo brát z requestu */
+			.filter(ReferenceSchemaContract::isFacetedInAnyScope)
 			.toList();
 
 		if (referenceSchemas.isEmpty()) {

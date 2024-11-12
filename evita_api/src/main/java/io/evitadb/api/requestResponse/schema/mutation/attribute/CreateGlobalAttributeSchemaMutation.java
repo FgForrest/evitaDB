@@ -228,22 +228,34 @@ public class CreateGlobalAttributeSchemaMutation
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::isFilterable,
+							schema -> Arrays.stream(Scope.values())
+								.filter(schema::isFilterable)
+								.toArray(Scope[]::new),
 							newValue -> new SetAttributeSchemaFilterableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::getUniquenessType,
+							schema -> Arrays.stream(Scope.values())
+								.map(scope -> new ScopedAttributeUniquenessType(scope, schema.getUniquenessType(scope)))
+								// filter out default values
+								.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+								.toArray(ScopedAttributeUniquenessType[]::new),
 							newValue -> new SetAttributeSchemaUniqueMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::getGlobalUniquenessType,
+							schema -> Arrays.stream(Scope.values())
+								.map(scope -> new ScopedGlobalAttributeUniquenessType(scope, schema.getGlobalUniquenessType(scope)))
+								// filter out default values
+								.filter(it -> it.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE)
+								.toArray(ScopedGlobalAttributeUniquenessType[]::new),
 							newValue -> new SetAttributeSchemaGloballyUniqueMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::isSortable,
+							schema -> Arrays.stream(Scope.values())
+								.filter(schema::isSortable)
+								.toArray(Scope[]::new),
 							newValue -> new SetAttributeSchemaSortableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(

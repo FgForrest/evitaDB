@@ -62,7 +62,7 @@ public class CopyExistingEntityBuilder extends InitialEntityBuilder {
 					final Boolean pkIsChanged = ofNullable(overriddenPrimaryKey)
 						.map(pk -> !Objects.equals(externalEntity.getPrimaryKey(), pk))
 						.orElse(false);
-					if (attributeSchema.isUnique() && pkIsChanged) {
+					if (attributeSchema.isUniqueInAnyScope() && pkIsChanged) {
 						Assert.isTrue(
 							String.class.isAssignableFrom(attributeSchema.getType()),
 							"Currently, only String unique attributes can be altered!"

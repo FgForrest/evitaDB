@@ -658,25 +658,27 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	@Nonnull
 	protected Stream<String> validateAttributes(@Nonnull Map<String, AttributeSchemaContract> attributes) {
 		Stream<String> attributeErrors = Stream.empty();
-		if (!this.isIndexed()) {
-			for (AttributeSchemaContract attribute : attributes.values()) {
-				if (attribute.isFilterable()) {
-					attributeErrors = Stream.concat(
-						attributeErrors,
-						Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is filterable but reference schema is not indexed!")
-					);
-				}
-				if (attribute.isSortable()) {
-					attributeErrors = Stream.concat(
-						attributeErrors,
-						Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is sortable but reference schema is not indexed!")
-					);
-				}
-				if (attribute.isUnique()) {
-					attributeErrors = Stream.concat(
-						attributeErrors,
-						Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is unique but reference schema is not indexed!")
-					);
+		for (Scope scope : Scope.values()) {
+			if (!this.isIndexed(scope)) {
+				for (AttributeSchemaContract attribute : attributes.values()) {
+					if (attribute.isFilterable(scope)) {
+						attributeErrors = Stream.concat(
+							attributeErrors,
+							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is filterable but reference schema is not indexed!")
+						);
+					}
+					if (attribute.isSortable(scope)) {
+						attributeErrors = Stream.concat(
+							attributeErrors,
+							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is sortable but reference schema is not indexed!")
+						);
+					}
+					if (attribute.isUnique(scope)) {
+						attributeErrors = Stream.concat(
+							attributeErrors,
+							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is unique but reference schema is not indexed!")
+						);
+					}
 				}
 			}
 		}

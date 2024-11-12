@@ -40,6 +40,7 @@ import io.evitadb.utils.NamingConvention;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -180,6 +181,22 @@ public interface ReferenceSchemaContract extends
 	boolean isReferencedGroupTypeManaged();
 
 	/**
+	 * Returns TRUE if the index in any scope for this reference should be created and maintained allowing to
+	 * filter by {@link ReferenceHaving} filtering and sorted by {@link ReferenceProperty} constraints. Index is also
+	 * required when reference is {@link #isFaceted() faceted} - but it has to be indexed in the same scope as faceted.
+	 *
+	 * Do not mark reference as indexed unless you know that you'll need to filter / sort entities by this reference.
+	 * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
+	 *
+	 * @return true if reference is indexed in any scope
+	 */
+	default boolean isIndexedInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isIndexed);
+	}
+
+	/**
 	 * Returns TRUE if the index in {@link Scope#LIVE} for this reference should be created and maintained allowing to
 	 * filter by {@link ReferenceHaving} filtering and sorted by {@link ReferenceProperty} constraints. Index is also
 	 * required when reference is {@link #isFaceted() faceted} - but it has to be indexed in the same scope as faceted.
@@ -209,6 +226,21 @@ public interface ReferenceSchemaContract extends
 	 * @return true if reference is indexed in particular scope
 	 */
 	boolean isIndexed(@Nonnull Scope scope);
+
+	/**
+	 * Returns TRUE if the statistics data in any scope for this reference should be maintained and this
+	 * allowing to get {@link FacetSummary} for this reference or use {@link FacetHaving} filtering query.
+	 *
+	 * Do not mark reference as faceted unless you want it among {@link FacetStatistics}. Each faceted reference
+	 * occupies (memory/disk) space in the form of index.
+	 *
+	 * Reference that was marked as faceted is called Facet.
+	 *
+	 * @return true if reference is faceted in any of the scopes
+	 */
+	default boolean isFacetedInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isFaceted);
+	}
 
 	/**
 	 * Returns TRUE if the statistics data in {@link Scope#LIVE} for this reference should be maintained and this

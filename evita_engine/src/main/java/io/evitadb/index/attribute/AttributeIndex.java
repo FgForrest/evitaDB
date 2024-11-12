@@ -35,6 +35,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.attribute.AttributeIndex.AttributeIndexChanges;
@@ -177,13 +178,14 @@ public class AttributeIndex implements AttributeIndexContract,
 	public static AttributeKey createUniqueAttributeKey(
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
 		@Nullable Locale locale,
 		@Nonnull Object value
 	) {
 		if (attributeSchema.isLocalized()) {
 			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
 		}
-		if (attributeSchema.isUniqueWithinLocale()) {
+		if (attributeSchema.isUniqueWithinLocale(scope)) {
 			return new AttributeKey(attributeSchema.getName(), locale);
 		} else {
 			return new AttributeKey(attributeSchema.getName());
@@ -213,9 +215,9 @@ public class AttributeIndex implements AttributeIndexContract,
 	}
 
 	@Override
-	public void insertUniqueAttribute(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale, @Nonnull Object value, int recordId) {
+	public void insertUniqueAttribute(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nonnull Scope scope, @Nullable Locale locale, @Nonnull Object value, int recordId) {
 		final UniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
-			createUniqueAttributeKey(attributeSchema, allowedLocales, locale, value),
+			createUniqueAttributeKey(attributeSchema, allowedLocales, scope, locale, value),
 			lookupKey -> {
 				final UniqueIndex newUniqueIndex = new UniqueIndex(
 					entityType,
@@ -234,11 +236,12 @@ public class AttributeIndex implements AttributeIndexContract,
 	public void removeUniqueAttribute(
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
 		@Nullable Locale locale,
 		@Nonnull Object value,
 		int recordId
 	) {
-		final AttributeKey lookupKey = createUniqueAttributeKey(attributeSchema, allowedLocales, locale, value);
+		final AttributeKey lookupKey = createUniqueAttributeKey(attributeSchema, allowedLocales, scope, locale, value);
 		final UniqueIndex theUniqueIndex = this.uniqueIndex.get(lookupKey);
 		notNull(theUniqueIndex, "Unique index for attribute `" + attributeSchema.getName() + "` not found!");
 		theUniqueIndex.unregisterUniqueKey(value, recordId);
@@ -449,8 +452,8 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	@Nullable
-	public UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nullable Locale locale) {
-		final boolean uniqueWithinLocale = attributeSchema.isUniqueWithinLocale();
+	public UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Scope scope, @Nullable Locale locale) {
+		final boolean uniqueWithinLocale = attributeSchema.isUniqueWithinLocale(scope);
 		Assert.isTrue(
 			locale != null || !uniqueWithinLocale,
 			() -> new EntityLocaleMissingException(attributeSchema.getName())
@@ -519,12 +522,6 @@ public class AttributeIndex implements AttributeIndexContract,
 		return ofNullable(locale)
 			.map(it -> this.chainIndex.get(new AttributeKey(attributeName, locale)))
 			.orElseGet(() -> this.chainIndex.get(new AttributeKey(attributeName)));
-	}
-
-	@Override
-	public boolean isAttributeIndexEmpty() {
-		return this.uniqueIndex.isEmpty() && this.filterIndex.isEmpty() &&
-			this.sortIndex.isEmpty() && this.chainIndex.isEmpty();
 	}
 
 	@Nonnull

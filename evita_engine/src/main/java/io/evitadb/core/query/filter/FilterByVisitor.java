@@ -33,6 +33,7 @@ import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -344,6 +345,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			new ProcessingScope<>(
 				indexSetToUse.getIndexType(),
 				indexSetToUse.getIndexes(),
+				queryContext.getEvitaRequest().getScopes(),
 				AttributeContent.ALL_ATTRIBUTES,
 				queryContext.isEntityTypeKnown() ? queryContext.getSchema() : null,
 				null, null,
@@ -410,16 +412,27 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Returns attribute definition from current scope.
 	 */
 	@Nonnull
-	public AttributeSchemaContract getAttributeSchema(@Nonnull String attributeName, @Nonnull AttributeTrait... requiredTrait) {
-		return getProcessingScope().getAttributeSchemaAccessor().getAttributeSchema(attributeName, requiredTrait);
+	public AttributeSchemaContract getAttributeSchema(
+		@Nonnull String attributeName,
+		@Nonnull AttributeTrait... requiredTrait
+	) {
+		return getProcessingScope()
+			.getAttributeSchemaAccessor()
+			.getAttributeSchema(attributeName, this.getEvitaRequest().getScopes(), requiredTrait);
 	}
 
 	/**
 	 * Returns attribute definition from current scope using provided entity schema.
 	 */
 	@Nonnull
-	public AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract entitySchema, @Nonnull String attributeName, @Nonnull AttributeTrait... requiredTrait) {
-		return getProcessingScope().getAttributeSchemaAccessor().getAttributeSchema(entitySchema, attributeName, requiredTrait);
+	public AttributeSchemaContract getAttributeSchema(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String attributeName,
+		@Nonnull AttributeTrait... requiredTrait
+	) {
+		return getProcessingScope()
+			.getAttributeSchemaAccessor()
+			.getAttributeSchema(entitySchema, attributeName, this.getEvitaRequest().getScopes(), requiredTrait);
 	}
 
 	/**
@@ -602,7 +615,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull FilterBy filterBy
 	) {
 		final String referenceName = referenceSchema.getName();
-		isTrue(referenceSchema.isIndexed(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
+		isTrue(
+			this.getEvitaRequest().getScopes().stream().anyMatch(referenceSchema::isIndexed),
+			() -> new ReferenceNotIndexedException(referenceName, entitySchema)
+		);
 
 		final Optional<ReferencedTypeEntityIndex> entityIndex = getIndex(
 			entitySchema.getName(),
@@ -785,6 +801,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				new ProcessingScope<>(
 					indexType,
 					targetIndexes,
+					// the requested scopes never change
+					this.getEvitaRequest().getScopes(),
 					requirements,
 					entitySchema,
 					referenceSchema,
@@ -823,6 +841,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				new ProcessingScope<>(
 					indexType,
 					targetIndexSupplier,
+					// the requested scopes never change
+					this.getEvitaRequest().getScopes(),
 					requirements,
 					entitySchema,
 					referenceSchema,
@@ -1053,6 +1073,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nullable
 		private final Supplier<List<T>> indexSupplier;
 		/**
+		 * Set of scopes requested in {@link EvitaRequest#getScopes()}.
+		 */
+		private final Set<Scope> requiredScopes;
+		/**
 		 * Suppressed constraints contains set of {@link FilterConstraint} that will not be evaluated by this visitor
 		 * in current scope.
 		 */
@@ -1114,6 +1138,13 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 */
 		private Formula superSetFormula;
 
+		/**
+		 * Recursively examines all children of the specified parent constraint using the provided lambda function.
+		 *
+		 * @param lambda the consumer function to be applied to each child constraint
+		 * @param isConjunction the predicate to determine if a constraint is a conjunction
+		 * @param parentConstraint the parent constraint whose children are to be examined
+		 */
 		private static void examineChildren(
 			@Nonnull Consumer<FilterConstraint> lambda,
 			@Nonnull Predicate<FilterConstraint> isConjunction,
@@ -1132,6 +1163,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		public ProcessingScope(
 			@Nonnull Class<T> indexType,
 			@Nonnull List<T> targetIndexes,
+			@Nonnull Set<Scope> requiredScopes,
 			@Nullable EntityContentRequire requirements,
 			@Nonnull EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
@@ -1143,6 +1175,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			this(
 				indexType,
 				targetIndexes,
+				requiredScopes,
 				requirements,
 				entitySchema,
 				referenceSchema,
@@ -1158,6 +1191,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		public ProcessingScope(
 			@Nonnull Class<T> indexType,
 			@Nonnull List<T> targetIndexes,
+			@Nonnull Set<Scope> requiredScopes,
 			@Nullable EntityContentRequire requirements,
 			@Nonnull EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
@@ -1168,6 +1202,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
 		) {
 			this.indexType = indexType;
+			this.requiredScopes = requiredScopes;
 			this.attributeSchemaAccessor = attributeSchemaAccessor;
 			this.attributeValueAccessor = attributeValueAccessor;
 			if (suppressedConstraints.length > 0) {
@@ -1189,6 +1224,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		public ProcessingScope(
 			@Nonnull Class<T> indexType,
 			@Nonnull Supplier<List<T>> targetIndexSupplier,
+			@Nonnull Set<Scope> requiredScopes,
 			@Nullable EntityContentRequire requirements,
 			@Nonnull EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
@@ -1199,6 +1235,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
 		) {
 			this.indexType = indexType;
+			this.requiredScopes = requiredScopes;
 			this.attributeSchemaAccessor = attributeSchemaAccessor;
 			this.attributeValueAccessor = attributeValueAccessor;
 			if (suppressedConstraints.length > 0) {
@@ -1303,8 +1340,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 * Returns attribute schema for attribute of passed name.
 		 */
 		@Nonnull
-		public AttributeSchemaContract getAttributeSchema(@Nonnull String attributeName, @Nonnull AttributeTrait... attributeTraits) {
-			return attributeSchemaAccessor.getAttributeSchema(attributeName, attributeTraits);
+		public AttributeSchemaContract getAttributeSchema(
+			@Nonnull String attributeName,
+			@Nonnull AttributeTrait... attributeTraits
+		) {
+			return attributeSchemaAccessor.getAttributeSchema(attributeName, this.requiredScopes, attributeTraits);
 		}
 
 		/**
@@ -1312,7 +1352,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 */
 		@Nonnull
 		public AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract entitySchema, @Nonnull String attributeName, @Nonnull AttributeTrait... attributeTraits) {
-			return attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits);
+			return attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, this.requiredScopes, attributeTraits);
 		}
 
 		/**

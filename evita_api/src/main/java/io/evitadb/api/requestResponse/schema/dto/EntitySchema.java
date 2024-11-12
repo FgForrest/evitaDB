@@ -330,11 +330,10 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getDeprecationNotice(),
 				Arrays.stream(Scope.values())
 					.map(
-						scope -> attributeSchemaContract.getUniquenessType(scope)
-							.map(it -> new ScopedAttributeUniquenessType(scope, it))
-							.orElse(null)
+						scope -> new ScopedAttributeUniquenessType(scope, attributeSchemaContract.getUniquenessType(scope))
 					)
-					.filter(Objects::nonNull)
+					// filter default settings
+					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedAttributeUniquenessType[]::new),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterable)
@@ -367,12 +366,9 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getDescription(),
 				attributeSchemaContract.getDeprecationNotice(),
 				Arrays.stream(Scope.values())
-					.map(
-						scope -> attributeSchemaContract.getUniquenessType(scope)
-							.map(it -> new ScopedAttributeUniquenessType(scope, it))
-							.orElse(null)
-					)
-					.filter(Objects::nonNull)
+					.map(scope -> new ScopedAttributeUniquenessType(scope, attributeSchemaContract.getUniquenessType(scope)))
+					// filter default settings
+					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedAttributeUniquenessType[]::new),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterable)

@@ -257,7 +257,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		} else if (localMutation instanceof ReferenceMutation<?> referenceMutation) {
 			final ReferenceKey referenceKey = referenceMutation.getReferenceKey();
 			final ReferenceSchemaContract referenceSchema = getEntitySchema().getReferenceOrThrowException(referenceKey.referenceName());
-			if (referenceSchema.isIndexed()) {
+			if (referenceSchema.isIndexed(getScope())) {
 				updateReferences(referenceMutation, globalIndex);
 				ReferenceIndexMutator.executeWithReferenceIndexes(
 					entityType,
@@ -773,7 +773,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				existingDataSupplierFactory,
 				this.undoActionsAppender
 			);
-			if (ReferenceIndexMutator.isFacetedReference(referenceKey, this)) {
+			if (ReferenceIndexMutator.isFacetedReference(scope, referenceKey, this)) {
 				for (ReferenceContract otherReferences : entity.getReferences()) {
 					if (!referenceKey.equals(otherReferences.getReferenceKey())) {
 						final EntityIndex referenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey, scope);
@@ -1037,7 +1037,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				existingDataSupplierFactory,
 				this.undoActionsAppender
 			);
-			if (ReferenceIndexMutator.isFacetedReference(referenceKey, this)) {
+			if (ReferenceIndexMutator.isFacetedReference(scope, referenceKey, this)) {
 				for (ReferenceContract otherReferences : entity.getReferences()) {
 					if (!referenceKey.equals(otherReferences.getReferenceKey())) {
 						final EntityIndex referenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey, scope);

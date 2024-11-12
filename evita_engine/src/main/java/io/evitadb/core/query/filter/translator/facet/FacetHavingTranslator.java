@@ -30,6 +30,7 @@ import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -72,7 +73,10 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 	public Formula translate(@Nonnull FacetHaving facetHaving, @Nonnull FilterByVisitor filterByVisitor) {
 		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(facetHaving.getReferenceName());
-		isTrue(referenceSchema.isFaceted(), "Reference of type `" + facetHaving.getReferenceName() + "` is not marked as faceted.");
+		isTrue(
+			filterByVisitor.getEvitaRequest().getScopes().stream().anyMatch(referenceSchema::isFaceted),
+			() -> new ReferenceNotFacetedException(facetHaving.getReferenceName(), entitySchema)
+		);
 
 		final List<Formula> collectedFormulas = filterByVisitor.collectFromIndexes(
 			entityIndex -> {

@@ -175,7 +175,7 @@ public class CatalogIndex implements
 		int recordId
 	) {
 		final GlobalUniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
-			createAttributeKey(attributeSchema, allowedLocales, locale, value),
+			createAttributeKey(attributeSchema, allowedLocales, getIndexKey().scope(), locale, value),
 			lookupKey -> {
 				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(lookupKey, attributeSchema.getType());
 				newUniqueIndex.attachToCatalog(null, catalog);
@@ -201,7 +201,7 @@ public class CatalogIndex implements
 		@Nonnull Object value,
 		int recordId
 	) {
-		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
+		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, getIndexKey().scope(), locale, value);
 		final GlobalUniqueIndex theUniqueIndex = this.uniqueIndex.get(lookupKey);
 		notNull(theUniqueIndex, "Unique index for attribute `" + attributeSchema.getName() + "` not found!");
 		theUniqueIndex.unregisterUniqueKey(value, entitySchema.getName(), locale, recordId);
@@ -219,7 +219,7 @@ public class CatalogIndex implements
 	 */
 	@Nullable
 	public GlobalUniqueIndex getGlobalUniqueIndex(@Nonnull GlobalAttributeSchemaContract attributeSchema, @Nullable Locale locale) {
-		final boolean uniqueGloballyWithinLocale = attributeSchema.isUniqueGloballyWithinLocale();
+		final boolean uniqueGloballyWithinLocale = attributeSchema.isUniqueGloballyWithinLocale(getIndexKey().scope());
 		Assert.isTrue(
 			locale != null || !uniqueGloballyWithinLocale,
 			() -> new EntityLocaleMissingException(attributeSchema.getName())
@@ -313,13 +313,14 @@ public class CatalogIndex implements
 	private static AttributeKey createAttributeKey(
 		@Nonnull GlobalAttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
 		@Nullable Locale locale,
 		@Nonnull Object value
 	) {
 		if (attributeSchema.isLocalized()) {
 			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
 		}
-		if (attributeSchema.isUniqueGloballyWithinLocale()) {
+		if (attributeSchema.isUniqueGloballyWithinLocale(scope)) {
 			return new AttributeKey(attributeSchema.getName(), locale);
 		} else {
 			return new AttributeKey(attributeSchema.getName());

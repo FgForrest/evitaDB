@@ -28,9 +28,11 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
@@ -50,7 +52,6 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.*;
@@ -153,35 +154,29 @@ public class CatalogSchemaConverter {
 			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(attributeSchema.getUniquenessType()))
 			.addAllUniqueInScopes(
 				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedAttributeUniquenessType(scope, attributeSchema.getUniquenessType(scope)))
+					// filter default values
+					.filter(scopedUniquenessType -> scopedUniquenessType.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
 					.map(
-						scope -> attributeSchema
-							.getUniquenessType(scope)
-							.map(
-								type -> GrpcScopedAttributeUniquenessType.newBuilder()
-									.setScope(EvitaEnumConverter.toGrpcScope(scope))
-									.setUniquenessType(toGrpcAttributeUniquenessType(type))
-									.build()
-							)
-							.orElse(null)
+						scopedUniquenessType -> GrpcScopedAttributeUniquenessType.newBuilder()
+							.setScope(EvitaEnumConverter.toGrpcScope(scopedUniquenessType.scope()))
+							.setUniquenessType(toGrpcAttributeUniquenessType(scopedUniquenessType.uniquenessType()))
+							.build()
 					)
-					.filter(Objects::nonNull)
 					.toList()
 			)
 			.setUniqueGlobally(toGrpcGlobalAttributeUniquenessType(attributeSchema.getGlobalUniquenessType()))
 			.addAllUniqueGloballyInScopes(
 				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedGlobalAttributeUniquenessType(scope, attributeSchema.getGlobalUniquenessType(scope)))
+					// filter default values
+					.filter(scopedUniquenessType -> scopedUniquenessType.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE)
 					.map(
-						scope -> attributeSchema
-							.getGlobalUniquenessType(scope)
-							.map(
-								type -> GrpcScopedGlobalAttributeUniquenessType.newBuilder()
-									.setScope(EvitaEnumConverter.toGrpcScope(scope))
-									.setUniquenessType(toGrpcGlobalAttributeUniquenessType(type))
-									.build()
-							)
-							.orElse(null)
+						scopedUniquenessType -> GrpcScopedGlobalAttributeUniquenessType.newBuilder()
+							.setScope(EvitaEnumConverter.toGrpcScope(scopedUniquenessType.scope()))
+							.setUniquenessType(toGrpcGlobalAttributeUniquenessType(scopedUniquenessType.uniquenessType()))
+							.build()
 					)
-					.filter(Objects::nonNull)
 					.toList()
 			)
 			.setFilterable(attributeSchema.isFilterable())

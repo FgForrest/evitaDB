@@ -487,7 +487,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	private void validate(@Nonnull S currentSchema) {
 		final Class<?> plainType = ReflectionLookup.getSimpleType(currentSchema.getType());
 		Assert.isTrue(
-			!currentSchema.isSortable() ||
+			!currentSchema.isSortableInAnyScope() ||
 				plainType.isPrimitive() ||
 				Comparable.class.isAssignableFrom(plainType) ||
 				Currency.class.isAssignableFrom(plainType) ||
@@ -497,11 +497,11 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable (or must be Predecessor/ReferencedEntityPredecessor) in order to be usable for sort index!")
 		);
 		Assert.isTrue(
-			!(currentSchema.isSortable() && currentSchema.getType().isArray()),
+			!(currentSchema.isSortableInAnyScope() && currentSchema.getType().isArray()),
 			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` is sortable but also an array. Arrays cannot be handled by sorting algorithm!")
 		);
 		Assert.isTrue(
-			!(currentSchema.isFilterable() || currentSchema.isUnique()) ||
+			!(currentSchema.isFilterableInAnyScope() || currentSchema.isUniqueInAnyScope()) ||
 				plainType.isPrimitive() ||
 				Comparable.class.isAssignableFrom(plainType) ||
 				Currency.class.isAssignableFrom(plainType) ||
@@ -509,7 +509,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable in order to be usable for filter / unique index!")
 		);
 		Assert.isTrue(
-			!(currentSchema.isFilterable() && currentSchema.isUnique()),
+			!(currentSchema.isFilterableInAnyScope() && currentSchema.isUniqueInAnyScope()),
 			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` cannot be both unique and filterable. Unique attributes are implicitly filterable!")
 		);
 	}

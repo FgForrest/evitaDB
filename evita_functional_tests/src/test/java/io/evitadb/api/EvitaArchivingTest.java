@@ -342,9 +342,145 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		final ReferenceContract productsAfterArchiving = categoryAfterArchiving.getReference("products", 100).orElse(null);
 		assertNull(productsAfterArchiving);
 
+		// restore both category and product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.restoreEntity(Entities.CATEGORY, 2);
+				session.restoreEntity(Entities.PRODUCT, 100);
+			}
+		);
+
+		// check restored category has reflected reference to product again
+		final SealedEntity categoryAfterRestore = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+					.orElse(null);
+			}
+		);
+		assertNotNull(categoryAfterRestore);
+		final ReferenceContract productsAfterRestore = categoryAfterRestore.getReference("products", 100).orElse(null);
+		assertNotNull(productsAfterRestore);
+		assertEquals("EU", productsAfterRestore.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+	}
+
+	@DisplayName("Entity reflected references should be recreated in separate scopes")
+	@Test
+	void shouldRecreateReflectedReferencesInSeparateScopes() {
+		/* create schema for entity archival */
+		evita.defineCatalog(TEST_CATALOG)
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally().sortable())
+			.updateViaNewSession(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withReflectedReferenceToEntity(
+						"products",
+						Entities.PRODUCT,
+						Entities.CATEGORY,
+						whichIs -> whichIs.indexed().withAttributesInherited()
+					)
+					.withHierarchy()
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable().sortable())
+					.withSortableAttributeCompound(
+						ATTRIBUTE_CODE_NAME,
+						new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+						new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+					)
+					.withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
+					.withReferenceToEntity(
+						Entities.CATEGORY,
+						Entities.CATEGORY,
+						Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs
+							.indexed()
+							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable().sortable())
+							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable())
+							.withSortableAttributeCompound(
+								ATTRIBUTE_CATEGORY_MARKET_OPEN,
+								new AttributeElement(ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+								new AttributeElement(ATTRIBUTE_CATEGORY_OPEN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+							)
+					)
+					.updateVia(session);
+			}
+		);
+
+		// upsert entities product depends on
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.CATEGORY, 1)
+					.setAttribute(ATTRIBUTE_CODE, "electronics")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.CATEGORY, 2)
+					.setParent(1)
+					.setAttribute(ATTRIBUTE_CODE, "TV")
+					.upsertVia(session);
+			}
+		);
+
+		// create product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+			}
+		);
+
+		// check category has reflected reference to product
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+					.orElse(null);
+			}
+		);
+		assertNotNull(category);
+		final ReferenceContract products = category.getReference("products", 100).orElse(null);
+		assertNotNull(products);
+		assertEquals("EU", products.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+
+		// archive product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 100);
+			}
+		);
+
+		// check category has no reflected reference to product
+		final SealedEntity categoryAfterArchiving = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+					.orElse(null);
+			}
+		);
+		assertNotNull(categoryAfterArchiving);
+		final ReferenceContract productsAfterArchiving = categoryAfterArchiving.getReference("products", 100).orElse(null);
+		assertNull(productsAfterArchiving);
+
 		// archive category entity
-		/* TODO JNO - create copy of this test that will leave reference indexed even if archived and test this */
-		/*evita.updateCatalog(
+		/* TODO JNO - tento test reflektovat i na klienta, ať si ověříme dobře dědičnost */
+		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.CATEGORY, 2);
@@ -374,7 +510,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNotNull(archivedCategory);
 		final ReferenceContract archivedProducts = archivedCategory.getReference("products", 100).orElse(null);
 		assertNotNull(archivedProducts);
-		assertEquals("EU", archivedProducts.getAttribute(ATTRIBUTE_CATEGORY_MARKET));*/
+		assertEquals("EU", archivedProducts.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
 
 		// restore both category and product entity
 		evita.updateCatalog(
@@ -483,6 +619,11 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldPreferEntityInLiveScopeWhenUniqueKeyConflicts() {
+		/* TODO JNO - Implement me */
+	}
+
+	@Test
+	void shouldBeAbleToDeleteArchivedEntity() {
 		/* TODO JNO - Implement me */
 	}
 

@@ -197,7 +197,9 @@ public interface ReferenceIndexMutator {
 			}
 
 			// add facet to reference index
-			addFacetToIndex(referenceIndex, referenceKey, null, executor, entityPrimaryKey, undoActionConsumer);
+			addFacetToIndex(
+				referenceIndex, referenceKey, null, executor, entityPrimaryKey, undoActionConsumer
+			);
 		}
 	}
 
@@ -325,7 +327,7 @@ public interface ReferenceIndexMutator {
 		final Scope scope = executor.getScope();
 		final ReferencesStoragePart referencesStorageContainer = executor.getContainerAccessor().getReferencesStoragePart(entityType, entityPrimaryKey);
 		for (ReferenceContract reference : referencesStorageContainer.getReferences()) {
-			if (reference.exists() && isIndexed(reference) && referencePredicate.test(reference)) {
+			if (reference.exists() && isIndexed(reference, scope) && referencePredicate.test(reference)) {
 				final EntityIndex targetIndex = getReferencedEntityIndex(executor, reference.getReferenceKey(), scope);
 				referenceIndexConsumer.accept(targetIndex);
 			}
@@ -344,7 +346,7 @@ public interface ReferenceIndexMutator {
 		int entityPrimaryKey,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		if (isFacetedReference(referenceKey, executor)) {
+		if (isFacetedReference(index.getIndexKey().scope(), referenceKey, executor)) {
 			index.addFacet(referenceKey, groupId, entityPrimaryKey);
 			if (undoActionConsumer != null) {
 				undoActionConsumer.accept(() -> index.removeFacet(referenceKey, groupId, entityPrimaryKey));
@@ -370,7 +372,7 @@ public interface ReferenceIndexMutator {
 			.filter(Droppable::exists)
 			.map(EntityReferenceContract::getPrimaryKey);
 
-		if (isFacetedReference(referenceKey, executor)) {
+		if (isFacetedReference(index.getIndexKey().scope(), referenceKey, executor)) {
 			index.removeFacet(
 				referenceKey,
 				existingGroupId.orElse(null),
@@ -396,7 +398,7 @@ public interface ReferenceIndexMutator {
 		int entityPrimaryKey,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		if (isFacetedReference(referenceKey, executor)) {
+		if (isFacetedReference(index.getIndexKey().scope(), referenceKey, executor)) {
 			final ReferenceContract existingReference = executor.getContainerAccessor().getReferencesStoragePart(entityType, entityPrimaryKey)
 				.findReferenceOrThrowException(referenceKey);
 
@@ -450,7 +452,7 @@ public interface ReferenceIndexMutator {
 		);
 		final int groupId = existingReference.getGroup().map(GroupEntityReference::getPrimaryKey).orElseThrow();
 
-		if (isFacetedReference(referenceKey, executor)) {
+		if (isFacetedReference(index.getIndexKey().scope(), referenceKey, executor)) {
 			index.removeFacet(
 				referenceKey,
 				groupId,
@@ -464,11 +466,12 @@ public interface ReferenceIndexMutator {
 	 * Returns TRUE if `referencedEntity` is marked as `faceted` in the entity schema.
 	 */
 	static boolean isFacetedReference(
+		@Nonnull Scope scope,
 		@Nonnull ReferenceKey referencedEntity,
 		@Nonnull EntityIndexLocalMutationExecutor executor
 	) {
 		final ReferenceSchemaContract referenceSchema = executor.getEntitySchema().getReferenceOrThrowException(referencedEntity.referenceName());
-		return referenceSchema.isFaceted();
+		return referenceSchema.isFaceted(scope);
 	}
 
 	/**
@@ -606,7 +609,7 @@ public interface ReferenceIndexMutator {
 		for (ReferenceContract reference : referencesStorageContainer.getReferences()) {
 			final ReferenceKey referenceKey = reference.getReferenceKey();
 			final Optional<GroupEntityReference> groupReference = reference.getGroup();
-			if (reference.exists() && isFacetedReference(referenceKey, executor)) {
+			if (reference.exists() && isFacetedReference(targetIndex.getIndexKey().scope(), referenceKey, executor)) {
 				final Integer groupId = groupReference
 					.filter(Droppable::exists)
 					.map(GroupEntityReference::getPrimaryKey)
@@ -759,7 +762,7 @@ public interface ReferenceIndexMutator {
 
 		for (ReferenceContract reference : referencesStorageContainer.getReferences()) {
 			final ReferenceKey referenceKey = reference.getReferenceKey();
-			if (reference.exists() && isFacetedReference(referenceKey, executor)) {
+			if (reference.exists() && isFacetedReference(targetIndex.getIndexKey().scope(), referenceKey, executor)) {
 				final Integer groupId = reference.getGroup()
 					.filter(Droppable::exists)
 					.map(EntityReferenceContract::getPrimaryKey)
@@ -856,9 +859,9 @@ public interface ReferenceIndexMutator {
 	/**
 	 * Returns true if reference schema is configured and indexed.
 	 */
-	private static boolean isIndexed(@Nonnull ReferenceContract reference) {
+	private static boolean isIndexed(@Nonnull ReferenceContract reference, @Nonnull Scope scope) {
 		return reference.getReferenceSchema()
-			.map(ReferenceSchemaContract::isIndexed)
+			.map(it -> it.isIndexed(scope))
 			.orElse(false);
 	}
 
