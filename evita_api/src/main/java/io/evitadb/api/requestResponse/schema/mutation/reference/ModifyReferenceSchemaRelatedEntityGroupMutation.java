@@ -43,6 +43,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -92,24 +93,29 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 			() -> "Group cannot be changed on reflected reference. This mutation can be applied only on original reference!"
 		);
 		if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
-			return ReferenceSchema._internalBuild(
-				this.name,
-				theReferenceSchema.getNameVariants(),
-				theReferenceSchema.getDescription(),
-				theReferenceSchema.getDeprecationNotice(),
-				theReferenceSchema.getCardinality(),
-				theReferenceSchema.getReferencedEntityType(),
-				theReferenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
-				theReferenceSchema.isReferencedEntityTypeManaged(),
-				this.referencedGroupType,
-				this.referencedGroupTypeManaged || this.referencedGroupType == null ?
-					Collections.emptyMap() : NamingConvention.generate(this.referencedGroupType),
-				this.referencedGroupTypeManaged,
-				theReferenceSchema.getIndexedInScopes(),
-				theReferenceSchema.getFacetedInScopes(),
-				theReferenceSchema.getAttributes(),
-				theReferenceSchema.getSortableAttributeCompounds()
-			);
+			if (Objects.equals(theReferenceSchema.getReferencedGroupType(), this.referencedGroupType) &&
+				theReferenceSchema.isReferencedGroupTypeManaged() == this.referencedGroupTypeManaged) {
+				return theReferenceSchema;
+			} else {
+				return ReferenceSchema._internalBuild(
+					this.name,
+					theReferenceSchema.getNameVariants(),
+					theReferenceSchema.getDescription(),
+					theReferenceSchema.getDeprecationNotice(),
+					theReferenceSchema.getCardinality(),
+					theReferenceSchema.getReferencedEntityType(),
+					theReferenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
+					theReferenceSchema.isReferencedEntityTypeManaged(),
+					this.referencedGroupType,
+					this.referencedGroupTypeManaged || this.referencedGroupType == null ?
+						Collections.emptyMap() : NamingConvention.generate(this.referencedGroupType),
+					this.referencedGroupTypeManaged,
+					theReferenceSchema.getIndexedInScopes(),
+					theReferenceSchema.getFacetedInScopes(),
+					theReferenceSchema.getAttributes(),
+					theReferenceSchema.getSortableAttributeCompounds()
+				);
+			}
 		} else {
 			throw new InvalidSchemaMutationException(
 				"Reference schema `" + referenceSchema.getName() + "` is not a valid reference schema!"

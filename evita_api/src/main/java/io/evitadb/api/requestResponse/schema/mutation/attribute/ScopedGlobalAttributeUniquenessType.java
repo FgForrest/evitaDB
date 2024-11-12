@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -45,4 +46,10 @@ public record ScopedGlobalAttributeUniquenessType(
 	@Nonnull Scope scope,
 	@Nonnull GlobalAttributeUniquenessType uniquenessType
 ) implements Serializable {
+
+	public ScopedGlobalAttributeUniquenessType {
+		Assert.notNull(scope, "Scope must not be null");
+		Assert.notNull(uniquenessType, "Uniqueness type must not be null");
+	}
+
 }

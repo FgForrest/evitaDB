@@ -1015,6 +1015,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReflectedReferenceToEntity(
 						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
 						whichIs -> whichIs.withAttributesInheritedExcept("note")
+							.withFacetedInherited()
 							.withAttribute("customNote", String.class)
 					)
 					.updateVia(session);

@@ -37,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 import java.io.Serializable;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Map.Entry;
 
 /**
@@ -58,14 +59,14 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 			kryo.writeClassAndObject(output, attributeSchema.getDefaultValue());
 		}
 
-		final EnumMap<Scope, AttributeUniquenessType> uniqueness = attributeSchema.getUniquenessTypeInScopes();
+		final Map<Scope, AttributeUniquenessType> uniqueness = attributeSchema.getUniquenessTypeInScopes();
 		output.writeVarInt(uniqueness.size(), true);
 		for (Entry<Scope, AttributeUniquenessType> entry : uniqueness.entrySet()) {
 			kryo.writeObject(output, entry.getKey());
 			kryo.writeObject(output, entry.getValue());
 		}
 
-		final EnumMap<Scope, GlobalAttributeUniquenessType> globalUniqueness = attributeSchema.getGlobalUniquenessTypeInScopes();
+		final Map<Scope, GlobalAttributeUniquenessType> globalUniqueness = attributeSchema.getGlobalUniquenessTypeInScopes();
 		output.writeVarInt(globalUniqueness.size(), true);
 		for (Entry<Scope, GlobalAttributeUniquenessType> entry : globalUniqueness.entrySet()) {
 			kryo.writeObject(output, entry.getKey());

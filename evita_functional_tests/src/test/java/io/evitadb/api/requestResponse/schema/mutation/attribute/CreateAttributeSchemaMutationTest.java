@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
@@ -120,7 +121,7 @@ class CreateAttributeSchemaMutationTest {
 
 	@Nonnull
 	static ReferenceSchemaContract createMockedReferenceSchema() {
-		final ReferenceSchemaContract referenceSchema = Mockito.mock(ReferenceSchemaContract.class);
+		final ReferenceSchemaContract referenceSchema = Mockito.mock(ReferenceSchema.class);
 		Mockito.when(referenceSchema.getName()).thenReturn("referenceName");
 		Mockito.when(referenceSchema.getReferencedEntityType()).thenReturn("abd");
 		return referenceSchema;

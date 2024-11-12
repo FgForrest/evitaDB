@@ -99,8 +99,10 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 	) {
 		this(
 			name, description, deprecationNotice, cardinality, referencedEntityType, reflectedReferenceName,
-			new Scope[] {Scope.LIVE},
-			faceted == null ? null : faceted ? new Scope[] {Scope.LIVE} : new Scope[0],
+			// by default reflected reference is indexed in the same scope as the entity
+			null,
+			// by default reflected reference is not faceted unless explicitly set
+			faceted == null ? null : faceted ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE,
 			attributesInheritanceBehavior, attributeInheritanceFilter
 		);
 	}

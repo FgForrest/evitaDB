@@ -65,7 +65,7 @@ public class EntityAttributeSchemaSerializer extends Serializer<EntityAttributeS
 			kryo.writeClassAndObject(output, attributeSchema.getDefaultValue());
 		}
 
-		final EnumMap<Scope, AttributeUniquenessType> uniqueness = attributeSchema.getUniquenessTypeInScopes();
+		final Map<Scope, AttributeUniquenessType> uniqueness = attributeSchema.getUniquenessTypeInScopes();
 		output.writeVarInt(uniqueness.size(), true);
 		for (Entry<Scope, AttributeUniquenessType> entry : uniqueness.entrySet()) {
 			kryo.writeObject(output, entry.getKey());

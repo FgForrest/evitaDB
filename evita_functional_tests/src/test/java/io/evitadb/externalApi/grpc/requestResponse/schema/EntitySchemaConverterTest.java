@@ -245,18 +245,18 @@ class EntitySchemaConverterTest {
 		}
 
 		assertEquals(expected.getName(), actual.getName());
-		assertEquals(expected.getDescription(), actual.getDescription());
+		assertEquals(expected.getDescription(), actual.getDescription(), "Attribute `" + expected.getName() + "` is expected to have description `" + expected.getDescription() + "`!");
 		assertEquals(expected.getNameVariants(), actual.getNameVariants());
-		assertEquals(expected.getDeprecationNotice(), actual.getDeprecationNotice());
-		assertEquals(expected.isLocalized(), actual.isLocalized());
-		assertEquals(expected.isUnique(), actual.isUnique());
-		assertEquals(expected.isFilterable(), actual.isFilterable());
-		assertEquals(expected.isSortable(), actual.isSortable());
-		assertEquals(expected.isNullable(), actual.isNullable());
-		assertEquals(expected.getType(), actual.getType());
-		assertEquals(expected.getPlainType(), actual.getPlainType());
-		assertEquals(expected.getDefaultValue(), actual.getDefaultValue());
-		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces());
+		assertEquals(expected.getDeprecationNotice(), actual.getDeprecationNotice(), "Attribute `" + expected.getName() + "` is expected to have deprecation notice `" + expected.getDeprecationNotice() + "`!");
+		assertEquals(expected.isLocalized(), actual.isLocalized(), "Attribute `" + expected.getName() + "` is expected " + (expected.isLocalized() ? "localized" : "not localized") + "!");
+		assertEquals(expected.isUnique(), actual.isUnique(), "Attribute `" + expected.getName() + "` is expected " + (expected.isUnique() ? "unique" : "not unique") + "!");
+		assertEquals(expected.isFilterable(), actual.isFilterable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isFilterable() ? "filterable" : "not filterable") + "!");
+		assertEquals(expected.isSortable(), actual.isSortable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isSortable() ? "sortable" : "not sortable") + "!");
+		assertEquals(expected.isNullable(), actual.isNullable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isNullable() ? "nullable" : "not nullable") + "!");
+		assertEquals(expected.getType(), actual.getType(), "Attribute `" + expected.getName() + "` is expected to be of type `" + expected.getType() + "`!");
+		assertEquals(expected.getPlainType(), actual.getPlainType(), "Attribute `" + expected.getName() + "` is expected to be of plain type `" + expected.getPlainType() + "`!");
+		assertEquals(expected.getDefaultValue(), actual.getDefaultValue(), "Attribute `" + expected.getName() + "` is expected to have default value `" + expected.getDefaultValue() + "`!");
+		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces(), "Attribute `" + expected.getName() + "` is expected to have indexed decimal places `" + expected.getIndexedDecimalPlaces() + "`!");
 	}
 
 	private static void assertSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract expected, @Nonnull SortableAttributeCompoundSchemaContract actual) {

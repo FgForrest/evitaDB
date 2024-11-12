@@ -46,6 +46,9 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
 	 * better to have this ensured by the database engine.
 	 *
+	 * This method makes attribute unique only in the {@link Scope#LIVE} scope, archived entities will not be unique
+	 * by this attribute unless explicitly set via {@link #uniqueGlobally(Scope...)}.
+	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
@@ -54,29 +57,19 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+	 * entity having certain value of this attribute in entire {@link io.evitadb.api.CatalogContract}.
+	 * {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable}
+	 * interface.
+	 *
+	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * @param inScope one or more scopes where the attribute should be unique
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T uniqueGlobally(@Nonnull Scope... inScope);
-
-	/**
-	 * TODO JNO - document me
-	 * @return
-	 */
-	@Nonnull
-	default T nonUniqueGlobally() {
-		return nonUniqueGlobally(Scope.LIVE);
-	}
-
-	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
-	 */
-	@Nonnull
-	T nonUniqueGlobally(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -94,6 +87,29 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	default T uniqueGlobally(@Nonnull BooleanSupplier decider) {
 		return decider.getAsBoolean() ? uniqueGlobally() : nonUniqueGlobally();
 	}
+
+	/**
+	 * Makes attribute values not unique globally among other attributes in all scopes. This method resets all unique
+	 * constraints on the attribute, no matter whether they are global or locale specific. This means there might be
+	 * duplicate values for this type of attribute.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonUniqueGlobally() {
+		return nonUniqueGlobally(Scope.values());
+	}
+
+	/**
+	 * Makes attribute values not unique globally in specified scope(s). This method resets all unique constraints on
+	 * the attribute, no matter whether they are global or locale specific. This means there might be duplicate values
+	 * for this type of attribute.
+	 *
+	 * @param inScope one or more scopes in which the attribute should not be unique
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonUniqueGlobally(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -116,29 +132,25 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+	 * entity having certain value of this attribute in entire {@link io.evitadb.api.CatalogContract}.
+	 * {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable}
+	 * interface.
+	 *
+	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #uniqueGlobally()} in that it is possible to have multiple entities with same
+	 * value of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different
+	 * locales.
+	 *
+	 * This method makes attribute unique only in the {@link Scope#LIVE} scope, archived entities will not be unique
+	 * by this attribute unless explicitly set via {@link #uniqueGloballyWithinLocale(Scope...)}.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T uniqueGloballyWithinLocale(@Nonnull Scope... inScope);
-
-	/**
-	 * TODO JNO - document me
-	 * @return
-	 */
-	@Nonnull
-	default T nonUniqueGloballyWithinLocale() {
-		return nonUniqueGloballyWithinLocale(Scope.LIVE);
-	}
-
-	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
-	 */
-	@Nonnull
-	T nonUniqueGloballyWithinLocale(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -160,6 +172,29 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	default T uniqueGloballyWithinLocale(@Nonnull BooleanSupplier decider) {
 		return decider.getAsBoolean() ? uniqueGloballyWithinLocale() : nonUniqueGloballyWithinLocale();
 	}
+
+	/**
+	 * Makes attribute values not unique globaly among other attributes in all scopes. This method resets all unique
+	 * constraints on the attribute, no matter whether they are global or locale specific. This means there might be
+	 * duplicate values for this type of attribute.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonUniqueGloballyWithinLocale() {
+		return nonUniqueGloballyWithinLocale(Scope.values());
+	}
+
+	/**
+	 * Makes attribute values not unique globally in specified scope(s). This method resets all unique constraints on
+	 * the attribute, no matter whether they are global or locale specific. This means there might be duplicate values
+	 * for this type of attribute.
+	 *
+	 * @param inScope one or more scopes in which the attribute should not be unique
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonUniqueGloballyWithinLocale(@Nonnull Scope... inScope);
 
 	/**
 	 * Interface that simply combines {@link GlobalAttributeSchemaEditor} and {@link GlobalAttributeSchemaContract}

@@ -315,7 +315,7 @@ public final class ReflectedReferenceSchemaBuilder
 	public ReflectedReferenceSchemaBuilder indexed(@Nullable Scope... inScope) {
 		Assert.isTrue(
 			!(inScope != null && inScope.length == 0),
-			"Reflected references must be indexed (otherwise we wouldn't be able to propagate the reflections)!"
+			() -> new InvalidSchemaMutationException("Reflected references must be indexed (otherwise we wouldn't be able to propagate the reflections)!")
 		);
 
 		this.updatedSchemaDirty = updateMutationImpact(
@@ -330,26 +330,39 @@ public final class ReflectedReferenceSchemaBuilder
 
 	@Nonnull
 	@Override
+	public ReflectedReferenceSchemaBuilder nonIndexed() {
+		if (isReflectedReferenceAvailable()) {
+			return nonIndexed(Scope.LIVE);
+		} else {
+			throw new InvalidSchemaMutationException(
+				"Reflected references must be indexed (otherwise we wouldn't be able to propagate the reflections)!"
+			);
+		}
+	}
+
+	@Nonnull
+	@Override
 	public ReflectedReferenceSchemaBuilder nonIndexed(@Nullable Scope... inScope) {
+		Assert.isTrue(
+			!isIndexedInherited() || isReflectedReferenceAvailable(),
+			() -> new InvalidSchemaMutationException("Cannot update non-indexed scopes on inherited reference schema when the referenced schema is not available!")
+		);
+
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
-		final Scope[] newScopes = Arrays.stream(Scope.values())
-			.filter(this::isIndexed)
-			.filter(excludedScopes::contains)
+		final Scope[] newScopes = getIndexedInScopes().stream()
+			.filter(it -> !excludedScopes.contains(it))
 			.toArray(Scope[]::new);
 
 		Assert.isTrue(
 			newScopes.length > 0,
-			"Reflected references must be indexed (otherwise we wouldn't be able to propagate the reflections)!"
+			() -> new InvalidSchemaMutationException("Reflected references must be indexed (otherwise we wouldn't be able to propagate the reflections)!")
 		);
 
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaIndexedMutation(
-					getName(),
-					newScopes
-				)
+				new SetReferenceSchemaIndexedMutation(getName(), newScopes)
 			)
 		);
 		return this;
@@ -358,7 +371,8 @@ public final class ReflectedReferenceSchemaBuilder
 	@Nonnull
 	@Override
 	public ReflectedReferenceSchemaBuilder faceted(@Nonnull Scope... inScope) {
-		if (Arrays.stream(inScope).allMatch(this::isIndexed)) {
+		final boolean reflectedReferenceAvailable = isReflectedReferenceAvailable();
+		if (reflectedReferenceAvailable && Arrays.stream(inScope).allMatch(this::isIndexed)) {
 			// just update the faceted scopes
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
@@ -377,7 +391,7 @@ public final class ReflectedReferenceSchemaBuilder
 					new SetReferenceSchemaIndexedMutation(
 						getName(),
 						Arrays.stream(Scope.values())
-							.filter(scope -> includedScopes.contains(scope) || isIndexed(scope))
+							.filter(scope -> includedScopes.contains(scope) && (reflectedReferenceAvailable || !isIndexed(scope)))
 							.toArray(Scope[]::new)
 					),
 					new SetReferenceSchemaFacetedMutation(getName(), inScope)
@@ -389,19 +403,39 @@ public final class ReflectedReferenceSchemaBuilder
 
 	@Nonnull
 	@Override
+	public ReflectedReferenceSchemaBuilder nonFaceted() {
+		if (isReflectedReferenceAvailable()) {
+			return nonFaceted(Scope.LIVE);
+		} else {
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaFacetedMutation(getName(), Scope.NO_SCOPE)
+				)
+			);
+			return this;
+		}
+	}
+
+	@Nonnull
+	@Override
 	public ReflectedReferenceSchemaBuilder nonFaceted(@Nonnull Scope... inScope) {
+		Assert.isTrue(
+			!isFacetedInherited() || isReflectedReferenceAvailable(),
+			() -> new InvalidSchemaMutationException("Cannot update non-indexed scopes on inherited reference schema when the referenced schema is not available!")
+		);
+
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		final Scope[] newScopes = getFacetedInScopes().stream()
+			.filter(it -> !excludedScopes.contains(it))
+			.toArray(Scope[]::new);
+
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaFacetedMutation(
-					getName(),
-					Arrays.stream(Scope.values())
-						.filter(this::isFaceted)
-						.filter(excludedScopes::contains)
-						.toArray(Scope[]::new)
-				)
+				new SetReferenceSchemaFacetedMutation(getName(), newScopes)
 			)
 		);
 		return this;
@@ -618,7 +652,7 @@ public final class ReflectedReferenceSchemaBuilder
 	/**
 	 * Builds new instance of immutable {@link ReferenceSchemaContract} filled with updated configuration.
 	 */
-	@Delegate(types = ReferenceSchemaContract.class)
+	@Delegate(types = ReflectedReferenceSchema.class)
 	private ReflectedReferenceSchema toInstanceInternal() {
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
 			// if the dirty flat is set to modified previous we need to start from the base schema again

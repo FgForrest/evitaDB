@@ -139,7 +139,7 @@ public class ModifyAttributeSchemaTypeMutation
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		@SuppressWarnings("rawtypes")
 		final Class newType = EvitaDataTypes.toWrappedForm(type);
-		if (newType.equals(attributeSchema.getType())) {
+		if (newType.equals(attributeSchema.getType()) && indexedDecimalPlaces == attributeSchema.getIndexedDecimalPlaces()) {
 			return attributeSchema;
 		} else if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
 			//noinspection unchecked

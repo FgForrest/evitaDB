@@ -73,7 +73,6 @@ import static java.util.Optional.ofNullable;
 public final class ReferenceSchemaBuilder
 	implements ReferenceSchemaEditor.ReferenceSchemaBuilder, InternalSchemaBuilderHelper {
 	@Serial private static final long serialVersionUID = -6435272035844056999L;
-	private static final Scope[] NO_SCOPES = new Scope[0];
 
 	private final CatalogSchemaContract catalogSchema;
 	private final EntitySchemaContract entitySchema;
@@ -100,7 +99,7 @@ public final class ReferenceSchemaBuilder
 			ReferenceSchema._internalBuild(
 				name, entityType, referencedEntityTypeManaged, cardinality,
 				null, false,
-				NO_SCOPES, NO_SCOPES
+				Scope.NO_SCOPE, Scope.NO_SCOPE
 			) :
 			existingSchema;
 		if (createNew) {
@@ -250,7 +249,7 @@ public final class ReferenceSchemaBuilder
 					getName(),
 					Arrays.stream(Scope.values())
 						.filter(this::isIndexed)
-						.filter(excludedScopes::contains)
+						.filter(it -> !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
 				)
 			)
@@ -302,7 +301,7 @@ public final class ReferenceSchemaBuilder
 					getName(),
 					Arrays.stream(Scope.values())
 						.filter(this::isFaceted)
-						.filter(excludedScopes::contains)
+						.filter(it -> !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
 				)
 			)

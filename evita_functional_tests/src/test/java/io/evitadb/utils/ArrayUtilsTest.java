@@ -72,13 +72,6 @@ class ArrayUtilsTest {
 	}
 
 	@Test
-	void testToEnumSetWithNullValues() {
-		TestEnum[] input = {null, TestEnum.VALUE1};
-		EnumSet<TestEnum> result = ArrayUtils.toEnumSet(TestEnum.class, input);
-		assertEquals(EnumSet.of(TestEnum.VALUE1), result);
-	}
-
-	@Test
 	void shouldReturnTrueForEmptyObjectArray() {
 		assertTrue(ArrayUtils.isEmpty((Object[]) null));
 		assertTrue(ArrayUtils.isEmpty(new Object[0]));

@@ -464,12 +464,12 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		);
 		this.indexedInherited = indexedInScopes == null;
 		Assert.isTrue(
-			this.indexedInherited || (indexedInScopes != null && !indexedInScopes.isEmpty()),
+			this.indexedInherited || indexedInScopes != null,
 			"Indexed scopes must be either inherited or specified explicitly!"
 		);
 		this.facetedInherited = facetedInScopes == null;
 		Assert.isTrue(
-			this.facetedInherited || (facetedInScopes != null && !facetedInScopes.isEmpty()),
+			this.facetedInherited || facetedInScopes != null,
 			"Faceted scopes must be either inherited or specified explicitly!"
 		);
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
@@ -660,18 +660,21 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	}
 
 	@Override
-	public boolean isIndexed() {
-		// reflected references are required to be indexed
-		return true;
+	public boolean isIndexed(@Nonnull Scope scope) {
+		Assert.isTrue(
+			!this.indexedInherited || this.reflectedReference != null,
+			"indexed property of the reflected reference is inherited from the target reference, but the reflected reference is not available!"
+		);
+		return super.isIndexed(scope);
 	}
 
 	@Override
-	public boolean isFaceted() {
+	public boolean isFaceted(@Nonnull Scope scope) {
 		Assert.isTrue(
 			!this.facetedInherited || this.reflectedReference != null,
 			"Faceted property of the reflected reference is inherited from the target reference, but the reflected reference is not available!"
 		);
-		return super.isFaceted();
+		return super.isFaceted(scope);
 	}
 
 	@Nonnull
@@ -1401,7 +1404,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	@Nonnull
 	public ReflectedReferenceSchema withReferencedSchema(@Nonnull ReferenceSchemaContract originalReference) {
 		Assert.isTrue(
-			originalReference.isIndexed(),
+			Arrays.stream(Scope.values()).anyMatch(originalReference::isIndexed),
 			() -> new InvalidSchemaMutationException(
 				"Referenced reference `" + originalReference.getName() +
 					"` must be indexed in order to propagate changes to reflected reference `" + getName() + "`!"

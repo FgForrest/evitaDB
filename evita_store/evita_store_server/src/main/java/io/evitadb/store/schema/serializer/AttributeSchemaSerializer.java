@@ -40,6 +40,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link AttributeSchema} from/to binary format.
@@ -56,7 +57,7 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 	 * @param output the Output instance to write to
 	 * @param scopes the EnumSet of Scope objects to serialize
 	 */
-	static void writeScopeSet(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull EnumSet<Scope> scopes) {
+	static void writeScopeSet(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull Set<Scope> scopes) {
 		output.writeVarInt(scopes.size(), true);
 		for (Scope filterableInScope : scopes) {
 			kryo.writeObject(output, filterableInScope);
@@ -96,7 +97,7 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 			kryo.writeClassAndObject(output, attributeSchema.getDefaultValue());
 		}
 
-		final EnumMap<Scope, AttributeUniquenessType> uniqueness = attributeSchema.getUniquenessTypeInScopes();
+		final Map<Scope, AttributeUniquenessType> uniqueness = attributeSchema.getUniquenessTypeInScopes();
 		output.writeVarInt(uniqueness.size(), true);
 		for (Entry<Scope, AttributeUniquenessType> entry : uniqueness.entrySet()) {
 			kryo.writeObject(output, entry.getKey());

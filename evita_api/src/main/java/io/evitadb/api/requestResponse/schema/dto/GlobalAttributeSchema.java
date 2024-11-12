@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeU
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -42,6 +43,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -53,7 +55,7 @@ import java.util.stream.Collectors;
 public final class GlobalAttributeSchema extends AttributeSchema implements GlobalAttributeSchemaContract {
 	@Serial private static final long serialVersionUID = -6027390261318420826L;
 
-	@Getter private final EnumMap<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes;
+	@Getter private final Map<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes;
 	@Getter private final boolean representative;
 
 	/**
@@ -191,10 +193,10 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable EnumMap<Scope, AttributeUniquenessType> uniqueInScopes,
-		@Nullable EnumMap<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes,
-		@Nonnull EnumSet<Scope> filterableInScopes,
-		@Nonnull EnumSet<Scope> sortableInScopes,
+		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable Map<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes,
+		@Nonnull Set<Scope> filterableInScopes,
+		@Nonnull Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		boolean representative,
@@ -227,10 +229,10 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable EnumMap<Scope, AttributeUniquenessType> uniqueInScopes,
-		@Nullable EnumMap<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes,
-		@Nonnull EnumSet<Scope> filterableInScopes,
-		@Nonnull EnumSet<Scope> sortableInScopes,
+		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable Map<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes,
+		@Nonnull Set<Scope> filterableInScopes,
+		@Nonnull Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		boolean representative,
@@ -296,10 +298,10 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable EnumMap<Scope, AttributeUniquenessType> uniqueInScopes,
-		@Nullable EnumMap<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes,
-		@Nonnull EnumSet<Scope> filterableInScopes,
-		@Nonnull EnumSet<Scope> sortableInScopes,
+		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nullable Map<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes,
+		@Nonnull Set<Scope> filterableInScopes,
+		@Nonnull Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
 		boolean representative,
@@ -312,7 +314,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			uniqueInScopes, filterableInScopes, sortableInScopes, localized, nullable,
 			type, defaultValue, indexedDecimalPlaces
 		);
-		this.globalUniquenessTypeInScopes = new EnumMap<>(globalUniquenessTypeInScopes);
+		this.globalUniquenessTypeInScopes = CollectionUtils.toUnmodifiableMap(new EnumMap<>(globalUniquenessTypeInScopes));
 		this.representative = representative;
 	}
 

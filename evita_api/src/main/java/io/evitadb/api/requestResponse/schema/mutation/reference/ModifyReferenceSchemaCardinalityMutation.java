@@ -85,29 +85,35 @@ public class ModifyReferenceSchemaCardinalityMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		if (referenceSchema.getCardinality() == this.cardinality) {
-			return referenceSchema;
-		} else if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-			return reflectedReferenceSchema
-				.withCardinality(this.cardinality);
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+			if (reflectedReferenceSchema.isReflectedReferenceAvailable() && reflectedReferenceSchema.getCardinality() == this.cardinality) {
+				return referenceSchema;
+			} else {
+				return reflectedReferenceSchema
+					.withCardinality(this.cardinality);
+			}
 		} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
-			return ReferenceSchema._internalBuild(
-				this.name,
-				theReferenceSchema.getNameVariants(),
-				theReferenceSchema.getDescription(),
-				theReferenceSchema.getDeprecationNotice(),
-				this.cardinality,
-				theReferenceSchema.getReferencedEntityType(),
-				theReferenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
-				theReferenceSchema.isReferencedEntityTypeManaged(),
-				theReferenceSchema.getReferencedGroupType(),
-				theReferenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
-				theReferenceSchema.isReferencedGroupTypeManaged(),
-				theReferenceSchema.getIndexedInScopes(),
-				theReferenceSchema.getFacetedInScopes(),
-				theReferenceSchema.getAttributes(),
-				theReferenceSchema.getSortableAttributeCompounds()
-			);
+			if (referenceSchema.getCardinality() == this.cardinality) {
+				return referenceSchema;
+			} else {
+				return ReferenceSchema._internalBuild(
+					this.name,
+					theReferenceSchema.getNameVariants(),
+					theReferenceSchema.getDescription(),
+					theReferenceSchema.getDeprecationNotice(),
+					this.cardinality,
+					theReferenceSchema.getReferencedEntityType(),
+					theReferenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
+					theReferenceSchema.isReferencedEntityTypeManaged(),
+					theReferenceSchema.getReferencedGroupType(),
+					theReferenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
+					theReferenceSchema.isReferencedGroupTypeManaged(),
+					theReferenceSchema.getIndexedInScopes(),
+					theReferenceSchema.getFacetedInScopes(),
+					theReferenceSchema.getAttributes(),
+					theReferenceSchema.getSortableAttributeCompounds()
+				);
+			}
 		} else {
 			throw new InvalidSchemaMutationException(
 				"Reference schema `" + referenceSchema + "` is not supported for mutation!"

@@ -163,6 +163,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerType(ModifyReferenceSchemaNameMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(RemoveReferenceSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(SetReferenceSchemaFacetedMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(SetReferenceSchemaIndexedMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());

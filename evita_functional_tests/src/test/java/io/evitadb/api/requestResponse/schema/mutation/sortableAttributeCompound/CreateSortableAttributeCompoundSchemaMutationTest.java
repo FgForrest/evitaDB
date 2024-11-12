@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
@@ -69,7 +70,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 
 	@Nonnull
 	static ReferenceSchemaContract createMockedReferenceSchema() {
-		final ReferenceSchemaContract referenceSchema = Mockito.mock(ReferenceSchemaContract.class);
+		final ReferenceSchemaContract referenceSchema = Mockito.mock(ReferenceSchema.class);
 		Mockito.when(referenceSchema.getName()).thenReturn("referenceName");
 		Mockito.when(referenceSchema.getReferencedEntityType()).thenReturn("abd");
 		return referenceSchema;

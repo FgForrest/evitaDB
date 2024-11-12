@@ -123,7 +123,10 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 		this(
 			name, description, deprecationNotice,
 			new ScopedAttributeUniquenessType[]{
-				new ScopedAttributeUniquenessType(Scope.LIVE, unique)
+				new ScopedAttributeUniquenessType(
+					Scope.LIVE,
+					unique == null ? AttributeUniquenessType.NOT_UNIQUE : unique
+				)
 			},
 			filterable ? new Scope[]{Scope.LIVE} : NO_SCOPE,
 			sortable ? new Scope[]{Scope.LIVE} : NO_SCOPE,

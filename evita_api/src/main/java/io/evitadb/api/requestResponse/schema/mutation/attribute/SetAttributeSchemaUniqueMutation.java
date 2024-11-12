@@ -152,7 +152,7 @@ public class SetAttributeSchemaUniqueMutation
 				);
 			}
 		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
-			if (entityAttributeSchema.getFilterableInScopes().equals(unique)) {
+			if (entityAttributeSchema.getUniquenessTypeInScopes().equals(unique)) {
 				return attributeSchema;
 			} else {
 				//noinspection unchecked,rawtypes

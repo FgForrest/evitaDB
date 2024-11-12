@@ -52,18 +52,24 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 
 	/**
 	 * Specifies that reference of this type will be related to external entity not maintained in Evita.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T withGroupType(@Nonnull String groupType);
 
 	/**
 	 * Specifies that reference of this type will be related to another entity maintained in Evita ({@link Entity#getType()}).
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T withGroupTypeRelatedToEntity(@Nonnull String groupType);
 
 	/**
 	 * Specifies that this reference will not be grouped to a specific groups. This is default setting for the reference.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T withoutGroupType();
@@ -76,6 +82,11 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
 	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
 	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
+	 *
+	 * This method makes reference indexed only in the {@link Scope#LIVE} scope, archived entities will not be indexed
+	 * by this reference unless explicitly set via {@link #faceted(Scope...)}.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T indexed() {
@@ -83,26 +94,37 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * Contains TRUE if evitaDB should create and maintain searchable index for this reference allowing to filter by
+	 * {@link ReferenceHaving} filtering constraints. Index is also required when reference is {@link #faceted()}.
+	 *
+	 * Do not mark reference as indexed unless you know that you'll need to filter / sort entities by this reference.
+	 * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
+	 *
+	 * @param inScope one or more scopes where the reference should be indexed
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T indexed(@Nullable Scope... inScope);
 
 	/**
-	 * Makes reference as non-faceted. This means reference information will be available on entity when loaded but
-	 * cannot be used in filtering.
+	 * Makes reference as non-faceted in all scopes. This means reference information will be available on entity when
+	 * loaded but cannot be used in filtering.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T nonIndexed() {
-		return nonIndexed(Scope.LIVE);
+		return nonIndexed(Scope.values());
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * Makes reference as non-indexed in particular scope(s). This means reference information will be available on
+	 * entity when loaded but cannot be used in filtering.
+	 *
+	 * @param inScope one or more scopes where the reference should be non-indexed
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T nonIndexed(@Nullable Scope... inScope);
@@ -114,6 +136,11 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 *
 	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
 	 * indexed reference occupies (memory/disk) space in the form of index.
+	 *
+	 * This method makes reference faceted only in the {@link Scope#LIVE} scope, archived entities will not be faceted
+	 * by this reference unless explicitly set via {@link #faceted(Scope...)}.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T faceted() {
@@ -121,27 +148,36 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Makes reference faceted. That means that statistics data for this reference should be maintained and this
+	 * allowing to get {@link FacetStatistics} for this reference or use {@link FacetHaving} filtering query. When
+	 * reference is faceted it is also automatically made {@link #indexed()} as well.
+	 *
+	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
+	 * indexed reference occupies (memory/disk) space in the form of index.
+	 *
+	 * @param inScope one or more scopes where the reference should be faceted
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T faceted(@Nonnull Scope... inScope);
 
 	/**
-	 * Makes reference as non-faceted. This means reference information will be available on entity when loaded but
-	 * cannot be part of the computed facet statistics and filtering by facet query.
+	 * Makes reference as non-faceted in all scopes. This means reference information will be available on entity when
+	 * loaded but cannot be part of the computed facet statistics and filtering by facet query.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T nonFaceted() {
-		return nonFaceted(Scope.LIVE);
+		return nonFaceted(Scope.values());
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param inScope
-	 * @return
+	 * Makes reference as non-faceted in particular scope(s). This means reference information will be available on
+	 * entity when loaded but cannot be part of the computed facet statistics and filtering by facet query.
+	 *
+	 * @param inScope one or more scopes where the reference should be non-faceted
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	T nonFaceted(@Nonnull Scope... inScope);
