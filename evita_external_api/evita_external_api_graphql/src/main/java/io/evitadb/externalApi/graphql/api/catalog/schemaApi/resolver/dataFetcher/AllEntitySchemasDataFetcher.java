@@ -30,8 +30,11 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Set;
 
@@ -40,7 +43,19 @@ import java.util.Set;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AllEntitySchemasDataFetcher implements DataFetcher<List<EntitySchemaContract>> {
+
+	@Nullable
+	private static AllEntitySchemasDataFetcher INSTANCE;
+
+	@Nonnull
+	public static AllEntitySchemasDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new AllEntitySchemasDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

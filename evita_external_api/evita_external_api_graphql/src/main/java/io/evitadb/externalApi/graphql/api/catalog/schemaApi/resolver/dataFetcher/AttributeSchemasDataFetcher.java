@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,15 +27,30 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Passes {@link AttributeSchemaProvider} down to resolving individual {@link AttributeSchema}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AttributeSchemasDataFetcher implements DataFetcher<AttributeSchemaProvider<AttributeSchema>> {
+
+	@Nullable
+	private static AttributeSchemasDataFetcher INSTANCE;
+
+	@Nonnull
+	public static AttributeSchemasDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new AttributeSchemasDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

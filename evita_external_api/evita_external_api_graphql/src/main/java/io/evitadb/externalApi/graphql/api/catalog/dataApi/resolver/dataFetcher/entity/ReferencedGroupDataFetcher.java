@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,9 +28,12 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Fetches group entity from parent {@link ReferenceContract}.
@@ -38,7 +41,19 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReferencedGroupDataFetcher implements DataFetcher<EntityClassifier> {
+
+	@Nullable
+	private static ReferencedGroupDataFetcher INSTANCE;
+
+	@Nonnull
+	public static ReferencedGroupDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new ReferencedGroupDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

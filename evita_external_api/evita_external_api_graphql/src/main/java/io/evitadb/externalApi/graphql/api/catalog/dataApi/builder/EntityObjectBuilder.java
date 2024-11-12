@@ -274,7 +274,7 @@ public class EntityObjectBuilder {
 		buildingContext.registerDataFetcher(
 			GlobalEntityDescriptor.THIS,
 			GlobalEntityDescriptor.TARGET_ENTITY,
-			new TargetEntityDataFetcher()
+			TargetEntityDataFetcher.getInstance()
 		);
 
 		return globalEntityObjectBuilder.build();
@@ -284,7 +284,7 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityParentPrimaryKeyField() {
 		return new BuiltFieldDescriptor(
 			GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.to(fieldBuilderTransformer).build(),
-			new ParentPrimaryKeyDataFetcher()
+			ParentPrimaryKeyDataFetcher.getInstance()
 		);
 	}
 
@@ -292,7 +292,7 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildNonHierarchicalEntityParentPrimaryKeyField() {
 		return new BuiltFieldDescriptor(
 			GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.to(fieldBuilderTransformer).build(),
-			new NonHierarchicalParentPrimaryKeyDataFetcher()
+			NonHierarchicalParentPrimaryKeyDataFetcher.getInstance()
 		);
 	}
 
@@ -318,7 +318,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			field,
-			new ParentsDataFetcher()
+			ParentsDataFetcher.getInstance()
 		);
 	}
 
@@ -361,7 +361,7 @@ public class EntityObjectBuilder {
 				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_NOW
 					.to(argumentBuilderTransformer))
 				.build(),
-			new MultiplePricesForSaleAvailableDataFetcher()
+			MultiplePricesForSaleAvailableDataFetcher.getInstance()
 		);
 	}
 
@@ -386,7 +386,7 @@ public class EntityObjectBuilder {
 				.type(typeRef(LOCALE_ENUM.name())))
 			.build();
 
-		return new BuiltFieldDescriptor(field, new AllPricesForSaleDataFetcher());
+		return new BuiltFieldDescriptor(field, AllPricesForSaleDataFetcher.getInstance());
 	}
 
 	// TOBEDONE #538: deprecated, remove
@@ -404,7 +404,7 @@ public class EntityObjectBuilder {
 				.type(typeRef(LOCALE_ENUM.name())))
 			.build();
 
-		return new BuiltFieldDescriptor(field, new PriceDataFetcher());
+		return new BuiltFieldDescriptor(field, PriceDataFetcher.getInstance());
 	}
 
 	@Nonnull
@@ -421,7 +421,7 @@ public class EntityObjectBuilder {
 				.type(typeRef(LOCALE_ENUM.name())))
 			.build();
 
-		return new BuiltFieldDescriptor(field, new PricesDataFetcher());
+		return new BuiltFieldDescriptor(field, PricesDataFetcher.getInstance());
 	}
 
 	@Nonnull
@@ -445,7 +445,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			attributesFieldBuilder.build(),
-			new AttributesDataFetcher()
+			AttributesDataFetcher.getInstance()
 		);
 	}
 
@@ -475,7 +475,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			attributesFieldBuilder.build(),
-			new AttributesDataFetcher()
+			AttributesDataFetcher.getInstance()
 		);
 	}
 
@@ -550,7 +550,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			associatedDataFieldBuilder.build(),
-			new AssociatedDataDataFetcher()
+			AssociatedDataDataFetcher.getInstance()
 		);
 	}
 
@@ -709,7 +709,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			attributesField,
-			new AttributesDataFetcher()
+			AttributesDataFetcher.getInstance()
 		);
 	}
 
@@ -732,7 +732,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			referencedEntityField,
-			new ReferencedEntityDataFetcher()
+			ReferencedEntityDataFetcher.getInstance()
 		);
 	}
 
@@ -755,7 +755,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			referencedEntityField,
-			new ReferencedGroupDataFetcher()
+			ReferencedGroupDataFetcher.getInstance()
 		);
 	}
 
@@ -789,7 +789,7 @@ public class EntityObjectBuilder {
 		buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
 			PriceForSaleDescriptor.ACCOMPANYING_PRICE,
-			new AccompanyingPriceDataFetcher()
+			AccompanyingPriceDataFetcher.getInstance()
 		);
 
 		return PriceForSaleDescriptor.THIS
