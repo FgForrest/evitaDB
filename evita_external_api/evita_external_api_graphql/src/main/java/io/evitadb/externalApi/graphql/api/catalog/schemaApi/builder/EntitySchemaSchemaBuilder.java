@@ -222,7 +222,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			objectName,
 			EntitySchemaDescriptor.ALL_ATTRIBUTES,
-			new AllAttributeSchemasDataFetcher()
+			AllAttributeSchemasDataFetcher.getInstance()
 		);
 
 		if (!entitySchema.getSortableAttributeCompounds().isEmpty()) {
@@ -252,7 +252,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			objectName,
 			EntitySchemaDescriptor.ALL_ASSOCIATED_DATA,
-			new AllAssociatedDataSchemasDataFetcher()
+			AllAssociatedDataSchemasDataFetcher.getInstance()
 		);
 
 		if (!entitySchema.getReferences().isEmpty()) {
@@ -267,7 +267,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			objectName,
 			EntitySchemaDescriptor.ALL_REFERENCES,
-			new AllReferenceSchemasDataFetcher()
+			AllReferenceSchemasDataFetcher.getInstance()
 		);
 
 		return schemaObjectBuilder.build();
@@ -402,7 +402,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 		return new BuiltFieldDescriptor(
 			attributeSchemasField,
-			new AttributeSchemasDataFetcher()
+			AttributeSchemasDataFetcher.getInstance()
 		);
 	}
 
@@ -600,7 +600,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.ALL_ATTRIBUTES,
-			new AllAttributeSchemasDataFetcher()
+			AllAttributeSchemasDataFetcher.getInstance()
 		);
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
@@ -719,7 +719,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			objectName,
 			ReferenceSchemaDescriptor.ALL_ATTRIBUTES,
-			new AllAttributeSchemasDataFetcher()
+			AllAttributeSchemasDataFetcher.getInstance()
 		);
 
 		if (!referenceSchema.getSortableAttributeCompounds().isEmpty()) {
@@ -763,7 +763,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 		return new BuiltFieldDescriptor(
 			attributeSchemasField,
-			new AttributeSchemasDataFetcher()
+			AttributeSchemasDataFetcher.getInstance()
 		);
 	}
 

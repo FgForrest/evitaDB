@@ -46,7 +46,6 @@ import java.util.Locale;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<AttributesContract>> {
 

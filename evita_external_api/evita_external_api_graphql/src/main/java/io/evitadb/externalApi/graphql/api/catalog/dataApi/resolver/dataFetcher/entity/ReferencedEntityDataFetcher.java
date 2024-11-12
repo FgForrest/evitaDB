@@ -39,7 +39,6 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReferencedEntityDataFetcher implements DataFetcher<SealedEntity> {
 
