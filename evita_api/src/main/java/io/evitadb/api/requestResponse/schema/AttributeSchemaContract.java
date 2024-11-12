@@ -43,7 +43,7 @@ import io.evitadb.dataType.Scope;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.Optional;
+import java.util.Arrays;
 
 /**
  * This is the definition object for {@link Attributes} that is stored along with
@@ -74,10 +74,26 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
 	 * better to have this ensured by the database engine.
 	 *
-	 * @return true if attribute is unique in {@link Scope#LIVE} Scope
+	 * This method returns true only if the attribute is unique in the {@link Scope#LIVE} scope.
+	 *
+	 * @return true if attribute is unique in {@link Scope#LIVE} scope
 	 */
 	default boolean isUnique() {
 		return isUnique(Scope.LIVE);
+	}
+
+	/**
+	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+	 * having certain value of this attribute among other entities in the same collection.
+	 * {@link AttributeSchema#getType() Type} of the unique attribute must implement {@link Comparable} interface.
+	 *
+	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * @return true if attribute is unique in any scope
+	 */
+	default boolean isUniqueInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isUnique);
 	}
 
 	/**
@@ -121,6 +137,23 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * This method differs from {@link #isUnique()} in that it is possible to have multiple entities with same value
 	 * of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different locales.
 	 *
+	 * @return true if attribute is unique in any scope
+	 */
+	default boolean isUniqueWithinLocaleInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isUniqueWithinLocale);
+	}
+
+	/**
+	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+	 * having certain value of this attribute among other entities in the same collection.
+	 * {@link AttributeSchema#getType() Type} of the unique attribute must implement {@link Comparable} interface.
+	 *
+	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #isUnique()} in that it is possible to have multiple entities with same value
+	 * of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different locales.
+	 *
 	 * @param scope to check attribute is unique in
 	 * @return true if attribute is unique in particular scope
 	 */
@@ -133,7 +166,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 */
 	@Nonnull
 	default AttributeUniquenessType getUniquenessType() {
-		return getUniquenessType(Scope.LIVE).orElse(AttributeUniquenessType.NOT_UNIQUE);
+		return getUniquenessType(Scope.LIVE);
 	}
 
 	/**
@@ -144,7 +177,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @return type of uniqueness for particular scope
 	 */
 	@Nonnull
-	Optional<AttributeUniquenessType> getUniquenessType(@Nonnull Scope scope);
+	AttributeUniquenessType getUniquenessType(@Nonnull Scope scope);
 
 	/**
 	 * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
@@ -155,10 +188,27 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * When attribute is filterable requirement {@link AttributeHistogram}
 	 * can be used for this attribute.
 	 *
-	 * @return true if attribute is filterable in {@link Scope#LIVE} Scope
+	 * This method returns true only if the attribute is filterable in the {@link Scope#LIVE} scope.
+	 *
+	 * @return true if attribute is filterable in {@link Scope#LIVE} scope
 	 */
 	default boolean isFilterable() {
 		return isFilterable(Scope.LIVE);
+	}
+
+	/**
+	 * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+	 * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the filterable attribute must
+	 * implement {@link Comparable} interface.
+	 *
+	 * When attribute is filterable requirement {@link AttributeHistogram}
+	 * can be used for this attribute.
+	 *
+	 * @return true if attribute is filterable in any scope
+	 */
+	default boolean isFilterableInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isFilterable);
 	}
 
 	/**
@@ -181,7 +231,21 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the filterable attribute must
 	 * implement {@link Comparable} interface.
 	 *
-	 * @return true if attribute is sortable in {@link Scope#LIVE} Scope
+	 * @return true if attribute is sortable in any scope
+	 */
+	default boolean isSortableInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isSortable);
+	}
+
+	/**
+	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+	 * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the filterable attribute must
+	 * implement {@link Comparable} interface.
+	 *
+	 * This method returns true only if the attribute is sortable in the {@link Scope#LIVE} scope.
+	 *
+	 * @return true if attribute is sortable in {@link Scope#LIVE} scope
 	 */
 	default boolean isSortable() {
 		return isSortable(Scope.LIVE);

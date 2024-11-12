@@ -1998,7 +1998,7 @@ public final class EntityCollection implements
 				final String[] invalidAttributes = referenceSchema.getAttributes()
 					.values()
 					.stream()
-					.filter(it -> it.isSortable() && !it.isNullable())
+					.filter(it -> it.isSortableInAnyScope() && !it.isNullable())
 					.map(NamedSchemaContract::getName)
 					.toArray(String[]::new);
 				if (invalidAttributes.length > 0) {

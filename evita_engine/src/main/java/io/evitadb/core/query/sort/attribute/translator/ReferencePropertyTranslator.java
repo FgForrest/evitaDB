@@ -157,7 +157,10 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		final String referenceName = orderConstraint.getReferenceName();
 		final EntitySchemaContract entitySchema = orderByVisitor.getSchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-		isTrue(referenceSchema.isIndexed(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
+		isTrue(
+			orderByVisitor.getEvitaRequest().getScopes().stream().anyMatch(referenceSchema::isIndexed),
+			() -> new ReferenceNotIndexedException(referenceName, entitySchema)
+		);
 		final boolean referencedEntityHierarchical = referenceSchema.isReferencedEntityTypeManaged() &&
 			orderByVisitor.getSchema(referenceSchema.getReferencedEntityType()).isWithHierarchy();
 

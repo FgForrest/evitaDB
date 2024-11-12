@@ -54,6 +54,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Mutation is responsible for setting value to a {@link AttributeSchemaContract#isUnique()}
@@ -231,11 +233,17 @@ public class SetAttributeSchemaUniqueMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
+		final List<Scope> nonIndexedScopes = Arrays.stream(this.uniqueInScopes)
+			.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+			.map(ScopedAttributeUniquenessType::scope)
+			.filter(referenceSchema::isIndexed)
+			.toList();
 		Assert.isTrue(
-			consistencyChecks == ReferenceSchemaMutator.ConsistencyChecks.SKIP || referenceSchema.isIndexed(),
+			consistencyChecks == ReferenceSchemaMutator.ConsistencyChecks.SKIP || !nonIndexedScopes.isEmpty(),
 			() -> new InvalidSchemaMutationException(
-				"The reference `" + referenceSchema.getName() + "` is in entity `" + entitySchema.getName() + "` is not indexed! " +
-					"Non-indexed references must not contain filterable attribute `" + name + "`!"
+				"The reference `" + referenceSchema.getName() + "` is in entity `" + entitySchema.getName() +
+					"` is not indexed in required scopes: " + nonIndexedScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + "! " +
+					"Non-indexed references must not contain unique attribute `" + this.name + "`!"
 			)
 		);
 		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, name);

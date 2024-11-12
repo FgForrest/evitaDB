@@ -154,21 +154,23 @@ public class SetReferenceSchemaIndexedMutation
 	}
 
 	private static void verifyNoAttributeRequiresIndex(@Nonnull EntitySchemaContract entitySchema, @Nonnull ReferenceSchemaContract referenceSchema) {
-		for (AttributeSchemaContract attributeSchema : referenceSchema.getAttributes().values()) {
-			if (attributeSchema.isFilterable() || attributeSchema.isUnique() || attributeSchema.isSortable()) {
-				final String type;
-				if (attributeSchema.isFilterable()) {
-					type = "filterable";
-				} else if (attributeSchema.isUnique()) {
-					type = "unique";
-				} else {
-					type = "sortable";
+		for (Scope scope : Scope.values()) {
+			for (AttributeSchemaContract attributeSchema : referenceSchema.getAttributes().values()) {
+				if (attributeSchema.isFilterable(scope) || attributeSchema.isUnique(scope) || attributeSchema.isSortable(scope)) {
+					final String type;
+					if (attributeSchema.isFilterable(scope)) {
+						type = "filterable";
+					} else if (attributeSchema.isUnique(scope)) {
+						type = "unique";
+					} else {
+						type = "sortable";
+					}
+					throw new InvalidSchemaMutationException(
+						"Cannot make reference schema `" + referenceSchema.getName() + "` of entity `" + entitySchema.getName() + "` " +
+							"non-indexed if there is a single " + type + " attribute in scope `" + scope + "`! Found " + type + " attribute " +
+							"definition `" + attributeSchema.getName() + "`."
+					);
 				}
-				throw new InvalidSchemaMutationException(
-					"Cannot make reference schema `" + referenceSchema.getName() + "` of entity `" + entitySchema.getName() + "` " +
-						"non-indexed if there is a single " + type + " attribute! Found " + type +" attribute " +
-						"definition `" + attributeSchema.getName() + "`."
-				);
 			}
 		}
 	}

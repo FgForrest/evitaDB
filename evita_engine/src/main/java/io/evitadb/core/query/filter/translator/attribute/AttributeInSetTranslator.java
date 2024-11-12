@@ -39,6 +39,7 @@ import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -48,6 +49,7 @@ import io.evitadb.utils.ArrayUtils;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -181,6 +183,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+			final EnumSet<Scope> scopes = filterByVisitor.getEvitaRequest().getScopes();
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
@@ -195,11 +198,11 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 				.toList();
 
 			if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
-				globalAttributeSchema.isUniqueGlobally()) {
+				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGlobally)) {
 				return createGloballyUniqueAttributeFormula(
 					filterByVisitor, globalAttributeSchema, attributeKey, theComparedValues
 				);
-			} else if (attributeDefinition.isUnique()) {
+			} else if (scopes.stream().anyMatch(attributeDefinition::isUnique)) {
 				return createUniqueAttributeFormula(
 					filterByVisitor, attributeDefinition, attributeKey, theComparedValues
 				);

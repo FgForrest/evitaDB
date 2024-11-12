@@ -238,7 +238,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		// build require input object
 		// build only if there are any prices or facets because these are only few allowed constraints in require builder
 		if (!entitySchema.getCurrencies().isEmpty() ||
-			entitySchema.getReferences().values().stream().anyMatch(ReferenceSchemaContract::isFaceted)) {
+			entitySchema.getReferences().values().stream().anyMatch(ReferenceSchemaContract::isFacetedInAnyScope)) {
 			final GraphQLInputType requireInputObject = mainRequireConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
 			collectionBuildingContext.setRequireInputObject(requireInputObject);
 		}
@@ -277,7 +277,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.getAttributes()
 			.values()
 			.stream()
-			.filter(GlobalAttributeSchemaContract::isUniqueGlobally)
+			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
 			.toList();
 		if (globalAttributes.isEmpty()) {
 			// this field doesn't make sense without global attributes as user wouldn't have way to query any entity
@@ -294,7 +294,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.forEach(getUnknownEntityFieldBuilder::argument);
 
 		final boolean localeArgumentNeeded = globalAttributes.stream()
-			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
+			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocaleInAnyScope);
 		if (localeArgumentNeeded) {
 			getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.LOCALE
 				.to(argumentBuilderTransformer)
@@ -332,7 +332,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.getAttributes()
 			.values()
 			.stream()
-			.filter(GlobalAttributeSchemaContract::isUniqueGlobally)
+			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
 			.toList();
 		if (globalAttributes.isEmpty()) {
 			// this field doesn't make sense without global attributes as user wouldn't have way to query any entity
@@ -349,7 +349,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.forEach(listUnknownEntityFieldBuilder::argument);
 
 		final boolean localeArgumentNeeded = globalAttributes.stream()
-			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
+			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocaleInAnyScope);
 		if (localeArgumentNeeded) {
 			listUnknownEntityFieldBuilder.argument(ListUnknownEntitiesHeaderDescriptor.LOCALE
 				.to(argumentBuilderTransformer)
@@ -413,7 +413,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		entitySchema.getAttributes()
 			.values()
 			.stream()
-			.filter(AttributeSchemaContract::isUnique)
+			.filter(AttributeSchemaContract::isUniqueInAnyScope)
 			.map(as -> newArgument()
 				.name(as.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
 				.type(DataTypesConverter.getGraphQLScalarType(as.getPlainType()))

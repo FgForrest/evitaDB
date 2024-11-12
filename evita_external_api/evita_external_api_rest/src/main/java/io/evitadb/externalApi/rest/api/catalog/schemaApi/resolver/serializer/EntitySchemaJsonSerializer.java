@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
@@ -36,6 +37,7 @@ import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
@@ -108,6 +110,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(attributeSchema.getNameVariants()));
 		attributeSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription());
 		attributeSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice());
+		/* TODO LHO - dady se to propisuje blbě */
 		attributeSchemaNode.put(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType().toString());
 		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			attributeSchemaNode.put(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().toString());
@@ -217,8 +220,10 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	@Nonnull
-	private ObjectNode serializeReferenceSchema(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
-	                                            @Nonnull ReferenceSchemaContract referenceSchema) {
+	private ObjectNode serializeReferenceSchema(
+		@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
+        @Nonnull ReferenceSchemaContract referenceSchema
+	) {
 		final ObjectNode referenceSchemaNode = objectJsonSerializer.objectNode();
 		referenceSchemaNode.put(NamedSchemaDescriptor.NAME.name(), referenceSchema.getName());
 		referenceSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getNameVariants()));
@@ -231,8 +236,14 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), referenceSchema.getReferencedGroupType());
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getGroupTypeNameVariants(entitySchemaFetcher)));
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged());
-		referenceSchemaNode.put(ReferenceSchemaDescriptor.INDEXED.name(), referenceSchema.isIndexed());
-		referenceSchemaNode.put(ReferenceSchemaDescriptor.FACETED.name(), referenceSchema.isFaceted());
+		referenceSchemaNode.set(
+			ReferenceSchemaDescriptor.INDEXED.name(),
+			objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(referenceSchema::isIndexed).toArray(Scope[]::new))
+		);
+		referenceSchemaNode.set(
+			ReferenceSchemaDescriptor.FACETED.name(),
+			objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(referenceSchema::isFaceted).toArray(Scope[]::new))
+		);
 
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
 		referenceSchemaNode.set(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(referenceSchema));

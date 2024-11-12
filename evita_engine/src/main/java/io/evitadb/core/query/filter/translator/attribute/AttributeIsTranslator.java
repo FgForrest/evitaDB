@@ -42,11 +42,13 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 
 import javax.annotation.Nonnull;
+import java.util.EnumSet;
 import java.util.Optional;
 
 /**
@@ -70,6 +72,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
+			final EnumSet<Scope> scopes = filterByVisitor.getEvitaRequest().getScopes();
 			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
@@ -77,13 +80,13 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 
 			// if attribute is unique prefer O(1) hash map lookup over inverted index
 			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
-				globalAttributeSchema.isUniqueGlobally()
+				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGlobally)
 			) {
 				return FutureNotFormula.postProcess(
 					createNullGloballyUniqueSubtractionFormula(globalAttributeSchema, filterByVisitor),
 					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
 				);
-			} else if (attributeDefinition.isUnique()) {
+			} else if (scopes.stream().anyMatch(attributeDefinition::isUnique)) {
 				return FutureNotFormula.postProcess(
 					createNullUniqueSubtractionFormula(attributeDefinition, filterByVisitor),
 					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
@@ -225,13 +228,14 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
+			final EnumSet<Scope> scopes = filterByVisitor.getEvitaRequest().getScopes();
 			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
 			// if attribute is unique prefer O(1) hash map lookup over histogram
 			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
-				globalAttributeSchema.isUniqueGlobally()
+				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGlobally)
 			) {
 				return new AttributeFormula(
 					true,
@@ -241,7 +245,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 						index -> new ConstantFormula(index.getRecordIds(filterByVisitor.getEntityType()))
 					)
 				);
-			} else if (attributeDefinition.isUnique()) {
+			} else if (scopes.stream().anyMatch(attributeDefinition::isUnique)) {
 				return new AttributeFormula(
 					attributeDefinition instanceof GlobalAttributeSchemaContract,
 					attributeKey,

@@ -271,8 +271,12 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * @throws AttributeNotSortableException   when sortable traits are requested but the attribute does not
 	 */
 	@Nonnull
-	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(@Nonnull String attributeName) {
-		return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(attributeName);
+	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(
+		@Nonnull String attributeName
+	) {
+		return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(
+			attributeName, this.getEvitaRequest().getScopes()
+		);
 	}
 
 	/**
@@ -286,8 +290,13 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * @throws AttributeNotSortableException   when sortable traits are requested but the attribute does not
 	 */
 	@Nonnull
-	public AttributeSchemaContract getAttributeSchema(@Nonnull String attributeName, @Nonnull AttributeTrait... requiredTrait) {
-		return attributeSchemaAccessor.getAttributeSchema(attributeName, requiredTrait);
+	public AttributeSchemaContract getAttributeSchema(
+		@Nonnull String attributeName,
+		@Nonnull AttributeTrait... requiredTrait
+	) {
+		return attributeSchemaAccessor.getAttributeSchema(
+			attributeName, this.getEvitaRequest().getScopes(), requiredTrait
+		);
 	}
 
 	/**

@@ -47,7 +47,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -223,20 +222,14 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				attributeSchemaContract.getDescription(),
 				attributeSchemaContract.getDeprecationNotice(),
 				Arrays.stream(Scope.values())
-					.map(
-						scope -> attributeSchemaContract.getUniquenessType(scope)
-							.map(it -> new ScopedAttributeUniquenessType(scope, it))
-							.orElse(null)
-					)
-					.filter(Objects::nonNull)
+					.map(scope -> new ScopedAttributeUniquenessType(scope, attributeSchemaContract.getUniquenessType(scope)))
+					// filter default values
+					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedAttributeUniquenessType[]::new),
 				Arrays.stream(Scope.values())
-					.map(
-						scope -> attributeSchemaContract.getGlobalUniquenessType(scope)
-							.map(it -> new ScopedGlobalAttributeUniquenessType(scope, it))
-							.orElse(null)
-					)
-					.filter(Objects::nonNull)
+					.map(scope -> new ScopedGlobalAttributeUniquenessType(scope, attributeSchemaContract.getGlobalUniquenessType(scope)))
+					// filter default values
+					.filter(it -> it.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedGlobalAttributeUniquenessType[]::new),
 				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isFilterable)

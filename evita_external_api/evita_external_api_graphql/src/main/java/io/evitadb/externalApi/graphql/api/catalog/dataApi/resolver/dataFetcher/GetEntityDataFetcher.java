@@ -31,7 +31,6 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -275,7 +274,8 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 					continue;
 				}
 				Assert.isPremiseValid(
-					attributeSchema.isUnique(),
+					/* TODO LHO - nemělo by to tady být specifické ke vstupu dotazu? */
+					attributeSchema.isUniqueInAnyScope(),
 					() -> new GraphQLQueryResolvingInternalError(
 						"Cannot find entity by non-unique attribute `" + attributeName + "`."
 					)

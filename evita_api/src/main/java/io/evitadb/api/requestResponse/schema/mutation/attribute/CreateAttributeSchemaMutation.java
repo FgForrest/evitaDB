@@ -222,17 +222,25 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingSchema,
-							AttributeSchemaContract::isFilterable,
+							schema -> Arrays.stream(Scope.values())
+								.filter(schema::isFilterable)
+								.toArray(Scope[]::new),
 							newValue -> new SetAttributeSchemaFilterableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingSchema,
-							AttributeSchemaContract::getUniquenessType,
+							schema -> Arrays.stream(Scope.values())
+								.map(scope -> new ScopedAttributeUniquenessType(scope, schema.getUniquenessType(scope)))
+								// filter out default values
+								.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+								.toArray(ScopedAttributeUniquenessType[]::new),
 							newValue -> new SetAttributeSchemaUniqueMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingSchema,
-							AttributeSchemaContract::isSortable,
+							schema -> Arrays.stream(Scope.values())
+								.filter(schema::isSortable)
+								.toArray(Scope[]::new),
 							newValue -> new SetAttributeSchemaSortableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(

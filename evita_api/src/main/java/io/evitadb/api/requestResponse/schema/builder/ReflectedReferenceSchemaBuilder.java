@@ -109,7 +109,10 @@ public final class ReflectedReferenceSchemaBuilder
 					baseSchema.isCardinalityInherited() ? null : baseSchema.getCardinality(),
 					entityType,
 					reflectedReferenceName,
-					baseSchema.isFacetedInherited() ? null : baseSchema.isFaceted(),
+					baseSchema.isIndexedInherited() ?
+						null : Arrays.stream(Scope.values()).filter(baseSchema::isIndexed).toArray(Scope[]::new),
+					baseSchema.isFacetedInherited() ?
+						null : Arrays.stream(Scope.values()).filter(baseSchema::isFaceted).toArray(Scope[]::new),
 					baseSchema.getAttributesInheritanceBehavior(),
 					baseSchema.getAttributeInheritanceFilter()
 				)

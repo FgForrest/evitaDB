@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
-import java.util.Optional;
+import java.util.Arrays;
 
 /**
  * This schema is an extension of standard {@link AttributeSchema} that adds support for marking the attribute as
@@ -52,6 +52,20 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 	 */
 	default boolean isUniqueGlobally() {
 		return isUniqueGlobally(Scope.LIVE);
+	}
+
+	/**
+	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+	 * entity having certain value of this attribute in entire {@link CatalogContract}.
+	 * {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable} interface.
+	 *
+	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * @return true if the attribute is unique globally in any scope
+	 */
+	default boolean isUniqueGloballyInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isUniqueGlobally);
 	}
 
 	/**
@@ -97,6 +111,24 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 	 * value of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different
 	 * locales.
 	 *
+	 * @return true if the attribute is unique globally within any scope
+	 */
+	default boolean isUniqueGloballyWithinLocaleInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isUniqueGloballyWithinLocale);
+	}
+
+	/**
+	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+	 * entity having certain value of this attribute in entire {@link CatalogContract}.
+	 * {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable} interface.
+	 *
+	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #isUniqueGlobally()} in that it is possible to have multiple entities with same
+	 * value of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different
+	 * locales.
+	 *
 	 * @param scope scope to check uniqueness in
 	 * @return true if the attribute is unique globally within particular scope
 	 */
@@ -108,13 +140,13 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 	 */
 	@Nonnull
 	default GlobalAttributeUniquenessType getGlobalUniquenessType() {
-		return getGlobalUniquenessType(Scope.LIVE).orElse(GlobalAttributeUniquenessType.NOT_UNIQUE);
+		return getGlobalUniquenessType(Scope.LIVE);
 	}
 	/**
 	 * Returns type of uniqueness of the attribute. See {@link #isUniqueGlobally()} ()} and {@link #isUniqueGloballyWithinLocale()}.
 	 * @return type of uniqueness in the particular scope
 	 */
 	@Nonnull
-	Optional<GlobalAttributeUniquenessType> getGlobalUniquenessType(@Nonnull Scope scope);
+	GlobalAttributeUniquenessType getGlobalUniquenessType(@Nonnull Scope scope);
 
 }

@@ -42,6 +42,7 @@ import io.evitadb.core.query.filter.translator.TestQueryExecutionContext;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
@@ -80,6 +81,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AttributeBitmapFilterTest {
 	public static final String NUMBER_RANGE = "numberRange";
 	private static final int SEED = 40;
+	public static final EnumSet<Scope> TEST_SCOPES = EnumSet.of(Scope.LIVE);
 	private AttributeSchemaAccessor attributeSchemaAccessor;
 	private EntitySchemaContract entitySchema;
 	private Map<Integer, SealedEntity> entities;
@@ -124,7 +126,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_PRIORITY,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
+			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeBetweenTranslator.getComparablePredicate(o -> (java.io.Serializable) o, Comparator.naturalOrder(), from, to)
 		);
@@ -151,7 +153,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			NUMBER_RANGE,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
+			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeBetweenTranslator.getNumberRangePredicate(40, 50)
 		);
@@ -179,7 +181,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
+			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeBetweenTranslator.getDateTimePredicate(from, to)
 		);
@@ -205,7 +207,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			NUMBER_RANGE,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
+			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeInRangeTranslator.getNumberRangePredicate(45)
 		);
@@ -229,7 +231,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
+			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeInRangeTranslator.getDateTimeRangePredicate(theMoment)
 		);
@@ -255,7 +257,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> transformPredicate(theValue -> AttributeContainsTranslator.createPredicate().test(theValue, textToSearch))
 		);
@@ -281,7 +283,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> transformPredicate(theValue -> AttributeEndsWithTranslator.createPredicate().test(theValue, textToSearch))
 		);
@@ -307,7 +309,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> transformPredicate(theValue -> AttributeStartsWithTranslator.createPredicate().test(theValue, textToSearch))
 		);
@@ -333,10 +335,10 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
-				attributeSchemaAccessor.getAttributeSchema(attributeName),
+				attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
 				new AttributeKey(attributeName), theNumber, result -> result >= 0
 			)
 		);
@@ -362,10 +364,10 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
-				attributeSchemaAccessor.getAttributeSchema(attributeName),
+				attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
 				new AttributeKey(attributeName), theNumber, result -> result > 0
 			)
 		);
@@ -391,10 +393,10 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
-				attributeSchemaAccessor.getAttributeSchema(attributeName),
+				attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
 				new AttributeKey(attributeName), theNumber, result -> result < 0
 			)
 		);
@@ -420,10 +422,10 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
-				attributeSchemaAccessor.getAttributeSchema(attributeName),
+				attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
 				new AttributeKey(attributeName), theNumber, result -> result <= 0
 			)
 		);
@@ -448,7 +450,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> optionalStream -> optionalStream.noneMatch(Optional::isPresent)
 		);
@@ -472,7 +474,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent)
 		);

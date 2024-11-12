@@ -29,9 +29,11 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.util.EnumSet;
 import java.util.Optional;
 
 /**
@@ -58,9 +60,10 @@ class AbstractAttributeTranslator {
 		@Nonnull AttributeSchemaContract attributeDefinition
 	) {
 		final String attributeName = attributeDefinition.getName();
+		final EnumSet<Scope> scopes = filterByVisitor.getEvitaRequest().getScopes();
 		Assert.isTrue(
 			!attributeDefinition.isLocalized() || filterByVisitor.getLocale() != null ||
-				(attributeDefinition.isUnique() && !attributeDefinition.isUniqueWithinLocale()),
+				(scopes.stream().anyMatch(attributeDefinition::isUnique) && scopes.stream().noneMatch(attributeDefinition::isUniqueWithinLocale)),
 			() -> new EntityLocaleMissingException("Localized attribute `" + attributeName + "` requires locale specification in the input query!")
 		);
 

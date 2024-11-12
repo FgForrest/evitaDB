@@ -26,11 +26,13 @@ package io.evitadb.api.requestResponse.schema.builder;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
@@ -82,10 +84,18 @@ public final class GlobalAttributeSchemaBuilder
 				baseSchema.getName(),
 				baseSchema.getDescription(),
 				baseSchema.getDeprecationNotice(),
-				baseSchema.getUniquenessType(),
-				baseSchema.getGlobalUniquenessType(),
-				baseSchema.isFilterable(),
-				baseSchema.isSortable(),
+				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedAttributeUniquenessType(scope, baseSchema.getUniquenessType(scope)))
+					// filter out default values
+					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+					.toArray(ScopedAttributeUniquenessType[]::new),
+				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedGlobalAttributeUniquenessType(scope, baseSchema.getGlobalUniquenessType(scope)))
+					// filter out default values
+					.filter(it -> it.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE)
+					.toArray(ScopedGlobalAttributeUniquenessType[]::new),
+				Arrays.stream(Scope.values()).filter(baseSchema::isFilterable).toArray(Scope[]::new),
+				Arrays.stream(Scope.values()).filter(baseSchema::isSortable).toArray(Scope[]::new),
 				baseSchema.isLocalized(),
 				baseSchema.isNullable(),
 				baseSchema.isRepresentative(),

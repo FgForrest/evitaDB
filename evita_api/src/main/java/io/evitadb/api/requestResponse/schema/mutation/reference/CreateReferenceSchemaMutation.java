@@ -205,12 +205,12 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 								),
 								makeMutationIfDifferent(
 									createdVersion, existingVersion,
-									ReferenceSchemaContract::isIndexed,
+									ref -> Arrays.stream(Scope.values()).filter(ref::isIndexed).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaIndexedMutation(name, newValue)
 								),
 								makeMutationIfDifferent(
 									createdVersion, existingVersion,
-									ReferenceSchemaContract::isFaceted,
+									ref -> Arrays.stream(Scope.values()).filter(ref::isFaceted).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaFacetedMutation(name, newValue)
 								)
 							),

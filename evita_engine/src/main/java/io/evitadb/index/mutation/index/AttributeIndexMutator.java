@@ -92,20 +92,21 @@ public interface AttributeIndexMutator {
 			EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
 		);
 
-		if (attributeDefinition.isUnique() || attributeDefinition.isFilterable() || attributeDefinition.isSortable()) {
+		final Scope scope = entityIndex.getIndexKey().scope();
+		if (attributeDefinition.isUnique(scope) || attributeDefinition.isFilterable(scope) || attributeDefinition.isSortable(scope)) {
 			final EntitySchema entitySchema = executor.getEntitySchema();
 			final Set<Locale> allowedLocales = entitySchema.getLocales();
 			final Locale locale = attributeKey.locale();
 
-			if (attributeDefinition.isUnique()) {
+			if (attributeDefinition.isUnique(scope)) {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
-					entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
+					entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, scope, locale, theValue.value(), entityPrimaryKey);
 					if (undoActionConsumer != null) {
-						undoActionConsumer.accept(() -> entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
+						undoActionConsumer.accept(() -> entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, scope, locale, theValue.value(), entityPrimaryKey));
 					}
-					if (!attributeDefinition.isFilterable()) {
+					if (!attributeDefinition.isFilterable(scope)) {
 						// TOBEDONE JNO this should be replaced with RadixTree (for String values)
 						entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
 						if (undoActionConsumer != null) {
@@ -113,11 +114,11 @@ public interface AttributeIndexMutator {
 						}
 					}
 				});
-				entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+				entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, scope, locale, valueToInsert, entityPrimaryKey);
 				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(() -> entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey));
+					undoActionConsumer.accept(() -> entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, scope, locale, valueToInsert, entityPrimaryKey));
 				}
-				if (!attributeDefinition.isFilterable()) {
+				if (!attributeDefinition.isFilterable(scope)) {
 					// TOBEDONE JNO this should be replaced with RadixTree (for String values)
 					entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
 					if (undoActionConsumer != null) {
@@ -125,7 +126,7 @@ public interface AttributeIndexMutator {
 					}
 				}
 			}
-			if (attributeDefinition.isFilterable()) {
+			if (attributeDefinition.isFilterable(scope)) {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
@@ -139,7 +140,7 @@ public interface AttributeIndexMutator {
 					undoActionConsumer.accept(() -> entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey));
 				}
 			}
-			if (attributeDefinition.isSortable()) {
+			if (attributeDefinition.isSortable(scope)) {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
@@ -155,9 +156,8 @@ public interface AttributeIndexMutator {
 			}
 
 			if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
-				globalAttributeSchema.isUniqueGlobally()) {
+				globalAttributeSchema.isUniqueGlobally(scope)) {
 				// use the same scope as used in the entity index
-				final Scope scope = entityIndex.getIndexKey().scope();
 				final CatalogIndex catalogIndex = executor.getCatalogIndex(scope);
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 
@@ -234,21 +234,22 @@ public interface AttributeIndexMutator {
 			}
 		});
 
-		if (attributeDefinition.isUnique() || attributeDefinition.isFilterable() || attributeDefinition.isSortable()) {
-			if (attributeDefinition.isUnique()) {
+		final Scope scope = entityIndex.getIndexKey().scope();
+		if (attributeDefinition.isUnique(scope) || attributeDefinition.isFilterable(scope) || attributeDefinition.isSortable(scope)) {
+			if (attributeDefinition.isUnique(scope)) {
 				entityIndex.removeUniqueAttribute(
-					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+					attributeDefinition, allowedLocales, scope, locale, valueToRemoveSupplier.get(),
 					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
 				);
 				if (undoActionConsumer != null) {
 					undoActionConsumer.accept(
 						() -> entityIndex.insertUniqueAttribute(
-							attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+							attributeDefinition, allowedLocales, scope, locale, valueToRemoveSupplier.get(),
 							executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
 						)
 					);
 				}
-				if (!attributeDefinition.isFilterable()) {
+				if (!attributeDefinition.isFilterable(scope)) {
 					// TOBEDONE JNO this should be replaced with RadixTree (for String values)
 					entityIndex.removeFilterAttribute(
 						attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
@@ -265,10 +266,9 @@ public interface AttributeIndexMutator {
 				}
 
 				if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
-					globalAttributeSchema.isUniqueGlobally()
+					globalAttributeSchema.isUniqueGlobally(scope)
 				) {
 					// use the same scope as used in the entity index
-					final Scope scope = entityIndex.getIndexKey().scope();
 					final CatalogIndex catalogIndex = executor.getCatalogIndex(scope);
 					catalogIndex.removeUniqueAttribute(
 						entitySchema, globalAttributeSchema, allowedLocales, locale, valueToRemoveSupplier.get(),
@@ -284,7 +284,7 @@ public interface AttributeIndexMutator {
 					}
 				}
 			}
-			if (attributeDefinition.isFilterable()) {
+			if (attributeDefinition.isFilterable(scope)) {
 				entityIndex.removeFilterAttribute(
 					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
 					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
@@ -298,7 +298,7 @@ public interface AttributeIndexMutator {
 					);
 				}
 			}
-			if (attributeDefinition.isSortable()) {
+			if (attributeDefinition.isSortable(scope)) {
 				entityIndex.removeSortAttribute(
 					attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
 					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX)
@@ -378,16 +378,17 @@ public interface AttributeIndexMutator {
 				}
 			});
 
-		if (attributeDefinition.isUnique()) {
+		final Scope scope = entityIndex.getIndexKey().scope();
+		if (attributeDefinition.isUnique(scope)) {
 			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
-			entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
-			entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
+			entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, scope, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
+			entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, scope, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
 			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(() -> entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey));
-				undoActionConsumer.accept(() -> entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey));
+				undoActionConsumer.accept(() -> entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, scope, locale, valueToRemoveSupplier.get(), entityPrimaryKey));
+				undoActionConsumer.accept(() -> entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, scope, locale, valueToUpdateSupplier.get(), entityPrimaryKey));
 			}
 		}
-		if (attributeDefinition.isFilterable()) {
+		if (attributeDefinition.isFilterable(scope)) {
 			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
 			entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
 			entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
@@ -396,7 +397,7 @@ public interface AttributeIndexMutator {
 				undoActionConsumer.accept(() -> entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey));
 			}
 		}
-		if (attributeDefinition.isSortable()) {
+		if (attributeDefinition.isSortable(scope)) {
 			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 			entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
 			entityIndex.insertSortAttribute(attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);

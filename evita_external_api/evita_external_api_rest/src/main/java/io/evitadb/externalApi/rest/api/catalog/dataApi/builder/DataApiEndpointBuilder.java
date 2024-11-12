@@ -194,7 +194,7 @@ public class DataApiEndpointBuilder {
 			.to(operationQueryParameterBuilderTransformer)
 			.build());
 
-		final boolean localeArgumentNeeded = globallyUniqueAttributes.stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
+		final boolean localeArgumentNeeded = globallyUniqueAttributes.stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocaleInAnyScope);
 		queryParameters.addAll(buildFetchQueryParametersForUnknownEntity(!localized || localeArgumentNeeded));
 
 		return Optional.of(
@@ -239,7 +239,7 @@ public class DataApiEndpointBuilder {
 			.to(operationQueryParameterBuilderTransformer)
 			.build());
 
-		final boolean localeArgumentNeeded = globallyUniqueAttributes.stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
+		final boolean localeArgumentNeeded = globallyUniqueAttributes.stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocaleInAnyScope);
 		queryParameters.addAll(buildFetchQueryParametersForUnknownEntity(!localized || localeArgumentNeeded));
 
 		return Optional.of(
@@ -372,7 +372,7 @@ public class DataApiEndpointBuilder {
 			parameters.addAll(entitySchema.getAttributes()
 				.values()
 				.stream()
-				.filter(AttributeSchemaContract::isUnique)
+				.filter(AttributeSchemaContract::isUniqueInAnyScope)
 				.map(as -> newQueryParameter()
 					.name(as.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
 					.description(as.getDescription())
