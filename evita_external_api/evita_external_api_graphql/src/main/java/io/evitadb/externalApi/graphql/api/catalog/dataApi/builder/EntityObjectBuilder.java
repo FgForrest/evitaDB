@@ -89,6 +89,10 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
  */
 public class EntityObjectBuilder {
 
+	private static final PriceBigDecimalDataFetcher PRICE_WITH_VAT_DATA_FETCHER = new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITH_TAX.name());
+	private static final PriceBigDecimalDataFetcher PRICE_WITHOUT_VAT_DATA_FETCHER = new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITHOUT_TAX.name());
+	private static final PriceBigDecimalDataFetcher TAX_RATE_DATA_FETCHER = new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.TAX_RATE.name());
+
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
@@ -289,14 +293,6 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildNonHierarchicalEntityParentPrimaryKeyField() {
-		return new BuiltFieldDescriptor(
-			GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.to(fieldBuilderTransformer).build(),
-			NonHierarchicalParentPrimaryKeyDataFetcher.getInstance()
-		);
-	}
-
-	@Nonnull
 	private BuiltFieldDescriptor buildEntityParentsField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
@@ -343,7 +339,7 @@ public class EntityObjectBuilder {
 				.type(typeRef(LOCALE_ENUM.name())))
 			.build();
 
-		return new BuiltFieldDescriptor(field, new PriceForSaleDataFetcher());
+		return new BuiltFieldDescriptor(field, PriceForSaleDataFetcher.getInstance());
 	}
 
 	@Nonnull
@@ -774,17 +770,17 @@ public class EntityObjectBuilder {
 		buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
 			PriceForSaleDescriptor.PRICE_WITH_TAX,
-			new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITH_TAX.name())
+			PRICE_WITH_VAT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
 			PriceForSaleDescriptor.PRICE_WITHOUT_TAX,
-			new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITHOUT_TAX.name())
+			PRICE_WITHOUT_VAT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
 			PriceForSaleDescriptor.TAX_RATE,
-			new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.TAX_RATE.name())
+			TAX_RATE_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
@@ -808,17 +804,17 @@ public class EntityObjectBuilder {
 		buildingContext.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.PRICE_WITH_TAX,
-			new PriceBigDecimalDataFetcher(PriceDescriptor.PRICE_WITH_TAX.name())
+			PRICE_WITH_VAT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.PRICE_WITHOUT_TAX,
-			new PriceBigDecimalDataFetcher(PriceDescriptor.PRICE_WITHOUT_TAX.name())
+			PRICE_WITHOUT_VAT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.TAX_RATE,
-			new PriceBigDecimalDataFetcher(PriceDescriptor.TAX_RATE.name())
+			TAX_RATE_DATA_FETCHER
 		);
 
 		return PriceDescriptor.THIS

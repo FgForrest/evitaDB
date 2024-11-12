@@ -105,6 +105,10 @@ import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.STRING;
  */
 public class FullResponseObjectBuilder {
 
+	private static final PropertyDataFetcher<Integer> REQUEST_IMPACT_DIFFERENCE_DATA_FETCHER = PropertyDataFetcher.fetching(RequestImpact::difference);
+	private static final PropertyDataFetcher<Integer> REQUEST_IMPACT_MATCH_COUNT_DATA_FETCHER = PropertyDataFetcher.fetching(RequestImpact::matchCount);
+	private static final PropertyDataFetcher<Boolean> REQUEST_IMPACT_HAS_SENSE_DATA_FETCHER = PropertyDataFetcher.fetching(RequestImpact::hasSense);
+
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
@@ -985,17 +989,17 @@ public class FullResponseObjectBuilder {
 		buildingContext.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.DIFFERENCE,
-			PropertyDataFetcher.fetching(RequestImpact::difference)
+			REQUEST_IMPACT_DIFFERENCE_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.MATCH_COUNT,
-			PropertyDataFetcher.fetching(RequestImpact::matchCount)
+			REQUEST_IMPACT_MATCH_COUNT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.HAS_SENSE,
-			PropertyDataFetcher.fetching(RequestImpact::hasSense)
+			REQUEST_IMPACT_HAS_SENSE_DATA_FETCHER
 		);
 
 		return FacetRequestImpactDescriptor.THIS
