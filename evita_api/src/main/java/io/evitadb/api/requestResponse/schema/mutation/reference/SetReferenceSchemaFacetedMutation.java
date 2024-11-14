@@ -69,7 +69,7 @@ public class SetReferenceSchemaFacetedMutation
 		@Nonnull String name,
 		@Nullable Boolean faceted
 	) {
-		this(name, faceted == null ? null : (faceted ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE));
+		this(name, faceted == null ? null : (faceted ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE));
 	}
 
 	public SetReferenceSchemaFacetedMutation(

@@ -73,7 +73,7 @@ public class EvitaRequest {
 	private static final int[] EMPTY_INTS = new int[0];
 	private static final ConditionalGap[] EMPTY_GAPS = new ConditionalGap[0];
 	private static final String[] EMPTY_PRICE_LISTS = new String[0];
-	private static final EnumSet<Scope> DEFAULT_SCOPES = EnumSet.of(Scope.LIVE);
+	private static final EnumSet<Scope> DEFAULT_SCOPES = EnumSet.of(Scope.DEFAULT_SCOPE);
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
 	private final String entityType;

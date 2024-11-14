@@ -72,7 +72,7 @@ public class SetReferenceSchemaIndexedMutation
 	) {
 		this(
 			name,
-			indexed == null ? null : (indexed ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE)
+			indexed == null ? null : (indexed ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 		);
 	}
 

@@ -131,7 +131,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	default S withHierarchy() {
-		return withIndexedHierarchy(Scope.LIVE);
+		return withIndexedHierarchy(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -174,7 +174,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	default S withPrice() {
-		return withIndexedPrice(Scope.LIVE);
+		return withIndexedPrice(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -201,7 +201,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	default S withPrice(int indexedDecimalPlaces) {
-		return withIndexedPrice(indexedDecimalPlaces, Scope.LIVE);
+		return withIndexedPrice(indexedDecimalPlaces, Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -231,7 +231,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	default S withPriceInCurrency(@Nonnull Currency... currency) {
-		return withIndexedPriceInCurrency(currency, Scope.LIVE);
+		return withIndexedPriceInCurrency(currency, Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -263,7 +263,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	default S withPriceInCurrency(int indexedPricePlaces, @Nonnull Currency... currency) {
-		return withIndexedPriceInCurrency(indexedPricePlaces, currency, Scope.LIVE);
+		return withIndexedPriceInCurrency(indexedPricePlaces, currency, Scope.DEFAULT_SCOPE);
 	}
 
 	/**

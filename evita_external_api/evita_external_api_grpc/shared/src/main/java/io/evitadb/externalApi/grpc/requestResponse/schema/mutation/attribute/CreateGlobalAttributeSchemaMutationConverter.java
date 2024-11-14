@@ -55,7 +55,7 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 	public CreateGlobalAttributeSchemaMutation convert(@Nonnull GrpcCreateGlobalAttributeSchemaMutation mutation) {
 		final ScopedAttributeUniquenessType[] uniqueInScopes = mutation.getUniqueInScopesList().isEmpty() ?
 			new ScopedAttributeUniquenessType[]{
-				new ScopedAttributeUniquenessType(Scope.LIVE, toAttributeUniquenessType(mutation.getUnique()))
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(mutation.getUnique()))
 			}
 			:
 			mutation.getUniqueInScopesList()
@@ -64,7 +64,7 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 				.toArray(ScopedAttributeUniquenessType[]::new);
 		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = mutation.getUniqueGloballyInScopesList().isEmpty() ?
 			new ScopedGlobalAttributeUniquenessType[]{
-				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, toGlobalAttributeUniquenessType(mutation.getUniqueGlobally()))
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(mutation.getUniqueGlobally()))
 			}
 			:
 			mutation.getUniqueGloballyInScopesList()
@@ -72,14 +72,14 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
 				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
 		final Scope[] filterableInScopes = mutation.getFilterableInScopesList().isEmpty() ?
-			(mutation.getFilterable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(mutation.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			mutation.getFilterableInScopesList()
 				.stream()
 				.map(EvitaEnumConverter::toScope)
 				.toArray(Scope[]::new);
 		final Scope[] sortableInScopes = mutation.getSortableInScopesList().isEmpty() ?
-			(mutation.getSortable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(mutation.getSortable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			mutation.getSortableInScopesList()
 				.stream()

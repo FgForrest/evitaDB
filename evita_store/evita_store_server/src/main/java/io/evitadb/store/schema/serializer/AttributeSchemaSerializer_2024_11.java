@@ -108,10 +108,10 @@ public class AttributeSchemaSerializer_2024_11 extends Serializer<AttributeSchem
 		return AttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			new ScopedAttributeUniquenessType[] {
-				new ScopedAttributeUniquenessType(Scope.LIVE, unique)
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, unique)
 			},
-			(filterable ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE),
-			(sortable ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE),
+			(filterable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
+			(sortable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
 			localized, nullable,
 			type, (Serializable) defaultValue, indexedDecimalPlaces
 		);

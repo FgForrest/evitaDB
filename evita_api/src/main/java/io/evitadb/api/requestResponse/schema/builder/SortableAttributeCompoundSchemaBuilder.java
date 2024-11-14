@@ -90,7 +90,7 @@ public final class SortableAttributeCompoundSchemaBuilder
 			SortableAttributeCompoundSchema._internalBuild(
 				name, null, null,
 				// by default sortable attribute compound is indexed in LIVE scope
-				new Scope[] {Scope.LIVE},
+				Scope.DEFAULT_SCOPES,
 				attributeElements
 			) :
 			existingSchema;

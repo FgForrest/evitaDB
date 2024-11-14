@@ -417,7 +417,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 							.filter(rr::isIndexed)
 							.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class)))
 					)
-					.orElseGet(() -> EnumSet.of(Scope.LIVE))
+					.orElseGet(() -> EnumSet.of(Scope.DEFAULT_SCOPE))
 				: indexedInScopes,
 			facetedInScopes == null ?
 				ofNullable(reflectedReference)

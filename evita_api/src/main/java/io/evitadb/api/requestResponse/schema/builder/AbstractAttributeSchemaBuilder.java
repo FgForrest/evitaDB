@@ -266,7 +266,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			addMutations(
 				new SetAttributeSchemaSortableMutation(
 					baseSchema.getName(),
-					decider.getAsBoolean() ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE
+					decider.getAsBoolean() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE
 				)
 			)
 		);

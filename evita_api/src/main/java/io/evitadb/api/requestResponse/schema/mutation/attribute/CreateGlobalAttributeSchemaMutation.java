@@ -122,13 +122,13 @@ public class CreateGlobalAttributeSchemaMutation
 		this(
 			name, description, deprecationNotice,
 			new ScopedAttributeUniquenessType[]{
-				new ScopedAttributeUniquenessType(Scope.LIVE, unique)
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, unique)
 			},
 			new ScopedGlobalAttributeUniquenessType[]{
-				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, uniqueGlobally)
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, uniqueGlobally)
 			},
-			filterable ? new Scope[]{Scope.LIVE} : NO_SCOPE,
-			sortable ? new Scope[]{Scope.LIVE} : NO_SCOPE,
+			filterable ? Scope.DEFAULT_SCOPES : NO_SCOPE,
+			sortable ? Scope.DEFAULT_SCOPES : NO_SCOPE,
 			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces
 		);
 	}
@@ -156,9 +156,9 @@ public class CreateGlobalAttributeSchemaMutation
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.uniqueInScopes = uniqueInScopes == null ?
-			new ScopedAttributeUniquenessType[] { new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE) } : uniqueInScopes;
+			new ScopedAttributeUniquenessType[] { new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE) } : uniqueInScopes;
 		this.uniqueGloballyInScopes = uniqueGloballyInScopes == null ?
-			new ScopedGlobalAttributeUniquenessType[] { new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.NOT_UNIQUE) } : uniqueGloballyInScopes;
+			new ScopedGlobalAttributeUniquenessType[] { new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, GlobalAttributeUniquenessType.NOT_UNIQUE) } : uniqueGloballyInScopes;
 		this.filterableInScopes = filterableInScopes == null ? NO_SCOPE : filterableInScopes;
 		this.sortableInScopes = sortableInScopes == null ? NO_SCOPE : sortableInScopes;
 		this.localized = localized;
@@ -172,7 +172,7 @@ public class CreateGlobalAttributeSchemaMutation
 	@Nonnull
 	public AttributeUniquenessType getUnique() {
 		return Arrays.stream(this.uniqueInScopes)
-			.filter(it -> it.scope() == Scope.LIVE)
+			.filter(it -> it.scope() == Scope.DEFAULT_SCOPE)
 			.findFirst()
 			.map(ScopedAttributeUniquenessType::uniquenessType)
 			.orElse(AttributeUniquenessType.NOT_UNIQUE);
@@ -181,7 +181,7 @@ public class CreateGlobalAttributeSchemaMutation
 	@Nonnull
 	public GlobalAttributeUniquenessType getUniqueGlobally() {
 		return Arrays.stream(this.uniqueGloballyInScopes)
-			.filter(it -> it.scope() == Scope.LIVE)
+			.filter(it -> it.scope() == Scope.DEFAULT_SCOPE)
 			.findFirst()
 			.map(ScopedGlobalAttributeUniquenessType::uniquenessType)
 			.orElse(GlobalAttributeUniquenessType.NOT_UNIQUE);

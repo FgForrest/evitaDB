@@ -124,12 +124,12 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 			name, description, deprecationNotice,
 			new ScopedAttributeUniquenessType[]{
 				new ScopedAttributeUniquenessType(
-					Scope.LIVE,
+					Scope.DEFAULT_SCOPE,
 					unique == null ? AttributeUniquenessType.NOT_UNIQUE : unique
 				)
 			},
-			filterable ? new Scope[]{Scope.LIVE} : NO_SCOPE,
-			sortable ? new Scope[]{Scope.LIVE} : NO_SCOPE,
+			filterable ? Scope.DEFAULT_SCOPES : NO_SCOPE,
+			sortable ? Scope.DEFAULT_SCOPES : NO_SCOPE,
 			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces
 		);
 	}
@@ -156,7 +156,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.uniqueInScopes = uniqueInScopes == null ?
-			new ScopedAttributeUniquenessType[] { new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)} :
+			new ScopedAttributeUniquenessType[] { new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE)} :
 			uniqueInScopes;
 		this.filterableInScopes = filterableInScopes == null ? NO_SCOPE : filterableInScopes;
 		this.sortableInScopes = sortableInScopes == null ? NO_SCOPE : sortableInScopes;
@@ -171,7 +171,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 	@Nonnull
 	public AttributeUniquenessType getUnique() {
 		return Arrays.stream(this.uniqueInScopes)
-			.filter(it -> it.scope() == Scope.LIVE)
+			.filter(it -> it.scope() == Scope.DEFAULT_SCOPE)
 			.findFirst()
 			.map(ScopedAttributeUniquenessType::uniquenessType)
 			.orElse(AttributeUniquenessType.NOT_UNIQUE);

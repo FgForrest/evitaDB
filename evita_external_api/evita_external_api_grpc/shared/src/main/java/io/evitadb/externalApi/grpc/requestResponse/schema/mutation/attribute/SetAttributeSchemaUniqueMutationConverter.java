@@ -53,7 +53,7 @@ public class SetAttributeSchemaUniqueMutationConverter implements SchemaMutation
 	public SetAttributeSchemaUniqueMutation convert(@Nonnull GrpcSetAttributeSchemaUniqueMutation mutation) {
 		final ScopedAttributeUniquenessType[] uniqueInScopes = mutation.getUniqueInScopesList().isEmpty() ?
 			new ScopedAttributeUniquenessType[]{
-				new ScopedAttributeUniquenessType(Scope.LIVE, toAttributeUniquenessType(mutation.getUnique()))
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(mutation.getUnique()))
 			}
 			:
 			mutation.getUniqueInScopesList()

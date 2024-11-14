@@ -98,13 +98,13 @@ public class GlobalAttributeSchemaSerializer_2024_11 extends Serializer<GlobalAt
 		return GlobalAttributeSchema._internalBuild(
 			name, description, deprecationNotice,
 			new ScopedAttributeUniquenessType[] {
-				new ScopedAttributeUniquenessType(Scope.LIVE, unique)
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, unique)
 			},
 			new ScopedGlobalAttributeUniquenessType[] {
-				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, uniqueGlobally)
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, uniqueGlobally)
 			},
-			(filterable ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE),
-			(sortable ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE),
+			(filterable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
+			(sortable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
 			localized,
 			nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces

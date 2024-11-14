@@ -60,7 +60,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.dataType.Scope.LIVE;
+import static io.evitadb.dataType.Scope.DEFAULT_SCOPE;
 import static io.evitadb.dataType.Scope.NO_SCOPE;
 
 /**
@@ -116,8 +116,8 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 			name, description, deprecationNotice, cardinality,
 			referencedEntityType, referencedEntityTypeManaged,
 			referencedGroupType, referencedGroupTypeManaged,
-			indexed ? new Scope[] {Scope.LIVE} : NO_SCOPE,
-			faceted ? new Scope[] {Scope.LIVE} : NO_SCOPE
+			indexed ? Scope.DEFAULT_SCOPES : NO_SCOPE,
+			faceted ? Scope.DEFAULT_SCOPES : NO_SCOPE
 		);
 	}
 
@@ -148,11 +148,11 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	}
 
 	public boolean isIndexed() {
-		return Arrays.stream(this.indexedInScopes).anyMatch(scope -> scope == LIVE);
+		return Arrays.stream(this.indexedInScopes).anyMatch(scope -> scope == DEFAULT_SCOPE);
 	}
 
 	public boolean isFaceted() {
-		return Arrays.stream(this.facetedInScopes).anyMatch(scope -> scope == LIVE);
+		return Arrays.stream(this.facetedInScopes).anyMatch(scope -> scope == DEFAULT_SCOPE);
 	}
 
 	@Nullable

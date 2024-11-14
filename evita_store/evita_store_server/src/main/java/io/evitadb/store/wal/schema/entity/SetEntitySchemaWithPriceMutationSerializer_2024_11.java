@@ -49,7 +49,7 @@ public class SetEntitySchemaWithPriceMutationSerializer_2024_11 extends Serializ
 		final boolean withPrice = input.readBoolean();
 		return new SetEntitySchemaWithPriceMutation(
 			withPrice,
-			withPrice ? new Scope[] { Scope.LIVE } : Scope.NO_SCOPE,
+			withPrice ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE,
 			input.readVarInt(true)
 		);
 	}

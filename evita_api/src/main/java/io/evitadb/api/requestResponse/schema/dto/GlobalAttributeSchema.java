@@ -61,7 +61,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 
 	/**
 	 * Converts an array of ScopedGlobalAttributeUniquenessType objects into an EnumMap linking Scope to GlobalAttributeUniquenessType.
-	 * If the input array is null, it initializes the map with a default value of Scope.LIVE mapped to GlobalAttributeUniquenessType.NOT_UNIQUE.
+	 * If the input array is null, it initializes the map with a default value of Scope.DEFAULT_SCOPE mapped to GlobalAttributeUniquenessType.NOT_UNIQUE.
 	 *
 	 * @param uniqueInScopes An array of ScopedAttributeUniquenessType to be converted. Can be null.
 	 * @return An EnumMap where each Scope is associated with its corresponding AttributeUniquenessType.
@@ -74,7 +74,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 				theUniquenessType.put(uniqueInScope.scope(), uniqueInScope.uniquenessType());
 			}
 		} else {
-			theUniquenessType.put(Scope.LIVE, GlobalAttributeUniquenessType.NOT_UNIQUE);
+			theUniquenessType.put(Scope.DEFAULT_SCOPE, GlobalAttributeUniquenessType.NOT_UNIQUE);
 		}
 		return theUniquenessType;
 	}
@@ -319,7 +319,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		if (globalUniquenessTypeInScopes == null || globalUniquenessTypeInScopes.isEmpty()) {
 			final EnumMap<Scope, GlobalAttributeUniquenessType> theMap = new EnumMap<>(Scope.class);
 			this.globalUniquenessTypeInScopes = Collections.unmodifiableMap(theMap);
-			theMap.put(Scope.LIVE, GlobalAttributeUniquenessType.NOT_UNIQUE);
+			theMap.put(Scope.DEFAULT_SCOPE, GlobalAttributeUniquenessType.NOT_UNIQUE);
 		} else {
 			this.globalUniquenessTypeInScopes = CollectionUtils.toUnmodifiableMap(globalUniquenessTypeInScopes);
 		}

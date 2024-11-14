@@ -53,7 +53,7 @@ public class SetAttributeSchemaGloballyUniqueMutationConverter implements Schema
 	public SetAttributeSchemaGloballyUniqueMutation convert(@Nonnull GrpcSetAttributeSchemaGloballyUniqueMutation mutation) {
 		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = mutation.getUniqueGloballyInScopesList().isEmpty() ?
 			new ScopedGlobalAttributeUniquenessType[]{
-				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, toGlobalAttributeUniquenessType(mutation.getUniqueGlobally()))
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(mutation.getUniqueGlobally()))
 			}
 			:
 			mutation.getUniqueGloballyInScopesList()

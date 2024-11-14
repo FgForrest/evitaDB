@@ -308,7 +308,7 @@ public class Entity implements SealedEntity {
 			locales,
 			referencesDefined,
 			withHierarchy,
-			Scope.LIVE,
+			Scope.DEFAULT_SCOPE,
 			dropped
 		);
 	}
@@ -395,7 +395,7 @@ public class Entity implements SealedEntity {
 		final Map<AssociatedDataKey, AssociatedDataValue> newAssociatedData = CollectionUtils.createHashMap(localMutations.size());
 		final Map<ReferenceKey, ReferenceContract> newReferences = CollectionUtils.createHashMap(localMutations.size());
 		final Map<PriceKey, PriceContract> newPrices = CollectionUtils.createHashMap(localMutations.size());
-		Scope newScope = possibleEntity.map(Entity::getScope).orElse(Scope.LIVE);
+		Scope newScope = possibleEntity.map(Entity::getScope).orElse(Scope.DEFAULT_SCOPE);
 
 		for (LocalMutation<?, ?> localMutation : localMutations) {
 			if (localMutation instanceof ParentMutation parentMutation) {
@@ -877,7 +877,7 @@ public class Entity implements SealedEntity {
 			this.schema, 1, Collections.emptySet(), PriceInnerRecordHandling.NONE
 		);
 		this.locales = Collections.emptySet();
-		this.scope = Scope.LIVE;
+		this.scope = Scope.DEFAULT_SCOPE;
 		this.dropped = false;
 	}
 

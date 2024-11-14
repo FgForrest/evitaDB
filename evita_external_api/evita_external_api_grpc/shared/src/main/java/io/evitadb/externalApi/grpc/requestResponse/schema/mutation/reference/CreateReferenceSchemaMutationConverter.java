@@ -47,14 +47,14 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 	@Nonnull
 	public CreateReferenceSchemaMutation convert(@Nonnull GrpcCreateReferenceSchemaMutation mutation) {
 		final Scope[] indexedInScopes = mutation.getIndexedInScopesList().isEmpty() ?
-			(mutation.getFilterable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(mutation.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			mutation.getIndexedInScopesList()
 				.stream()
 				.map(EvitaEnumConverter::toScope)
 				.toArray(Scope[]::new);
 		final Scope[] facetedInScopes = mutation.getFacetedInScopesList().isEmpty() ?
-			(mutation.getFaceted() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(mutation.getFaceted() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			mutation.getFacetedInScopesList()
 				.stream()

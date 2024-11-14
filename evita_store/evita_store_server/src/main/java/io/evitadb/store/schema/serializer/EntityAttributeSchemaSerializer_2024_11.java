@@ -111,10 +111,10 @@ public class EntityAttributeSchemaSerializer_2024_11 extends Serializer<EntityAt
 		return EntityAttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			new ScopedAttributeUniquenessType[] {
-				new ScopedAttributeUniquenessType(Scope.LIVE, unique)
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, unique)
 			},
-			(filterable ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE),
-			(sortable ? new Scope[] {Scope.LIVE} : Scope.NO_SCOPE),
+			(filterable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
+			(sortable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
 			localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces
 		);

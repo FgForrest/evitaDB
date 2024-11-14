@@ -83,14 +83,14 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
 	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
 	 *
-	 * This method makes reference indexed only in the {@link Scope#LIVE} scope, archived entities will not be indexed
+	 * This method makes reference indexed only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be indexed
 	 * by this reference unless explicitly set via {@link #faceted(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T indexed() {
-		return indexed(Scope.LIVE);
+		return indexed(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -137,14 +137,14 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
 	 * indexed reference occupies (memory/disk) space in the form of index.
 	 *
-	 * This method makes reference faceted only in the {@link Scope#LIVE} scope, archived entities will not be faceted
+	 * This method makes reference faceted only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be faceted
 	 * by this reference unless explicitly set via {@link #faceted(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T faceted() {
-		return faceted(Scope.LIVE);
+		return faceted(Scope.DEFAULT_SCOPE);
 	}
 
 	/**

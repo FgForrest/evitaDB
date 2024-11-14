@@ -78,7 +78,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 
 	/**
 	 * Converts an array of ScopedAttributeUniquenessType objects into an EnumMap linking Scope to AttributeUniquenessType.
-	 * If the input array is null, it initializes the map with a default value of Scope.LIVE mapped to AttributeUniquenessType.NOT_UNIQUE.
+	 * If the input array is null, it initializes the map with a default value of Scope.DEFAULT_SCOPE mapped to AttributeUniquenessType.NOT_UNIQUE.
 	 *
 	 * @param uniqueInScopes An array of ScopedAttributeUniquenessType to be converted. Can be null.
 	 * @return An EnumMap where each Scope is associated with its corresponding AttributeUniquenessType.
@@ -91,7 +91,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 				theUniquenessType.put(uniqueInScope.scope(), uniqueInScope.uniquenessType());
 			}
 		} else {
-			theUniquenessType.put(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE);
+			theUniquenessType.put(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE);
 		}
 		return theUniquenessType;
 	}
@@ -329,7 +329,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		if (uniquenessTypeInScopes == null || uniquenessTypeInScopes.isEmpty()) {
 			final EnumMap<Scope, AttributeUniquenessType> theMap = new EnumMap<>(Scope.class);
 			this.uniquenessTypeInScopes = Collections.unmodifiableMap(theMap);
-			theMap.put(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE);
+			theMap.put(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE);
 		} else {
 			this.uniquenessTypeInScopes = CollectionUtils.toUnmodifiableMap(uniquenessTypeInScopes);
 		}
@@ -352,7 +352,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 
 	@Override
 	public boolean isUnique() {
-		final AttributeUniquenessType attributeUniquenessType = this.uniquenessTypeInScopes.get(Scope.LIVE);
+		final AttributeUniquenessType attributeUniquenessType = this.uniquenessTypeInScopes.get(Scope.DEFAULT_SCOPE);
 		return attributeUniquenessType != null && attributeUniquenessType != AttributeUniquenessType.NOT_UNIQUE;
 	}
 
@@ -364,7 +364,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 
 	@Override
 	public boolean isUniqueWithinLocale() {
-		return this.uniquenessTypeInScopes.get(Scope.LIVE) == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
+		return this.uniquenessTypeInScopes.get(Scope.DEFAULT_SCOPE) == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
 	}
 
 	@Override

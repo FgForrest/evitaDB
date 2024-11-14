@@ -276,7 +276,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
             //noinspection unchecked
             final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(GetEntityHeaderDescriptor.SCOPE.name()))
                 .map(it -> it.toArray(Scope[]::new))
-                .orElse(Scope.DEFAULT);
+                .orElse(Scope.DEFAULT_SCOPES);
 
             // left over arguments are globally unique attribute filters as defined by schema
             final Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes = extractUniqueAttributesFromArguments(scopes, arguments, catalogSchema);

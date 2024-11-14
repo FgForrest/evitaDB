@@ -335,7 +335,7 @@ public final class ReflectedReferenceSchemaBuilder
 	@Override
 	public ReflectedReferenceSchemaBuilder nonIndexed() {
 		if (isReflectedReferenceAvailable()) {
-			return nonIndexed(Scope.LIVE);
+			return nonIndexed(Scope.DEFAULT_SCOPE);
 		} else {
 			throw new InvalidSchemaMutationException(
 				"Reflected references must be indexed (otherwise we wouldn't be able to propagate the reflections)!"
@@ -408,7 +408,7 @@ public final class ReflectedReferenceSchemaBuilder
 	@Override
 	public ReflectedReferenceSchemaBuilder nonFaceted() {
 		if (isReflectedReferenceAvailable()) {
-			return nonFaceted(Scope.LIVE);
+			return nonFaceted(Scope.DEFAULT_SCOPE);
 		} else {
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,

@@ -46,7 +46,7 @@ public class SetAttributeSchemaSortableMutationConverter implements SchemaMutati
 	@Nonnull
 	public SetAttributeSchemaSortableMutation convert(@Nonnull GrpcSetAttributeSchemaSortableMutation mutation) {
 		final Scope[] sortableInScopes = mutation.getSortableInScopesList().isEmpty() ?
-			(mutation.getSortable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(mutation.getSortable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			mutation.getSortableInScopesList()
 				.stream()

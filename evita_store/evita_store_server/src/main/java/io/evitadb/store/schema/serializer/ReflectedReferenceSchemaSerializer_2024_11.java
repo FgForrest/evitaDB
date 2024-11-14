@@ -143,8 +143,8 @@ public class ReflectedReferenceSchemaSerializer_2024_11 extends Serializer<Refle
 		return ReflectedReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
-			EnumSet.of(Scope.LIVE),
-			faceted ? EnumSet.of(Scope.LIVE) : EnumSet.noneOf(Scope.class),
+			EnumSet.of(Scope.DEFAULT_SCOPE),
+			faceted ? EnumSet.of(Scope.DEFAULT_SCOPE) : EnumSet.noneOf(Scope.class),
 			attributes,
 			sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance

@@ -236,7 +236,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 			//noinspection unchecked
 			final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(GetEntityHeaderDescriptor.SCOPE.name()))
 				.map(it -> it.toArray(Scope[]::new))
-				.orElse(Scope.DEFAULT);
+				.orElse(Scope.DEFAULT_SCOPES);
 
 			// left over arguments are unique attribute filters as defined by schema
 			final Map<AttributeSchemaContract, Object> uniqueAttributes = extractUniqueAttributesFromArguments(scopes, arguments, entitySchema);

@@ -187,7 +187,7 @@ public final class GlobalAttributeSchemaBuilder
 					toInstance().getName(),
 					new ScopedGlobalAttributeUniquenessType[] {
 						new ScopedGlobalAttributeUniquenessType(
-							Scope.LIVE,
+							Scope.DEFAULT_SCOPE,
 							decider.getAsBoolean() ?
 								GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG : GlobalAttributeUniquenessType.NOT_UNIQUE
 						)

@@ -105,7 +105,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = type;
 		this.schema = EntitySchema._internalBuild(type);
 		this.primaryKey = null;
-		this.scope =  Scope.LIVE;
+		this.scope =  Scope.DEFAULT_SCOPE;
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
@@ -116,7 +116,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = null;
-		this.scope =  Scope.LIVE;
+		this.scope =  Scope.DEFAULT_SCOPE;
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
@@ -127,7 +127,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = type;
 		this.primaryKey = primaryKey;
 		this.schema = EntitySchema._internalBuild(type);
-		this.scope =  Scope.LIVE;
+		this.scope =  Scope.DEFAULT_SCOPE;
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
@@ -138,7 +138,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = primaryKey;
-		this.scope =  Scope.LIVE;
+		this.scope =  Scope.DEFAULT_SCOPE;
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);

@@ -117,7 +117,7 @@ public interface EntitySchemaContract extends
 	 * @return
 	 */
 	default boolean isHierarchyIndexed() {
-		return isHierarchyIndexedInScope(Scope.LIVE);
+		return isHierarchyIndexedInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -154,7 +154,7 @@ public interface EntitySchemaContract extends
 	 * @return
 	 */
 	default boolean isPriceIndexed() {
-		return isPriceIndexedInScope(Scope.LIVE);
+		return isPriceIndexedInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**

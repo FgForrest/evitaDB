@@ -49,7 +49,7 @@ public interface SortableAttributeCompoundSchemaEditor<S extends SortableAttribu
 	 */
 	@Nonnull
 	default S indexed() {
-		return indexed(Scope.LIVE);
+		return indexed(Scope.DEFAULT_SCOPE);
 	}
 
 	/**

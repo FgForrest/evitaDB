@@ -164,8 +164,8 @@ public class ReferenceSchemaSerializer_2024_11 extends Serializer<ReferenceSchem
 			cardinality,
 			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
 			groupType, groupTypeNameVariants, referencedGroupTypeManaged,
-			(indexed ? EnumSet.of(Scope.LIVE) : EnumSet.noneOf(Scope.class)),
-			(faceted ? EnumSet.of(Scope.LIVE) : EnumSet.noneOf(Scope.class)),
+			(indexed ? EnumSet.of(Scope.DEFAULT_SCOPE) : EnumSet.noneOf(Scope.class)),
+			(faceted ? EnumSet.of(Scope.DEFAULT_SCOPE) : EnumSet.noneOf(Scope.class)),
 			attributes, sortableAttributeCompounds
 		);
 	}

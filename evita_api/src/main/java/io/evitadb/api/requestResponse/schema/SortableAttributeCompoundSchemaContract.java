@@ -56,7 +56,7 @@ public interface SortableAttributeCompoundSchemaContract
 	 * @return
 	 */
 	default boolean isIndexed() {
-		return isIndexedInScope(Scope.LIVE);
+		return isIndexedInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**

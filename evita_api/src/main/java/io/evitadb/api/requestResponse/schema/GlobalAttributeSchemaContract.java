@@ -48,10 +48,10 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
 	 * better to have this ensured by the database engine.
 	 *
-	 * @return true if the attribute is unique globally in {@link Scope#LIVE} scope
+	 * @return true if the attribute is unique globally in {@link Scope#DEFAULT_SCOPE} scope
 	 */
 	default boolean isUniqueGlobally() {
-		return isUniqueGlobally(Scope.LIVE);
+		return isUniqueGlobally(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -93,10 +93,10 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 	 * value of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different
 	 * locales.
 	 *
-	 * @return true if the attribute is unique globally within {@link Scope#LIVE} scope
+	 * @return true if the attribute is unique globally within {@link Scope#DEFAULT_SCOPE} scope
 	 */
 	default boolean isUniqueGloballyWithinLocale() {
-		return isUniqueGloballyWithinLocale(Scope.LIVE);
+		return isUniqueGloballyWithinLocale(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -136,11 +136,11 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 
 	/**
 	 * Returns type of uniqueness of the attribute. See {@link #isUniqueGlobally()} ()} and {@link #isUniqueGloballyWithinLocale()}.
-	 * @return type of uniqueness in {@link Scope#LIVE} scope
+	 * @return type of uniqueness in {@link Scope#DEFAULT_SCOPE} scope
 	 */
 	@Nonnull
 	default GlobalAttributeUniquenessType getGlobalUniquenessType() {
-		return getGlobalUniquenessType(Scope.LIVE);
+		return getGlobalUniquenessType(Scope.DEFAULT_SCOPE);
 	}
 	/**
 	 * Returns type of uniqueness of the attribute. See {@link #isUniqueGlobally()} ()} and {@link #isUniqueGloballyWithinLocale()}.

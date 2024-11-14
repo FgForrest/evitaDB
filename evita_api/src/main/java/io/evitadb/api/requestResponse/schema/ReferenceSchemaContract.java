@@ -197,7 +197,7 @@ public interface ReferenceSchemaContract extends
 	}
 
 	/**
-	 * Returns TRUE if the index in {@link Scope#LIVE} for this reference should be created and maintained allowing to
+	 * Returns TRUE if the index in {@link Scope#DEFAULT_SCOPE} for this reference should be created and maintained allowing to
 	 * filter by {@link ReferenceHaving} filtering and sorted by {@link ReferenceProperty} constraints. Index is also
 	 * required when reference is {@link #isFaceted() faceted} - but it has to be indexed in the same scope as faceted.
 	 *
@@ -206,10 +206,10 @@ public interface ReferenceSchemaContract extends
 	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
 	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
 	 *
-	 * @return true if reference is indexed in {@link Scope#LIVE} scope
+	 * @return true if reference is indexed in {@link Scope#DEFAULT_SCOPE} scope
 	 */
 	default boolean isIndexed() {
-		return isIndexed(Scope.LIVE);
+		return isIndexed(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -243,7 +243,7 @@ public interface ReferenceSchemaContract extends
 	}
 
 	/**
-	 * Returns TRUE if the statistics data in {@link Scope#LIVE} for this reference should be maintained and this
+	 * Returns TRUE if the statistics data in {@link Scope#DEFAULT_SCOPE} for this reference should be maintained and this
 	 * allowing to get {@link FacetSummary} for this reference or use {@link FacetHaving} filtering query.
 	 *
 	 * Do not mark reference as faceted unless you want it among {@link FacetStatistics}. Each faceted reference
@@ -251,10 +251,10 @@ public interface ReferenceSchemaContract extends
 	 *
 	 * Reference that was marked as faceted is called Facet.
 	 *
-	 * @return true if reference is faceted in {@link Scope#LIVE}
+	 * @return true if reference is faceted in {@link Scope#DEFAULT_SCOPE}
 	 */
 	default boolean isFaceted() {
-		return isFaceted(Scope.LIVE);
+		return isFaceted(Scope.DEFAULT_SCOPE);
 	}
 
 	/**

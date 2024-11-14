@@ -100,7 +100,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 
 		final Scope[] requestedScopes = Optional.ofNullable((List<Scope>) parameters.get(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
 			.map(it -> it.toArray(Scope[]::new))
-			.orElse(Scope.DEFAULT);
+			.orElse(Scope.DEFAULT_SCOPES);
 
 		entitySchema.getAttributes()
 			.values()
@@ -142,7 +142,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			.orElse(QueryHeaderFilterArgumentsJoinType.AND);
 		final Scope[] requestedScopes = Optional.ofNullable((List<Scope>) parameters.remove(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
 			.map(it -> it.toArray(Scope[]::new))
-			.orElse(Scope.DEFAULT);
+			.orElse(Scope.DEFAULT_SCOPES);
 
 		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(requestedScopes, parameters, catalogSchema);
 
@@ -198,7 +198,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			.orElse(QueryHeaderFilterArgumentsJoinType.AND);
 		final Scope[] requestedScopes = Optional.ofNullable((List<Scope>) parameters.remove(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
 			.map(it -> it.toArray(Scope[]::new))
-			.orElse(Scope.DEFAULT);
+			.orElse(Scope.DEFAULT_SCOPES);
 
 		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(requestedScopes, parameters, catalogSchema);
 

@@ -50,7 +50,7 @@ public class SetReferenceSchemaFacetedMutationConverter implements SchemaMutatio
 	@Nonnull
 	public SetReferenceSchemaFacetedMutation convert(@Nonnull GrpcSetReferenceSchemaFacetedMutation mutation) {
 		final Scope[] facetedInScopes = mutation.getFacetedInScopesList().isEmpty() ?
-			(Boolean.TRUE.equals(mutation.getFaceted()) ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(Boolean.TRUE.equals(mutation.getFaceted()) ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			mutation.getFacetedInScopesList()
 				.stream()

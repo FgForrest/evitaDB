@@ -73,7 +73,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nonnull GlobalAttributeUniquenessType unique) {
 		this(
 			name,
-			new ScopedGlobalAttributeUniquenessType[]{new ScopedGlobalAttributeUniquenessType(Scope.LIVE, unique)}
+			new ScopedGlobalAttributeUniquenessType[]{new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, unique)}
 		);
 	}
 
@@ -81,14 +81,14 @@ public class SetAttributeSchemaGloballyUniqueMutation
 		this.name = name;
 		this.uniqueGloballyInScopes = uniqueGloballyInScopes == null ?
 			new ScopedGlobalAttributeUniquenessType[]{
-				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.NOT_UNIQUE)
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, GlobalAttributeUniquenessType.NOT_UNIQUE)
 			} : uniqueGloballyInScopes;
 	}
 
 	@Nonnull
 	public GlobalAttributeUniquenessType getUniqueGlobally() {
 		return Arrays.stream(this.uniqueGloballyInScopes)
-			.filter(scope -> scope.scope() == Scope.LIVE)
+			.filter(scope -> scope.scope() == Scope.DEFAULT_SCOPE)
 			.map(ScopedGlobalAttributeUniquenessType::uniquenessType)
 			.findFirst()
 			.orElse(GlobalAttributeUniquenessType.NOT_UNIQUE);

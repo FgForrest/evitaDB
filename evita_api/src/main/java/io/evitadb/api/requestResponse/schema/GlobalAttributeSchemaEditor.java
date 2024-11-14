@@ -46,14 +46,14 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
 	 * better to have this ensured by the database engine.
 	 *
-	 * This method makes attribute unique only in the {@link Scope#LIVE} scope, archived entities will not be unique
+	 * This method makes attribute unique only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be unique
 	 * by this attribute unless explicitly set via {@link #uniqueGlobally(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T uniqueGlobally() {
-		return uniqueGlobally(Scope.LIVE);
+		return uniqueGlobally(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -128,7 +128,7 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 */
 	@Nonnull
 	default T uniqueGloballyWithinLocale() {
-		return uniqueGloballyWithinLocale(Scope.LIVE);
+		return uniqueGloballyWithinLocale(Scope.DEFAULT_SCOPE);
 	}
 
 	/**

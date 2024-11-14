@@ -114,7 +114,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			// by default reflected reference is indexed in the same scope as the entity
 			null,
 			// by default reflected reference is not faceted unless explicitly set
-			faceted == null ? null : faceted ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE,
+			faceted == null ? null : faceted ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE,
 			attributesInheritanceBehavior, attributeInheritanceFilter
 		);
 	}
@@ -147,7 +147,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 
 	public boolean isFaceted() {
 		return this.facetedInScopes != null &&
-			Arrays.stream(this.facetedInScopes).anyMatch(scope -> scope == Scope.LIVE);
+			Arrays.stream(this.facetedInScopes).anyMatch(scope -> scope == Scope.DEFAULT_SCOPE);
 	}
 
 	@Nullable

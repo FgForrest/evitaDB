@@ -112,7 +112,7 @@ public class SortableAttributeCompoundSchemaSerializer_2024_11 extends Serialize
 
 		return SortableAttributeCompoundSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			new Scope[] {Scope.LIVE},
+			Scope.DEFAULT_SCOPES,
 			attributeElements
 		);
 	}

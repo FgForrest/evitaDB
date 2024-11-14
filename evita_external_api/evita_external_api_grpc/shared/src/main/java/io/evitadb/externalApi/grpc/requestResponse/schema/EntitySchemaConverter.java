@@ -559,7 +559,7 @@ public class EntitySchemaConverter {
 	static <T extends AttributeSchemaContract> T toAttributeSchema(@Nonnull GrpcAttributeSchema attributeSchema, @Nonnull Class<T> expectedType) {
 		final ScopedAttributeUniquenessType[] uniqueInScopes = attributeSchema.getUniqueInScopesList().isEmpty() ?
 			new ScopedAttributeUniquenessType[]{
-				new ScopedAttributeUniquenessType(Scope.LIVE, toAttributeUniquenessType(attributeSchema.getUnique()))
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(attributeSchema.getUnique()))
 			}
 			:
 			attributeSchema.getUniqueInScopesList()
@@ -568,7 +568,7 @@ public class EntitySchemaConverter {
 				.toArray(ScopedAttributeUniquenessType[]::new);
 		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = attributeSchema.getUniqueGloballyInScopesList().isEmpty() ?
 			new ScopedGlobalAttributeUniquenessType[]{
-				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()))
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()))
 			}
 			:
 			attributeSchema.getUniqueGloballyInScopesList()
@@ -576,14 +576,14 @@ public class EntitySchemaConverter {
 				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
 				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
 		final Scope[] filterableInScopes = attributeSchema.getFilterableInScopesList().isEmpty() ?
-			(attributeSchema.getFilterable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(attributeSchema.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			attributeSchema.getFilterableInScopesList()
 				.stream()
 				.map(EvitaEnumConverter::toScope)
 				.toArray(Scope[]::new);
 		final Scope[] sortableInScopes = attributeSchema.getSortableInScopesList().isEmpty() ?
-			(attributeSchema.getSortable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(attributeSchema.getSortable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			attributeSchema.getSortableInScopesList()
 				.stream()
@@ -680,14 +680,14 @@ public class EntitySchemaConverter {
 	private static ReferenceSchemaContract toReferenceSchema(@Nonnull GrpcReferenceSchema referenceSchema) {
 		final Cardinality cardinality = toCardinality(referenceSchema.getCardinality());
 		final Scope[] indexedInScopes = referenceSchema.getIndexedInScopesList().isEmpty() ?
-			(referenceSchema.getIndexed() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(referenceSchema.getIndexed() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			referenceSchema.getIndexedInScopesList()
 				.stream()
 				.map(EvitaEnumConverter::toScope)
 				.toArray(Scope[]::new);
 		final Scope[] facetedInScopes = referenceSchema.getFacetedInScopesList().isEmpty() ?
-			(referenceSchema.getFaceted() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(referenceSchema.getFaceted() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			referenceSchema.getFacetedInScopesList()
 				.stream()

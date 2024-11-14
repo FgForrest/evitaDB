@@ -46,7 +46,7 @@ public class SetAttributeSchemaFilterableMutationConverter implements SchemaMuta
 	@Nonnull
 	public SetAttributeSchemaFilterableMutation convert(@Nonnull GrpcSetAttributeSchemaFilterableMutation mutation) {
 		final Scope[] filterableInScopes = mutation.getFilterableInScopesList().isEmpty() ?
-			(mutation.getFilterable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(mutation.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			mutation.getFilterableInScopesList()
 				.stream()

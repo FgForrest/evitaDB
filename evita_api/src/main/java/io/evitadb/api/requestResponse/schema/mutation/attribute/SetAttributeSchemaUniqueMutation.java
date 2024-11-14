@@ -81,7 +81,7 @@ public class SetAttributeSchemaUniqueMutation
 	public SetAttributeSchemaUniqueMutation(@Nonnull String name, @Nonnull AttributeUniquenessType unique) {
 		this(
 			name,
-			new ScopedAttributeUniquenessType[]{new ScopedAttributeUniquenessType(Scope.LIVE, unique)}
+			new ScopedAttributeUniquenessType[]{new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, unique)}
 		);
 	}
 
@@ -89,14 +89,14 @@ public class SetAttributeSchemaUniqueMutation
 		this.name = name;
 		this.uniqueInScopes = uniqueInScopes == null ?
 			new ScopedAttributeUniquenessType[]{
-				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE)
 			} : uniqueInScopes;
 	}
 
 	@Nonnull
 	public AttributeUniquenessType getUnique() {
 		return Arrays.stream(this.uniqueInScopes)
-			.filter(scope -> scope.scope() == Scope.LIVE)
+			.filter(scope -> scope.scope() == Scope.DEFAULT_SCOPE)
 			.map(ScopedAttributeUniquenessType::uniquenessType)
 			.findFirst()
 			.orElse(AttributeUniquenessType.NOT_UNIQUE);

@@ -64,14 +64,14 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
 	 * comparison on its {@link Object#toString()} will be used
 	 *
-	 * This method makes attribute filterable only in the {@link Scope#LIVE} scope, archived entities will not be
+	 * This method makes attribute filterable only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be
 	 * filterable by this attribute unless explicitly set via {@link #unique(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T filterable() {
-		return filterable(Scope.LIVE);
+		return filterable(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -139,14 +139,14 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
 	 * better to have this ensured by the database engine.
 	 *
-	 * This method makes attribute unique only in the {@link Scope#LIVE} scope, archived entities will not be unique
+	 * This method makes attribute unique only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be unique
 	 * by this attribute unless explicitly set via {@link #unique(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T unique() {
-		return unique(Scope.LIVE);
+		return unique(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -223,14 +223,14 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * This method differs from {@link #unique()} in that it is possible to have multiple entities with same value
 	 * of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different locales.
 	 *
-	 * This method makes attribute unique within locale only in the {@link Scope#LIVE} scope, archived entities will
+	 * This method makes attribute unique within locale only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will
 	 * not be unique by this attribute unless explicitly set via {@link #uniqueWithinLocale(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T uniqueWithinLocale() {
-		return uniqueWithinLocale(Scope.LIVE);
+		return uniqueWithinLocale(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -307,14 +307,14 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * (memory/disk) space in the form of index. {@link AttributeSchemaContract#getType() Type} of the sortable
 	 * attribute must implement {@link Comparable} interface.
 	 *
-	 * This method makes attribute sortable only in the {@link Scope#LIVE} scope, archived entities will not be
+	 * This method makes attribute sortable only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be
 	 * sortable by this attribute unless explicitly set via {@link #unique(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T sortable() {
-		return sortable(Scope.LIVE);
+		return sortable(Scope.DEFAULT_SCOPE);
 	}
 
 	/**

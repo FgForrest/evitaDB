@@ -83,7 +83,7 @@ public class SetAttributeSchemaFilterableMutation
 	public SetAttributeSchemaFilterableMutation(@Nonnull String name, boolean filterable) {
 		this(
 			name,
-			filterable ? new Scope[] {Scope.LIVE} : NO_SCOPE
+			filterable ? Scope.DEFAULT_SCOPES : NO_SCOPE
 		);
 	}
 

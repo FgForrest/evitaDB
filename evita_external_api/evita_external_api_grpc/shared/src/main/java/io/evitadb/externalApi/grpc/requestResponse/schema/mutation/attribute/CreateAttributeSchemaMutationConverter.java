@@ -55,7 +55,7 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 	public CreateAttributeSchemaMutation convert(@Nonnull GrpcCreateAttributeSchemaMutation mutation) {
 		final ScopedAttributeUniquenessType[] uniqueInScopes = mutation.getUniqueInScopesList().isEmpty() ?
 			new ScopedAttributeUniquenessType[]{
-				new ScopedAttributeUniquenessType(Scope.LIVE, toAttributeUniquenessType(mutation.getUnique()))
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(mutation.getUnique()))
 			}
 			:
 			mutation.getUniqueInScopesList()
@@ -63,14 +63,14 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
 				.toArray(ScopedAttributeUniquenessType[]::new);
 		final Scope[] filterableInScopes = mutation.getFilterableInScopesList().isEmpty() ?
-			(mutation.getFilterable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(mutation.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			mutation.getFilterableInScopesList()
 				.stream()
 				.map(EvitaEnumConverter::toScope)
 				.toArray(Scope[]::new);
 		final Scope[] sortableInScopes = mutation.getSortableInScopesList().isEmpty() ?
-			(mutation.getSortable() ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE)
+			(mutation.getSortable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
 			mutation.getSortableInScopesList()
 				.stream()

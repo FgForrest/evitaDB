@@ -69,7 +69,7 @@ public class CreateSortableAttributeCompoundSchemaMutationSerializer_2024_11 ext
 			attributeElements[i] = new AttributeElement(attributeName, direction, behaviour);
 		}
 		return new CreateSortableAttributeCompoundSchemaMutation(
-			name, description, deprecationNotice, new Scope[] {Scope.LIVE}, attributeElements
+			name, description, deprecationNotice, Scope.DEFAULT_SCOPES, attributeElements
 		);
 	}
 

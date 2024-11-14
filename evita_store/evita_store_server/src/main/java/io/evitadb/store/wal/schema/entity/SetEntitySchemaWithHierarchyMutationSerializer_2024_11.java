@@ -46,7 +46,7 @@ public class SetEntitySchemaWithHierarchyMutationSerializer_2024_11 extends Seri
 	@Override
 	public SetEntitySchemaWithHierarchyMutation read(Kryo kryo, Input input, Class<? extends SetEntitySchemaWithHierarchyMutation> type) {
 		return new SetEntitySchemaWithHierarchyMutation(
-			input.readBoolean(), new Scope[] { Scope.LIVE }
+			input.readBoolean(), Scope.DEFAULT_SCOPES
 		);
 	}
 

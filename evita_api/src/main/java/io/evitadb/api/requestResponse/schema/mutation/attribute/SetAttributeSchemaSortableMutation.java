@@ -83,7 +83,7 @@ public class SetAttributeSchemaSortableMutation
 	public SetAttributeSchemaSortableMutation(@Nonnull String name, boolean sortable) {
 		this(
 			name,
-			sortable ? new Scope[]{Scope.LIVE} : NO_SCOPE
+			sortable ? Scope.DEFAULT_SCOPES : NO_SCOPE
 		);
 	}
 

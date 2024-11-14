@@ -74,12 +74,12 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
 	 * better to have this ensured by the database engine.
 	 *
-	 * This method returns true only if the attribute is unique in the {@link Scope#LIVE} scope.
+	 * This method returns true only if the attribute is unique in the {@link Scope#DEFAULT_SCOPE} scope.
 	 *
-	 * @return true if attribute is unique in {@link Scope#LIVE} scope
+	 * @return true if attribute is unique in {@link Scope#DEFAULT_SCOPE} scope
 	 */
 	default boolean isUnique() {
-		return isUnique(Scope.LIVE);
+		return isUnique(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -120,10 +120,10 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * This method differs from {@link #isUnique()} in that it is possible to have multiple entities with same value
 	 * of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different locales.
 	 *
-	 * @return true if attribute is unique in {@link Scope#LIVE} Scope
+	 * @return true if attribute is unique in {@link Scope#DEFAULT_SCOPE} Scope
 	 */
 	default boolean isUniqueWithinLocale() {
-		return isUniqueWithinLocale(Scope.LIVE);
+		return isUniqueWithinLocale(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -162,11 +162,11 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	/**
 	 * Returns type of uniqueness of the attribute. See {@link #isUnique()} and {@link #isUniqueWithinLocale()}.
 	 *
-	 * @return type of uniqueness for {@link Scope#LIVE} scope
+	 * @return type of uniqueness for {@link Scope#DEFAULT_SCOPE} scope
 	 */
 	@Nonnull
 	default AttributeUniquenessType getUniquenessType() {
-		return getUniquenessType(Scope.LIVE);
+		return getUniquenessType(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -188,12 +188,12 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * When attribute is filterable requirement {@link AttributeHistogram}
 	 * can be used for this attribute.
 	 *
-	 * This method returns true only if the attribute is filterable in the {@link Scope#LIVE} scope.
+	 * This method returns true only if the attribute is filterable in the {@link Scope#DEFAULT_SCOPE} scope.
 	 *
-	 * @return true if attribute is filterable in {@link Scope#LIVE} scope
+	 * @return true if attribute is filterable in {@link Scope#DEFAULT_SCOPE} scope
 	 */
 	default boolean isFilterable() {
-		return isFilterable(Scope.LIVE);
+		return isFilterable(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -243,12 +243,12 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the filterable attribute must
 	 * implement {@link Comparable} interface.
 	 *
-	 * This method returns true only if the attribute is sortable in the {@link Scope#LIVE} scope.
+	 * This method returns true only if the attribute is sortable in the {@link Scope#DEFAULT_SCOPE} scope.
 	 *
-	 * @return true if attribute is sortable in {@link Scope#LIVE} scope
+	 * @return true if attribute is sortable in {@link Scope#DEFAULT_SCOPE} scope
 	 */
 	default boolean isSortable() {
-		return isSortable(Scope.LIVE);
+		return isSortable(Scope.DEFAULT_SCOPE);
 	}
 
 	/**

@@ -51,7 +51,7 @@ public record EntityIndexKey(
 	@Serial private static final long serialVersionUID = -3243859875585872256L;
 
 	public EntityIndexKey(@Nonnull EntityIndexType type) {
-		this(type, Scope.LIVE, null);
+		this(type, Scope.DEFAULT_SCOPE, null);
 	}
 
 	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Scope scope) {
@@ -59,7 +59,7 @@ public record EntityIndexKey(
 	}
 
 	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Serializable discriminator) {
-		this(type, Scope.LIVE, discriminator);
+		this(type, Scope.DEFAULT_SCOPE, discriminator);
 	}
 
 	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Scope scope, @Nonnull Serializable discriminator) {
