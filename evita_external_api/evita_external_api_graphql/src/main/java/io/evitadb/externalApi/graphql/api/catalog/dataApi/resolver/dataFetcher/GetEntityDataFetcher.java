@@ -58,6 +58,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -233,10 +234,12 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 				.orElse(QueryPriceMode.WITH_TAX);
 
 			//noinspection unchecked
-			final List<Scope> scopes = (List<Scope>) arguments.remove(GetEntityHeaderDescriptor.SCOPE.name());
+			final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(GetEntityHeaderDescriptor.SCOPE.name()))
+				.map(it -> it.toArray(Scope[]::new))
+				.orElse(Scope.DEFAULT);
 
 			// left over arguments are unique attribute filters as defined by schema
-			final Map<AttributeSchemaContract, Object> uniqueAttributes = extractUniqueAttributesFromArguments(arguments, entitySchema);
+			final Map<AttributeSchemaContract, Object> uniqueAttributes = extractUniqueAttributesFromArguments(scopes, arguments, entitySchema);
 
 			// validate that arguments contain at least one entity identifier
 			if (primaryKey == null && uniqueAttributes.isEmpty()) {
@@ -253,18 +256,19 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
                 priceValidIn,
                 priceValidInNow,
 				priceType,
-	            (scopes != null ? scopes.toArray(Scope[]::new) : null),
+	            scopes,
                 uniqueAttributes
             );
         }
 
         private static Map<AttributeSchemaContract, Object> extractUniqueAttributesFromArguments(
-            @Nonnull HashMap<String, Object> arguments,
+			@Nonnull Scope[] requestedScopes,
+            @Nonnull HashMap<String, Object> remainingArguments,
             @Nonnull EntitySchemaContract entitySchema
         ) {
-            final Map<AttributeSchemaContract, Object> uniqueAttributes = createHashMap(arguments.size());
+            final Map<AttributeSchemaContract, Object> uniqueAttributes = createHashMap(remainingArguments.size());
 
-			for (Map.Entry<String, Object> argument : arguments.entrySet()) {
+			for (Map.Entry<String, Object> argument : remainingArguments.entrySet()) {
 				final String attributeName = argument.getKey();
 				final AttributeSchemaContract attributeSchema = entitySchema
 					.getAttributeByName(attributeName, ARGUMENT_NAME_NAMING_CONVENTION)
@@ -274,8 +278,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 					continue;
 				}
 				Assert.isPremiseValid(
-					/* TODO LHO - nemělo by to tady být specifické ke vstupu dotazu? */
-					attributeSchema.isUniqueInAnyScope(),
+					Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUnique),
 					() -> new GraphQLQueryResolvingInternalError(
 						"Cannot find entity by non-unique attribute `" + attributeName + "`."
 					)

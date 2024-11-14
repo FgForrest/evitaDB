@@ -285,10 +285,12 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
             final Integer limit = (Integer) arguments.remove(ListUnknownEntitiesHeaderDescriptor.LIMIT.name());
             final QueryHeaderArgumentsJoinType join = (QueryHeaderArgumentsJoinType) arguments.remove(ListUnknownEntitiesHeaderDescriptor.JOIN.name());
 	        //noinspection unchecked
-	        final List<Scope> scopes = (List<Scope>) arguments.remove(ListUnknownEntitiesHeaderDescriptor.SCOPE.name());
+	        final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(ListUnknownEntitiesHeaderDescriptor.SCOPE.name()))
+                .map(it -> it.toArray(Scope[]::new))
+                .orElse(Scope.DEFAULT);
 
             // left over arguments are globally unique attribute filters as defined by schema
-            final Map<GlobalAttributeSchemaContract, List<Object>> globallyUniqueAttributes = extractUniqueAttributesFromArguments(arguments, catalogSchema);
+            final Map<GlobalAttributeSchemaContract, List<Object>> globallyUniqueAttributes = extractUniqueAttributesFromArguments(scopes, arguments, catalogSchema);
 
             // validate that arguments contain at least one entity identifier
             if (globallyUniqueAttributes.isEmpty()) {
@@ -296,6 +298,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
             }
 
             if (locale == null &&
+                // TODO LHO scopy
                 globallyUniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale)) {
                 throw new GraphQLInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
             }
@@ -304,18 +307,19 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
                 locale,
                 limit,
                 join,
-                (scopes != null ? scopes.toArray(Scope[]::new) : null),
+                scopes,
                 globallyUniqueAttributes
             );
         }
 
         private static Map<GlobalAttributeSchemaContract, List<Object>> extractUniqueAttributesFromArguments(
-            @Nonnull Map<String, Object> arguments,
+            @Nonnull Scope[] requestedScopes,
+            @Nonnull Map<String, Object> remainingArguments,
             @Nonnull CatalogSchemaContract catalogSchema
         ) {
-            final Map<GlobalAttributeSchemaContract, List<Object>> uniqueAttributes = createHashMap(arguments.size());
+            final Map<GlobalAttributeSchemaContract, List<Object>> uniqueAttributes = createHashMap(remainingArguments.size());
 
-            for (Map.Entry<String, Object> argument : arguments.entrySet()) {
+            for (Map.Entry<String, Object> argument : remainingArguments.entrySet()) {
                 final String attributeName = argument.getKey();
                 final GlobalAttributeSchemaContract attributeSchema = catalogSchema
                     .getAttributeByName(attributeName, ARGUMENT_NAME_NAMING_CONVENTION)
@@ -325,8 +329,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
                     continue;
                 }
                 Assert.isPremiseValid(
-                    /* TODO LHO - tady si nejsem jistý, jestli by se scope nemělo brát z requestu */
-                    attributeSchema.isUniqueGloballyInAnyScope(),
+                    Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUniqueGlobally),
                     () -> new GraphQLQueryResolvingInternalError(
                         "Cannot filter list of entities by non-unique attribute `" + attributeName + "`."
                     )

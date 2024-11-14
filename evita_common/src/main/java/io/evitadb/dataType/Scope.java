@@ -46,9 +46,9 @@ public enum Scope {
 	ARCHIVED;
 
 	/**
-	 * Default scope to be used if not specified custom one.
+	 * Default scopes to be used if not specified custom one.
 	 */
-	public static final Scope DEFAULT = LIVE;
+	public static final Scope[] DEFAULT = new Scope[] { LIVE };
 	/**
 	 * Empty array of scopes.
 	 */
