@@ -40,6 +40,13 @@ import java.util.Set;
 public interface WritableEntityStorageContainerAccessor extends EntityStoragePartAccessor {
 
 	/**
+	 * Returns true, if the entity container is completely removed, false otherwise.
+	 *
+	 * @return true if the entity is completely removed, false otherwise
+	 */
+	boolean isEntityRemovedEntirely();
+
+	/**
 	 * Registers internal identifiers in `priceId` argument to `priceKey` and `innerRecordId` combination inside
 	 * the entity with `entityPrimaryKey`.
 	 */

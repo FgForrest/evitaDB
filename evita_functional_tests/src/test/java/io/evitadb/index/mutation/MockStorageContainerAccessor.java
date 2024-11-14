@@ -61,6 +61,11 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	@Getter private final Set<Locale> removedLocales = new HashSet<>();
 
 	@Override
+	public boolean isEntityRemovedEntirely() {
+		return entityStorageContainer.isMarkedForRemoval();
+	}
+
+	@Override
 	public void registerAssignedPriceId(int entityPrimaryKey, @Nonnull PriceKey priceKey, int internalPriceId) {
 		if (this.assignedInternalPriceIdIndex == null) {
 			this.assignedInternalPriceIdIndex = new HashMap<>();

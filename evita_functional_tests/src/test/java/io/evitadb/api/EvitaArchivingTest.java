@@ -55,7 +55,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static io.evitadb.api.EvitaIndexingTest.getGlobalIndex;
-import static io.evitadb.api.EvitaIndexingTest.getHierarchyIndex;
 import static io.evitadb.api.EvitaIndexingTest.getReferencedEntityIndex;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -131,15 +130,15 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			.orElseThrow();
 
 		assertNotNull(catalog1.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNotNull(getHierarchyIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 2));
 		assertNotNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.BRAND, 2));
 
 		assertNull(catalog1.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
 		assertNull(getGlobalIndex(productCollection1, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 2));
 		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 2));
 
@@ -160,16 +159,16 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			.orElseThrow();
 
 		assertNotNull(catalog2.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 2));
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 2));
 
 		assertNull(catalog2.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
 		/* primary key is always indexed in all scopes, no matter what */
 		assertNotNull(getGlobalIndex(productCollection2, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 2));
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 2));
 
@@ -190,15 +189,15 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			.orElseThrow();
 
 		assertNotNull(catalog3.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNotNull(getHierarchyIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 2));
 		assertNotNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 2));
 
 		assertNull(catalog3.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
 		assertNull(getGlobalIndex(productCollection3, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 2));
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 2));
 
@@ -217,15 +216,15 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			.orElseThrow();
 
 		assertNotNull(catalog4.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNotNull(getHierarchyIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 2));
 		assertNotNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.BRAND, 2));
 
 		assertNull(catalog4.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
 		assertNull(getGlobalIndex(productCollection4, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 2));
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 2));
 	}
@@ -263,15 +262,15 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			.orElseThrow();
 
 		assertNotNull(catalog1.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNotNull(getHierarchyIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 2));
 		assertNotNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.BRAND, 2));
 
 		assertNull(catalog1.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
 		assertNull(getGlobalIndex(productCollection1, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 2));
 		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 2));
 
@@ -292,15 +291,15 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			.orElseThrow();
 
 		assertNotNull(catalog2.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 2));
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 2));
 
 		assertNotNull(catalog2.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
 		assertNotNull(getGlobalIndex(productCollection2, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNotNull(getHierarchyIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 2));
 		assertNotNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 2));
 
@@ -321,15 +320,15 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			.orElseThrow();
 
 		assertNotNull(catalog3.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNotNull(getHierarchyIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 2));
 		assertNotNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 2));
 
 		assertNull(catalog3.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
 		assertNull(getGlobalIndex(productCollection3, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 2));
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 2));
 
@@ -348,15 +347,15 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			.orElseThrow();
 
 		assertNotNull(catalog4.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
-		assertNull(getHierarchyIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 1));
-		assertNotNull(getHierarchyIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 2));
 		assertNotNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.BRAND, 2));
 
 		assertNull(catalog4.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
 		assertNull(getGlobalIndex(productCollection4, Scope.ARCHIVED));
-		assertNull(getHierarchyIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getHierarchyIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 2));
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 2));
 	}

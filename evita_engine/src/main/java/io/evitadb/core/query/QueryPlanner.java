@@ -223,8 +223,8 @@ public class QueryPlanner {
 	 * Method analyzes the input query and picks multiple {@link EntityIndex} sets that can be interchangeably used to
 	 * construct response to the query. Currently, the logic is quite stupid - it searches the filter for all constraints
 	 * within AND relation and when relation or hierarchy query is encountered, it adds specific
-	 * {@link EntityIndexType#REFERENCED_ENTITY} or {@link EntityIndexType#REFERENCED_HIERARCHY_NODE} that contains
-	 * limited subset of the entities related to that placement/relation.
+	 * {@link EntityIndexType#REFERENCED_ENTITY} that contains limited subset of the entities related to that
+	 * placement/relation.
 	 */
 	private static IndexSelectionResult<?> selectIndexes(@Nonnull QueryPlanningContext queryContext) {
 		queryContext.pushStep(QueryPhase.PLANNING_INDEX_USAGE);

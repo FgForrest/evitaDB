@@ -1709,7 +1709,7 @@ public final class EntityCollection implements
 		}
 
 		return this.persistenceService.readEntity(
-			catalog.getVersion(),
+			this.catalog.getVersion(),
 			primaryKey,
 			evitaRequest,
 			getInternalSchema(),

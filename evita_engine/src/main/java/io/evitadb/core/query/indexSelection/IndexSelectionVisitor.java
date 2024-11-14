@@ -71,9 +71,8 @@ import java.util.stream.Collectors;
  * one with another to produce filtering query with minimal execution costs.
  *
  * Currently, the logic is quite stupid - it searches the filter for all constraints within AND relation and when
- * relation or hierarchy query is encountered, it adds specific {@link EntityIndexType#REFERENCED_ENTITY} or
- * {@link EntityIndexType#REFERENCED_HIERARCHY_NODE} that contains limited subset of the entities related to that
- * placement/relation.
+ * relation or hierarchy query is encountered, it adds specific {@link EntityIndexType#REFERENCED_ENTITY} that contains
+ * limited subset of the entities related to that placement/relation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -146,7 +145,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 
 	/**
 	 * Registers {@link TargetIndexes} that represents hierarchy placement. It finds collection of
-	 * {@link EntityIndexType#REFERENCED_HIERARCHY_NODE} indexes that contains all relevant data for entities that
+	 * {@link EntityIndexType#REFERENCED_ENTITY} indexes that contains all relevant data for entities that
 	 * are part of the requested tree. This significantly limits the scope that needs to be examined.
 	 */
 	private void addHierarchyIndexOption(@Nonnull HierarchyFilterConstraint constraint) {
@@ -178,7 +177,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						queryContext.getIndex(
 								new EntityIndexKey(
-									EntityIndexType.REFERENCED_HIERARCHY_NODE,
+									EntityIndexType.REFERENCED_ENTITY,
 									new ReferenceKey(filteredHierarchyReferenceName, hierarchyEntityId)
 								)
 							)
@@ -188,7 +187,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					// add indexes as potential target indexes
 					this.targetIndexes.add(
 						new TargetIndexes<>(
-							EntityIndexType.REFERENCED_HIERARCHY_NODE.name() +
+							EntityIndexType.REFERENCED_ENTITY.name() +
 								" composed of " + requestedHierarchyNodes.size() + " indexes",
 							constraint,
 							ReducedEntityIndex.class,

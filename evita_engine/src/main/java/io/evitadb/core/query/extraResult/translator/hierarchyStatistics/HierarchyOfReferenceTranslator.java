@@ -65,7 +65,7 @@ public class HierarchyOfReferenceTranslator
 
 	@Nonnull
 	private static EntityIndexKey createReferencedHierarchyIndexKey(@Nonnull String referenceName, int hierarchyNodeId) {
-		return new EntityIndexKey(EntityIndexType.REFERENCED_HIERARCHY_NODE, new ReferenceKey(referenceName, hierarchyNodeId));
+		return new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, new ReferenceKey(referenceName, hierarchyNodeId));
 	}
 
 	@Override
