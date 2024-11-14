@@ -28,7 +28,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
@@ -37,7 +36,6 @@ import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
@@ -74,7 +72,9 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		rootNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), entitySchema.getDeprecationNotice());
 		rootNode.put(EntitySchemaDescriptor.WITH_GENERATED_PRIMARY_KEY.name(), entitySchema.isWithGeneratedPrimaryKey());
 		rootNode.put(EntitySchemaDescriptor.WITH_HIERARCHY.name(), entitySchema.isWithHierarchy());
+		rootNode.set(EntitySchemaDescriptor.HIERARCHY_INDEXED.name(), serializeFlagInScopes(entitySchema::isHierarchyIndexedInScope));
 		rootNode.put(EntitySchemaDescriptor.WITH_PRICE.name(), entitySchema.isWithPrice());
+		rootNode.set(EntitySchemaDescriptor.PRICE_INDEXED.name(), serializeFlagInScopes(entitySchema::isPriceIndexedInScope));
 		rootNode.put(EntitySchemaDescriptor.INDEXED_PRICE_PLACES.name(), entitySchema.getIndexedPricePlaces());
 		rootNode.set(EntitySchemaDescriptor.LOCALES.name(), objectJsonSerializer.serializeCollection(entitySchema.getLocales().stream().map(Locale::toLanguageTag).toList()));
 		rootNode.set(EntitySchemaDescriptor.CURRENCIES.name(), objectJsonSerializer.serializeCollection(entitySchema.getCurrencies().stream().map(Currency::toString).toList()));
@@ -110,22 +110,12 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(attributeSchema.getNameVariants()));
 		attributeSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription());
 		attributeSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice());
-		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
-			.map(scope -> serializeScopedAttributeUniquenessType(scope, attributeSchema))
-			.collect(objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll));
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), serializeUniquenessType(attributeSchema::getUniquenessType));
 		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
-			attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
-				.map(scope -> serializeScopedGlobalAttributeUniquenessType(scope, globalAttributeSchema))
-				.collect(objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll));
+			attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), serializeGlobalUniquenessType(globalAttributeSchema::getGlobalUniquenessType));
 		}
-		attributeSchemaNode.putIfAbsent(
-			AttributeSchemaDescriptor.FILTERABLE.name(),
-			objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(attributeSchema::isFilterable).toArray(Scope[]::new)
-		));
-		attributeSchemaNode.putIfAbsent(
-			AttributeSchemaDescriptor.SORTABLE.name(),
-			objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(attributeSchema::isSortable).toArray(Scope[]::new)
-		));
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(attributeSchema::isFilterable));
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortable));
 		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
 		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
@@ -141,22 +131,6 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		attributeSchemaNode.put(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces());
 
 		return attributeSchemaNode;
-	}
-
-	@Nonnull
-	private ObjectNode serializeScopedAttributeUniquenessType(@Nonnull Scope scope, @Nonnull AttributeSchemaContract attributeSchema) {
-		final ObjectNode attributeUniquenessType = objectJsonSerializer.objectNode();
-		attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
-		attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType(scope).name());
-		return attributeUniquenessType;
-	}
-
-	@Nonnull
-	private ObjectNode serializeScopedGlobalAttributeUniquenessType(@Nonnull Scope scope, @Nonnull GlobalAttributeSchemaContract attributeSchema) {
-		final ObjectNode attributeUniquenessType = objectJsonSerializer.objectNode();
-		attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
-		attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getGlobalUniquenessType(scope).name());
-		return attributeUniquenessType;
 	}
 
 	@Nonnull
@@ -186,6 +160,8 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		sortableAttributeCompoundSchema.getAttributeElements()
 			.forEach(it -> sortableAttributeCompoundArray.add(serializeAttributeElement(it)));
 		schemaNode.putIfAbsent(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), sortableAttributeCompoundArray);
+
+		schemaNode.set(SortableAttributeCompoundSchemaDescriptor.INDEXED.name(), serializeFlagInScopes(sortableAttributeCompoundSchema::isIndexedInScope));
 
 		return schemaNode;
 	}
@@ -261,19 +237,12 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), referenceSchema.getReferencedGroupType());
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getGroupTypeNameVariants(entitySchemaFetcher)));
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged());
-		referenceSchemaNode.set(
-			ReferenceSchemaDescriptor.INDEXED.name(),
-			objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(referenceSchema::isIndexed).toArray(Scope[]::new))
-		);
-		referenceSchemaNode.set(
-			ReferenceSchemaDescriptor.FACETED.name(),
-			objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(referenceSchema::isFaceted).toArray(Scope[]::new))
-		);
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.INDEXED.name(), serializeFlagInScopes(referenceSchema::isIndexed));
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.FACETED.name(), serializeFlagInScopes(referenceSchema::isFaceted));
 
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
 		referenceSchemaNode.set(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(referenceSchema));
 
 		return referenceSchemaNode;
 	}
-
 }

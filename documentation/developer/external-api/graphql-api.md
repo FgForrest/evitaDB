@@ -82,12 +82,6 @@ and combines it with the GraphQL library capabilities. All implementations of th
 shouldn't break the implementations, but bigger structural changes may require reimplementation of API's side of things as
 well. More details about the core builder and resolver is described [here](constraint-schema-api-subsystem.md).
 
-### Mutations
-
-TODO LHO
-
-###
-
 ## Data types support
 
 evitaDB has wide range of custom data types. All these data types are supported by GraphQL in some form and are defined

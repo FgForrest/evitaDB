@@ -77,7 +77,7 @@ public class CreateSortableAttributeCompoundSchemaMutationConverter
 			input.getRequiredField(SortableAttributeCompoundSchemaMutationDescriptor.NAME),
 			input.getOptionalField(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION),
 			input.getOptionalField(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getRequiredField(CreateSortableAttributeCompoundSchemaMutationDescriptor.INDEXED_IN_SCOPES),
+			input.getOptionalField(CreateSortableAttributeCompoundSchemaMutationDescriptor.INDEXED_IN_SCOPES),
 			attributeElements
 		);
 	}

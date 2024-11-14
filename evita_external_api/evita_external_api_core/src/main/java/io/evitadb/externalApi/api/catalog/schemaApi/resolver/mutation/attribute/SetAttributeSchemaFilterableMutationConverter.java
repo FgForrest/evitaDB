@@ -56,7 +56,7 @@ public class SetAttributeSchemaFilterableMutationConverter extends AttributeSche
 	protected SetAttributeSchemaFilterableMutation convert(@Nonnull Input input) {
 		return new SetAttributeSchemaFilterableMutation(
 			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES)
+			input.getOptionalField(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES)
 		);
 	}
 }

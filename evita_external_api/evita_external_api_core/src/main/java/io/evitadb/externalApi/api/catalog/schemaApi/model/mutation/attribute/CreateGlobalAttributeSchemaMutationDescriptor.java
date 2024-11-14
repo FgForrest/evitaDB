@@ -33,8 +33,8 @@ import io.evitadb.externalApi.dataType.Any;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -75,7 +75,7 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
 			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
-		.type(nonNullListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
+		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 
 	PropertyDescriptor UNIQUE_GLOBALLY_IN_SCOPES = PropertyDescriptor.builder()
@@ -91,7 +91,7 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
 			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
-		.type(nonNullListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT))
+		.type(nullableListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor FILTERABLE_IN_SCOPES = PropertyDescriptor.builder()
 		.name("filterableInScopes")

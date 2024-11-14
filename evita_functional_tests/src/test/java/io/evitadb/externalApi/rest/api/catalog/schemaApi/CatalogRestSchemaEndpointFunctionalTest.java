@@ -54,6 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
@@ -154,7 +155,9 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), entitySchema.getDeprecationNotice())
 			.e(EntitySchemaDescriptor.WITH_GENERATED_PRIMARY_KEY.name(), entitySchema.isWithGeneratedPrimaryKey())
 			.e(EntitySchemaDescriptor.WITH_HIERARCHY.name(), entitySchema.isWithHierarchy())
+			.e(EntitySchemaDescriptor.HIERARCHY_INDEXED.name(),createFlagInScopesDto(entitySchema::isHierarchyIndexedInScope))
 			.e(EntitySchemaDescriptor.WITH_PRICE.name(), entitySchema.isWithPrice())
+			.e(EntitySchemaDescriptor.PRICE_INDEXED.name(), createFlagInScopesDto(entitySchema::isPriceIndexedInScope))
 			.e(EntitySchemaDescriptor.INDEXED_PRICE_PLACES.name(), entitySchema.getIndexedPricePlaces())
 			.e(EntitySchemaDescriptor.LOCALES.name(), entitySchema.getLocales().stream().map(Locale::toLanguageTag).collect(Collectors.toList()))
 			.e(EntitySchemaDescriptor.CURRENCIES.name(), entitySchema.getCurrencies().stream().map(Currency::toString).collect(Collectors.toList()))
@@ -236,8 +239,8 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.toList());
 		}
 		dtoBuilder
-			.e(AttributeSchemaDescriptor.FILTERABLE.name(), Arrays.stream(Scope.values()).filter(attributeSchema::isFilterable).map(Enum::name).toList())
-			.e(AttributeSchemaDescriptor.SORTABLE.name(), Arrays.stream(Scope.values()).filter(attributeSchema::isSortable).map(Enum::name).toList())
+			.e(AttributeSchemaDescriptor.FILTERABLE.name(), createFlagInScopesDto(attributeSchema::isFilterable))
+			.e(AttributeSchemaDescriptor.SORTABLE.name(), createFlagInScopesDto(attributeSchema::isSortable))
 			.e(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized())
 			.e(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
 		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
@@ -274,6 +277,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 					.e(AttributeElementDescriptor.BEHAVIOUR.name(), it.behaviour().name())
 					.build())
 				.toList())
+			.e(SortableAttributeCompoundSchemaDescriptor.INDEXED.name(), createFlagInScopesDto(sortableAttributeCompoundSchema::isIndexedInScope))
 			.build();
 	}
 
@@ -332,8 +336,8 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.e(NameVariantsDescriptor.KEBAB_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.KEBAB_CASE))
 				.build())
 			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
-			.e(ReferenceSchemaDescriptor.INDEXED.name(), Arrays.stream(Scope.values()).filter(referenceSchema::isIndexed).map(Enum::name).toList())
-			.e(ReferenceSchemaDescriptor.FACETED.name(), Arrays.stream(Scope.values()).filter(referenceSchema::isFaceted).map(Enum::name).toList())
+			.e(ReferenceSchemaDescriptor.INDEXED.name(), createFlagInScopesDto(referenceSchema::isIndexed))
+			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFaceted))
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
 
@@ -360,6 +364,11 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			});
 
 		return referenceSchemaBuilder.build();
+	}
+
+	@Nonnull
+	private static List<String> createFlagInScopesDto(@Nonnull Predicate<Scope> flagPredicate) {
+		return Arrays.stream(Scope.values()).filter(flagPredicate).map(Enum::name).toList();
 	}
 
 	@Nonnull

@@ -96,22 +96,34 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	}
 
 	@Nonnull
-	protected static List<Scope> createAttributeSortableDto(@Nonnull AttributeSchemaContract schema) {
-		return Arrays.stream(Scope.values()).filter(schema::isSortable).toList();
+	protected static List<String> createAttributeSortableDto(@Nonnull AttributeSchemaContract schema) {
+		return Arrays.stream(Scope.values())
+			.filter(schema::isSortable)
+			.map(Enum::name)
+			.toList();
 	}
 
 	@Nonnull
-	protected static List<Scope> createAttributeFilterableDto(@Nonnull AttributeSchemaContract schema) {
-		return Arrays.stream(Scope.values()).filter(schema::isFilterable).toList();
+	protected static List<String> createAttributeFilterableDto(@Nonnull AttributeSchemaContract schema) {
+		return Arrays.stream(Scope.values())
+			.filter(schema::isFilterable)
+			.map(Enum::name)
+			.toList();
 	}
 
 	@Nonnull
-	protected static List<Scope> createReferencedFacetedDto(ReferenceSchemaContract schema) {
-		return Arrays.stream(Scope.values()).filter(schema::isFaceted).toList();
+	protected static List<String> createReferencedFacetedDto(ReferenceSchemaContract schema) {
+		return Arrays.stream(Scope.values())
+			.filter(schema::isFaceted)
+			.map(Enum::name)
+			.toList();
 	}
 
 	@Nonnull
-	protected static List<Scope> createReferenceIndexedDto(ReferenceSchemaContract schema) {
-		return Arrays.stream(Scope.values()).filter(schema::isIndexed).toList();
+	protected static List<String> createReferenceIndexedDto(ReferenceSchemaContract schema) {
+		return Arrays.stream(Scope.values())
+			.filter(schema::isIndexed)
+			.map(Enum::name)
+			.toList();
 	}
 }

@@ -55,7 +55,7 @@ public class SetEntitySchemaWithPriceMutationConverter extends EntitySchemaMutat
 	protected SetEntitySchemaWithPriceMutation convert(@Nonnull Input input) {
 		return new SetEntitySchemaWithPriceMutation(
 			input.getRequiredField(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE),
-			input.getRequiredField(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES),
+			input.getOptionalField(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES),
 			input.getRequiredField(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES)
 		);
 	}

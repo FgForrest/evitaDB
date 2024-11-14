@@ -198,7 +198,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								}
 								url {
 									__typename
-									uniqueInScopes {
+									uniquenessType {
 										scope
 										uniquenessType
 									}

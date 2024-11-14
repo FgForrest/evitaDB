@@ -365,7 +365,8 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 										"direction": "DESC",
 										"behaviour": "NULLS_FIRST"
 									}
-								]
+								],
+								"indexedInScopes": ["LIVE"]
 							}
 						}
 					]
@@ -412,6 +413,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 								.build()
 							)
 						)
+						.e(SortableAttributeCompoundSchemaDescriptor.INDEXED.name(), list().i(Scope.LIVE.name()))
 						.build()
 				)
 			)
@@ -467,6 +469,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 									.build()
 							)
 						)
+						.e(SortableAttributeCompoundSchemaDescriptor.INDEXED.name(), list().i(Scope.LIVE.name()))
 						.build()
 				)
 			)

@@ -68,7 +68,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 6770930613525155912L;
 	@Getter @Nonnull private final String name;
-	@Getter private final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes;
+	@Getter @Nonnull private final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes;
 
 	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nonnull GlobalAttributeUniquenessType unique) {
 		this(

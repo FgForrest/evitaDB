@@ -78,7 +78,7 @@ public class SetAttributeSchemaSortableMutation
 	@Serial private static final long serialVersionUID = -427671510596792137L;
 
 	@Getter @Nonnull private final String name;
-	@Getter private final Scope[] sortableInScopes;
+	@Getter @Nonnull private final Scope[] sortableInScopes;
 
 	public SetAttributeSchemaSortableMutation(@Nonnull String name, boolean sortable) {
 		this(

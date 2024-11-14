@@ -243,7 +243,6 @@ public class FullResponseObjectBuilder {
 			.getAttributes()
 			.values()
 			.stream()
-			/* TODO LHO - tady si nejsem jistý, jestli by se scope nemělo brát z requestu */
 			.filter(attributeSchema -> attributeSchema.isFilterableInAnyScope() &&
 				Number.class.isAssignableFrom(attributeSchema.getPlainType()))
 			.toList();
@@ -299,7 +298,6 @@ public class FullResponseObjectBuilder {
 			.getReferences()
 			.values()
 			.stream()
-			/* TODO LHO - tady si nejsem jistý, jestli by se scope nemělo brát z requestu */
 			.filter(ReferenceSchemaContract::isFacetedInAnyScope)
 			.toList();
 

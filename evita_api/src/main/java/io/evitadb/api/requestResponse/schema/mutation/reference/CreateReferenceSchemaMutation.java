@@ -130,8 +130,8 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		boolean referencedEntityTypeManaged,
 		@Nullable String referencedGroupType,
 		boolean referencedGroupTypeManaged,
-		@Nonnull Scope[] indexedInScopes,
-		@Nonnull Scope[] facetedInScopes
+		@Nullable Scope[] indexedInScopes,
+		@Nullable Scope[] facetedInScopes
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
@@ -143,8 +143,8 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		this.referencedEntityTypeManaged = referencedEntityTypeManaged;
 		this.referencedGroupType = referencedGroupType;
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
-		this.indexedInScopes = indexedInScopes;
-		this.facetedInScopes = facetedInScopes;
+		this.indexedInScopes = indexedInScopes == null ? NO_SCOPE : indexedInScopes;
+		this.facetedInScopes = facetedInScopes == null ? NO_SCOPE : facetedInScopes;
 	}
 
 	public boolean isIndexed() {

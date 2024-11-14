@@ -120,8 +120,8 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 			null,
 			"tag",
 			"tags",
-			Scope.NO_SCOPE,
-			Scope.NO_SCOPE,
+			null,
+			null,
 			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 			null
 		);

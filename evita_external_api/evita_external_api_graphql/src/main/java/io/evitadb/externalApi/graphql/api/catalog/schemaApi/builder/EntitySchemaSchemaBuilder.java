@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
+import graphql.schema.GraphQLType;
 import graphql.schema.GraphQLUnionType;
 import graphql.schema.TypeResolver;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
@@ -101,7 +102,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerType(globalAttributeSchemaObject);
 		buildingContext.registerType(buildAttributeSchemaUnion(attributeSchemaObject, entityAttributeSchemaObject, globalAttributeSchemaObject));
 		buildingContext.registerType(AttributeElementDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(buildSortableAttributeCompoundSchemaObject());
 		buildingContext.registerType(buildAssociatedDataSchemaObject());
 		buildingContext.registerType(buildGenericReferenceSchemaObject());
 
@@ -221,6 +222,17 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 				buildAttributeSchemasField(entitySchema)
 			);
 		}
+
+		buildingContext.registerDataFetcher(
+			objectName,
+			EntitySchemaDescriptor.HIERARCHY_INDEXED,
+			EntitySchemaHierarchyIndexedDataFetcher.getInstance()
+		);
+		buildingContext.registerDataFetcher(
+			objectName,
+			EntitySchemaDescriptor.PRICE_INDEXED,
+			EntitySchemaPriceIndexedDataFetcher.getInstance()
+		);
 
 		schemaObjectBuilder.field(EntitySchemaDescriptor.ALL_ATTRIBUTES.to(fieldBuilderTransformer));
 		buildingContext.registerDataFetcher(
@@ -829,6 +841,23 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			);
 
 		return objectBuilder.build();
+	}
+
+	/*
+		Sortable compounds
+	 */
+
+	@Nonnull
+	private GraphQLObjectType buildSortableAttributeCompoundSchemaObject() {
+		buildingContext.registerDataFetcher(
+			SortableAttributeCompoundSchemaDescriptor.THIS,
+			SortableAttributeCompoundSchemaDescriptor.INDEXED,
+			SortableAttributeCompoundSchemaIndexedDataFetcher.getInstance()
+		);
+
+		return SortableAttributeCompoundSchemaDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.build();
 	}
 
 	/*

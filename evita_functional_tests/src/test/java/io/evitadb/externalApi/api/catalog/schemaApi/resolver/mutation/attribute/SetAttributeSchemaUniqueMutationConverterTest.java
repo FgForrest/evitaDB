@@ -90,26 +90,22 @@ class SetAttributeSchemaUniqueMutationConverterTest {
 	}
 
 	@Test
+	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
+		final SetAttributeSchemaUniqueMutation expectedMutation = new SetAttributeSchemaUniqueMutation(
+			"code",
+			(ScopedAttributeUniquenessType[]) null
+		);
+
+		final SetAttributeSchemaUniqueMutation convertedMutation1 = converter.convert(
+			map()
+				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation1);
+	}
+
+	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
-						.i(map()
-							.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE)
-							.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)))
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.build()
-			)
-		);
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
 	}

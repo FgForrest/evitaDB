@@ -56,7 +56,7 @@ public class SetAttributeSchemaSortableMutationConverter extends AttributeSchema
 	protected SetAttributeSchemaSortableMutation convert(@Nonnull Input input) {
 		return new SetAttributeSchemaSortableMutation(
 			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetAttributeSchemaSortableMutationDescriptor.SORTABLE_IN_SCOPES)
+			input.getOptionalField(SetAttributeSchemaSortableMutationDescriptor.SORTABLE_IN_SCOPES)
 		);
 	}
 }

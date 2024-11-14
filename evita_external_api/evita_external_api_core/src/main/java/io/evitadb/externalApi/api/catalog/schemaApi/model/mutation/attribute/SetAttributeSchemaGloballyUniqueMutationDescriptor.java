@@ -30,7 +30,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
 
 /**
  * Descriptor representing {@link SetAttributeSchemaGloballyUniqueMutation}.
@@ -54,7 +54,7 @@ public interface SetAttributeSchemaGloballyUniqueMutationDescriptor extends Attr
 			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
 			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
-		.type(nonNullListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT))
+		.type(nullableListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()

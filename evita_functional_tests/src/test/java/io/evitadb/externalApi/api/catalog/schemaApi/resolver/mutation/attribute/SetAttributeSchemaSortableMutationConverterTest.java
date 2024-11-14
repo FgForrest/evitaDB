@@ -81,24 +81,22 @@ class SetAttributeSchemaSortableMutationConverterTest {
 	}
 
 	@Test
+	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
+		final SetAttributeSchemaSortableMutation expectedMutation = new SetAttributeSchemaSortableMutation(
+			"code",
+			null
+		);
+
+		final SetAttributeSchemaSortableMutation convertedMutation1 = converter.convert(
+			map()
+				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation1);
+	}
+
+	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(SetAttributeSchemaSortableMutationDescriptor.SORTABLE_IN_SCOPES.name(), list()
-						.i(Scope.LIVE.name()))
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.build()
-			)
-		);
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
 	}

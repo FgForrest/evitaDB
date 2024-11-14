@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.test.builder.ListBuilder.list;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -54,12 +55,16 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(true, new Scope[] { Scope.LIVE });
+		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(
+			true,
+			new Scope[] { Scope.LIVE }
+		);
 
 		final SetEntitySchemaWithHierarchyMutation convertedMutation1 = converter.convert(
 			map()
 				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), true)
-				.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), new Scope[] { Scope.LIVE })
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -67,10 +72,26 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 		final SetEntitySchemaWithHierarchyMutation convertedMutation2 = converter.convert(
 			map()
 				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), "true")
-				.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), new Scope[] { Scope.LIVE })
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
+	}
+
+	@Test
+	void shouldResolveInputToLocalMutationWithRequiredDataOnly() {
+		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(
+			true,
+			null
+		);
+
+		final SetEntitySchemaWithHierarchyMutation convertedMutation1 = converter.convert(
+			map()
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), true)
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation1);
 	}
 
 	@Test

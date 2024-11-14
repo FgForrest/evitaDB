@@ -30,7 +30,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * Descriptor representing {@link SetAttributeSchemaSortableMutation}.
@@ -50,7 +50,7 @@ public interface SetAttributeSchemaSortableMutationDescriptor extends AttributeS
 			
 			This array defines in which scopes the attribute will be sortable. It will not be sortable in not-specified scopes.
 			""")
-		.type(nonNull(Scope[].class))
+		.type(nullable(Scope[].class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()

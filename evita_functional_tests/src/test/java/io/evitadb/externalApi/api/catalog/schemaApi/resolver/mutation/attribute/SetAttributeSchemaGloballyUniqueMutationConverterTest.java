@@ -90,26 +90,22 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 	}
 
 	@Test
+	void shouldResolveInputToLocalMutationOnlyWithRequiredData() {
+		final SetAttributeSchemaGloballyUniqueMutation expectedMutation = new SetAttributeSchemaGloballyUniqueMutation(
+			"code",
+			(ScopedGlobalAttributeUniquenessType[]) null
+		);
+
+		final SetAttributeSchemaGloballyUniqueMutation convertedMutation1 = converter.convert(
+			map()
+				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation1);
+	}
+
+	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
-						.i(map()
-							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
-							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.build()
-			)
-		);
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
 	}

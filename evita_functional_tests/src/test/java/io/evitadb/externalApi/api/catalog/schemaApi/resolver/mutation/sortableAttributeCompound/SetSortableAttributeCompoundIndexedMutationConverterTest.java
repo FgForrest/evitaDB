@@ -35,13 +35,13 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.test.builder.ListBuilder.list;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Tests for {@link SetSortableAttributeCompoundIndexedMutationConverter}
- * TODO LHO - tohle bude potřeba doladit
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -58,35 +58,29 @@ class SetSortableAttributeCompoundIndexedMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final SetSortableAttributeCompoundIndexedMutation expectedMutation = new SetSortableAttributeCompoundIndexedMutation(
 			"code",
-			Scope.values()
+			new Scope[] {Scope.LIVE}
 		);
-		final SetSortableAttributeCompoundIndexedMutation convertedMutation = converter.convert(
+		final SetSortableAttributeCompoundIndexedMutation convertedMutation1 = converter.convert(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetSortableAttributeCompoundIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), Scope.values())
+				.e(SetSortableAttributeCompoundIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.build()
 		);
-		assertEquals(expectedMutation, convertedMutation);
+		assertEquals(expectedMutation, convertedMutation1);
+
+		final SetSortableAttributeCompoundIndexedMutation convertedMutation2 = converter.convert(
+			map()
+				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
+				.e(SetSortableAttributeCompoundIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation2);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(SetSortableAttributeCompoundIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), Scope.values())
-					.build()
-			)
-		);
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
 	}

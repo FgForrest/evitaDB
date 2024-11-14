@@ -55,12 +55,18 @@ import java.util.Arrays;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-@RequiredArgsConstructor
 public class SetEntitySchemaWithPriceMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 1203377065876143030L;
+
 	@Getter private final boolean withPrice;
-	@Getter private final Scope[] indexedInScopes;
+	@Getter @Nonnull private final Scope[] indexedInScopes;
 	@Getter private final int indexedPricePlaces;
+
+	public SetEntitySchemaWithPriceMutation(boolean withPrice, @Nullable Scope[] indexedInScopes, int indexedPricePlaces) {
+		this.withPrice = withPrice;
+		this.indexedInScopes = indexedInScopes == null ? Scope.NO_SCOPE : indexedInScopes;
+		this.indexedPricePlaces = indexedPricePlaces;
+	}
 
 	@Nullable
 	@Override

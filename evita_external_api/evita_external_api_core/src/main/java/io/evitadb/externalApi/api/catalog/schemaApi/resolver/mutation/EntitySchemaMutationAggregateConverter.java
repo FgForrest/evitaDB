@@ -131,7 +131,7 @@ public class EntitySchemaMutationAggregateConverter extends MutationAggregateCon
 		this.resolvers.put(MODIFY_REFERENCE_SCHEMA_ATTRIBUTE_INHERITANCE_MUTATION.name(), new ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(REMOVE_REFERENCE_SCHEMA_MUTATION.name(), new RemoveReferenceSchemaMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(SET_REFERENCE_SCHEMA_FACETED_MUTATION.name(), new SetReferenceSchemaFacetedMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_REFERENCE_SCHEMA_INDEXED_MUTATION.name(), new SetReferenceSchemaFilterableMutationConverter(objectParser, exceptionFactory));
+		this.resolvers.put(SET_REFERENCE_SCHEMA_INDEXED_MUTATION.name(), new SetReferenceSchemaIndexedMutationConverter(objectParser, exceptionFactory));
 	}
 
 	@Nonnull

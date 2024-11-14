@@ -55,11 +55,16 @@ import java.util.Arrays;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-@RequiredArgsConstructor
 public class SetEntitySchemaWithHierarchyMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 4676810733910879126L;
+
 	@Getter private final boolean withHierarchy;
-	@Getter private final Scope[] indexedInScopes;
+	@Getter @Nonnull private final Scope[] indexedInScopes;
+
+	public SetEntitySchemaWithHierarchyMutation(boolean withHierarchy, @Nullable Scope[] indexedInScopes) {
+		this.withHierarchy = withHierarchy;
+		this.indexedInScopes = indexedInScopes == null ? Scope.NO_SCOPE : indexedInScopes;
+	}
 
 	@Nullable
 	@Override

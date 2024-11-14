@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.test.builder.ListBuilder.list;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -54,12 +55,17 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final SetEntitySchemaWithPriceMutation expectedMutation = new SetEntitySchemaWithPriceMutation(true, new Scope[] { Scope.LIVE }, 2);
+		final SetEntitySchemaWithPriceMutation expectedMutation = new SetEntitySchemaWithPriceMutation(
+			true,
+			new Scope[] { Scope.LIVE },
+			2
+		);
 
 		final SetEntitySchemaWithPriceMutation convertedMutation1 = converter.convert(
 			map()
 				.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), true)
-				.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES.name(), new Scope[] { Scope.LIVE })
+				.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES.name(), 2)
 				.build()
 		);
@@ -68,7 +74,8 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 		final SetEntitySchemaWithPriceMutation convertedMutation2 = converter.convert(
 			map()
 				.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), "true")
-				.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES.name(), new Scope[] { Scope.LIVE })
+				.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
 				.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES.name(), "2")
 				.build()
 		);

@@ -41,17 +41,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link SetReferenceSchemaFilterableMutationConverter}
+ * Tests for {@link SetReferenceSchemaIndexedMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-class SetReferenceSchemaFilterableMutationConverterTest {
+class SetReferenceSchemaIndexedMutationConverterTest {
 
-	private SetReferenceSchemaFilterableMutationConverter converter;
+	private SetReferenceSchemaIndexedMutationConverter converter;
 
 	@BeforeEach
 	void init() {
-		converter = new SetReferenceSchemaFilterableMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		converter = new SetReferenceSchemaIndexedMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test

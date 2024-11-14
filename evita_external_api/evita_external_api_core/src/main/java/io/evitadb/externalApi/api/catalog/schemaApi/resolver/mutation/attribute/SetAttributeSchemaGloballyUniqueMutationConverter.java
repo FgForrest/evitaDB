@@ -57,7 +57,7 @@ public class SetAttributeSchemaGloballyUniqueMutationConverter extends Attribute
 	@Nonnull
 	@Override
 	protected SetAttributeSchemaGloballyUniqueMutation convert(@Nonnull Input input) {
-		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = input.getRequiredField(
+		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = input.getOptionalField(
 			SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(),
 			new FieldObjectListMapper<>(
 				getMutationName(),

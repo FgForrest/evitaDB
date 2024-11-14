@@ -30,7 +30,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * Descriptor representing {@link SetAttributeSchemaFilterableMutation}.
@@ -50,7 +50,7 @@ public interface SetAttributeSchemaFilterableMutationDescriptor extends Attribut
 			
 			This array defines in which scopes the attribute will be filterable. It will not be filterable in not-specified scopes.
 			""")
-		.type(nonNull(Scope[].class))
+		.type(nullable(Scope[].class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()

@@ -40,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
+import static io.evitadb.test.builder.ListBuilder.list;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -74,7 +75,8 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
-				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), new Scope[] { Scope.LIVE })
+				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
 					map()
 						.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "a")
@@ -96,6 +98,8 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
 					map()
 						.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "a")
@@ -118,14 +122,13 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 			"code",
 			null,
 			null,
-			new Scope[] { Scope.LIVE },
+			null,
 			new AttributeElement("a", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST)
 		);
 
 		final CreateSortableAttributeCompoundSchemaMutation convertedMutation1 = converter.convert(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
-				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), new Scope[] { Scope.LIVE })
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
 					map()
 						.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "a")

@@ -55,7 +55,7 @@ public class SetEntitySchemaWithHierarchyMutationConverter extends EntitySchemaM
 	protected SetEntitySchemaWithHierarchyMutation convert(@Nonnull Input input) {
 		return new SetEntitySchemaWithHierarchyMutation(
 			input.getRequiredField(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY),
-			input.getRequiredField(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES)
+			input.getOptionalField(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES)
 		);
 	}
 }

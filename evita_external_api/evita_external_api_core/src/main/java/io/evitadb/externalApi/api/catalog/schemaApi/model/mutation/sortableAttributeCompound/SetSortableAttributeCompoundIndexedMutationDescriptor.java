@@ -40,7 +40,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface SetSortableAttributeCompoundIndexedMutationDescriptor extends ReferenceSchemaMutationDescriptor {
+public interface SetSortableAttributeCompoundIndexedMutationDescriptor extends SortableAttributeCompoundSchemaMutationDescriptor {
 
 	PropertyDescriptor INDEXED_IN_SCOPES = PropertyDescriptor.builder()
 		.name("indexedInScopes")

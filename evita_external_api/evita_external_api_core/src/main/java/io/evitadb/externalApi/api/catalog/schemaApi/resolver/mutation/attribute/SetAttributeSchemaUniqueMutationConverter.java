@@ -57,7 +57,7 @@ public class SetAttributeSchemaUniqueMutationConverter extends AttributeSchemaMu
 	@Nonnull
 	@Override
 	protected SetAttributeSchemaUniqueMutation convert(@Nonnull Input input) {
-		final ScopedAttributeUniquenessType[] uniqueInScopes = input.getRequiredField(
+		final ScopedAttributeUniquenessType[] uniqueInScopes = input.getOptionalField(
 			SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES.name(),
 			new FieldObjectListMapper<>(
 				getMutationName(),

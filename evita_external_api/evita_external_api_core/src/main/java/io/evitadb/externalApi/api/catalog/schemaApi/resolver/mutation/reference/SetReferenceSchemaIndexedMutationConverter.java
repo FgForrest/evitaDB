@@ -40,10 +40,10 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class SetReferenceSchemaFilterableMutationConverter extends ReferenceSchemaMutationConverter<SetReferenceSchemaIndexedMutation> {
+public class SetReferenceSchemaIndexedMutationConverter extends ReferenceSchemaMutationConverter<SetReferenceSchemaIndexedMutation> {
 
-	public SetReferenceSchemaFilterableMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                     @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public SetReferenceSchemaIndexedMutationConverter(@Nonnull MutationObjectParser objectParser,
+	                                                  @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 
