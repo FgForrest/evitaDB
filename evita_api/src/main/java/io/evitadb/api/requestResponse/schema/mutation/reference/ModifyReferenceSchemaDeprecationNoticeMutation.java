@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -93,32 +92,28 @@ public class ModifyReferenceSchemaDeprecationNoticeMutation
 				return reflectedReferenceSchema
 					.withDeprecationNotice(this.deprecationNotice);
 			}
-		} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
-			if (Objects.equals(theReferenceSchema.getDeprecationNotice(), this.deprecationNotice)) {
-				return theReferenceSchema;
+		} else {
+			if (Objects.equals(referenceSchema.getDeprecationNotice(), this.deprecationNotice)) {
+				return referenceSchema;
 			} else {
 				return ReferenceSchema._internalBuild(
-					theReferenceSchema.getName(),
-					theReferenceSchema.getNameVariants(),
-					theReferenceSchema.getDescription(),
+					referenceSchema.getName(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
 					this.deprecationNotice,
-					theReferenceSchema.getCardinality(),
-					theReferenceSchema.getReferencedEntityType(),
-					theReferenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedEntityTypeManaged(),
-					theReferenceSchema.getReferencedGroupType(),
-					theReferenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedGroupTypeManaged(),
-					theReferenceSchema.getIndexedInScopes(),
-					theReferenceSchema.getFacetedInScopes(),
-					theReferenceSchema.getAttributes(),
-					theReferenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getAttributes(),
+					referenceSchema.getSortableAttributeCompounds()
 				);
 			}
-		} else {
-			throw new InvalidMutationException(
-				"Unknown reference schema type: " + referenceSchema.getClass().getName()
-			);
 		}
 	}
 
@@ -130,7 +125,7 @@ public class ModifyReferenceSchemaDeprecationNoticeMutation
 		if (existingReferenceSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
@@ -141,7 +136,7 @@ public class ModifyReferenceSchemaDeprecationNoticeMutation
 
 	@Override
 	public String toString() {
-		return "Modify entity reference `" + name + "` schema: " +
-			"deprecationNotice='" + deprecationNotice + '\'';
+		return "Modify entity reference `" + this.name + "` schema: " +
+			"deprecationNotice='" + this.deprecationNotice + '\'';
 	}
 }

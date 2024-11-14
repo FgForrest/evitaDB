@@ -108,7 +108,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
-		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			final EnumMap<Scope, GlobalAttributeUniquenessType> uniqueGlobally = toGlobalUniquenessEnumMap(this.uniqueGloballyInScopes);
 			if (uniqueGlobally.equals(globalAttributeSchema.getGlobalUniquenessTypeInScopes())) {
 				//noinspection unchecked

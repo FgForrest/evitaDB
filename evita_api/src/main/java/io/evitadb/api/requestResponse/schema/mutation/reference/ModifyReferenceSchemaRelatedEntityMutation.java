@@ -92,32 +92,26 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 			!(referenceSchema instanceof ReflectedReferenceSchema),
 			() -> "Target entity type cannot be changed once the reflected reference is created!"
 		);
-		if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
-			if (Objects.equals(theReferenceSchema.getReferencedEntityType(), this.referencedEntityType) &&
-				theReferenceSchema.isReferencedEntityTypeManaged() == this.referencedEntityTypeManaged) {
-				return theReferenceSchema;
-			} else {
-				return ReferenceSchema._internalBuild(
-					this.name,
-					theReferenceSchema.getNameVariants(),
-					theReferenceSchema.getDescription(),
-					theReferenceSchema.getDeprecationNotice(),
-					theReferenceSchema.getCardinality(),
-					this.referencedEntityType,
-					this.referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(this.referencedEntityType),
-					this.referencedEntityTypeManaged,
-					theReferenceSchema.getReferencedGroupType(),
-					theReferenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedGroupTypeManaged(),
-					theReferenceSchema.getIndexedInScopes(),
-					theReferenceSchema.getFacetedInScopes(),
-					theReferenceSchema.getAttributes(),
-					theReferenceSchema.getSortableAttributeCompounds()
-				);
-			}
+		if (Objects.equals(referenceSchema.getReferencedEntityType(), this.referencedEntityType) &&
+			referenceSchema.isReferencedEntityTypeManaged() == this.referencedEntityTypeManaged) {
+			return referenceSchema;
 		} else {
-			throw new InvalidSchemaMutationException(
-				"Reference schema `" + referenceSchema.getName() + "` is not a valid reference schema!"
+			return ReferenceSchema._internalBuild(
+				this.name,
+				referenceSchema.getNameVariants(),
+				referenceSchema.getDescription(),
+				referenceSchema.getDeprecationNotice(),
+				referenceSchema.getCardinality(),
+				this.referencedEntityType,
+				this.referencedEntityTypeManaged ? Collections.emptyMap() : NamingConvention.generate(this.referencedEntityType),
+				this.referencedEntityTypeManaged,
+				referenceSchema.getReferencedGroupType(),
+				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+				referenceSchema.isReferencedGroupTypeManaged(),
+				referenceSchema.getIndexedInScopes(),
+				referenceSchema.getFacetedInScopes(),
+				referenceSchema.getAttributes(),
+				referenceSchema.getSortableAttributeCompounds()
 			);
 		}
 	}
@@ -126,11 +120,11 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
+		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();

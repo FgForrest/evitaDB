@@ -92,32 +92,28 @@ public class ModifyReferenceSchemaCardinalityMutation
 				return reflectedReferenceSchema
 					.withCardinality(this.cardinality);
 			}
-		} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
+		} else {
 			if (referenceSchema.getCardinality() == this.cardinality) {
 				return referenceSchema;
 			} else {
 				return ReferenceSchema._internalBuild(
 					this.name,
-					theReferenceSchema.getNameVariants(),
-					theReferenceSchema.getDescription(),
-					theReferenceSchema.getDeprecationNotice(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
 					this.cardinality,
-					theReferenceSchema.getReferencedEntityType(),
-					theReferenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedEntityTypeManaged(),
-					theReferenceSchema.getReferencedGroupType(),
-					theReferenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedGroupTypeManaged(),
-					theReferenceSchema.getIndexedInScopes(),
-					theReferenceSchema.getFacetedInScopes(),
-					theReferenceSchema.getAttributes(),
-					theReferenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getAttributes(),
+					referenceSchema.getSortableAttributeCompounds()
 				);
 			}
-		} else {
-			throw new InvalidSchemaMutationException(
-				"Reference schema `" + referenceSchema + "` is not supported for mutation!"
-			);
 		}
 	}
 

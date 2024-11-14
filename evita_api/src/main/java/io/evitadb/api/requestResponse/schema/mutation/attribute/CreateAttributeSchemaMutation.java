@@ -300,41 +300,35 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 		final EntityAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null, EntityAttributeSchemaContract.class);
 		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name).orElse(null);
 		if (existingAttributeSchema == null) {
-			if (entitySchema instanceof EntitySchema theEntitySchema) {
-				return EntitySchema._internalBuild(
-					theEntitySchema.version() + 1,
-					theEntitySchema.getName(),
-					theEntitySchema.getNameVariants(),
-					theEntitySchema.getDescription(),
-					theEntitySchema.getDeprecationNotice(),
-					theEntitySchema.isWithGeneratedPrimaryKey(),
-					theEntitySchema.isWithHierarchy(),
-					theEntitySchema.getHierarchyIndexedInScopes(),
-					theEntitySchema.isWithPrice(),
-					theEntitySchema.getPriceIndexedInScopes(),
-					theEntitySchema.getIndexedPricePlaces(),
-					theEntitySchema.getLocales(),
-					theEntitySchema.getCurrencies(),
-					Stream.concat(
-							theEntitySchema.getAttributes().values().stream(),
-							Stream.of(newAttributeSchema)
+			return EntitySchema._internalBuild(
+				entitySchema.version() + 1,
+				entitySchema.getName(),
+				entitySchema.getNameVariants(),
+				entitySchema.getDescription(),
+				entitySchema.getDeprecationNotice(),
+				entitySchema.isWithGeneratedPrimaryKey(),
+				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
+				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
+				entitySchema.getIndexedPricePlaces(),
+				entitySchema.getLocales(),
+				entitySchema.getCurrencies(),
+				Stream.concat(
+						entitySchema.getAttributes().values().stream(),
+						Stream.of(newAttributeSchema)
+					)
+					.collect(
+						Collectors.toMap(
+							AttributeSchemaContract::getName,
+							Function.identity()
 						)
-						.collect(
-							Collectors.toMap(
-								AttributeSchemaContract::getName,
-								Function.identity()
-							)
-						),
-					theEntitySchema.getAssociatedData(),
-					theEntitySchema.getReferences(),
-					theEntitySchema.getEvolutionMode(),
-					theEntitySchema.getSortableAttributeCompounds()
-				);
-			} else {
-				throw new InvalidSchemaMutationException(
-					"Unsupported entity schema type: " + entitySchema.getClass().getName()
-				);
-			}
+					),
+				entitySchema.getAssociatedData(),
+				entitySchema.getReferences(),
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
+			);
 		} else if (existingAttributeSchema.equals(newAttributeSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
 			return entitySchema;
@@ -364,33 +358,33 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 				return reflectedReferenceSchema
 					.withDeclaredAttributes(
 						Stream.concat(
-							reflectedReferenceSchema.getDeclaredAttributes().values().stream(),
-							Stream.of(newAttributeSchema)
-						)
-						.collect(
-							Collectors.toMap(
-								AttributeSchemaContract::getName,
-								Function.identity()
+								reflectedReferenceSchema.getDeclaredAttributes().values().stream(),
+								Stream.of(newAttributeSchema)
 							)
-						)
+							.collect(
+								Collectors.toMap(
+									AttributeSchemaContract::getName,
+									Function.identity()
+								)
+							)
 					);
-			} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
+			} else {
 				return ReferenceSchema._internalBuild(
-					theReferenceSchema.getName(),
-					theReferenceSchema.getNameVariants(),
-					theReferenceSchema.getDescription(),
-					theReferenceSchema.getDeprecationNotice(),
-					theReferenceSchema.getCardinality(),
-					theReferenceSchema.getReferencedEntityType(),
-					theReferenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedEntityTypeManaged(),
-					theReferenceSchema.getReferencedGroupType(),
-					theReferenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedGroupTypeManaged(),
-					theReferenceSchema.getIndexedInScopes(),
-					theReferenceSchema.getFacetedInScopes(),
+					referenceSchema.getName(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
 					Stream.concat(
-							theReferenceSchema.getAttributes().values().stream(),
+							referenceSchema.getAttributes().values().stream(),
 							Stream.of(newAttributeSchema)
 						)
 						.collect(
@@ -399,10 +393,8 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 								Function.identity()
 							)
 						),
-					theReferenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getSortableAttributeCompounds()
 				);
-			} else {
-				throw new InvalidSchemaMutationException("Unsupported reference schema type: " + referenceSchema.getClass().getName());
 			}
 		} else if (existingAttributeSchema.get().equals(newAttributeSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter

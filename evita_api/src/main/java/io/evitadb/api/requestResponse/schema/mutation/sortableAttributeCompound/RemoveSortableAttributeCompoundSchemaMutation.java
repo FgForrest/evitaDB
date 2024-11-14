@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -110,41 +109,35 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 			// so we can simply return current schema
 			return entitySchema;
 		} else {
-			if (entitySchema instanceof EntitySchema theEntitySchema) {
-				return EntitySchema._internalBuild(
-					theEntitySchema.version() + 1,
-					theEntitySchema.getName(),
-					theEntitySchema.getNameVariants(),
-					theEntitySchema.getDescription(),
-					theEntitySchema.getDeprecationNotice(),
-					theEntitySchema.isWithGeneratedPrimaryKey(),
-					theEntitySchema.isWithHierarchy(),
-					theEntitySchema.getHierarchyIndexedInScopes(),
-					theEntitySchema.isWithPrice(),
-					theEntitySchema.getPriceIndexedInScopes(),
-					theEntitySchema.getIndexedPricePlaces(),
-					theEntitySchema.getLocales(),
-					theEntitySchema.getCurrencies(),
-					theEntitySchema.getAttributes(),
-					theEntitySchema.getAssociatedData(),
-					theEntitySchema.getReferences(),
-					theEntitySchema.getEvolutionMode(),
-					theEntitySchema.getSortableAttributeCompounds()
-						.entrySet()
-						.stream()
-						.filter(it -> !Objects.equals(this.name, it.getKey()))
-						.collect(
-							Collectors.toMap(
-								Map.Entry::getKey,
-								Map.Entry::getValue
-							)
+			return EntitySchema._internalBuild(
+				entitySchema.version() + 1,
+				entitySchema.getName(),
+				entitySchema.getNameVariants(),
+				entitySchema.getDescription(),
+				entitySchema.getDeprecationNotice(),
+				entitySchema.isWithGeneratedPrimaryKey(),
+				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
+				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
+				entitySchema.getIndexedPricePlaces(),
+				entitySchema.getLocales(),
+				entitySchema.getCurrencies(),
+				entitySchema.getAttributes(),
+				entitySchema.getAssociatedData(),
+				entitySchema.getReferences(),
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
+					.entrySet()
+					.stream()
+					.filter(it -> !Objects.equals(this.name, it.getKey()))
+					.collect(
+						Collectors.toMap(
+							Map.Entry::getKey,
+							Map.Entry::getValue
 						)
-				);
-			} else {
-				throw new InvalidSchemaMutationException(
-					"Unsupported entity schema type: " + entitySchema.getClass().getName()
-				);
-			}
+					)
+			);
 		}
 	}
 
@@ -172,23 +165,23 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 								)
 							)
 					);
-			} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
+			} else {
 				return ReferenceSchema._internalBuild(
-					theReferenceSchema.getName(),
-					theReferenceSchema.getNameVariants(),
-					theReferenceSchema.getDescription(),
-					theReferenceSchema.getDeprecationNotice(),
-					theReferenceSchema.getCardinality(),
-					theReferenceSchema.getReferencedEntityType(),
-					theReferenceSchema.getEntityTypeNameVariants(entityType -> null),
-					theReferenceSchema.isReferencedEntityTypeManaged(),
-					theReferenceSchema.getReferencedGroupType(),
-					theReferenceSchema.getGroupTypeNameVariants(entityType -> null),
-					theReferenceSchema.isReferencedGroupTypeManaged(),
-					theReferenceSchema.getIndexedInScopes(),
-					theReferenceSchema.getFacetedInScopes(),
-					theReferenceSchema.getAttributes(),
-					theReferenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getName(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.getEntityTypeNameVariants(entityType -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.getGroupTypeNameVariants(entityType -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getAttributes(),
+					referenceSchema.getSortableAttributeCompounds()
 						.entrySet()
 						.stream()
 						.filter(it -> !Objects.equals(this.name, it.getKey()))
@@ -198,10 +191,6 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 								Map.Entry::getValue
 							)
 						)
-				);
-			} else {
-				throw new InvalidSchemaMutationException(
-					"Unsupported reference schema type: " + referenceSchema.getClass().getName()
 				);
 			}
 		}

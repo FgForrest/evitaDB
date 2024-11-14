@@ -44,6 +44,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * This is the definition object for {@link Attributes} that is stored along with
@@ -180,6 +182,13 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	AttributeUniquenessType getUniquenessType(@Nonnull Scope scope);
 
 	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	Map<Scope, AttributeUniquenessType> getUniquenessTypeInScopes();
+
+	/**
 	 * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
 	 * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
 	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the filterable attribute must
@@ -226,6 +235,13 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	boolean isFilterable(@Nonnull Scope scope);
 
 	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	Set<Scope> getFilterableInScopes();
+
+	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 	 * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
 	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the filterable attribute must
@@ -261,6 +277,13 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @return true if attribute is filterable in particular scope
 	 */
 	boolean isSortable(@Nonnull Scope scope);
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	Set<Scope> getSortableInScopes();
 
 	/**
 	 * When attribute is localized, it has to be ALWAYS used in connection with specific {@link java.util.Locale}.

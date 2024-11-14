@@ -42,6 +42,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -228,6 +229,13 @@ public interface ReferenceSchemaContract extends
 	boolean isIndexed(@Nonnull Scope scope);
 
 	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	Set<Scope> getIndexedInScopes();
+
+	/**
 	 * Returns TRUE if the statistics data in any scope for this reference should be maintained and this
 	 * allowing to get {@link FacetSummary} for this reference or use {@link FacetHaving} filtering query.
 	 *
@@ -270,6 +278,13 @@ public interface ReferenceSchemaContract extends
 	 * @return true if reference is faceted in particular scope
 	 */
 	boolean isFaceted(@Nonnull Scope scope);
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	Set<Scope> getFacetedInScopes();
 
 	/**
 	 * Validates current reference schema for invalid settings using the information from current catalog schema.

@@ -128,7 +128,7 @@ public class SetAttributeSchemaFilterableMutation
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		final EnumSet<Scope> filterable = ArrayUtils.toEnumSet(Scope.class, this.filterableInScopes);
-		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			if (globalAttributeSchema.getFilterableInScopes().equals(filterable)) {
 				return attributeSchema;
 			} else {
@@ -150,7 +150,7 @@ public class SetAttributeSchemaFilterableMutation
 					globalAttributeSchema.getIndexedDecimalPlaces()
 				);
 			}
-		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			if (entityAttributeSchema.getFilterableInScopes().equals(filterable)) {
 				return attributeSchema;
 			} else {
@@ -171,28 +171,26 @@ public class SetAttributeSchemaFilterableMutation
 					entityAttributeSchema.getIndexedDecimalPlaces()
 				);
 			}
-		} else if (attributeSchema instanceof AttributeSchema theAttributeSchema) {
-			if (theAttributeSchema.getFilterableInScopes().equals(filterable)) {
+		} else  {
+			if (attributeSchema.getFilterableInScopes().equals(filterable)) {
 				return attributeSchema;
 			} else {
 				//noinspection unchecked,rawtypes
 				return (S) AttributeSchema._internalBuild(
 					this.name,
-					theAttributeSchema.getNameVariants(),
-					theAttributeSchema.getDescription(),
-					theAttributeSchema.getDeprecationNotice(),
-					theAttributeSchema.getUniquenessTypeInScopes(),
+					attributeSchema.getNameVariants(),
+					attributeSchema.getDescription(),
+					attributeSchema.getDeprecationNotice(),
+					attributeSchema.getUniquenessTypeInScopes(),
 					filterable,
-					theAttributeSchema.getSortableInScopes(),
-					theAttributeSchema.isLocalized(),
-					theAttributeSchema.isNullable(),
-					(Class) theAttributeSchema.getType(),
-					theAttributeSchema.getDefaultValue(),
-					theAttributeSchema.getIndexedDecimalPlaces()
+					attributeSchema.getSortableInScopes(),
+					attributeSchema.isLocalized(),
+					attributeSchema.isNullable(),
+					(Class) attributeSchema.getType(),
+					attributeSchema.getDefaultValue(),
+					attributeSchema.getIndexedDecimalPlaces()
 				);
 			}
-		} else {
-			throw new InvalidSchemaMutationException("Unsupported attribute schema type: " + attributeSchema.getClass());
 		}
 	}
 

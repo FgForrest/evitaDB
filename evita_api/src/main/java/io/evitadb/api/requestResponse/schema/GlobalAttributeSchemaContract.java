@@ -31,6 +31,7 @@ import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * This schema is an extension of standard {@link AttributeSchema} that adds support for marking the attribute as
@@ -148,5 +149,12 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 	 */
 	@Nonnull
 	GlobalAttributeUniquenessType getGlobalUniquenessType(@Nonnull Scope scope);
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	Map<Scope, GlobalAttributeUniquenessType> getGlobalUniquenessTypeInScopes();
 
 }

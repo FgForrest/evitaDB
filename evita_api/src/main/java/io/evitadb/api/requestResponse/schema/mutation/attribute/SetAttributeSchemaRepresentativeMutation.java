@@ -102,7 +102,7 @@ public class SetAttributeSchemaRepresentativeMutation
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
-		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			if (globalAttributeSchema.isRepresentative() == this.representative) {
 				return attributeSchema;
 			} else {
@@ -124,7 +124,7 @@ public class SetAttributeSchemaRepresentativeMutation
 					globalAttributeSchema.getIndexedDecimalPlaces()
 				);
 			}
-		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			if (entityAttributeSchema.isRepresentative() == this.representative) {
 				return attributeSchema;
 			} else {

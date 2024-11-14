@@ -135,6 +135,13 @@ public interface EntitySchemaContract extends
 	boolean isHierarchyIndexedInScope(@Nonnull Scope scope);
 
 	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	Set<Scope> getHierarchyIndexedInScopes();
+
+	/**
 	 * Returns TRUE when entities of this type holds price information.
 	 *
 	 * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
@@ -170,6 +177,13 @@ public interface EntitySchemaContract extends
 	 * @return
 	 */
 	boolean isPriceIndexedInScope(@Nonnull Scope scope);
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	Set<Scope> getPriceIndexedInScopes();
 
 	/**
 	 * Determines how many fractional places are important when entities are compared during filtering or sorting. It is

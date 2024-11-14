@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -96,40 +95,34 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 			// so we can simply return current schema
 			return entitySchema;
 		} else {
-			if (entitySchema instanceof EntitySchema theEntitySchema) {
-				return EntitySchema._internalBuild(
-					theEntitySchema.version() + 1,
-					theEntitySchema.getName(),
-					theEntitySchema.getNameVariants(),
-					theEntitySchema.getDescription(),
-					theEntitySchema.getDeprecationNotice(),
-					theEntitySchema.isWithGeneratedPrimaryKey(),
-					theEntitySchema.isWithHierarchy(),
-					theEntitySchema.getHierarchyIndexedInScopes(),
-					theEntitySchema.isWithPrice(),
-					theEntitySchema.getPriceIndexedInScopes(),
-					theEntitySchema.getIndexedPricePlaces(),
-					theEntitySchema.getLocales(),
-					theEntitySchema.getCurrencies(),
-					theEntitySchema.getAttributes(),
-					theEntitySchema.getAssociatedData(),
-					theEntitySchema.getReferences().values()
-						.stream()
-						.filter(it -> !it.getName().equals(this.name))
-						.collect(
-							Collectors.toMap(
-								ReferenceSchemaContract::getName,
-								Function.identity()
-							)
-						),
-					theEntitySchema.getEvolutionMode(),
-					theEntitySchema.getSortableAttributeCompounds()
-				);
-			} else {
-				throw new InvalidSchemaMutationException(
-					"Unsupported entity schema type: " + entitySchema.getClass().getName()
-				);
-			}
+			return EntitySchema._internalBuild(
+				entitySchema.version() + 1,
+				entitySchema.getName(),
+				entitySchema.getNameVariants(),
+				entitySchema.getDescription(),
+				entitySchema.getDeprecationNotice(),
+				entitySchema.isWithGeneratedPrimaryKey(),
+				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
+				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
+				entitySchema.getIndexedPricePlaces(),
+				entitySchema.getLocales(),
+				entitySchema.getCurrencies(),
+				entitySchema.getAttributes(),
+				entitySchema.getAssociatedData(),
+				entitySchema.getReferences().values()
+					.stream()
+					.filter(it -> !it.getName().equals(this.name))
+					.collect(
+						Collectors.toMap(
+							ReferenceSchemaContract::getName,
+							Function.identity()
+						)
+					),
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
+			);
 		}
 	}
 

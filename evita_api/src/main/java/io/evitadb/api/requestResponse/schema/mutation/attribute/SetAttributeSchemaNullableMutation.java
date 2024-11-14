@@ -105,7 +105,7 @@ public class SetAttributeSchemaNullableMutation
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		if (attributeSchema.isNullable() == this.nullable) {
 			return attributeSchema;
-		} else if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) GlobalAttributeSchema._internalBuild(
 				this.name,
@@ -123,7 +123,7 @@ public class SetAttributeSchemaNullableMutation
 				globalAttributeSchema.getDefaultValue(),
 				globalAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) EntityAttributeSchema._internalBuild(
 				this.name,
@@ -140,24 +140,22 @@ public class SetAttributeSchemaNullableMutation
 				entityAttributeSchema.getDefaultValue(),
 				entityAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else if (attributeSchema instanceof AttributeSchema theAttributeSchema) {
+		} else  {
 			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
 				name,
-				theAttributeSchema.getNameVariants(),
-				theAttributeSchema.getDescription(),
-				theAttributeSchema.getDeprecationNotice(),
-				theAttributeSchema.getUniquenessTypeInScopes(),
-				theAttributeSchema.getFilterableInScopes(),
-				theAttributeSchema.getSortableInScopes(),
-				theAttributeSchema.isLocalized(),
+				attributeSchema.getNameVariants(),
+				attributeSchema.getDescription(),
+				attributeSchema.getDeprecationNotice(),
+				attributeSchema.getUniquenessTypeInScopes(),
+				attributeSchema.getFilterableInScopes(),
+				attributeSchema.getSortableInScopes(),
+				attributeSchema.isLocalized(),
 				nullable,
-				(Class) theAttributeSchema.getType(),
-				theAttributeSchema.getDefaultValue(),
-				theAttributeSchema.getIndexedDecimalPlaces()
+				(Class) attributeSchema.getType(),
+				attributeSchema.getDefaultValue(),
+				attributeSchema.getIndexedDecimalPlaces()
 			);
-		} else {
-			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
 		}
 	}
 

@@ -107,7 +107,7 @@ public class ModifyAttributeSchemaDeprecationNoticeMutation
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		if (Objects.equals(attributeSchema.getDeprecationNotice(), this.deprecationNotice)) {
 			return attributeSchema;
-		} else if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) GlobalAttributeSchema._internalBuild(
 				globalAttributeSchema.getName(),
@@ -124,7 +124,7 @@ public class ModifyAttributeSchemaDeprecationNoticeMutation
 				globalAttributeSchema.getDefaultValue(),
 				globalAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) EntityAttributeSchema._internalBuild(
 				entityAttributeSchema.getName(),
@@ -140,23 +140,21 @@ public class ModifyAttributeSchemaDeprecationNoticeMutation
 				entityAttributeSchema.getDefaultValue(),
 				entityAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else if (attributeSchema instanceof AttributeSchema theAttributeSchema) {
+		} else  {
 			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
-				theAttributeSchema.getName(),
-				theAttributeSchema.getDescription(),
+				attributeSchema.getName(),
+				attributeSchema.getDescription(),
 				this.deprecationNotice,
-				theAttributeSchema.getUniquenessTypeInScopes(),
-				theAttributeSchema.getFilterableInScopes(),
-				theAttributeSchema.getSortableInScopes(),
-				theAttributeSchema.isLocalized(),
-				theAttributeSchema.isNullable(),
-				(Class) theAttributeSchema.getType(),
-				theAttributeSchema.getDefaultValue(),
-				theAttributeSchema.getIndexedDecimalPlaces()
+				attributeSchema.getUniquenessTypeInScopes(),
+				attributeSchema.getFilterableInScopes(),
+				attributeSchema.getSortableInScopes(),
+				attributeSchema.isLocalized(),
+				attributeSchema.isNullable(),
+				(Class) attributeSchema.getType(),
+				attributeSchema.getDefaultValue(),
+				attributeSchema.getIndexedDecimalPlaces()
 			);
-		} else {
-			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
 		}
 	}
 

@@ -111,7 +111,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 	 * Checks if the current instance has indexed scopes.
 	 *
 	 * @return true if the indexedInScopes array is neither empty nor contains null values,
-	 *         otherwise returns false.
+	 * otherwise returns false.
 	 */
 	public boolean isIndexed() {
 		return !ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes);
@@ -185,40 +185,34 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		final SortableAttributeCompoundSchemaContract newCompoundSchema = mutate(entitySchema, null, (SortableAttributeCompoundSchemaContract) null);
 		final SortableAttributeCompoundSchemaContract existingCompoundSchema = entitySchema.getSortableAttributeCompound(this.name).orElse(null);
 		if (existingCompoundSchema == null) {
-			if (entitySchema instanceof EntitySchema theEntitySchema) {
-				return EntitySchema._internalBuild(
-					theEntitySchema.version() + 1,
-					theEntitySchema.getName(),
-					theEntitySchema.getNameVariants(),
-					theEntitySchema.getDescription(),
-					theEntitySchema.getDeprecationNotice(),
-					theEntitySchema.isWithGeneratedPrimaryKey(),
-					theEntitySchema.isWithHierarchy(),
-					theEntitySchema.getHierarchyIndexedInScopes(),
-					theEntitySchema.isWithPrice(),
-					theEntitySchema.getPriceIndexedInScopes(),
-					theEntitySchema.getIndexedPricePlaces(),
-					theEntitySchema.getLocales(),
-					theEntitySchema.getCurrencies(),
-					theEntitySchema.getAttributes(),
-					theEntitySchema.getAssociatedData(),
-					theEntitySchema.getReferences(),
-					theEntitySchema.getEvolutionMode(),
-					Stream.concat(
-						theEntitySchema.getSortableAttributeCompounds().values().stream(),
-						Stream.of(newCompoundSchema)
-					).collect(
-						Collectors.toMap(
-							SortableAttributeCompoundSchemaContract::getName,
-							Function.identity()
-						)
+			return EntitySchema._internalBuild(
+				entitySchema.version() + 1,
+				entitySchema.getName(),
+				entitySchema.getNameVariants(),
+				entitySchema.getDescription(),
+				entitySchema.getDeprecationNotice(),
+				entitySchema.isWithGeneratedPrimaryKey(),
+				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
+				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
+				entitySchema.getIndexedPricePlaces(),
+				entitySchema.getLocales(),
+				entitySchema.getCurrencies(),
+				entitySchema.getAttributes(),
+				entitySchema.getAssociatedData(),
+				entitySchema.getReferences(),
+				entitySchema.getEvolutionMode(),
+				Stream.concat(
+					entitySchema.getSortableAttributeCompounds().values().stream(),
+					Stream.of(newCompoundSchema)
+				).collect(
+					Collectors.toMap(
+						SortableAttributeCompoundSchemaContract::getName,
+						Function.identity()
 					)
-				);
-			} else {
-				throw new InvalidSchemaMutationException(
-					"Unsupported entity schema type: " + entitySchema.getClass().getName()
-				);
-			}
+				)
+			);
 		} else if (existingCompoundSchema.equals(newCompoundSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
 			return entitySchema;
@@ -253,26 +247,26 @@ public class CreateSortableAttributeCompoundSchemaMutation
 								)
 							)
 					);
-			} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
+			} else {
 				return ReferenceSchema._internalBuild(
-					theReferenceSchema.getName(),
-					theReferenceSchema.getNameVariants(),
-					theReferenceSchema.getDescription(),
-					theReferenceSchema.getDeprecationNotice(),
-					theReferenceSchema.getCardinality(),
-					theReferenceSchema.getReferencedEntityType(),
-					theReferenceSchema.isReferencedEntityTypeManaged() ?
-						Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedEntityTypeManaged(),
-					theReferenceSchema.getReferencedGroupType(),
-					theReferenceSchema.isReferencedGroupTypeManaged() ?
-						Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedGroupTypeManaged(),
-					theReferenceSchema.getIndexedInScopes(),
-					theReferenceSchema.getFacetedInScopes(),
-					theReferenceSchema.getAttributes(),
+					referenceSchema.getName(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ?
+						Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ?
+						Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getAttributes(),
 					Stream.concat(
-						theReferenceSchema.getSortableAttributeCompounds().values().stream(),
+						referenceSchema.getSortableAttributeCompounds().values().stream(),
 						Stream.of(newCompoundSchema)
 					).collect(
 						Collectors.toMap(
@@ -280,10 +274,6 @@ public class CreateSortableAttributeCompoundSchemaMutation
 							Function.identity()
 						)
 					)
-				);
-			} else {
-				throw new InvalidSchemaMutationException(
-					"Reference schema `" + referenceSchema.getName() + "` is not a valid reference schema!"
 				);
 			}
 		} else if (existingCompoundSchema.get().equals(newCompoundSchema)) {

@@ -119,37 +119,33 @@ public class SetReferenceSchemaIndexedMutation
 			} else {
 				return reflectedReferenceSchema.withIndexed(this.indexedInScopes);
 			}
-		} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
-			if (theReferenceSchema.getIndexedInScopes().equals(indexedScopes)) {
+		} else {
+			if (referenceSchema.getIndexedInScopes().equals(indexedScopes)) {
 				// schema is already indexed
-				return theReferenceSchema;
+				return referenceSchema;
 			} else {
 				if (indexedScopes.isEmpty()) {
-					verifyNoAttributeRequiresIndex(entitySchema, theReferenceSchema);
+					verifyNoAttributeRequiresIndex(entitySchema, referenceSchema);
 				}
 
 				return ReferenceSchema._internalBuild(
 					this.name,
-					theReferenceSchema.getNameVariants(),
-					theReferenceSchema.getDescription(),
-					theReferenceSchema.getDeprecationNotice(),
-					theReferenceSchema.getCardinality(),
-					theReferenceSchema.getReferencedEntityType(),
-					theReferenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedEntityTypeManaged(),
-					theReferenceSchema.getReferencedGroupType(),
-					theReferenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
 					indexedScopes,
-					theReferenceSchema.getFacetedInScopes(),
-					theReferenceSchema.getAttributes(),
-					theReferenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getAttributes(),
+					referenceSchema.getSortableAttributeCompounds()
 				);
 			}
-		} else {
-			throw new InvalidSchemaMutationException(
-				"Unsupported reference schema type: " + referenceSchema.getClass().getName()
-			);
 		}
 	}
 

@@ -141,7 +141,7 @@ public class ModifyAttributeSchemaTypeMutation
 		final Class newType = EvitaDataTypes.toWrappedForm(type);
 		if (newType.equals(attributeSchema.getType()) && indexedDecimalPlaces == attributeSchema.getIndexedDecimalPlaces()) {
 			return attributeSchema;
-		} else if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			//noinspection unchecked
 			return (S) GlobalAttributeSchema._internalBuild(
 				name,
@@ -161,7 +161,7 @@ public class ModifyAttributeSchemaTypeMutation
 					.orElse(null),
 				indexedDecimalPlaces
 			);
-		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked
 			return (S) EntityAttributeSchema._internalBuild(
 				this.name,
@@ -180,26 +180,24 @@ public class ModifyAttributeSchemaTypeMutation
 					.orElse(null),
 				this.indexedDecimalPlaces
 			);
-		} else if (attributeSchema instanceof AttributeSchema theAttributeSchema) {
+		} else  {
 			//noinspection unchecked
 			return (S) AttributeSchema._internalBuild(
 				this.name,
-				theAttributeSchema.getNameVariants(),
-				theAttributeSchema.getDescription(),
-				theAttributeSchema.getDeprecationNotice(),
-				theAttributeSchema.getUniquenessTypeInScopes(),
-				theAttributeSchema.getFilterableInScopes(),
-				theAttributeSchema.getSortableInScopes(),
-				theAttributeSchema.isLocalized(),
-				theAttributeSchema.isNullable(),
+				attributeSchema.getNameVariants(),
+				attributeSchema.getDescription(),
+				attributeSchema.getDeprecationNotice(),
+				attributeSchema.getUniquenessTypeInScopes(),
+				attributeSchema.getFilterableInScopes(),
+				attributeSchema.getSortableInScopes(),
+				attributeSchema.isLocalized(),
+				attributeSchema.isNullable(),
 				newType,
-				ofNullable(theAttributeSchema.getDefaultValue())
+				ofNullable(attributeSchema.getDefaultValue())
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
 				this.indexedDecimalPlaces
 			);
-		} else {
-			throw new InvalidSchemaMutationException("Unsupported schema type: " + attributeSchema.getClass());
 		}
 	}
 

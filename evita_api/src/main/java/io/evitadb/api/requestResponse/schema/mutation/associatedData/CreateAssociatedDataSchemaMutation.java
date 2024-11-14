@@ -80,6 +80,18 @@ public class CreateAssociatedDataSchemaMutation
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
 
+	@Nullable
+	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
+		@Nonnull AssociatedDataSchemaContract createdVersion,
+		@Nonnull AssociatedDataSchemaContract existingVersion,
+		@Nonnull Function<AssociatedDataSchemaContract, T> propertyRetriever,
+		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
+	) {
+		final T newValue = propertyRetriever.apply(createdVersion);
+		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
+			null : mutationCreator.apply(newValue);
+	}
+
 	public CreateAssociatedDataSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -144,25 +156,13 @@ public class CreateAssociatedDataSchemaMutation
 							AssociatedDataSchemaContract::isNullable,
 							newValue -> new SetAssociatedDataSchemaNullableMutation(name, newValue)
 						)
-				)
+					)
 					.filter(Objects::nonNull)
 					.toArray(LocalEntitySchemaMutation[]::new)
 			);
 		} else {
 			return null;
 		}
-	}
-
-	@Nullable
-	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
-		@Nonnull AssociatedDataSchemaContract createdVersion,
-		@Nonnull AssociatedDataSchemaContract existingVersion,
-		@Nonnull Function<AssociatedDataSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
 	}
 
 	@Nonnull
@@ -180,41 +180,35 @@ public class CreateAssociatedDataSchemaMutation
 		final AssociatedDataSchemaContract newAssociatedDataSchema = mutate(null);
 		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(name);
 		if (existingAssociatedDataSchema.isEmpty()) {
-			if (entitySchema instanceof EntitySchema theEntitySchema) {
-				return EntitySchema._internalBuild(
-					theEntitySchema.version() + 1,
-					theEntitySchema.getName(),
-					theEntitySchema.getNameVariants(),
-					theEntitySchema.getDescription(),
-					theEntitySchema.getDeprecationNotice(),
-					theEntitySchema.isWithGeneratedPrimaryKey(),
-					theEntitySchema.isWithHierarchy(),
-					theEntitySchema.getHierarchyIndexedInScopes(),
-					theEntitySchema.isWithPrice(),
-					theEntitySchema.getPriceIndexedInScopes(),
-					theEntitySchema.getIndexedPricePlaces(),
-					theEntitySchema.getLocales(),
-					theEntitySchema.getCurrencies(),
-					theEntitySchema.getAttributes(),
-					Stream.concat(
-							theEntitySchema.getAssociatedData().values().stream(),
-							Stream.of(newAssociatedDataSchema)
+			return EntitySchema._internalBuild(
+				entitySchema.version() + 1,
+				entitySchema.getName(),
+				entitySchema.getNameVariants(),
+				entitySchema.getDescription(),
+				entitySchema.getDeprecationNotice(),
+				entitySchema.isWithGeneratedPrimaryKey(),
+				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
+				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
+				entitySchema.getIndexedPricePlaces(),
+				entitySchema.getLocales(),
+				entitySchema.getCurrencies(),
+				entitySchema.getAttributes(),
+				Stream.concat(
+						entitySchema.getAssociatedData().values().stream(),
+						Stream.of(newAssociatedDataSchema)
+					)
+					.collect(
+						Collectors.toMap(
+							AssociatedDataSchemaContract::getName,
+							Function.identity()
 						)
-						.collect(
-							Collectors.toMap(
-								AssociatedDataSchemaContract::getName,
-								Function.identity()
-							)
-						),
-					theEntitySchema.getReferences(),
-					theEntitySchema.getEvolutionMode(),
-					theEntitySchema.getSortableAttributeCompounds()
-				);
-			} else {
-				throw new InvalidSchemaMutationException(
-					"Unsupported entity schema type: " + entitySchema.getClass().getName()
-				);
-			}
+					),
+				entitySchema.getReferences(),
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
+			);
 		} else if (existingAssociatedDataSchema.get().equals(newAssociatedDataSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
 			return entitySchema;

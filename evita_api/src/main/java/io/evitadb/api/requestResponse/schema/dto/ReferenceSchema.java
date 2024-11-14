@@ -38,6 +38,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.Getter;
 
@@ -55,6 +56,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -78,8 +80,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	@Getter @Nonnull protected final Cardinality cardinality;
 	@Getter @Nullable protected final String deprecationNotice;
 	@Getter @Nullable protected final String description;
-	@Getter protected final EnumSet<Scope> indexedInScopes;
-	@Getter protected final EnumSet<Scope> facetedInScopes;
+	@Getter protected final Set<Scope> indexedInScopes;
+	@Getter protected final Set<Scope> facetedInScopes;
 	@Getter @Nonnull protected final Map<NamingConvention, String> nameVariants;
 	@Getter @Nonnull protected final String referencedEntityType;
 	@Nonnull protected final Map<NamingConvention, String> entityTypeNameVariants;
@@ -229,8 +231,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable String referencedGroupType,
 		@Nonnull Map<NamingConvention, String> groupTypeNameVariants,
 		boolean referencedGroupTypeManaged,
-		@Nonnull EnumSet<Scope> indexedInScopes,
-		@Nonnull EnumSet<Scope> facetedInScopes,
+		@Nonnull Set<Scope> indexedInScopes,
+		@Nonnull Set<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
@@ -306,7 +308,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 * @param facetedScopes the set of scopes where faceting is enabled; must not be null
 	 * @param indexedScopes the set of scopes where indexing is enabled; must not be null
 	 */
-	static void validateScopeSettings(@Nonnull EnumSet<Scope> facetedScopes, @Nonnull EnumSet<Scope> indexedScopes) {
+	static void validateScopeSettings(@Nonnull Set<Scope> facetedScopes, @Nonnull Set<Scope> indexedScopes) {
 		final Scope[] scopes = Scope.values();
 		for (Scope scope : scopes) {
 			if (facetedScopes.contains(scope)) {
@@ -327,8 +329,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable String referencedGroupType,
 		@Nonnull Map<NamingConvention, String> groupTypeNameVariants,
 		boolean referencedGroupTypeManaged,
-		@Nonnull EnumSet<Scope> indexedInScopes,
-		@Nonnull EnumSet<Scope> facetedInScopes,
+		@Nonnull Set<Scope> indexedInScopes,
+		@Nonnull Set<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
@@ -344,8 +346,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		this.referencedGroupType = referencedGroupType;
 		this.groupTypeNameVariants = Collections.unmodifiableMap(groupTypeNameVariants);
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
-		this.indexedInScopes = indexedInScopes;
-		this.facetedInScopes = facetedInScopes;
+		this.indexedInScopes = CollectionUtils.toUnmodifiableSet(indexedInScopes);
+		this.facetedInScopes = CollectionUtils.toUnmodifiableSet(facetedInScopes);
 		this.attributes = Collections.unmodifiableMap(
 			attributes.entrySet()
 				.stream()
@@ -566,8 +568,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			this.referencedGroupType,
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
-			this.indexedInScopes.clone(),
-			this.facetedInScopes.clone(),
+			this.indexedInScopes,
+			this.facetedInScopes,
 			this.getAttributes(),
 			this.getSortableAttributeCompounds()
 		);
@@ -599,8 +601,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			// is always empty for managed types
 			Map.of(),
 			true,
-			this.indexedInScopes.clone(),
-			this.facetedInScopes.clone(),
+			this.indexedInScopes,
+			this.facetedInScopes,
 			this.getAttributes(),
 			this.getSortableAttributeCompounds()
 		);

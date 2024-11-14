@@ -27,6 +27,7 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -110,7 +111,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 		final Serializable theDefaultValue = EvitaDataTypes.toTargetType(this.defaultValue, attributeSchema.getType());
 		if (Objects.equals(attributeSchema.getDefaultValue(), theDefaultValue)) {
 			return attributeSchema;
-		} else if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) GlobalAttributeSchema._internalBuild(
 				this.name,
@@ -128,7 +129,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				theDefaultValue,
 				globalAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) EntityAttributeSchema._internalBuild(
 				this.name,
@@ -145,24 +146,22 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				theDefaultValue,
 				entityAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else if (attributeSchema instanceof AttributeSchema theAttributeSchema) {
+		} else  {
 			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
 				this.name,
-				theAttributeSchema.getNameVariants(),
-				theAttributeSchema.getDescription(),
-				theAttributeSchema.getDeprecationNotice(),
-				theAttributeSchema.getUniquenessTypeInScopes(),
-				theAttributeSchema.getFilterableInScopes(),
-				theAttributeSchema.getSortableInScopes(),
-				theAttributeSchema.isLocalized(),
-				theAttributeSchema.isNullable(),
-				(Class) theAttributeSchema.getType(),
+				attributeSchema.getNameVariants(),
+				attributeSchema.getDescription(),
+				attributeSchema.getDeprecationNotice(),
+				attributeSchema.getUniquenessTypeInScopes(),
+				attributeSchema.getFilterableInScopes(),
+				attributeSchema.getSortableInScopes(),
+				attributeSchema.isLocalized(),
+				attributeSchema.isNullable(),
+				(Class) attributeSchema.getType(),
 				theDefaultValue,
-				theAttributeSchema.getIndexedDecimalPlaces()
+				attributeSchema.getIndexedDecimalPlaces()
 			);
-		} else {
-			throw new InvalidSchemaMutationException("Unsupported schema type: " + attributeSchema.getClass());
 		}
 	}
 

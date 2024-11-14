@@ -115,32 +115,28 @@ public class SetReferenceSchemaFacetedMutation
 			} else {
 				return reflectedReferenceSchema.withFaceted(this.facetedInScopes);
 			}
-		} else if (referenceSchema instanceof ReferenceSchema theReferenceSchema) {
-			if (theReferenceSchema.getFacetedInScopes().equals(facetedScopes)) {
-				return theReferenceSchema;
+		} else {
+			if (referenceSchema.getFacetedInScopes().equals(facetedScopes)) {
+				return referenceSchema;
 			} else {
 				return ReferenceSchema._internalBuild(
 					this.name,
-					theReferenceSchema.getNameVariants(),
-					theReferenceSchema.getDescription(),
-					theReferenceSchema.getDeprecationNotice(),
-					theReferenceSchema.getCardinality(),
-					theReferenceSchema.getReferencedEntityType(),
-					theReferenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getEntityTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedEntityTypeManaged(),
-					theReferenceSchema.getReferencedGroupType(),
-					theReferenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : theReferenceSchema.getGroupTypeNameVariants(s -> null),
-					theReferenceSchema.isReferencedGroupTypeManaged(),
-					theReferenceSchema.getIndexedInScopes(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.getIndexedInScopes(),
 					facetedScopes,
-					theReferenceSchema.getAttributes(),
-					theReferenceSchema.getSortableAttributeCompounds()
+					referenceSchema.getAttributes(),
+					referenceSchema.getSortableAttributeCompounds()
 				);
 			}
-		} else {
-			throw new InvalidSchemaMutationException(
-				"Unsupported reference schema type: " + referenceSchema.getClass().getName()
-			);
 		}
 	}
 

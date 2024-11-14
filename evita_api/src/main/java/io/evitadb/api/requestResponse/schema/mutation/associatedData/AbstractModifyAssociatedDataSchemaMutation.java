@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -55,6 +54,12 @@ abstract class AbstractModifyAssociatedDataSchemaMutation implements LocalEntity
 	@Serial private static final long serialVersionUID = -4384492921045013953L;
 	@Getter @Nonnull protected final String name;
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	/**
 	 * Replaces existing associated data schema with updated one but only when those schemas differ. Otherwise,
 	 * the non-changed, original entity schema is returned.
@@ -69,48 +74,36 @@ abstract class AbstractModifyAssociatedDataSchemaMutation implements LocalEntity
 			// we don't need to update entity schema - the associated data already contains the requested change
 			return entitySchema;
 		} else {
-			if (entitySchema instanceof EntitySchema theEntitySchema) {
-				return EntitySchema._internalBuild(
-					theEntitySchema.version() + 1,
-					theEntitySchema.getName(),
-					theEntitySchema.getNameVariants(),
-					theEntitySchema.getDescription(),
-					theEntitySchema.getDeprecationNotice(),
-					theEntitySchema.isWithGeneratedPrimaryKey(),
-					theEntitySchema.isWithHierarchy(),
-					theEntitySchema.getHierarchyIndexedInScopes(),
-					theEntitySchema.isWithPrice(),
-					theEntitySchema.getPriceIndexedInScopes(),
-					theEntitySchema.getIndexedPricePlaces(),
-					theEntitySchema.getLocales(),
-					theEntitySchema.getCurrencies(),
-					theEntitySchema.getAttributes(),
-					Stream.concat(
-							theEntitySchema.getAssociatedData().values().stream().filter(it -> !updatedAssociatedDataSchema.getName().equals(it.getName())),
-							Stream.of(updatedAssociatedDataSchema)
+			return EntitySchema._internalBuild(
+				entitySchema.version() + 1,
+				entitySchema.getName(),
+				entitySchema.getNameVariants(),
+				entitySchema.getDescription(),
+				entitySchema.getDeprecationNotice(),
+				entitySchema.isWithGeneratedPrimaryKey(),
+				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
+				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
+				entitySchema.getIndexedPricePlaces(),
+				entitySchema.getLocales(),
+				entitySchema.getCurrencies(),
+				entitySchema.getAttributes(),
+				Stream.concat(
+						entitySchema.getAssociatedData().values().stream().filter(it -> !updatedAssociatedDataSchema.getName().equals(it.getName())),
+						Stream.of(updatedAssociatedDataSchema)
+					)
+					.collect(
+						Collectors.toMap(
+							AssociatedDataSchemaContract::getName,
+							Function.identity()
 						)
-						.collect(
-							Collectors.toMap(
-								AssociatedDataSchemaContract::getName,
-								Function.identity()
-							)
-						),
-					theEntitySchema.getReferences(),
-					theEntitySchema.getEvolutionMode(),
-					theEntitySchema.getSortableAttributeCompounds()
-				);
-			} else {
-				throw new InvalidSchemaMutationException(
-					"Unsupported entity schema type: " + entitySchema.getClass().getName()
-				);
-			}
+					),
+				entitySchema.getReferences(),
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
+			);
 		}
-	}
-
-	@Nonnull
-	@Override
-	public Operation operation() {
-		return Operation.UPSERT;
 	}
 
 }

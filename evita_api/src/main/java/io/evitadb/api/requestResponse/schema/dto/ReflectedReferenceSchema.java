@@ -392,8 +392,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Cardinality cardinality,
 		@Nonnull String referencedEntityType,
 		@Nonnull String reflectedReferenceName,
-		@Nullable EnumSet<Scope> indexedInScopes,
-		@Nullable EnumSet<Scope> facetedInScopes,
+		@Nullable Set<Scope> indexedInScopes,
+		@Nullable Set<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
@@ -505,8 +505,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Map<NamingConvention, String> groupTypeVariants,
 		boolean referencedGroupManaged,
 		@Nonnull String reflectedReferenceName,
-		@Nullable EnumSet<Scope> indexedInScopes,
-		@Nullable EnumSet<Scope> facetedInScopes,
+		@Nullable Set<Scope> indexedInScopes,
+		@Nullable Set<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
 		boolean descriptionInherited,
@@ -659,6 +659,13 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		return this.reflectedReference.isReferencedGroupTypeManaged();
 	}
 
+	@Nonnull
+	@Override
+	public Map<String, AttributeSchema> getNonNullableOrDefaultValueAttributes() {
+		assertAttributes();
+		return super.getNonNullableOrDefaultValueAttributes();
+	}
+
 	@Override
 	public boolean isIndexed(@Nonnull Scope scope) {
 		Assert.isTrue(
@@ -675,62 +682,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			"Faceted property of the reflected reference is inherited from the target reference, but the reflected reference is not available!"
 		);
 		return super.isFaceted(scope);
-	}
-
-	@Nonnull
-	@Override
-	public Map<String, AttributeSchema> getNonNullableOrDefaultValueAttributes() {
-		assertAttributes();
-		return super.getNonNullableOrDefaultValueAttributes();
-	}
-
-	@Nonnull
-	@Override
-	public Optional<AttributeSchemaContract> getAttribute(@Nonnull String attributeName) {
-		assertAttributes();
-		return super.getAttribute(attributeName);
-	}
-
-	@Nonnull
-	@Override
-	public Optional<AttributeSchemaContract> getAttributeByName(@Nonnull String attributeName, @Nonnull NamingConvention namingConvention) {
-		assertAttributes();
-		return super.getAttributeByName(attributeName, namingConvention);
-	}
-
-	@Nonnull
-	@Override
-	public Map<String, AttributeSchemaContract> getAttributes() {
-		assertAttributes();
-		return super.getAttributes();
-	}
-
-	@Nonnull
-	@Override
-	public Map<String, SortableAttributeCompoundSchemaContract> getSortableAttributeCompounds() {
-		assertAttributes();
-		return super.getSortableAttributeCompounds();
-	}
-
-	@Nonnull
-	@Override
-	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompound(@Nonnull String name) {
-		assertAttributes();
-		return super.getSortableAttributeCompound(name);
-	}
-
-	@Nonnull
-	@Override
-	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundByName(@Nonnull String name, @Nonnull NamingConvention namingConvention) {
-		assertAttributes();
-		return super.getSortableAttributeCompoundByName(name, namingConvention);
-	}
-
-	@Nonnull
-	@Override
-	public Collection<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundsForAttribute(@Nonnull String attributeName) {
-		assertAttributes();
-		return super.getSortableAttributeCompoundsForAttribute(attributeName);
 	}
 
 	@Override
@@ -797,6 +748,55 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 
 	@Nonnull
 	@Override
+	public Map<String, AttributeSchemaContract> getAttributes() {
+		assertAttributes();
+		return super.getAttributes();
+	}
+
+	@Nonnull
+	@Override
+	public Optional<AttributeSchemaContract> getAttribute(@Nonnull String attributeName) {
+		assertAttributes();
+		return super.getAttribute(attributeName);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<AttributeSchemaContract> getAttributeByName(@Nonnull String attributeName, @Nonnull NamingConvention namingConvention) {
+		assertAttributes();
+		return super.getAttributeByName(attributeName, namingConvention);
+	}
+
+	@Nonnull
+	@Override
+	public Map<String, SortableAttributeCompoundSchemaContract> getSortableAttributeCompounds() {
+		assertAttributes();
+		return super.getSortableAttributeCompounds();
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompound(@Nonnull String name) {
+		assertAttributes();
+		return super.getSortableAttributeCompound(name);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundByName(@Nonnull String name, @Nonnull NamingConvention namingConvention) {
+		assertAttributes();
+		return super.getSortableAttributeCompoundByName(name, namingConvention);
+	}
+
+	@Nonnull
+	@Override
+	public Collection<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundsForAttribute(@Nonnull String attributeName) {
+		assertAttributes();
+		return super.getSortableAttributeCompoundsForAttribute(attributeName);
+	}
+
+	@Nonnull
+	@Override
 	public ReferenceSchemaContract withUpdatedReferencedEntityType(@Nonnull String newReferencedEntityType) {
 		return new ReflectedReferenceSchema(
 			this.getName(),
@@ -841,6 +841,20 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	}
 
 	@Override
+	public int hashCode() {
+		int result = super.hashCode();
+		result = 31 * result + this.reflectedReferenceName.hashCode();
+		result = 31 * result + Boolean.hashCode(this.descriptionInherited);
+		result = 31 * result + Boolean.hashCode(this.deprecatedInherited);
+		result = 31 * result + Boolean.hashCode(this.cardinalityInherited);
+		result = 31 * result + Boolean.hashCode(this.indexedInherited) + (this.indexedInherited ? 0 : this.indexedInScopes.hashCode());
+		result = 31 * result + Boolean.hashCode(this.facetedInherited) + (this.facetedInherited ? 0 : this.facetedInScopes.hashCode());
+		result = 31 * result + this.attributesInheritanceBehavior.hashCode();
+		result = 31 * result + Arrays.hashCode(this.attributeInheritanceFilter);
+		return result;
+	}
+
+	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
@@ -857,20 +871,6 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.attributesInheritanceBehavior == that.attributesInheritanceBehavior &&
 			this.reflectedReferenceName.equals(that.reflectedReferenceName) &&
 			Arrays.equals(this.attributeInheritanceFilter, that.attributeInheritanceFilter);
-	}
-
-	@Override
-	public int hashCode() {
-		int result = super.hashCode();
-		result = 31 * result + this.reflectedReferenceName.hashCode();
-		result = 31 * result + Boolean.hashCode(this.descriptionInherited);
-		result = 31 * result + Boolean.hashCode(this.deprecatedInherited);
-		result = 31 * result + Boolean.hashCode(this.cardinalityInherited);
-		result = 31 * result + Boolean.hashCode(this.indexedInherited) + (this.indexedInherited ? 0 : this.indexedInScopes.hashCode());
-		result = 31 * result + Boolean.hashCode(this.facetedInherited) + (this.facetedInherited ? 0 : this.facetedInScopes.hashCode());
-		result = 31 * result + this.attributesInheritanceBehavior.hashCode();
-		result = 31 * result + Arrays.hashCode(this.attributeInheritanceFilter);
-		return result;
 	}
 
 	@Nonnull
@@ -1410,12 +1410,12 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					"` must be indexed in order to propagate changes to reflected reference `" + getName() + "`!"
 			)
 		);
-		final EnumSet<Scope> indexedScopes = this.indexedInherited ?
+		final Set<Scope> indexedScopes = this.indexedInherited ?
 			Arrays.stream(Scope.values())
 				.filter(originalReference::isIndexed)
 				.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class))) :
 			this.indexedInScopes;
-		final EnumSet<Scope> facetedScopes = this.facetedInherited ?
+		final Set<Scope> facetedScopes = this.facetedInherited ?
 			Arrays.stream(Scope.values())
 				.filter(originalReference::isFaceted)
 				.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class))) :

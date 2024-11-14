@@ -92,30 +92,26 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 		if (newName.equals(catalogSchema.getName())) {
 			// nothing has changed - we can return existing schema
 			return entitySchema;
-		} else if (entitySchema instanceof EntitySchema theEntitySchema) {
+		} else {
 			return EntitySchema._internalBuild(
-				theEntitySchema.version() + 1,
+				entitySchema.version() + 1,
 				newName,
 				NamingConvention.generate(newName),
-				theEntitySchema.getDescription(),
-				theEntitySchema.getDeprecationNotice(),
-				theEntitySchema.isWithGeneratedPrimaryKey(),
-				theEntitySchema.isWithHierarchy(),
-				theEntitySchema.getHierarchyIndexedInScopes(),
-				theEntitySchema.isWithPrice(),
-				theEntitySchema.getPriceIndexedInScopes(),
-				theEntitySchema.getIndexedPricePlaces(),
-				theEntitySchema.getLocales(),
-				theEntitySchema.getCurrencies(),
-				theEntitySchema.getAttributes(),
-				theEntitySchema.getAssociatedData(),
-				theEntitySchema.getReferences(),
-				theEntitySchema.getEvolutionMode(),
-				theEntitySchema.getSortableAttributeCompounds()
-			);
-		} else {
-			throw new InvalidSchemaMutationException(
-				"Unsupported entity schema type: " + entitySchema.getClass().getName()
+				entitySchema.getDescription(),
+				entitySchema.getDeprecationNotice(),
+				entitySchema.isWithGeneratedPrimaryKey(),
+				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
+				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
+				entitySchema.getIndexedPricePlaces(),
+				entitySchema.getLocales(),
+				entitySchema.getCurrencies(),
+				entitySchema.getAttributes(),
+				entitySchema.getAssociatedData(),
+				entitySchema.getReferences(),
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}

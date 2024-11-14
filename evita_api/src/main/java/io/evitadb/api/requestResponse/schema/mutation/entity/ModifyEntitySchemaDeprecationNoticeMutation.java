@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.entity;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -77,33 +76,29 @@ public class ModifyEntitySchemaDeprecationNoticeMutation implements CombinableLo
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (Objects.equals(entitySchema.getDeprecationNotice(), deprecationNotice)) {
+		if (Objects.equals(entitySchema.getDeprecationNotice(), this.deprecationNotice)) {
 			// entity schema is already removed - no need to do anything
 			return entitySchema;
-		} else if (entitySchema instanceof EntitySchema theEntitySchema) {
-			return EntitySchema._internalBuild(
-				theEntitySchema.version() + 1,
-				theEntitySchema.getName(),
-				theEntitySchema.getNameVariants(),
-				theEntitySchema.getDescription(),
-				deprecationNotice,
-				theEntitySchema.isWithGeneratedPrimaryKey(),
-				theEntitySchema.isWithHierarchy(),
-				theEntitySchema.getHierarchyIndexedInScopes(),
-				theEntitySchema.isWithPrice(),
-				theEntitySchema.getPriceIndexedInScopes(),
-				theEntitySchema.getIndexedPricePlaces(),
-				theEntitySchema.getLocales(),
-				theEntitySchema.getCurrencies(),
-				theEntitySchema.getAttributes(),
-				theEntitySchema.getAssociatedData(),
-				theEntitySchema.getReferences(),
-				theEntitySchema.getEvolutionMode(),
-				theEntitySchema.getSortableAttributeCompounds()
-			);
 		} else {
-			throw new InvalidSchemaMutationException(
-				"Unsupported entity schema type: " + entitySchema.getClass().getName()
+			return EntitySchema._internalBuild(
+				entitySchema.version() + 1,
+				entitySchema.getName(),
+				entitySchema.getNameVariants(),
+				entitySchema.getDescription(),
+				this.deprecationNotice,
+				entitySchema.isWithGeneratedPrimaryKey(),
+				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
+				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
+				entitySchema.getIndexedPricePlaces(),
+				entitySchema.getLocales(),
+				entitySchema.getCurrencies(),
+				entitySchema.getAttributes(),
+				entitySchema.getAssociatedData(),
+				entitySchema.getReferences(),
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
 			);
 		}
 	}
@@ -117,6 +112,6 @@ public class ModifyEntitySchemaDeprecationNoticeMutation implements CombinableLo
 	@Override
 	public String toString() {
 		return "Modify entity schema: " +
-			"deprecationNotice='" + deprecationNotice + '\'';
+			"deprecationNotice='" + this.deprecationNotice + '\'';
 	}
 }

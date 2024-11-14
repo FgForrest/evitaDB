@@ -246,41 +246,35 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			.orElse(newReferenceSchema);
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
 		if (existingReferenceSchema.isEmpty()) {
-			if (entitySchema instanceof EntitySchema theEntitySchema) {
-				return EntitySchema._internalBuild(
-					theEntitySchema.version() + 1,
-					theEntitySchema.getName(),
-					theEntitySchema.getNameVariants(),
-					theEntitySchema.getDescription(),
-					theEntitySchema.getDeprecationNotice(),
-					theEntitySchema.isWithGeneratedPrimaryKey(),
-					theEntitySchema.isWithHierarchy(),
-					theEntitySchema.getHierarchyIndexedInScopes(),
-					theEntitySchema.isWithPrice(),
-					theEntitySchema.getPriceIndexedInScopes(),
-					theEntitySchema.getIndexedPricePlaces(),
-					theEntitySchema.getLocales(),
-					theEntitySchema.getCurrencies(),
-					theEntitySchema.getAttributes(),
-					theEntitySchema.getAssociatedData(),
-					Stream.concat(
-							theEntitySchema.getReferences().values().stream(),
-							Stream.of(referenceToInsert)
+			return EntitySchema._internalBuild(
+				entitySchema.version() + 1,
+				entitySchema.getName(),
+				entitySchema.getNameVariants(),
+				entitySchema.getDescription(),
+				entitySchema.getDeprecationNotice(),
+				entitySchema.isWithGeneratedPrimaryKey(),
+				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
+				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
+				entitySchema.getIndexedPricePlaces(),
+				entitySchema.getLocales(),
+				entitySchema.getCurrencies(),
+				entitySchema.getAttributes(),
+				entitySchema.getAssociatedData(),
+				Stream.concat(
+						entitySchema.getReferences().values().stream(),
+						Stream.of(referenceToInsert)
+					)
+					.collect(
+						Collectors.toMap(
+							ReferenceSchemaContract::getName,
+							Function.identity()
 						)
-						.collect(
-							Collectors.toMap(
-								ReferenceSchemaContract::getName,
-								Function.identity()
-							)
-						),
-					theEntitySchema.getEvolutionMode(),
-					theEntitySchema.getSortableAttributeCompounds()
-				);
-			} else {
-				throw new InvalidSchemaMutationException(
-					"Unsupported entity schema type: " + entitySchema.getClass().getName()
-				);
-			}
+					),
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
+			);
 		} else if (existingReferenceSchema.get().equals(newReferenceSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
 			return entitySchema;
