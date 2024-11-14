@@ -169,10 +169,11 @@ public class GraphQLQueryConverter {
 			final EntityFetch entityFetch = QueryUtils.findConstraint(require, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			final Page page = QueryUtils.findConstraint(require, Page.class, SeparateEntityContentRequireContainer.class);
 			final Strip strip = QueryUtils.findConstraint(require, Strip.class, SeparateEntityContentRequireContainer.class);
+			final EntityScope entityScope = QueryUtils.findConstraint(require, EntityScope.class, SeparateEntityContentRequireContainer.class);
 			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
 			final QueryTelemetry queryTelemetry = QueryUtils.findConstraint(require, QueryTelemetry.class);
 
-			recordsConverter.convert(fieldsBuilder, entityType, locale, entityFetch, page, strip, !extraResultConstraints.isEmpty());
+			recordsConverter.convert(fieldsBuilder, entityType, locale, entityFetch, page, strip, entityScope, !extraResultConstraints.isEmpty());
 
 			// build extra results
 			if (!extraResultConstraints.isEmpty() || queryTelemetry != null) {
