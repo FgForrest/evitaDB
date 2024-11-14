@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -163,11 +164,14 @@ class SetAttributeSchemaUniqueMutationTest {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
 			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
 		);
+		final EntitySchemaContract mockedEntitySchema = Mockito.mock(EntitySchemaContract.class);
+		Mockito.when(mockedEntitySchema.getName()).thenReturn("mockedEntitySchema");
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
 		Mockito.when(referenceSchema.isIndexed()).thenReturn(true);
+		Mockito.when(referenceSchema.isIndexed(Scope.LIVE)).thenReturn(true);
 		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingAttributeSchema()));
 		final ReferenceSchemaContract mutatedSchema = mutation.mutate(
-			Mockito.mock(EntitySchemaContract.class),
+			mockedEntitySchema,
 			referenceSchema
 		);
 		assertNotNull(mutatedSchema);

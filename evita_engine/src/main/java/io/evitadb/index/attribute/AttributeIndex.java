@@ -524,23 +524,28 @@ public class AttributeIndex implements AttributeIndexContract,
 			.orElseGet(() -> this.chainIndex.get(new AttributeKey(attributeName)));
 	}
 
+	@Override
+	public boolean isAttributeIndexEmpty() {
+		return this.uniqueIndex.isEmpty() && this.filterIndex.isEmpty() &&
+			this.sortIndex.isEmpty() && this.chainIndex.isEmpty();
+	}
 	@Nonnull
 	@Override
 	public Collection<StoragePart> getModifiedStorageParts(int entityIndexPrimaryKey) {
 		final List<StoragePart> dirtyParts = new LinkedList<>();
-		for (Entry<AttributeKey, UniqueIndex> entry : uniqueIndex.entrySet()) {
+		for (Entry<AttributeKey, UniqueIndex> entry : this.uniqueIndex.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}
-		for (Entry<AttributeKey, FilterIndex> entry : filterIndex.entrySet()) {
+		for (Entry<AttributeKey, FilterIndex> entry : this.filterIndex.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}
-		for (Entry<AttributeKey, SortIndex> entry : sortIndex.entrySet()) {
+		for (Entry<AttributeKey, SortIndex> entry : this.sortIndex.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}
-		for (Entry<AttributeKey, ChainIndex> entry : chainIndex.entrySet()) {
+		for (Entry<AttributeKey, ChainIndex> entry : this.chainIndex.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}

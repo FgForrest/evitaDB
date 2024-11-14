@@ -188,7 +188,7 @@ public interface ReferenceIndexMutator {
 				if (undoActionConsumer != null) {
 					undoActionConsumer.accept(() -> referenceIndex.removePrimaryKey(entityPrimaryKey));
 				}
-				// we need to index all previously added global entity attributes and prices
+				// we need to index all previously added global entity attributes, prices and facets
 				indexAllExistingData(
 					executor, referenceIndex,
 					entitySchema, entityPrimaryKey, existingDataSupplierFactory,
@@ -276,7 +276,7 @@ public interface ReferenceIndexMutator {
 	 * {@link EntityIndexType#REFERENCED_ENTITY} index is returned.
 	 */
 	@Nonnull
-	static EntityIndex getReferencedEntityIndex(
+	static EntityIndex getOrCreateReferencedEntityIndex(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull Scope scope
@@ -328,7 +328,7 @@ public interface ReferenceIndexMutator {
 		final ReferencesStoragePart referencesStorageContainer = executor.getContainerAccessor().getReferencesStoragePart(entityType, entityPrimaryKey);
 		for (ReferenceContract reference : referencesStorageContainer.getReferences()) {
 			if (reference.exists() && isIndexedReference(reference, scope) && referencePredicate.test(reference)) {
-				final EntityIndex targetIndex = getReferencedEntityIndex(executor, reference.getReferenceKey(), scope);
+				final EntityIndex targetIndex = getOrCreateReferencedEntityIndex(executor, reference.getReferenceKey(), scope);
 				referenceIndexConsumer.accept(targetIndex);
 			}
 		}

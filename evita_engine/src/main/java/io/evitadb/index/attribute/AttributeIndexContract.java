@@ -250,6 +250,10 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	ChainIndex getChainIndex(@Nonnull String attributeName, @Nullable Locale locale);
 
 	/**
+	 * Returns true when this index contains no data and may be safely purged.
+	 */
+	boolean isAttributeIndexEmpty();
+	/**
 	 * Method returns collection of all modified parts of this index that were modified and needs to be stored.
 	 */
 	@Nonnull

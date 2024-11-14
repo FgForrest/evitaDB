@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
@@ -285,7 +286,7 @@ public class TestDataGenerator {
 
 
 			final List<SealedEntity> products = storedProducts.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), Scope.values(), entityFetchAllContent()).orElseThrow())
 				.collect(Collectors.toList());
 			final List<SealedEntity> stores = storedStores.stream()
 				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
