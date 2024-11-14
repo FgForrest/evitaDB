@@ -300,6 +300,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				);
 				removeEntityFromIndexes(entity, entity.getScope());
 				addEntityToIndexes(entity, setEntityScopeMutation.getScope());
+				// reset memoized scope, it has just changed
+				this.memoizedScope = setEntityScopeMutation.getScope();
 			}
 		} else {
 			// SHOULD NOT EVER HAPPEN
@@ -339,7 +341,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			}
 		}
 
-		if (entityStoragePart.isMarkedForRemoval()) {
+		if (this.containerAccessor.isEntityRemovedEntirely()) {
 			// remove the entity itself from the indexes
 			removeEntity(primaryKeyToIndex);
 		}
@@ -394,9 +396,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * id for {@link IndexType#ATTRIBUTE_SORT_INDEX}.
 	 */
 	int getPrimaryKeyToIndex(@Nonnull IndexType indexType) {
-		isPremiseValid(!entityPrimaryKey.isEmpty(), "Should not ever happen.");
+		isPremiseValid(!this.entityPrimaryKey.isEmpty(), "Should not ever happen.");
 		//noinspection ConstantConditions
-		return entityPrimaryKey.peek().applyAsInt(indexType);
+		return this.entityPrimaryKey.peek().applyAsInt(indexType);
 	}
 
 	/**
@@ -1055,16 +1057,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		referenceSupplier
 			.getReferenceKeys()
-			.map(it -> {
-				final ReferenceSchemaContract referenceSchema = schemaAccessor.get().getReferenceOrThrowException(it.referenceName());
-				if (referenceSchema.isReferencedEntityTypeManaged()) {
-					final EntitySchemaContract referencedEntity = otherEntitiesSchemaAccessor.apply(referenceSchema.getReferencedEntityType());
-					if (referencedEntity.isWithHierarchy()) {
-						return this.entityIndexCreatingAccessor.getIndexIfExists(new EntityIndexKey(EntityIndexType.REFERENCED_HIERARCHY_NODE, scope, it));
-					}
-				}
-				return this.entityIndexCreatingAccessor.getIndexIfExists(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, it));
-			})
+			.map(
+				it -> this.entityIndexCreatingAccessor.getIndexIfExists(
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, it)
+				)
+			)
 			.filter(Objects::nonNull)
 			.forEach(entityIndexConsumer);
 	}
@@ -1216,30 +1213,26 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * except the referenced entity index that directly connects to {@link ReferenceMutation#getReferenceKey()} because
 	 * this is altered in {@link #updateReferences(ReferenceMutation, EntityIndex)} method.
 	 */
-	private void updateReferencesInReferenceIndex(@Nonnull ReferenceMutation<?> referenceMutation, @Nonnull EntityIndex targetIndex) {
-		final EntityIndexType targetIndexType = targetIndex.getIndexKey().type();
-		final int theEntityPrimaryKey;
-		if (targetIndexType == EntityIndexType.REFERENCED_HIERARCHY_NODE) {
-			theEntityPrimaryKey = getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX);
-		} else if (targetIndexType == EntityIndexType.REFERENCED_ENTITY) {
-			theEntityPrimaryKey = getPrimaryKeyToIndex(IndexType.REFERENCE_INDEX);
-		} else {
-			throw new GenericEvitaInternalError("Unexpected type of index: " + targetIndexType);
-		}
+	private void updateReferencesInReferenceIndex(
+		@Nonnull ReferenceMutation<?> referenceMutation,
+		@Nonnull EntityIndex targetIndex
+	) {
 		if (referenceMutation instanceof SetReferenceGroupMutation upsertReferenceGroupMutation) {
 			ReferenceIndexMutator.setFacetGroupInIndex(
-				theEntityPrimaryKey, targetIndex,
+				getPrimaryKeyToIndex(IndexType.FACET_INDEX),
+				targetIndex,
 				upsertReferenceGroupMutation.getReferenceKey(),
 				upsertReferenceGroupMutation.getGroupPrimaryKey(),
 				this,
-				entityType
+				this.entityType
 			);
 		} else if (referenceMutation instanceof RemoveReferenceGroupMutation removeReferenceGroupMutation) {
 			ReferenceIndexMutator.removeFacetGroupInIndex(
-				theEntityPrimaryKey, targetIndex,
+				getPrimaryKeyToIndex(IndexType.FACET_INDEX),
+				targetIndex,
 				removeReferenceGroupMutation.getReferenceKey(),
 				this,
-				entityType
+				this.entityType
 			);
 		} else if (referenceMutation instanceof ReferenceAttributeMutation) {
 			// do nothing - attributes are not indexed in hierarchy index
@@ -1249,17 +1242,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				referenceMutation.getReferenceKey(),
 				null,
 				this,
-				theEntityPrimaryKey,
-				undoActionsAppender
+				getPrimaryKeyToIndex(IndexType.FACET_INDEX),
+				this.undoActionsAppender
 			);
 		} else if (referenceMutation instanceof RemoveReferenceMutation) {
 			ReferenceIndexMutator.removeFacetInIndex(
 				targetIndex,
 				referenceMutation.getReferenceKey(),
 				this,
-				entityType,
-				theEntityPrimaryKey,
-				undoActionsAppender
+				this.entityType,
+				getPrimaryKeyToIndex(IndexType.FACET_INDEX),
+				this.undoActionsAppender
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN

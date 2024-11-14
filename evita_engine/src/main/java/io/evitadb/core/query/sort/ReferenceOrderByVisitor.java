@@ -329,14 +329,12 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				return Optional.ofNullable(this.lastRetrievedChainIndex);
 			} else {
 				// else we have to retrieve the chain and cache it
-				final boolean referencedEntityHierarchical = this.entitySchema.isWithHierarchy();
 				final ReferenceKey theLookupReferenceKey = new ReferenceKey(reflectedReferenceSchema.getReflectedReferenceName(), entityPrimaryKey);
 				// get the index from the referenced entity collection using inverted key specification
 				final Optional<ChainIndex> chainIndex = this.queryContext.getIndex(
 					this.referenceSchema.getReferencedEntityType(),
 					new EntityIndexKey(
-						referencedEntityHierarchical ?
-							EntityIndexType.REFERENCED_HIERARCHY_NODE : EntityIndexType.REFERENCED_ENTITY,
+						EntityIndexType.REFERENCED_ENTITY,
 						// this would fail if the entity primary key is null, but it should never happen, and if so, exception is thrown
 						theLookupReferenceKey
 					),
@@ -356,13 +354,10 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				return Optional.ofNullable(this.lastRetrievedChainIndex);
 			} else {
 				// else we have to retrieve the chain and cache it
-				final boolean referencedEntityHierarchical = this.referenceSchema.isReferencedEntityTypeManaged() &&
-					this.queryContext.getSchema(this.referenceSchema.getReferencedEntityType()).isWithHierarchy();
 				// get the index from this entity collection using the reference key
 				final Optional<ChainIndex> chainIndex = this.queryContext.getIndex(
 					new EntityIndexKey(
-						referencedEntityHierarchical ?
-							EntityIndexType.REFERENCED_HIERARCHY_NODE : EntityIndexType.REFERENCED_ENTITY,
+						EntityIndexType.REFERENCED_ENTITY,
 						referenceKey
 					)
 				).map(it -> ((EntityIndex) it).getChainIndex(attributeKey));

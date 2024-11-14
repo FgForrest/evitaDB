@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -48,13 +49,17 @@ public enum EntityIndexType {
 	REFERENCED_ENTITY_TYPE,
 	/**
 	 * Index that contains record ids that are connected with certain referenced {@link Entity#getType()} and {@link Entity#getPrimaryKey()}.
-	 * This index is used when query contains {@link ReferenceHaving} query
+	 * This index is used when query contains {@link ReferenceHaving} or {@link HierarchyWithin} query
 	 * is used.
 	 */
 	REFERENCED_ENTITY,
 	/**
 	 * Index that contains the similar data as {@link #GLOBAL} index but only for those entities that are referencing
 	 * entity with {@link EntitySchemaContract#isWithHierarchy()} defined.
+	 *
+	 * @deprecated this index was merged to {@link #REFERENCED_ENTITY} - because it contains the same data and doesn't
+	 * bring any additional value.
 	 */
+	@Deprecated
 	REFERENCED_HIERARCHY_NODE
 }

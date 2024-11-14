@@ -91,9 +91,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 					.mapToObj(
 						refPk -> orderByVisitor.getIndex(
 								new EntityIndexKey(
-									referencedEntityHierarchical ?
-										EntityIndexType.REFERENCED_HIERARCHY_NODE :
-										EntityIndexType.REFERENCED_ENTITY,
+									EntityIndexType.REFERENCED_ENTITY,
 									new ReferenceKey(referenceName, refPk)
 								)
 							)

@@ -130,7 +130,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 					.map(
 						hierarchyNodeId -> queryContext.getIndex(
 							new EntityIndexKey(
-								EntityIndexType.REFERENCED_HIERARCHY_NODE,
+								EntityIndexType.REFERENCED_ENTITY,
 								new ReferenceKey(referenceName, hierarchyNodeId)
 							)
 						).orElse(null)

@@ -390,14 +390,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Returns true if `referenceName` points to hierarchical entity.
-	 */
-	public boolean isReferencingHierarchicalEntity(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return referenceSchema.isReferencedEntityTypeManaged() &&
-			getSchema(referenceSchema.getReferencedEntityType()).isWithHierarchy();
-	}
-
-	/**
 	 * Method is expected to be used in {@link FilteringConstraintTranslator} to get collection of formulas
 	 * in the current "level" of the filtering query.
 	 */
@@ -588,12 +580,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		final EntitySchemaContract entitySchema = getProcessingScope().getEntitySchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
-		final boolean referencesHierarchicalEntity = isReferencingHierarchicalEntity(referenceSchema);
 		final Formula referencedRecordIdFormula = getReferencedRecordIdFormula(entitySchema, referenceSchema, new FilterBy(referenceHaving.getChildren()));
 		final Bitmap referencedRecordIds = referencedRecordIdFormula.compute();
 		final List<ReducedEntityIndex> result = new ArrayList<>(referencedRecordIds.size());
 		for (Integer referencedRecordId : referencedRecordIds) {
-			getReferencedEntityIndex(entitySchema, referenceName, referencesHierarchicalEntity, referencedRecordId)
+			getReferencedEntityIndex(entitySchema, referenceName, referencedRecordId)
 				.ifPresent(result::add);
 		}
 		return result;
@@ -676,7 +667,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 
 	/**
 	 * Returns {@link EntityIndex} that contains indexed entities that reference `referenceName` and `referencedEntityId`.
-	 * Argument `referencesHierarchicalEntity` should be evaluated first by {@link #isReferencingHierarchicalEntity(ReferenceSchemaContract)} method.
 	 */
 	@Nonnull
 	public Optional<ReducedEntityIndex> getReferencedEntityIndex(
@@ -687,41 +677,27 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		return getReferencedEntityIndex(
 			entitySchema,
 			referenceSchema.getName(),
-			isReferencingHierarchicalEntity(referenceSchema),
 			referencedEntityId
 		);
 	}
 
 	/**
 	 * Returns {@link EntityIndex} that contains indexed entities that reference `referenceName` and `referencedEntityId`.
-	 * Argument `referencesHierarchicalEntity` should be evaluated first by {@link #isReferencingHierarchicalEntity(ReferenceSchemaContract)} method.
 	 */
 	@Nonnull
 	public Optional<ReducedEntityIndex> getReferencedEntityIndex(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String referenceName,
-		boolean referencesHierarchicalEntity,
 		int referencedEntityId
 	) {
-		if (referencesHierarchicalEntity) {
-			return getQueryContext().getIndex(
-				entitySchema.getName(),
-				new EntityIndexKey(
-					EntityIndexType.REFERENCED_HIERARCHY_NODE,
-					new ReferenceKey(referenceName, referencedEntityId)
-				),
-				ReducedEntityIndex.class
-			);
-		} else {
-			return getQueryContext().getIndex(
-				entitySchema.getName(),
-				new EntityIndexKey(
-					EntityIndexType.REFERENCED_ENTITY,
-					new ReferenceKey(referenceName, referencedEntityId)
-				),
-				ReducedEntityIndex.class
-			);
-		}
+		return getQueryContext().getIndex(
+			entitySchema.getName(),
+			new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY,
+				new ReferenceKey(referenceName, referencedEntityId)
+			),
+			ReducedEntityIndex.class
+		);
 	}
 
 	/**

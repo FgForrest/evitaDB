@@ -37,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -112,11 +113,15 @@ class ReferencedEntityAttributeValueProvider implements ReflectedReferenceAttrib
 		final ReferencesStoragePart referencedEntityReferencePart = dataStoreReader.fetch(
 			catalogVersion, referenceCarrier.primaryKey(), ReferencesStoragePart.class
 		);
-		// find the appropriate reference in the referenced entity
-		final ReferenceContract reference = referencedEntityReferencePart.findReferenceOrThrowException(
-			new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey)
-		);
-		// and propagate the inherited attributes
-		return reference.getAttributeValues(attributeName);
+		if (referencedEntityReferencePart == null) {
+			return List.of();
+		} else {
+			// find the appropriate reference in the referenced entity
+			final ReferenceContract reference = referencedEntityReferencePart.findReferenceOrThrowException(
+				new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey)
+			);
+			// and propagate the inherited attributes
+			return reference.getAttributeValues(attributeName);
+		}
 	}
 }

@@ -271,9 +271,8 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Returns appropriate {@link EntityIndex} for passed `referenceKey`. If the entity refers to the another Evita
-	 * entity which has hierarchical structure {@link EntityIndexType#REFERENCED_HIERARCHY_NODE} is returned otherwise
-	 * {@link EntityIndexType#REFERENCED_ENTITY} index is returned.
+	 * Returns appropriate {@link EntityIndex} for passed `referenceKey`. Method returns
+	 * {@link EntityIndexType#REFERENCED_ENTITY} index.
 	 */
 	@Nonnull
 	static EntityIndex getOrCreateReferencedEntityIndex(
@@ -283,21 +282,8 @@ public interface ReferenceIndexMutator {
 	) {
 		final String referenceName = referenceKey.referenceName();
 		final ReferenceSchemaContract referenceSchema = executor.getEntitySchema().getReferenceOrThrowException(referenceName);
-		final boolean referencesHierarchy;
-		if (referenceSchema.isReferencedEntityTypeManaged()) {
-			final EntitySchemaContract referencedEntitySchema = executor.getEntitySchema(referenceSchema.getReferencedEntityType());
-			isPremiseValid(referencedEntitySchema != null, "Referenced entity `" + referenceName + "` schema was not found!");
-			referencesHierarchy = referencedEntitySchema.isWithHierarchy();
-		} else {
-			referencesHierarchy = false;
-		}
 		// in order to save memory the data are indexed either to hierarchical or referenced entity index
-		final EntityIndexKey entityIndexKey;
-		if (referencesHierarchy) {
-			entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_HIERARCHY_NODE, scope, referenceKey);
-		} else {
-			entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, referenceKey);
-		}
+		final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, referenceKey);
 		return executor.getOrCreateIndex(entityIndexKey);
 	}
 
