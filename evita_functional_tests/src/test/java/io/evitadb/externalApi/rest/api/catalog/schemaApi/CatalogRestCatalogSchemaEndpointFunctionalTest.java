@@ -173,13 +173,13 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
                         {
                             "createGlobalAttributeSchemaMutation": {
 								"name": "mySpecialCode",
-								"uniquenessType": [
+								"uniqueInScopes": [
 									{
 										"scope": "LIVE",
 										"uniquenessType": "UNIQUE_WITHIN_COLLECTION"
 									}
 								],
-								"globalUniquenessType": [
+								"uniqueGloballyInScopes": [
 									{
 										"scope": "LIVE",
 										"uniquenessType": "UNIQUE_WITHIN_CATALOG"
