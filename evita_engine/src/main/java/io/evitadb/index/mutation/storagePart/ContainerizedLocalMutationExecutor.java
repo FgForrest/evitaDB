@@ -24,6 +24,7 @@
 package io.evitadb.index.mutation.storagePart;
 
 import com.carrotsearch.hppc.IntHashSet;
+import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException.MissingReferenceAttribute;
@@ -1080,6 +1081,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							)
 						);
 					}
+				} else if (referenceSchema instanceof ReflectedReferenceSchema && !referencePrimaryKeys.isEmpty()) {
+					throw new EntityMissingException(
+						referencedEntityType, referencePrimaryKeys.toArray(),
+						"Cannot set up main reference via reflected reference with name `" + referenceName + "`!"
+					);
 				}
 			}
 		}

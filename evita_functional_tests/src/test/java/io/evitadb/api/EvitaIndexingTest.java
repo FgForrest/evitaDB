@@ -27,6 +27,7 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
@@ -3278,12 +3279,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				createEntangledSchema(session);
 
 				session.upsertEntity(
-					session.createNewEntity(Entities.CATEGORY, 1)
-						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					session.createNewEntity(Entities.PRODUCT, 10)
 				);
 
 				session.upsertEntity(
-					session.createNewEntity(Entities.PRODUCT, 10)
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
 				);
 
 				assertReferencesAreEntangled(session);
@@ -3299,6 +3300,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				createEntangledSchemaWithInheritedAttributes(session);
 
 				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
 					session.createNewEntity(Entities.CATEGORY, 1)
 						.setReference(
 							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
@@ -3307,12 +3312,51 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						)
 				);
 
-				session.upsertEntity(
-					session.createNewEntity(Entities.PRODUCT, 10)
-				);
-
 				assertReferencesAreEntangled(session);
 				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateReflectedReferencesWhenBaseEntityIsNotPresentDuringCreation() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				assertThrows(
+					EntityMissingException.class,
+					() -> session.upsertEntity(
+						session.createNewEntity(Entities.CATEGORY, 1)
+							.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					)
+				);
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateReflectedReferencesWhenBaseEntityIsNotPresentDuringUpdate() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				assertThrows(
+					EntityMissingException.class,
+					() -> session.upsertEntity(
+						session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+							.upsertVia(session)
+					)
+				);
 			}
 		);
 	}

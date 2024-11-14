@@ -40,8 +40,8 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
@@ -78,7 +78,8 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMutation, CombinableLocalEntitySchemaMutation {
+public class CreateAttributeSchemaMutation
+	implements ReferenceAttributeSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
 	@Serial private static final long serialVersionUID = -469815390440407270L;
 
 	@Getter @Nonnull private final String name;
@@ -93,18 +94,6 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
-
-	@Nullable
-	private static <T, S extends SchemaMutation> S makeMutationIfDifferent(
-		@Nonnull AttributeSchemaContract createdVersion,
-		@Nonnull AttributeSchemaContract existingVersion,
-		@Nonnull Function<AttributeSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, S> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
-	}
 
 	public CreateAttributeSchemaMutation(
 		@Nonnull String name,
@@ -201,26 +190,31 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 				null,
 				Stream.of(
 						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
 							NamedSchemaContract::getDescription,
 							newValue -> new ModifyAttributeSchemaDescriptionMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
 							NamedSchemaWithDeprecationContract::getDeprecationNotice,
 							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
 							AttributeSchemaContract::getType,
 							newValue -> new ModifyAttributeSchemaTypeMutation(this.name, newValue, this.indexedDecimalPlaces)
 						),
 						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
 							AttributeSchemaContract::getDefaultValue,
 							newValue -> new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
 						),
 						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
 							schema -> Arrays.stream(Scope.values())
 								.filter(schema::isFilterable)
@@ -228,6 +222,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 							newValue -> new SetAttributeSchemaFilterableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
 							schema -> Arrays.stream(Scope.values())
 								.map(scope -> new ScopedAttributeUniquenessType(scope, schema.getUniquenessType(scope)))
@@ -237,6 +232,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 							newValue -> new SetAttributeSchemaUniqueMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
 							schema -> Arrays.stream(Scope.values())
 								.filter(schema::isSortable)
@@ -244,16 +240,19 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 							newValue -> new SetAttributeSchemaSortableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
 							AttributeSchemaContract::isLocalized,
 							newValue -> new SetAttributeSchemaLocalizedMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
 							AttributeSchemaContract::isNullable,
 							newValue -> new SetAttributeSchemaNullableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
 							attributeSchemaContract -> ((EntityAttributeSchema) attributeSchemaContract).isRepresentative(),
 							newValue -> new SetAttributeSchemaRepresentativeMutation(this.name, newValue)

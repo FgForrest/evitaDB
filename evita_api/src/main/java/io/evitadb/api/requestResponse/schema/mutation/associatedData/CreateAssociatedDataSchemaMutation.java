@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ComplexDataObject;
@@ -71,7 +72,7 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateAssociatedDataSchemaMutation
-	implements AssociatedDataSchemaMutation, CombinableLocalEntitySchemaMutation {
+	implements AssociatedDataSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
 	@Serial private static final long serialVersionUID = -7368528015832499968L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
@@ -79,18 +80,6 @@ public class CreateAssociatedDataSchemaMutation
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
-
-	@Nullable
-	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
-		@Nonnull AssociatedDataSchemaContract createdVersion,
-		@Nonnull AssociatedDataSchemaContract existingVersion,
-		@Nonnull Function<AssociatedDataSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
-	}
 
 	public CreateAssociatedDataSchemaMutation(
 		@Nonnull String name,
@@ -132,26 +121,31 @@ public class CreateAssociatedDataSchemaMutation
 				null,
 				Stream.of(
 						makeMutationIfDifferent(
+							AssociatedDataSchemaContract.class,
 							createdVersion, existingVersion,
 							NamedSchemaContract::getDescription,
 							newValue -> new ModifyAssociatedDataSchemaDescriptionMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
+							AssociatedDataSchemaContract.class,
 							createdVersion, existingVersion,
 							NamedSchemaWithDeprecationContract::getDeprecationNotice,
 							newValue -> new ModifyAssociatedDataSchemaDeprecationNoticeMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
+							AssociatedDataSchemaContract.class,
 							createdVersion, existingVersion,
 							AssociatedDataSchemaContract::getType,
 							newValue -> new ModifyAssociatedDataSchemaTypeMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
+							AssociatedDataSchemaContract.class,
 							createdVersion, existingVersion,
 							AssociatedDataSchemaContract::isLocalized,
 							newValue -> new SetAssociatedDataSchemaLocalizedMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
+							AssociatedDataSchemaContract.class,
 							createdVersion, existingVersion,
 							AssociatedDataSchemaContract::isNullable,
 							newValue -> new SetAssociatedDataSchemaNullableMutation(name, newValue)

@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
@@ -74,7 +75,8 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
+public class CreateReferenceSchemaMutation
+	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
 	@Serial private static final long serialVersionUID = -5200773391501101688L;
 
 	@Getter @Nonnull private final String name;
@@ -87,18 +89,6 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Getter private final boolean referencedGroupTypeManaged;
 	@Getter private final Scope[] indexedInScopes;
 	@Getter private final Scope[] facetedInScopes;
-
-	@Nullable
-	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
-		@Nonnull ReferenceSchemaContract createdVersion,
-		@Nonnull ReferenceSchemaContract existingVersion,
-		@Nonnull Function<ReferenceSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
-	}
 
 	public CreateReferenceSchemaMutation(
 		@Nonnull String name,
@@ -179,36 +169,43 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 					Stream.of(
 							Stream.of(
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									NamedSchemaContract::getDescription,
 									newValue -> new ModifyReferenceSchemaDescriptionMutation(name, newValue)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									NamedSchemaWithDeprecationContract::getDeprecationNotice,
 									newValue -> new ModifyReferenceSchemaDeprecationNoticeMutation(name, newValue)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									ReferenceSchemaContract::getCardinality,
 									newValue -> new ModifyReferenceSchemaCardinalityMutation(name, newValue)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									ReferenceSchemaContract::getReferencedEntityType,
 									newValue -> new ModifyReferenceSchemaRelatedEntityMutation(name, newValue, referencedEntityTypeManaged)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									ReferenceSchemaContract::getReferencedGroupType,
 									newValue -> new ModifyReferenceSchemaRelatedEntityGroupMutation(name, newValue, referencedGroupTypeManaged)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									ref -> Arrays.stream(Scope.values()).filter(ref::isIndexed).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaIndexedMutation(name, newValue)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									ref -> Arrays.stream(Scope.values()).filter(ref::isFaceted).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaFacetedMutation(name, newValue)

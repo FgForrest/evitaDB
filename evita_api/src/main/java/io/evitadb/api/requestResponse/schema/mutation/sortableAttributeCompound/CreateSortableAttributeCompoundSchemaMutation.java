@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
@@ -71,7 +72,7 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateSortableAttributeCompoundSchemaMutation
-	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
+	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation, CreateMutation {
 
 	@Serial private static final long serialVersionUID = 4126462217562106850L;
 	@Getter @Nonnull private final String name;
@@ -79,18 +80,6 @@ public class CreateSortableAttributeCompoundSchemaMutation
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final Scope[] indexedInScopes;
 	@Getter @Nonnull private final AttributeElement[] attributeElements;
-
-	@Nullable
-	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
-		@Nonnull SortableAttributeCompoundSchemaContract createdVersion,
-		@Nonnull SortableAttributeCompoundSchemaContract existingVersion,
-		@Nonnull Function<SortableAttributeCompoundSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
-	}
 
 	public CreateSortableAttributeCompoundSchemaMutation(
 		@Nonnull String name,
@@ -142,17 +131,17 @@ public class CreateSortableAttributeCompoundSchemaMutation
 				null,
 				Stream.of(
 						makeMutationIfDifferent(
-							createdVersion, existingVersion,
+							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
 							NamedSchemaContract::getDescription,
 							newValue -> new ModifySortableAttributeCompoundSchemaDescriptionMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
-							createdVersion, existingVersion,
+							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
 							NamedSchemaWithDeprecationContract::getDeprecationNotice,
 							newValue -> new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
-							createdVersion, existingVersion,
+							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
 							sacs -> Arrays.stream(Scope.values()).filter(sacs::isIndexedInScope).toArray(Scope[]::new),
 							newValue -> new SetSortableAttributeCompoundIndexedMutation(this.name, newValue)
 						)

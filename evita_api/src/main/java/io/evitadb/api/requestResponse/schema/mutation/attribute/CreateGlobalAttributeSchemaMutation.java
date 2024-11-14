@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -75,7 +76,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 @Immutable
 @EqualsAndHashCode
 public class CreateGlobalAttributeSchemaMutation
-	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
+	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation, CreateMutation {
 	@Serial private static final long serialVersionUID = 496202593310308290L;
 
 	@Getter @Nonnull private final String name;
@@ -91,18 +92,6 @@ public class CreateGlobalAttributeSchemaMutation
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
-
-	@Nullable
-	private static <T> LocalCatalogSchemaMutation makeMutationIfDifferent(
-		@Nonnull GlobalAttributeSchemaContract createdVersion,
-		@Nonnull GlobalAttributeSchemaContract existingVersion,
-		@Nonnull Function<GlobalAttributeSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalCatalogSchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
-	}
 
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
@@ -207,26 +196,31 @@ public class CreateGlobalAttributeSchemaMutation
 				null,
 				Stream.of(
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							NamedSchemaContract::getDescription,
 							newValue -> new ModifyAttributeSchemaDescriptionMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							NamedSchemaWithDeprecationContract::getDeprecationNotice,
 							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::getType,
 							newValue -> new ModifyAttributeSchemaTypeMutation(this.name, newValue, this.indexedDecimalPlaces)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::getDefaultValue,
 							newValue -> new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							schema -> Arrays.stream(Scope.values())
 								.filter(schema::isFilterable)
@@ -234,6 +228,7 @@ public class CreateGlobalAttributeSchemaMutation
 							newValue -> new SetAttributeSchemaFilterableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							schema -> Arrays.stream(Scope.values())
 								.map(scope -> new ScopedAttributeUniquenessType(scope, schema.getUniquenessType(scope)))
@@ -243,6 +238,7 @@ public class CreateGlobalAttributeSchemaMutation
 							newValue -> new SetAttributeSchemaUniqueMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							schema -> Arrays.stream(Scope.values())
 								.map(scope -> new ScopedGlobalAttributeUniquenessType(scope, schema.getGlobalUniquenessType(scope)))
@@ -252,6 +248,7 @@ public class CreateGlobalAttributeSchemaMutation
 							newValue -> new SetAttributeSchemaGloballyUniqueMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							schema -> Arrays.stream(Scope.values())
 								.filter(schema::isSortable)
@@ -259,16 +256,19 @@ public class CreateGlobalAttributeSchemaMutation
 							newValue -> new SetAttributeSchemaSortableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isLocalized,
 							newValue -> new SetAttributeSchemaLocalizedMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isNullable,
 							newValue -> new SetAttributeSchemaNullableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isRepresentative,
 							newValue -> new SetAttributeSchemaRepresentativeMutation(name, newValue)

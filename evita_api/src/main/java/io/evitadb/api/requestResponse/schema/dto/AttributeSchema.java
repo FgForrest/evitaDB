@@ -146,6 +146,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 				"IndexedDecimalPlaces must be specified for attributes of type BigDecimal (attribute: " + name + ")!"
 			);
 		}
+
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
@@ -181,12 +182,6 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
 		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortableInScopes);
-
-		if ((!theFilterableInScopes.isEmpty() || !theSortableInScopes.isEmpty()) && BigDecimal.class.equals(type)) {
-			throw new EvitaInvalidUsageException(
-				"IndexedDecimalPlaces must be specified for attributes of type BigDecimal (attribute: " + name + ")!"
-			);
-		}
 
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
@@ -289,12 +284,6 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		final EnumMap<Scope, AttributeUniquenessType> theUniquenessType = toUniquenessEnumMap(uniqueInScopes);
 		final EnumSet<Scope> theFilterableInScopes = ArrayUtils.toEnumSet(Scope.class, filterableInScopes);
 		final EnumSet<Scope> theSortableInScopes = ArrayUtils.toEnumSet(Scope.class, sortableInScopes);
-
-		if ((!theFilterableInScopes.isEmpty() || !theSortableInScopes.isEmpty()) && BigDecimal.class.equals(type)) {
-			throw new EvitaInvalidUsageException(
-				"IndexedDecimalPlaces must be specified for attributes of type BigDecimal (attribute: " + name + ")!"
-			);
-		}
 
 		return new AttributeSchema(
 			name, nameVariants,

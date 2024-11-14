@@ -130,7 +130,9 @@ public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityI
 		final int primaryKey = input.readVarInt(true);
 		final int version = input.readVarInt(true);
 
-		final EntityIndexType entityIndexType = kryo.readObject(input, EntityIndexType.class);
+		final EntityIndexType readEntityIndexType = kryo.readObject(input, EntityIndexType.class);
+		final EntityIndexType entityIndexType = readEntityIndexType == EntityIndexType.REFERENCED_HIERARCHY_NODE ?
+			EntityIndexType.REFERENCED_ENTITY : readEntityIndexType;
 		final Serializable discriminator = input.readBoolean() ? (Serializable) kryo.readClassAndObject(input) : null;
 		final EntityIndexKey entityIndexKey = discriminator == null ?
 			new EntityIndexKey(entityIndexType) : new EntityIndexKey(entityIndexType, discriminator);

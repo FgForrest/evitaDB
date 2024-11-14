@@ -43,6 +43,7 @@ import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
@@ -69,6 +70,11 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		output.writeVarInt(entityIndex.getVersion(), true);
 
 		final EntityIndexKey entityIndexKey = entityIndex.getEntityIndexKey();
+		Assert.isPremiseValid(
+			entityIndexKey.type() != EntityIndexType.REFERENCED_HIERARCHY_NODE,
+			"Referenced hierarchy node index is deprecated and should no longer be stored!"
+		);
+
 		kryo.writeObject(output, entityIndexKey.type());
 		kryo.writeObject(output, entityIndexKey.scope());
 		if (entityIndexKey.discriminator() == null) {

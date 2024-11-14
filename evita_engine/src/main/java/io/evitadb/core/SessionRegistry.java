@@ -143,9 +143,13 @@ final class SessionRegistry {
 		CompletableFuture
 			.allOf(futures.toArray(new CompletableFuture[0]))
 			.join();
-		// check that all sessions were closed
+		// check that all sessions were closed, and wait for concurrent operations to finish 20ms
+		final long start = System.nanoTime();
+		while (this.activeSessionsCounter.get() > 0 && System.nanoTime() - start < 20_000_000) {
+			Thread.onSpinWait();
+		}
 		Assert.isPremiseValid(
-			activeSessionsCounter.get() == 0,
+			this.activeSessionsCounter.get() == 0,
 			"Some of the sessions didn't decrement the session counter!"
 		);
 	}
