@@ -428,7 +428,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by localized attribute")
-	void shouldReturnSingleProductByLocalizedAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleProductByLocalizedAttribute(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
 		final SealedEntity entityWithUrl = findEntity(
 			originalProductEntities,

@@ -27,9 +27,11 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownEntitiesEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UnknownEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
@@ -41,6 +43,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -75,18 +78,20 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			query(
 				collection(Entities.PRODUCT),
 				require(
-					page(1, 2),
+					page(1, 1),
+					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					scope(Scope.ARCHIVED)
 				)
 			),
 			SealedEntity.class
 		);
 
-		final var expectedBodyOfArchivedEntities = createEntityDto(archivedEntity);
+		final var expectedBodyOfArchivedEntities = createEntityDto(new EntityReference(archivedEntity.getType(), archivedEntity.getPrimaryKey()));
 
 		tester.test(TEST_CATALOG)
 			.get("/entity/get")
 			.requestParam(ATTRIBUTE_CODE, archivedEntity.getAttribute(ATTRIBUTE_CODE))
+			.requestParam(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.ARCHIVED.name()))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(expectedBodyOfArchivedEntities));
@@ -102,6 +107,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 				collection(Entities.PRODUCT),
 				require(
 					page(1, 1),
+					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					scope(Scope.ARCHIVED)
 				)
 			),
@@ -110,7 +116,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 
 		tester.test(TEST_CATALOG)
 			.get("/entity/get")
-			.requestParam(ATTRIBUTE_CODE, Arrays.asList(archivedEntity.getAttribute(ATTRIBUTE_CODE)))
+			.requestParam(ATTRIBUTE_CODE, Collections.singletonList((String) archivedEntity.getAttribute(ATTRIBUTE_CODE)))
 			.executeAndThen()
 			.statusCode(404);
 	}

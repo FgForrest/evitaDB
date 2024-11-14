@@ -74,10 +74,9 @@ public class RequireConstraintFromRequestQueryBuilder {
 			requireConstraints.add(entityFetch(contentRequires));
 		}
 
-		//noinspection unchecked
-		final List<Scope> scopes = (List<Scope>) parameters.get(ScopeAwareEndpointHeaderDescriptor.SCOPE.name());
+		final Scope[] scopes = (Scope[]) parameters.get(ScopeAwareEndpointHeaderDescriptor.SCOPE.name());
 		if (scopes != null) {
-			requireConstraints.add(scope(scopes.toArray(Scope[]::new)));
+			requireConstraints.add(scope(scopes));
 		}
 
 		if (requireConstraints.isEmpty()) {

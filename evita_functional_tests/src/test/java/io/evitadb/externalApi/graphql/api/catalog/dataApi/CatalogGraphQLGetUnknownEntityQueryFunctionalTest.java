@@ -239,7 +239,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			query(
 				collection(Entities.PRODUCT),
 				require(
-					page(1, 2),
+					page(1, 1),
 					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					scope(Scope.ARCHIVED)
 				)
@@ -265,7 +265,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 	                    }
 	                }
 					""",
-				archivedEntity.getAttribute(ATTRIBUTE_CODE)
+				(String) archivedEntity.getAttribute(ATTRIBUTE_CODE)
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -284,7 +284,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 				collection(Entities.PRODUCT),
 				require(
 					page(1, 1),
-					entityFetch(),
+					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					scope(Scope.ARCHIVED)
 				)
 			),
@@ -303,7 +303,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 	                    }
 	                }
 					""",
-				archivedEntity.getAttribute(ATTRIBUTE_CODE)
+				(String) archivedEntity.getAttribute(ATTRIBUTE_CODE)
 			)
 			.executeAndThen()
 			.statusCode(200)

@@ -90,10 +90,7 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -179,11 +176,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		final var expectedBodyOfArchivedEntities = archivedEntities.stream()
-			.map(entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
-					.build())
+			.map(entity -> createEntityDto(new EntityReference(entity.getType(), entity.getPrimaryKey())))
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -204,7 +197,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			)
 			.executeAndThen()
 			.statusCode(200)
-			.body(DATA_PATH, equalTo(expectedBodyOfArchivedEntities));
+			.body(DATA_PATH, containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
 	}
 
 	@Test
@@ -237,11 +230,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		final var expectedBodyOfArchivedEntities = Stream.concat(liveEntities.stream(), archivedEntities.stream())
-			.map(entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
-					.build())
+			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))
+			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -253,7 +243,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						    "entityPrimaryKeyInSet": [%d, %d, %d, %d]
 						},
 						"require": {
-						    "scope": ["LIVE", ARCHIVED"]
+						    "scope": ["LIVE", "ARCHIVED"]
 					    }
 					}
 					""",
@@ -264,7 +254,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			)
 			.executeAndThen()
 			.statusCode(200)
-			.body(DATA_PATH, equalTo(expectedBodyOfArchivedEntities));
+			.body(DATA_PATH, containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
 	}
 
 	@Test
@@ -290,14 +280,15 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"""
 	                {
 						"filterBy": {
-						    "entityPrimaryKeyInSet": %d
+						    "entityPrimaryKeyInSet": [%d]
 						}
 					}
 					""",
 				archivedEntity.getPrimaryKey()
 			)
 			.executeAndThen()
-			.statusCode(404);
+			.statusCode(200)
+			.body(DATA_PATH, emptyIterable());
 	}
 
 	@Test

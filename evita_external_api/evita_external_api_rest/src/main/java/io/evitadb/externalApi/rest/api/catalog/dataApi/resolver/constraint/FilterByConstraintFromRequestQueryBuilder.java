@@ -98,8 +98,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(GetEntityEndpointHeaderDescriptor.LOCALE.name())));
 		}
 
-		final Scope[] requestedScopes = Optional.ofNullable((List<Scope>) parameters.get(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
-			.map(it -> it.toArray(Scope[]::new))
+		final Scope[] requestedScopes = Optional.ofNullable((Scope[]) parameters.get(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
 			.orElse(Scope.DEFAULT_SCOPES);
 
 		entitySchema.getAttributes()
@@ -140,8 +139,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			(QueryHeaderFilterArgumentsJoinType) parameters.remove(UnknownEntityEndpointHeaderDescriptor.FILTER_JOIN.name())
 		)
 			.orElse(QueryHeaderFilterArgumentsJoinType.AND);
-		final Scope[] requestedScopes = Optional.ofNullable((List<Scope>) parameters.remove(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
-			.map(it -> it.toArray(Scope[]::new))
+		final Scope[] requestedScopes = Optional.ofNullable((Scope[]) parameters.remove(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
 			.orElse(Scope.DEFAULT_SCOPES);
 
 		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(requestedScopes, parameters, catalogSchema);
@@ -196,8 +194,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			(QueryHeaderFilterArgumentsJoinType) parameters.remove(ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN.name())
 		)
 			.orElse(QueryHeaderFilterArgumentsJoinType.AND);
-		final Scope[] requestedScopes = Optional.ofNullable((List<Scope>) parameters.remove(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
-			.map(it -> it.toArray(Scope[]::new))
+		final Scope[] requestedScopes = Optional.ofNullable((Scope[]) parameters.remove(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
 			.orElse(Scope.DEFAULT_SCOPES);
 
 		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(requestedScopes, parameters, catalogSchema);

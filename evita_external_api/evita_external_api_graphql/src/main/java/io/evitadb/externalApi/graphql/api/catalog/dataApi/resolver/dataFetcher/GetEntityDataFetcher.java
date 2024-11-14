@@ -184,10 +184,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 		    .ifPresent(requireConstraints::add);
 
 		requireConstraints.add(priceType(arguments.priceType()));
-
-		if (arguments.scopes() != null) {
-			requireConstraints.add(scope(arguments.scopes()));
-		}
+		requireConstraints.add(scope(arguments.scopes()));
 
 	    return require(requireConstraints.toArray(RequireConstraint[]::new));
     }
@@ -213,7 +210,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
                              @Nullable OffsetDateTime priceValidIn,
                              boolean priceValidInNow,
 							 @Nonnull QueryPriceMode priceType,
-							 @Nullable Scope[] scopes,
+							 @Nonnull Scope[] scopes,
                              @Nonnull Map<AttributeSchemaContract, Object> uniqueAttributes) {
 
 		private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull EntitySchemaContract entitySchema) {

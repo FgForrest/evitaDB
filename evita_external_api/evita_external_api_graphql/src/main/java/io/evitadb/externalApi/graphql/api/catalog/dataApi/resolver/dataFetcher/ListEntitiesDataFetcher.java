@@ -248,14 +248,17 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             final Object orderBy = environment.getArgument(ListEntitiesHeaderDescriptor.ORDER_BY.name());
             final Integer offset = environment.getArgument(ListEntitiesHeaderDescriptor.OFFSET.name());
             final Integer limit = environment.getArgument(ListEntitiesHeaderDescriptor.LIMIT.name());
-            final List<Scope> scopes = environment.getArgument(ListEntitiesHeaderDescriptor.SCOPE.name());
+	        //noinspection unchecked
+	        final Scope[] scopes = Optional.ofNullable((List<Scope>) environment.getArgument(ListEntitiesHeaderDescriptor.SCOPE.name()))
+                .map(it -> it.toArray(Scope[]::new))
+                .orElse(null);
 
             return new Arguments(
                 filterBy,
                 orderBy,
                 offset,
                 limit,
-                (scopes != null ? scopes.toArray(Scope[]::new) : null)
+                scopes
             );
         }
     }

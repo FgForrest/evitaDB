@@ -221,9 +221,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
                 .orElse(entityFetch())
         );
 
-        if (arguments.scopes() != null) {
-            requireConstraints.add(scope(arguments.scopes()));
-        }
+        requireConstraints.add(scope(arguments.scopes()));
 
         return require(requireConstraints.toArray(RequireConstraint[]::new));
     }
@@ -265,7 +263,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
      */
     private record Arguments(@Nullable Locale locale,
                              @Nonnull QueryHeaderArgumentsJoinType join,
-                             @Nullable Scope[] scopes,
+                             @Nonnull Scope[] scopes,
                              @Nonnull Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull CatalogSchemaContract catalogSchema) {
@@ -287,8 +285,12 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
             }
 
             if (locale == null &&
-                // TODO LHO scopy
-                globallyUniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale)) {
+                Arrays.stream(scopes)
+                    .anyMatch(scope ->
+                        globallyUniqueAttributes.keySet()
+                            .stream()
+                            .anyMatch(attribute ->
+                                attribute.isUniqueGloballyWithinLocale(scope)))) {
                 throw new GraphQLInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
             }
 

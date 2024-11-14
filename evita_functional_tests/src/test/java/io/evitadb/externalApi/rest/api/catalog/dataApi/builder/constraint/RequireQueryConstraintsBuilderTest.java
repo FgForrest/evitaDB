@@ -31,6 +31,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Requi
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -53,8 +54,8 @@ class RequireQueryConstraintsBuilderTest {
 
 	@Test
 	void shouldBuildRequireToSearchInCustomScope() {
-		final Require require = RequireConstraintFromRequestQueryBuilder.buildRequire(Collections.singletonMap(ScopeAwareEndpointHeaderDescriptor.SCOPE.name(), Scope.ARCHIVED.name()));
-		assertEquals("require(scope('ARCHIVED'))", require.toString());
+		final Require require = RequireConstraintFromRequestQueryBuilder.buildRequire(Collections.singletonMap(ScopeAwareEndpointHeaderDescriptor.SCOPE.name(), new Scope[] { Scope.ARCHIVED }));
+		assertEquals("require(scope(ARCHIVED))", require.toString());
 	}
 
 	@Test

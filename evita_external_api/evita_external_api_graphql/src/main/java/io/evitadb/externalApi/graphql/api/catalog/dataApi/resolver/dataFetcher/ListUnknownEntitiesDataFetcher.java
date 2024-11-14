@@ -232,6 +232,8 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
             requireConstraints.add(strip(0, arguments.limit()));
         }
 
+        requireConstraints.add(scope(arguments.scopes()));
+
         return require(
             requireConstraints.toArray(RequireConstraint[]::new)
         );
@@ -275,7 +277,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
     private record Arguments(@Nullable Locale locale,
                              @Nullable Integer limit,
                              @Nonnull QueryHeaderArgumentsJoinType join,
-                             @Nullable Scope[] scopes,
+                             @Nonnull Scope[] scopes,
                              @Nonnull Map<GlobalAttributeSchemaContract, List<Object>> globallyUniqueAttributes) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull CatalogSchemaContract catalogSchema) {
@@ -298,8 +300,12 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
             }
 
             if (locale == null &&
-                // TODO LHO scopy
-                globallyUniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale)) {
+                Arrays.stream(scopes)
+                    .anyMatch(scope ->
+                        globallyUniqueAttributes.keySet()
+                            .stream()
+                            .anyMatch(attribute ->
+                                attribute.isUniqueGloballyWithinLocale(scope)))) {
                 throw new GraphQLInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
             }
 

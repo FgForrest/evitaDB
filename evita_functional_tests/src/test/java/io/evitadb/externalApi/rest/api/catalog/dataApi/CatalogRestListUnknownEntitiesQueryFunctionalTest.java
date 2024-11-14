@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -43,6 +44,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
@@ -58,6 +60,7 @@ import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -81,6 +84,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 				collection(Entities.PRODUCT),
 				require(
 					page(1, 2),
+					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					scope(Scope.ARCHIVED)
 				)
 			),
@@ -88,12 +92,14 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 		);
 
 		final var expectedBodyOfArchivedEntities = archivedEntities.stream()
+			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))
 			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
 			.toList();
 
 		tester.test(TEST_CATALOG)
 			.get("/entity/list")
 			.requestParam(ATTRIBUTE_CODE, archivedEntities.stream().map(it -> it.getAttribute(ATTRIBUTE_CODE)).toList())
+			.requestParam(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.ARCHIVED.name()))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(expectedBodyOfArchivedEntities));
@@ -109,6 +115,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 				collection(Entities.PRODUCT),
 				require(
 					page(1, 2),
+					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					scope(Scope.LIVE)
 				)
 			),
@@ -120,6 +127,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 				collection(Entities.PRODUCT),
 				require(
 					page(1, 2),
+					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					scope(Scope.ARCHIVED)
 				)
 			),
@@ -127,15 +135,17 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 		);
 
 		final var expectedBodyOfArchivedEntities = Stream.concat(liveEntities.stream(), archivedEntities.stream())
+			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))
 			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
 			.toList();
 
 		tester.test(TEST_CATALOG)
 			.get("/entity/list")
 			.requestParam(ATTRIBUTE_CODE, Stream.concat(liveEntities.stream(), archivedEntities.stream()).map(it -> it.getAttribute(ATTRIBUTE_CODE)).toList())
+			.requestParam(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.LIVE.name(), Scope.ARCHIVED.name()))
 			.executeAndThen()
 			.statusCode(200)
-			.body("", equalTo(expectedBodyOfArchivedEntities));
+			.body("", containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
 	}
 
 	@Test
@@ -148,6 +158,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 				collection(Entities.PRODUCT),
 				require(
 					page(1, 1),
+					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					scope(Scope.ARCHIVED)
 				)
 			),
@@ -156,7 +167,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 
 		tester.test(TEST_CATALOG)
 			.get("/entity/list")
-			.requestParam(ATTRIBUTE_CODE, Arrays.asList(archivedEntity.getAttribute(ATTRIBUTE_CODE)))
+			.requestParam(ATTRIBUTE_CODE, Collections.singletonList((String) archivedEntity.getAttribute(ATTRIBUTE_CODE)))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", emptyIterable());

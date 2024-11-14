@@ -306,7 +306,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_LIST_PATH, equalTo(expectedBodyOfArchivedEntities));
+			.body(PRODUCT_LIST_PATH, containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
 	}
 
 	@Test

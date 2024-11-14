@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -118,10 +119,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			SealedEntity.class
 		);
 
-		final var expectedBodyOfArchivedEntity = map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), archivedEntity.getPrimaryKey())
-			.e(EntityDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
-			.build();
+		final var expectedBodyOfArchivedEntity = createEntityDto(new EntityReference(archivedEntity.getType(), archivedEntity.getPrimaryKey()));
 
 		tester.test(TEST_CATALOG)
 			.get("/PRODUCT/get")

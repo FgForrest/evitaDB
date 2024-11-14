@@ -325,7 +325,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 				collection(Entities.PRODUCT),
 				require(
 					page(1, 1),
-					entityFetch(),
+					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					scope(Scope.LIVE)
 				)
 			),
@@ -337,7 +337,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 				collection(Entities.PRODUCT),
 				require(
 					page(1, 1),
-					entityFetch(),
+					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					scope(Scope.ARCHIVED)
 				)
 			),
@@ -384,7 +384,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 				collection(Entities.PRODUCT),
 				require(
 					page(1, 1),
-					entityFetch(),
+					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					scope(Scope.ARCHIVED)
 				)
 			),
@@ -403,7 +403,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	                    }
 	                }
 					""",
-				archivedEntity.getAttribute(ATTRIBUTE_CODE)
+				(String) archivedEntity.getAttribute(ATTRIBUTE_CODE)
 			)
 			.executeAndThen()
 			.statusCode(200)

@@ -373,7 +373,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBodyOfArchivedEntities));
+			.body(PRODUCT_QUERY_DATA_PATH, containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
 	}
 
 	@Test
@@ -402,8 +402,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							     entityPrimaryKeyInSet: %d
 							 }
                         ) {
-                            primaryKey
-	                        scope
+                            recordPage {
+                                data {
+                                    primaryKey
+	                                scope
+                                }
+                            }
 	                    }
 	                }
 					""",

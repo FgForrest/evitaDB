@@ -142,11 +142,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		final var expectedBodyOfArchivedEntities = archivedEntities.stream()
-			.map(entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
-					.build())
+			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))
+			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -167,7 +164,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			)
 			.executeAndThen()
 			.statusCode(200)
-			.body("", equalTo(expectedBodyOfArchivedEntities));
+			.body("", containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
 	}
 
 	@Test
@@ -200,11 +197,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		final var expectedBodyOfArchivedEntities = Stream.concat(liveEntities.stream(), archivedEntities.stream())
-			.map(entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
-					.build())
+			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))
+			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -216,7 +210,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 						    "entityPrimaryKeyInSet": [%d, %d, %d, %d]
 						},
 						"require": {
-						    "scope": ["LIVE", ARCHIVED"]
+						    "scope": ["LIVE", "ARCHIVED"]
 					    }
 					}
 					""",
@@ -227,7 +221,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			)
 			.executeAndThen()
 			.statusCode(200)
-			.body("", equalTo(expectedBodyOfArchivedEntities));
+			.body("", containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
 	}
 
 	@Test
@@ -253,7 +247,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				"""
 	                {
 						"filterBy": {
-						    "entityPrimaryKeyInSet": %d
+						    "entityPrimaryKeyInSet": [%d]
 						}
 					}
 					""",
