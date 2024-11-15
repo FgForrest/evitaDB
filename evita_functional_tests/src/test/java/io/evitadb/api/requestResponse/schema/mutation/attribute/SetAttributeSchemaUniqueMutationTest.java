@@ -168,7 +168,7 @@ class SetAttributeSchemaUniqueMutationTest {
 		Mockito.when(mockedEntitySchema.getName()).thenReturn("mockedEntitySchema");
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
 		Mockito.when(referenceSchema.isIndexed()).thenReturn(true);
-		Mockito.when(referenceSchema.isIndexed(Scope.LIVE)).thenReturn(true);
+		Mockito.when(referenceSchema.isIndexedInScope(Scope.LIVE)).thenReturn(true);
 		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingAttributeSchema()));
 		final ReferenceSchemaContract mutatedSchema = mutation.mutate(
 			mockedEntitySchema,

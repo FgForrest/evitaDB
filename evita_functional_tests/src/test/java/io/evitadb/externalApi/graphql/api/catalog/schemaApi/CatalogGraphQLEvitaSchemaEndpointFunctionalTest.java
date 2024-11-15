@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
@@ -33,7 +32,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
-import io.evitadb.test.builder.MapBuilder;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -114,7 +112,7 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	@Nonnull
 	protected static List<String> createReferencedFacetedDto(ReferenceSchemaContract schema) {
 		return Arrays.stream(Scope.values())
-			.filter(schema::isFaceted)
+			.filter(schema::isFacetedInScope)
 			.map(Enum::name)
 			.toList();
 	}
@@ -122,7 +120,7 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	@Nonnull
 	protected static List<String> createReferenceIndexedDto(ReferenceSchemaContract schema) {
 		return Arrays.stream(Scope.values())
-			.filter(schema::isIndexed)
+			.filter(schema::isIndexedInScope)
 			.map(Enum::name)
 			.toList();
 	}

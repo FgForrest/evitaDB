@@ -45,7 +45,6 @@ import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Currency;
@@ -59,7 +58,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.ListBuilder.list;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 
@@ -336,8 +334,8 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.e(NameVariantsDescriptor.KEBAB_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.KEBAB_CASE))
 				.build())
 			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
-			.e(ReferenceSchemaDescriptor.INDEXED.name(), createFlagInScopesDto(referenceSchema::isIndexed))
-			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFaceted))
+			.e(ReferenceSchemaDescriptor.INDEXED.name(), createFlagInScopesDto(referenceSchema::isIndexedInScope))
+			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFacetedInScope))
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
 

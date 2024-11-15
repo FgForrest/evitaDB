@@ -230,7 +230,7 @@ public class SetAttributeSchemaFilterableMutation
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		if (consistencyChecks != ReferenceSchemaMutator.ConsistencyChecks.SKIP) {
 			final List<Scope> nonIndexedScopes = Arrays.stream(this.filterableInScopes)
-				.filter(scope -> !referenceSchema.isIndexed(scope))
+				.filter(scope -> !referenceSchema.isIndexedInScope(scope))
 				.toList();
 			Assert.isTrue(
 				nonIndexedScopes.isEmpty(),

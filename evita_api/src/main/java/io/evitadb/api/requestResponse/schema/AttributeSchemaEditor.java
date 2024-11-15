@@ -65,13 +65,13 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * comparison on its {@link Object#toString()} will be used
 	 *
 	 * This method makes attribute filterable only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be
-	 * filterable by this attribute unless explicitly set via {@link #unique(Scope...)}.
+	 * filterable by this attribute unless explicitly set via {@link #uniqueInScope(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T filterable() {
-		return filterable(Scope.DEFAULT_SCOPE);
+		return filterableInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -86,9 +86,8 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @param inScope one or more scopes in which the attribute should be filterable
 	 * @return builder to continue with configuration
 	 */
-	/* TODO JNO - zvážit přejmenování na `filterableInScope` a u všech ostatních se scope taky */
 	@Nonnull
-	T filterable(@Nonnull Scope... inScope);
+	T filterableInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
@@ -140,13 +139,13 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * better to have this ensured by the database engine.
 	 *
 	 * This method makes attribute unique only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be unique
-	 * by this attribute unless explicitly set via {@link #unique(Scope...)}.
+	 * by this attribute unless explicitly set via {@link #uniqueInScope(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T unique() {
-		return unique(Scope.DEFAULT_SCOPE);
+		return uniqueInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -164,7 +163,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T unique(@Nonnull Scope... inScope);
+	T uniqueInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
@@ -308,13 +307,13 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * attribute must implement {@link Comparable} interface.
 	 *
 	 * This method makes attribute sortable only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be
-	 * sortable by this attribute unless explicitly set via {@link #unique(Scope...)}.
+	 * sortable by this attribute unless explicitly set via {@link #uniqueInScope(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T sortable() {
-		return sortable(Scope.DEFAULT_SCOPE);
+		return sortableInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -327,7 +326,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T sortable(@Nonnull Scope... inScope);
+	T sortableInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * Makes attribute not sortable in all scopes. This means it will not be possible to sort entities by this

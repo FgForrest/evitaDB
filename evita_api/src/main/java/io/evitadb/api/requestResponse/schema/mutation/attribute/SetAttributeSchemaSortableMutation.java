@@ -230,7 +230,7 @@ public class SetAttributeSchemaSortableMutation
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		if (consistencyChecks != ReferenceSchemaMutator.ConsistencyChecks.SKIP) {
 			final List<Scope> nonIndexedScopes = Arrays.stream(this.sortableInScopes)
-				.filter(scope -> !referenceSchema.isIndexed(scope))
+				.filter(scope -> !referenceSchema.isIndexedInScope(scope))
 				.toList();
 			Assert.isTrue(
 				nonIndexedScopes.isEmpty(),

@@ -81,7 +81,10 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 	PropertyDescriptor HIERARCHY_INDEXED = PropertyDescriptor.builder()
 		.name("hierarchyIndexed")
 		.description("""
-			TODO JNO document me
+			Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+			extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+			can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+			(calculating parent chain, children, siblings, etc.).
 			""")
 		.type(nonNull(Scope[].class))
 		.build();
@@ -107,7 +110,12 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 	PropertyDescriptor PRICE_INDEXED = PropertyDescriptor.builder()
 		.name("priceIndexed")
 		.description("""
-			TODO JNO document me
+			Returns set of all scopes the price information is indexed in and can be used for filtering entities and computation
+			of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+			can define its price), but it is not possible to work with the price information in any other way (calculating
+			price histogram, filtering, sorting by price, etc.).
+			
+			Prices can be also set as non-indexed individually by setting indexed property on price to false.
 			""")
 		.type(nonNull(Scope[].class))
 		.build();

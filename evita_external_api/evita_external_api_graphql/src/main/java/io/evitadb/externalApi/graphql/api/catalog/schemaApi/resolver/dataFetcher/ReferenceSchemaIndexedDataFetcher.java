@@ -36,7 +36,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Provides complete list of {@link ReferenceSchemaContract#isIndexed(Scope)}
+ * Provides complete list of {@link ReferenceSchemaContract#isIndexedInScope(Scope)}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
@@ -59,7 +59,7 @@ public class ReferenceSchemaIndexedDataFetcher implements DataFetcher<List<Scope
 	public List<Scope> get(DataFetchingEnvironment environment) throws Exception {
 		final ReferenceSchemaContract referenceSchema = environment.getSource();
 		return Arrays.stream(Scope.values())
-			.filter(scope -> referenceSchema.isIndexed(scope))
+			.filter(scope -> referenceSchema.isIndexedInScope(scope))
 			.toList();
 	}
 }

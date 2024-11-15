@@ -414,7 +414,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				ofNullable(reflectedReference)
 					.map(
 						rr -> Arrays.stream(Scope.values())
-							.filter(rr::isIndexed)
+							.filter(rr::isIndexedInScope)
 							.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class)))
 					)
 					.orElseGet(() -> EnumSet.of(Scope.DEFAULT_SCOPE))
@@ -423,7 +423,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 				ofNullable(reflectedReference)
 					.map(
 						rr -> Arrays.stream(Scope.values())
-							.filter(rr::isFaceted)
+							.filter(rr::isFacetedInScope)
 							.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class)))
 					)
 					.orElseGet(() -> EnumSet.noneOf(Scope.class))
@@ -667,21 +667,21 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	}
 
 	@Override
-	public boolean isIndexed(@Nonnull Scope scope) {
+	public boolean isIndexedInScope(@Nonnull Scope scope) {
 		Assert.isTrue(
 			!this.indexedInherited || this.reflectedReference != null,
 			"indexed property of the reflected reference is inherited from the target reference, but the reflected reference is not available!"
 		);
-		return super.isIndexed(scope);
+		return super.isIndexedInScope(scope);
 	}
 
 	@Override
-	public boolean isFaceted(@Nonnull Scope scope) {
+	public boolean isFacetedInScope(@Nonnull Scope scope) {
 		Assert.isTrue(
 			!this.facetedInherited || this.reflectedReference != null,
 			"Faceted property of the reflected reference is inherited from the target reference, but the reflected reference is not available!"
 		);
-		return super.isFaceted(scope);
+		return super.isFacetedInScope(scope);
 	}
 
 	@Override
@@ -1404,7 +1404,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	@Nonnull
 	public ReflectedReferenceSchema withReferencedSchema(@Nonnull ReferenceSchemaContract originalReference) {
 		Assert.isTrue(
-			Arrays.stream(Scope.values()).anyMatch(originalReference::isIndexed),
+			Arrays.stream(Scope.values()).anyMatch(originalReference::isIndexedInScope),
 			() -> new InvalidSchemaMutationException(
 				"Referenced reference `" + originalReference.getName() +
 					"` must be indexed in order to propagate changes to reflected reference `" + getName() + "`!"
@@ -1412,12 +1412,12 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		);
 		final Set<Scope> indexedScopes = this.indexedInherited ?
 			Arrays.stream(Scope.values())
-				.filter(originalReference::isIndexed)
+				.filter(originalReference::isIndexedInScope)
 				.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class))) :
 			this.indexedInScopes;
 		final Set<Scope> facetedScopes = this.facetedInherited ?
 			Arrays.stream(Scope.values())
-				.filter(originalReference::isFaceted)
+				.filter(originalReference::isFacetedInScope)
 				.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class))) :
 			this.facetedInScopes;
 		validateScopeSettings(facetedScopes, indexedScopes);

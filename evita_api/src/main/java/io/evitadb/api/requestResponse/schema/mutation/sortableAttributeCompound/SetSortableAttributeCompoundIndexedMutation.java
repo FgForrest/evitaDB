@@ -47,7 +47,11 @@ import java.io.Serial;
 import java.util.Arrays;
 
 /**
- * TODO JNO - document me
+ * Mutation is responsible for setting value to a {@link SortableAttributeCompoundSchema#isIndexedInScope(Scope)}
+ * in {@link EntitySchemaContract}.
+ * Mutation can be used for altering also the existing {@link SortableAttributeCompoundSchemaContract}.
+ * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
+ * if the mutation is placed twice in the mutation pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

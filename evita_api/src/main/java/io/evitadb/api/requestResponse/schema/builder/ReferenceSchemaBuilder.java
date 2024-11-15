@@ -113,8 +113,8 @@ public final class ReferenceSchemaBuilder
 					referencedEntityTypeManaged,
 					baseSchema.getReferencedGroupType(),
 					baseSchema.isReferencedGroupTypeManaged(),
-					Arrays.stream(Scope.values()).filter(baseSchema::isIndexed).toArray(Scope[]::new),
-					Arrays.stream(Scope.values()).filter(baseSchema::isFaceted).toArray(Scope[]::new)
+					Arrays.stream(Scope.values()).filter(baseSchema::isIndexedInScope).toArray(Scope[]::new),
+					Arrays.stream(Scope.values()).filter(baseSchema::isFacetedInScope).toArray(Scope[]::new)
 				)
 			);
 		} else {
@@ -248,7 +248,7 @@ public final class ReferenceSchemaBuilder
 				new SetReferenceSchemaIndexedMutation(
 					getName(),
 					Arrays.stream(Scope.values())
-						.filter(this::isIndexed)
+						.filter(this::isIndexedInScope)
 						.filter(it -> !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
 				)
@@ -260,7 +260,7 @@ public final class ReferenceSchemaBuilder
 	@Nonnull
 	@Override
 	public ReferenceSchemaBuilder faceted(@Nonnull Scope... inScope) {
-		if (Arrays.stream(inScope).allMatch(this::isIndexed)) {
+		if (Arrays.stream(inScope).allMatch(this::isIndexedInScope)) {
 			// just update the faceted scopes
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
@@ -279,7 +279,7 @@ public final class ReferenceSchemaBuilder
 					new SetReferenceSchemaIndexedMutation(
 						getName(),
 						Arrays.stream(Scope.values())
-							.filter(scope -> includedScopes.contains(scope) || isIndexed(scope))
+							.filter(scope -> includedScopes.contains(scope) || this.isIndexedInScope(scope))
 							.toArray(Scope[]::new)
 					),
 					new SetReferenceSchemaFacetedMutation(getName(), inScope)
@@ -300,7 +300,7 @@ public final class ReferenceSchemaBuilder
 				new SetReferenceSchemaFacetedMutation(
 					getName(),
 					Arrays.stream(Scope.values())
-						.filter(this::isFaceted)
+						.filter(this::isFacetedInScope)
 						.filter(it -> !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
 				)

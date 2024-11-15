@@ -31,6 +31,7 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB
@@ -52,26 +53,44 @@ public interface SortableAttributeCompoundSchemaContract
 	List<AttributeElement> getAttributeElements();
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+	 *
+	 * This method returns true only if the attribute is indexed in the default (i.e. {@link Scope#LIVE}) scope.
+	 *
+	 * @return true if attribute is indexed in the default (i.e. {@link Scope#LIVE}) scope
 	 */
 	default boolean isIndexed() {
 		return isIndexedInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+	 *
+	 * This method returns true only if the attribute compound is sortable in any scope
+	 *
+	 * @return true if attribute is indexed in the default (i.e. {@link Scope#LIVE}) scope
 	 */
 	default boolean isIndexedInAnyScope() {
 		return Arrays.stream(Scope.values()).anyMatch(this::isIndexedInScope);
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+	 *
+	 * This method returns true only if the attribute compound is sortable in a particular scope.
+	 *
+	 * @return true if attribute is indexed in a particular scope
 	 */
 	boolean isIndexedInScope(@Nonnull Scope scope);
+
+	/**
+	 * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+	 * This method returns set of all scopes this attribute compound is indexed in.
+	 *
+	 * @return set of all scopes this attribute compound is indexed in
+	 */
+	@Nonnull
+	Set<Scope> getIndexedInScopes();
 
 	/**
 	 * Attribute element is a part of the sortable compound. It defines the attribute name, the direction of the

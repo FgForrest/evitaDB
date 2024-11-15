@@ -335,7 +335,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
                     continue;
                 }
                 Assert.isPremiseValid(
-                    Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUniqueGlobally),
+                    Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUniqueGloballyInScope),
                     () -> new GraphQLQueryResolvingInternalError(
                         "Cannot filter list of entities by non-unique attribute `" + attributeName + "`."
                     )

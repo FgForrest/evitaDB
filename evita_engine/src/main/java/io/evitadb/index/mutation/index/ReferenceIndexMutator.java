@@ -453,7 +453,7 @@ public interface ReferenceIndexMutator {
 	 */
 	static boolean isIndexedReference(@Nonnull ReferenceContract reference, @Nonnull Scope scope) {
 		return reference.getReferenceSchema()
-			.map(it -> it.isIndexed(scope))
+			.map(it -> it.isIndexedInScope(scope))
 			.orElse(false);
 	}
 
@@ -466,7 +466,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndexLocalMutationExecutor executor
 	) {
 		final ReferenceSchemaContract referenceSchema = executor.getEntitySchema().getReferenceOrThrowException(referencedEntity.referenceName());
-		return referenceSchema.isFaceted(scope);
+		return referenceSchema.isFacetedInScope(scope);
 	}
 
 	/**

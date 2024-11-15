@@ -320,7 +320,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
                 continue;
             }
             Assert.isPremiseValid(
-                Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUniqueGlobally),
+                Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUniqueGloballyInScope),
                 () -> new GraphQLQueryResolvingInternalError(
                     "Cannot find entity by non-unique attribute `" + attributeName + "`."
                 )

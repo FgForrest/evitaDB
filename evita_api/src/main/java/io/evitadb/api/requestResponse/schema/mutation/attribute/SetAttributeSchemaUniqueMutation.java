@@ -235,7 +235,7 @@ public class SetAttributeSchemaUniqueMutation
 			final List<Scope> nonIndexedScopes = Arrays.stream(this.uniqueInScopes)
 				.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
 				.map(ScopedAttributeUniquenessType::scope)
-				.filter(scope -> !referenceSchema.isIndexed(scope))
+				.filter(scope -> !referenceSchema.isIndexedInScope(scope))
 				.toList();
 			Assert.isTrue(
 				nonIndexedScopes.isEmpty(),

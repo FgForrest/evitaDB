@@ -48,7 +48,10 @@ public interface GrpcSetEntitySchemaWithHierarchyMutationOrBuilder extends
 
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -57,7 +60,10 @@ public interface GrpcSetEntitySchemaWithHierarchyMutationOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -66,7 +72,10 @@ public interface GrpcSetEntitySchemaWithHierarchyMutationOrBuilder extends
   int getIndexedInScopesCount();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -76,7 +85,10 @@ public interface GrpcSetEntitySchemaWithHierarchyMutationOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index);
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -86,7 +98,10 @@ public interface GrpcSetEntitySchemaWithHierarchyMutationOrBuilder extends
   getIndexedInScopesValueList();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>

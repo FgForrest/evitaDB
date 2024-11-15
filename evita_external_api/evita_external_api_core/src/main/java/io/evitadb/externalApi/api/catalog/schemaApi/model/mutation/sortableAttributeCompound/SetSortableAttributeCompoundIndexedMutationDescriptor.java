@@ -25,7 +25,6 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttr
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -45,7 +44,8 @@ public interface SetSortableAttributeCompoundIndexedMutationDescriptor extends S
 	PropertyDescriptor INDEXED_IN_SCOPES = PropertyDescriptor.builder()
 		.name("indexedInScopes")
 		.description("""
-			TODO JNO - document me
+			When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+			This property specifies set of all scopes this attribute compound is indexed in.
 			""")
 		.type(nullable(Scope[].class))
 		.build();
@@ -53,7 +53,7 @@ public interface SetSortableAttributeCompoundIndexedMutationDescriptor extends S
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("SetSortableAttributeCompoundIndexedMutation")
 		.description("""
-			TODO JNO - document me
+			Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
 			""")
 		.staticFields(List.of(NAME, INDEXED_IN_SCOPES))
 		.build();

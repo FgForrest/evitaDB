@@ -32,7 +32,7 @@ import io.evitadb.dataType.Scope;
 import javax.annotation.Nonnull;
 
 /**
- * TODO JNO - document me
+ * Infrastructural interface allowing to share common method implementation among multiple serializers.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

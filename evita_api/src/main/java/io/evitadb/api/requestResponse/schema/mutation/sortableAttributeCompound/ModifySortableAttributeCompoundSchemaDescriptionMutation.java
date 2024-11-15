@@ -25,10 +25,8 @@ package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
@@ -46,10 +44,9 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 
 /**
- * Mutation is responsible for setting value to a {@link AttributeSchemaContract#getDescription()}
+ * Mutation is responsible for setting value to a {@link SortableAttributeCompoundSchema#getDescription()}
  * in {@link EntitySchemaContract}.
- * Mutation can be used for altering also the existing {@link AttributeSchemaContract} or
- * {@link GlobalAttributeSchemaContract} alone.
+ * Mutation can be used for altering also the existing {@link SortableAttributeCompoundSchema} alone.
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
@@ -78,20 +75,14 @@ public class ModifySortableAttributeCompoundSchemaDescriptionMutation
 		@Nullable SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema
 	) {
 		Assert.isPremiseValid(sortableAttributeCompoundSchema != null, "Sortable attribute compound schema is mandatory!");
-		if (sortableAttributeCompoundSchema instanceof SortableAttributeCompoundSchema sacs) {
-			return SortableAttributeCompoundSchema._internalBuild(
-				sacs.getName(),
-				sacs.getNameVariants(),
-				this.description,
-				sacs.getDeprecationNotice(),
-				sacs.getIndexedInScopes(),
-				sacs.getAttributeElements()
-			);
-		} else {
-			throw new InvalidSchemaMutationException(
-				"Unsupported sortable attribute compound schema type: " + entitySchema.getClass().getName()
-			);
-		}
+		return SortableAttributeCompoundSchema._internalBuild(
+			sortableAttributeCompoundSchema.getName(),
+			sortableAttributeCompoundSchema.getNameVariants(),
+			this.description,
+			sortableAttributeCompoundSchema.getDeprecationNotice(),
+			sortableAttributeCompoundSchema.getIndexedInScopes(),
+			sortableAttributeCompoundSchema.getAttributeElements()
+		);
 	}
 
 	@Nullable

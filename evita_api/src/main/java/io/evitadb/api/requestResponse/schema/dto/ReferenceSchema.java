@@ -438,12 +438,12 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	@Override
-	public boolean isIndexed(@Nonnull Scope scope) {
+	public boolean isIndexedInScope(@Nonnull Scope scope) {
 		return this.indexedInScopes.contains(scope);
 	}
 
 	@Override
-	public boolean isFaceted(@Nonnull Scope scope) {
+	public boolean isFacetedInScope(@Nonnull Scope scope) {
 		return this.facetedInScopes.contains(scope);
 	}
 
@@ -661,7 +661,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	protected Stream<String> validateAttributes(@Nonnull Map<String, AttributeSchemaContract> attributes) {
 		Stream<String> attributeErrors = Stream.empty();
 		for (Scope scope : Scope.values()) {
-			if (!this.isIndexed(scope)) {
+			if (!this.isIndexedInScope(scope)) {
 				for (AttributeSchemaContract attribute : attributes.values()) {
 					if (attribute.isFilterable(scope)) {
 						attributeErrors = Stream.concat(

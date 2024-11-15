@@ -44,8 +44,11 @@ public interface SortableAttributeCompoundSchemaEditor<S extends SortableAttribu
 	SortableAttributeCompoundSchemaContract, NamedSchemaWithDeprecationEditor<S> {
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Makes evitaDB create and maintain sortable index for this attribute compound allowing to order entities by it.
+	 *
+	 * This method makes sortable attribute compound indexed only in the default (e.g. {@link Scope#LIVE}) scope.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default S indexed() {
@@ -53,15 +56,19 @@ public interface SortableAttributeCompoundSchemaEditor<S extends SortableAttribu
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Makes evitaDB create and maintain sortable index for this attribute compound allowing to order entities by it.
+	 *
+	 * This method makes sortable attribute compound indexed in specified set of scopes.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	S indexed(@Nullable Scope... inScope);
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Makes evitaDB drop sortable index for this attribute compound effectively preventing to order entities by it.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default S nonIndexed() {
@@ -69,8 +76,10 @@ public interface SortableAttributeCompoundSchemaEditor<S extends SortableAttribu
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Makes evitaDB drop sortable index for this attribute compound in specified set of scopes effectively preventing
+	 * to order entities by it in that scope.
+	 *
+	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	S nonIndexed(@Nullable Scope... inScope);

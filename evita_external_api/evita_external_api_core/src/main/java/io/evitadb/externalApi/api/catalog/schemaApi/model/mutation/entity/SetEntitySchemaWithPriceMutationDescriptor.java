@@ -61,7 +61,12 @@ public interface SetEntitySchemaWithPriceMutationDescriptor {
 	PropertyDescriptor INDEXED_IN_SCOPES = PropertyDescriptor.builder()
 		.name("indexedInScopes")
 		.description("""
-			TODO JNO - DOCUMENT ME
+			Specifies set of all scopes the price information is indexed in and can be used for filtering entities and computation
+			of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+			can define its price), but it is not possible to work with the price information in any other way (calculating
+			price histogram, filtering, sorting by price, etc.).
+			
+			Prices can be also set as non-indexed individually by setting indexed property on price to false.
 			""")
 		.type(nullable(Scope[].class))
 		.build();

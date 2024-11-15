@@ -142,7 +142,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 						),
 						makeMutationIfDifferent(
 							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
-							sacs -> Arrays.stream(Scope.values()).filter(sacs::isIndexedInScope).toArray(Scope[]::new),
+							sacs -> sacs.getIndexedInScopes().toArray(Scope[]::new),
 							newValue -> new SetSortableAttributeCompoundIndexedMutation(this.name, newValue)
 						)
 					)

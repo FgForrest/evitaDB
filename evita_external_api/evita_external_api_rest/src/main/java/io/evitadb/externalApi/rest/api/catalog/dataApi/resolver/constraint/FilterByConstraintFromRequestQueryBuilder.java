@@ -26,7 +26,6 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -255,7 +254,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 				continue;
 			}
 			Assert.isPremiseValid(
-				Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUniqueGlobally),
+				Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUniqueGloballyInScope),
 				() -> new RestQueryResolvingInternalError(
 					"Cannot find entity by non-unique attribute `" + attributeName + "`."
 				)

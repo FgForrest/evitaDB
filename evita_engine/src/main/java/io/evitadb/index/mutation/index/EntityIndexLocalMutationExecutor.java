@@ -257,7 +257,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		} else if (localMutation instanceof ReferenceMutation<?> referenceMutation) {
 			final ReferenceKey referenceKey = referenceMutation.getReferenceKey();
 			final ReferenceSchemaContract referenceSchema = getEntitySchema().getReferenceOrThrowException(referenceKey.referenceName());
-			if (referenceSchema.isIndexed(getScope())) {
+			if (referenceSchema.isIndexedInScope(getScope())) {
 				updateReferences(referenceMutation, globalIndex);
 				ReferenceIndexMutator.executeWithReferenceIndexes(
 					entityType,

@@ -156,7 +156,7 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 					.getEvitaRequest()
 					.getScopes()
 					.stream()
-					.anyMatch(referenceSchema::isFaceted)
+					.anyMatch(referenceSchema::isFacetedInScope)
 			)
 			.forEach(referenceSchema -> {
 				final String referencedEntityType = referencedType.apply(referenceSchema);

@@ -156,7 +156,7 @@ public interface AttributeIndexMutator {
 			}
 
 			if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
-				globalAttributeSchema.isUniqueGlobally(scope)) {
+				globalAttributeSchema.isUniqueGloballyInScope(scope)) {
 				// use the same scope as used in the entity index
 				final CatalogIndex catalogIndex = executor.getCatalogIndex(scope);
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
@@ -266,7 +266,7 @@ public interface AttributeIndexMutator {
 				}
 
 				if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
-					globalAttributeSchema.isUniqueGlobally(scope)
+					globalAttributeSchema.isUniqueGloballyInScope(scope)
 				) {
 					// use the same scope as used in the entity index
 					final CatalogIndex catalogIndex = executor.getCatalogIndex(scope);

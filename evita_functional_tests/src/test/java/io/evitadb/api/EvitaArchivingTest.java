@@ -507,7 +507,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		/* create schema for entity archival */
 		final Scope[] scopes = new Scope[] {Scope.LIVE, Scope.ARCHIVED};
 		evita.defineCatalog(TEST_CATALOG)
-			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally(scopes).sortable(scopes))
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally(scopes).sortableInScope(scopes))
 			.updateViaNewSession(evita);
 
 		evita.updateCatalog(
@@ -528,7 +528,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable(scopes).sortable(scopes))
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterableInScope(scopes).sortableInScope(scopes))
 					.withSortableAttributeCompound(
 						ATTRIBUTE_CODE_NAME,
 						new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -541,8 +541,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						Cardinality.ZERO_OR_MORE,
 						thatIs -> thatIs
 							.indexed(scopes)
-							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable(scopes).sortable(scopes))
-							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable(scopes))
+							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterableInScope(scopes).sortableInScope(scopes))
+							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterableInScope(scopes))
 							.withSortableAttributeCompound(
 								ATTRIBUTE_CATEGORY_MARKET_OPEN,
 								new AttributeElement(ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -851,7 +851,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 
 	private void createSchemaForEntityArchiving(@Nonnull Scope... indexScope) {
 		evita.defineCatalog(TEST_CATALOG)
-			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally(indexScope).sortable(indexScope))
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally(indexScope).sortableInScope(indexScope))
 			.updateViaNewSession(evita);
 
 		evita.updateCatalog(
@@ -870,7 +870,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable(indexScope).sortable(indexScope))
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterableInScope(indexScope).sortableInScope(indexScope))
 					.withSortableAttributeCompound(
 						ATTRIBUTE_CODE_NAME,
 						new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -883,7 +883,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						Cardinality.ZERO_OR_ONE,
 						thatIs -> thatIs
 							.indexed(indexScope)
-							.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, whichIs -> whichIs.filterable(indexScope).sortable(indexScope))
+							.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, whichIs -> whichIs.filterableInScope(indexScope).sortableInScope(indexScope))
 					)
 					.withReferenceToEntity(
 						Entities.CATEGORY,
@@ -891,8 +891,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						Cardinality.ZERO_OR_MORE,
 						thatIs -> thatIs
 							.indexed(indexScope)
-							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable(indexScope).sortable(indexScope))
-							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable(indexScope))
+							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterableInScope(indexScope).sortableInScope(indexScope))
+							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterableInScope(indexScope))
 							.withSortableAttributeCompound(
 								ATTRIBUTE_CATEGORY_MARKET_OPEN,
 								new AttributeElement(ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),

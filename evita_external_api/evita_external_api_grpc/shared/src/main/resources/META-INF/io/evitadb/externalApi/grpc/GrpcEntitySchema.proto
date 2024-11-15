@@ -124,9 +124,17 @@ message GrpcEntitySchema {
   map<string, GrpcSortableAttributeCompoundSchema> sortableAttributeCompounds = 15;
   // Contains entity type converted to different naming conventions.
   repeated GrpcNameVariant nameVariant = 16;
-  /* TODO JNO - document me */
+	// Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+	// extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+	// can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+	// (calculating parent chain, children, siblings, etc.).
   repeated GrpcEntityScope hierarchyIndexedInScopes = 17;
-  /* TODO JNO - document me */
+	// Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+	// of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+	// can define its price), but it is not possible to work with the price information in any other way (calculating
+	// price histogram, filtering, sorting by price, etc.).
+	//
+	// Prices can be also set as non-indexed individually by setting {@link PriceContract#indexed()} to false.
   repeated GrpcEntityScope priceIndexedInScopes = 18;
 }
 
@@ -424,7 +432,8 @@ message GrpcSortableAttributeCompoundSchema {
   repeated GrpcNameVariant nameVariant = 5;
   // Contains true if the attribute was inherited from the original object via reflected reference relation
   bool inherited = 6;
-  /* TODO JNO - document me */
+  // When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+  // This property contains set of all scopes this attribute compound is indexed in.
   repeated GrpcEntityScope indexedInScopes = 7;
 }
 

@@ -741,7 +741,10 @@ public interface GrpcEntitySchemaOrBuilder extends
 
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
@@ -750,7 +753,10 @@ public interface GrpcEntitySchemaOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getHierarchyIndexedInScopesList();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
@@ -759,7 +765,10 @@ public interface GrpcEntitySchemaOrBuilder extends
   int getHierarchyIndexedInScopesCount();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
@@ -769,7 +778,10 @@ public interface GrpcEntitySchemaOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntityScope getHierarchyIndexedInScopes(int index);
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
@@ -779,7 +791,10 @@ public interface GrpcEntitySchemaOrBuilder extends
   getHierarchyIndexedInScopesValueList();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
@@ -790,7 +805,11 @@ public interface GrpcEntitySchemaOrBuilder extends
 
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
@@ -799,7 +818,11 @@ public interface GrpcEntitySchemaOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getPriceIndexedInScopesList();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
@@ -808,7 +831,11 @@ public interface GrpcEntitySchemaOrBuilder extends
   int getPriceIndexedInScopesCount();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
@@ -818,7 +845,11 @@ public interface GrpcEntitySchemaOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntityScope getPriceIndexedInScopes(int index);
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
@@ -828,7 +859,11 @@ public interface GrpcEntitySchemaOrBuilder extends
   getPriceIndexedInScopesValueList();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>

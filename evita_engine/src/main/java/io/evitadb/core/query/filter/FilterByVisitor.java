@@ -607,7 +607,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	) {
 		final String referenceName = referenceSchema.getName();
 		isTrue(
-			this.getEvitaRequest().getScopes().stream().anyMatch(referenceSchema::isIndexed),
+			this.getEvitaRequest().getScopes().stream().anyMatch(referenceSchema::isIndexedInScope),
 			() -> new ReferenceNotIndexedException(referenceName, entitySchema)
 		);
 

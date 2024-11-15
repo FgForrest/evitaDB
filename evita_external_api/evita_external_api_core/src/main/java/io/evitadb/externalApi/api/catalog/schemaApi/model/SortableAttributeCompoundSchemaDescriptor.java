@@ -49,8 +49,9 @@ public interface SortableAttributeCompoundSchemaDescriptor extends NamedSchemaWi
 		.build();
 	PropertyDescriptor INDEXED = PropertyDescriptor.builder()
 		.name("indexed")
-		.description("""
-			TODO JNO document me
+		.description("""		
+			When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+			This property contains set of all scopes this attribute compound is indexed in.
 			""")
 		.type(nonNull(Scope[].class))
 		.build();

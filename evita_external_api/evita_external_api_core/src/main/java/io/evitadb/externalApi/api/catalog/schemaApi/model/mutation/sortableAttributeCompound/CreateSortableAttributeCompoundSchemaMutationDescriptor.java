@@ -61,7 +61,8 @@ public interface CreateSortableAttributeCompoundSchemaMutationDescriptor extends
 	PropertyDescriptor INDEXED_IN_SCOPES = PropertyDescriptor.builder()
 		.name("indexedInScopes")
 		.description("""
-			TODO JNO - document me
+			When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+			This property specifies set of all scopes this attribute compound is indexed in.
 			""")
 		.type(nullable(Scope[].class))
 		.build();

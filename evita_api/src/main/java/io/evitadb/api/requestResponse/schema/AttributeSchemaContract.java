@@ -76,9 +76,9 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
 	 * better to have this ensured by the database engine.
 	 *
-	 * This method returns true only if the attribute is unique in the {@link Scope#DEFAULT_SCOPE} scope.
+	 * This method returns true only if the attribute is unique in the default (i.e. {@link Scope#LIVE}) scope.
 	 *
-	 * @return true if attribute is unique in {@link Scope#DEFAULT_SCOPE} scope
+	 * @return true if attribute is unique in the default (i.e. {@link Scope#LIVE}) scope
 	 */
 	default boolean isUnique() {
 		return isUnique(Scope.DEFAULT_SCOPE);
@@ -122,7 +122,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * This method differs from {@link #isUnique()} in that it is possible to have multiple entities with same value
 	 * of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different locales.
 	 *
-	 * @return true if attribute is unique in {@link Scope#DEFAULT_SCOPE} Scope
+	 * @return true if attribute is unique in the default (i.e. {@link Scope#LIVE}) Scope
 	 */
 	default boolean isUniqueWithinLocale() {
 		return isUniqueWithinLocale(Scope.DEFAULT_SCOPE);
@@ -182,8 +182,9 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	AttributeUniquenessType getUniquenessType(@Nonnull Scope scope);
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Retrieves a map associating each scope with its corresponding attribute uniqueness type.
+	 *
+	 * @return map where the keys are scopes and the values are their associated attribute uniqueness types
 	 */
 	@Nonnull
 	Map<Scope, AttributeUniquenessType> getUniquenessTypeInScopes();
@@ -197,9 +198,9 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * When attribute is filterable requirement {@link AttributeHistogram}
 	 * can be used for this attribute.
 	 *
-	 * This method returns true only if the attribute is filterable in the {@link Scope#DEFAULT_SCOPE} scope.
+	 * This method returns true only if the attribute is filterable in the default (i.e. {@link Scope#LIVE}) scope.
 	 *
-	 * @return true if attribute is filterable in {@link Scope#DEFAULT_SCOPE} scope
+	 * @return true if attribute is filterable in the default (i.e. {@link Scope#LIVE}) scope
 	 */
 	default boolean isFilterable() {
 		return isFilterable(Scope.DEFAULT_SCOPE);
@@ -235,8 +236,9 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	boolean isFilterable(@Nonnull Scope scope);
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Retrieves the set of scopes in which filtering by this attribute is possible.
+	 *
+	 * @return set of scopes in which filtering by this attribute is possible
 	 */
 	@Nonnull
 	Set<Scope> getFilterableInScopes();
@@ -259,9 +261,9 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * (memory/disk) space in the form of index. {@link AttributeSchema#getType() Type} of the filterable attribute must
 	 * implement {@link Comparable} interface.
 	 *
-	 * This method returns true only if the attribute is sortable in the {@link Scope#DEFAULT_SCOPE} scope.
+	 * This method returns true only if the attribute is sortable in the default (i.e. {@link Scope#LIVE}) scope.
 	 *
-	 * @return true if attribute is sortable in {@link Scope#DEFAULT_SCOPE} scope
+	 * @return true if attribute is sortable in the default (i.e. {@link Scope#LIVE}) scope
 	 */
 	default boolean isSortable() {
 		return isSortable(Scope.DEFAULT_SCOPE);
@@ -279,8 +281,9 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	boolean isSortable(@Nonnull Scope scope);
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Retrieves the set of scopes in which sorting by this attribute is possible.
+	 *
+	 * @return set of scopes in which sorting by this attribute is possible
 	 */
 	@Nonnull
 	Set<Scope> getSortableInScopes();

@@ -110,9 +110,9 @@ public final class ReflectedReferenceSchemaBuilder
 					entityType,
 					reflectedReferenceName,
 					baseSchema.isIndexedInherited() ?
-						null : Arrays.stream(Scope.values()).filter(baseSchema::isIndexed).toArray(Scope[]::new),
+						null : Arrays.stream(Scope.values()).filter(baseSchema::isIndexedInScope).toArray(Scope[]::new),
 					baseSchema.isFacetedInherited() ?
-						null : Arrays.stream(Scope.values()).filter(baseSchema::isFaceted).toArray(Scope[]::new),
+						null : Arrays.stream(Scope.values()).filter(baseSchema::isFacetedInScope).toArray(Scope[]::new),
 					baseSchema.getAttributesInheritanceBehavior(),
 					baseSchema.getAttributeInheritanceFilter()
 				)
@@ -375,7 +375,7 @@ public final class ReflectedReferenceSchemaBuilder
 	@Override
 	public ReflectedReferenceSchemaBuilder faceted(@Nonnull Scope... inScope) {
 		final boolean reflectedReferenceAvailable = isReflectedReferenceAvailable();
-		if (reflectedReferenceAvailable && Arrays.stream(inScope).allMatch(this::isIndexed)) {
+		if (reflectedReferenceAvailable && Arrays.stream(inScope).allMatch(this::isIndexedInScope)) {
 			// just update the faceted scopes
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
@@ -394,7 +394,7 @@ public final class ReflectedReferenceSchemaBuilder
 					new SetReferenceSchemaIndexedMutation(
 						getName(),
 						Arrays.stream(Scope.values())
-							.filter(scope -> includedScopes.contains(scope) && (reflectedReferenceAvailable || !isIndexed(scope)))
+							.filter(scope -> includedScopes.contains(scope) && (reflectedReferenceAvailable || !this.isIndexedInScope(scope)))
 							.toArray(Scope[]::new)
 					),
 					new SetReferenceSchemaFacetedMutation(getName(), inScope)

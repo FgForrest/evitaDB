@@ -63,7 +63,11 @@ public interface GrpcSetEntitySchemaWithPriceMutationOrBuilder extends
 
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3;</code>
@@ -72,7 +76,11 @@ public interface GrpcSetEntitySchemaWithPriceMutationOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3;</code>
@@ -81,7 +89,11 @@ public interface GrpcSetEntitySchemaWithPriceMutationOrBuilder extends
   int getIndexedInScopesCount();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3;</code>
@@ -91,7 +103,11 @@ public interface GrpcSetEntitySchemaWithPriceMutationOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index);
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3;</code>
@@ -101,7 +117,11 @@ public interface GrpcSetEntitySchemaWithPriceMutationOrBuilder extends
   getIndexedInScopesValueList();
   /**
    * <pre>
-   * TODO JNO - document me
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 3;</code>

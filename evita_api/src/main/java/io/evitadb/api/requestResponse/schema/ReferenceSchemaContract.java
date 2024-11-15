@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.require.FacetSummary;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -194,7 +195,7 @@ public interface ReferenceSchemaContract extends
 	 * @return true if reference is indexed in any scope
 	 */
 	default boolean isIndexedInAnyScope() {
-		return Arrays.stream(Scope.values()).anyMatch(this::isIndexed);
+		return Arrays.stream(Scope.values()).anyMatch(this::isIndexedInScope);
 	}
 
 	/**
@@ -210,7 +211,7 @@ public interface ReferenceSchemaContract extends
 	 * @return true if reference is indexed in {@link Scope#DEFAULT_SCOPE} scope
 	 */
 	default boolean isIndexed() {
-		return isIndexed(Scope.DEFAULT_SCOPE);
+		return isIndexedInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -226,11 +227,17 @@ public interface ReferenceSchemaContract extends
 	 * @param scope to check reference is indexed in
 	 * @return true if reference is indexed in particular scope
 	 */
-	boolean isIndexed(@Nonnull Scope scope);
+	boolean isIndexedInScope(@Nonnull Scope scope);
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Returns set of all scopes the reference information is indexed in and can be used for filtering entities and computation
+	 * of extra data. If the reference information is not indexed, it is still available on the entity itself (i.e. entity
+	 * can define its references of this type), but it is not possible to work with the reference information in any
+	 * other way (filtering by {@link ReferenceHaving}, sorting by {@link EntityProperty}, or calculating {@link FacetSummary}).
+	 *
+	 * Beware - non indexed references are automatically non-faceted.
+	 *
+	 * @return set of all scopes the reference information is indexed in
 	 */
 	@Nonnull
 	Set<Scope> getIndexedInScopes();
@@ -247,7 +254,7 @@ public interface ReferenceSchemaContract extends
 	 * @return true if reference is faceted in any of the scopes
 	 */
 	default boolean isFacetedInAnyScope() {
-		return Arrays.stream(Scope.values()).anyMatch(this::isFaceted);
+		return Arrays.stream(Scope.values()).anyMatch(this::isFacetedInScope);
 	}
 
 	/**
@@ -262,7 +269,7 @@ public interface ReferenceSchemaContract extends
 	 * @return true if reference is faceted in {@link Scope#DEFAULT_SCOPE}
 	 */
 	default boolean isFaceted() {
-		return isFaceted(Scope.DEFAULT_SCOPE);
+		return isFacetedInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -277,11 +284,13 @@ public interface ReferenceSchemaContract extends
 	 * @param scope to check reference is faceted in
 	 * @return true if reference is faceted in particular scope
 	 */
-	boolean isFaceted(@Nonnull Scope scope);
+	boolean isFacetedInScope(@Nonnull Scope scope);
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Returns set of all scopes the facet information is indexed in and can be used for filtering entities and computation
+	 * of extra data.
+	 *
+	 * @return set of all scopes the facet information is indexed in
 	 */
 	@Nonnull
 	Set<Scope> getFacetedInScopes();

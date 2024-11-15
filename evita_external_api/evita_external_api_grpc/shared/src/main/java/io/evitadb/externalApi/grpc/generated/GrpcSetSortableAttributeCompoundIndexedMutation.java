@@ -28,7 +28,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * TODO JNO - document me
+ * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation}
@@ -202,7 +202,8 @@ private static final long serialVersionUID = 0L;
           };
   /**
    * <pre>
-   * TODO JNO - document me
+   * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+   * This property contains set of all scopes this attribute compound is indexed in.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -215,7 +216,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * TODO JNO - document me
+   * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+   * This property contains set of all scopes this attribute compound is indexed in.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -227,7 +229,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * TODO JNO - document me
+   * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+   * This property contains set of all scopes this attribute compound is indexed in.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -240,7 +243,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * TODO JNO - document me
+   * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+   * This property contains set of all scopes this attribute compound is indexed in.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -253,7 +257,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * TODO JNO - document me
+   * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+   * This property contains set of all scopes this attribute compound is indexed in.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -447,7 +452,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * TODO JNO - document me
+   * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation}
@@ -722,7 +727,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -734,7 +740,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -745,7 +752,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -757,7 +765,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -777,7 +786,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -795,7 +805,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -813,7 +824,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -827,7 +839,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -839,7 +852,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -851,7 +865,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -868,7 +883,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -883,7 +899,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * TODO JNO - document me
+     * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+     * This property contains set of all scopes this attribute compound is indexed in.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>

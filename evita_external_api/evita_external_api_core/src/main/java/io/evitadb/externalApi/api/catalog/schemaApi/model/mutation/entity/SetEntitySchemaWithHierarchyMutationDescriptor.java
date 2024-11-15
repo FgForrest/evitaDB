@@ -59,7 +59,10 @@ public interface SetEntitySchemaWithHierarchyMutationDescriptor {
 	PropertyDescriptor INDEXED_IN_SCOPES = PropertyDescriptor.builder()
 		.name("indexedInScopes")
 		.description("""
-			TODO JNO - document me
+			Specifies set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+			extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+			can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+			(calculating parent chain, children, siblings, etc.).
 			""")
 		.type(nullable(Scope[].class))
 		.build();

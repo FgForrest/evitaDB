@@ -36,7 +36,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Provides complete list of {@link ReferenceSchemaContract#isFaceted(Scope)}
+ * Provides complete list of {@link ReferenceSchemaContract#isFacetedInScope(Scope)}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
@@ -59,7 +59,7 @@ public class ReferenceSchemaFacetedDataFetcher implements DataFetcher<List<Scope
 	public List<Scope> get(DataFetchingEnvironment environment) throws Exception {
 		final ReferenceSchemaContract referenceSchema = environment.getSource();
 		return Arrays.stream(Scope.values())
-			.filter(scope -> referenceSchema.isFaceted(scope))
+			.filter(scope -> referenceSchema.isFacetedInScope(scope))
 			.toList();
 	}
 }

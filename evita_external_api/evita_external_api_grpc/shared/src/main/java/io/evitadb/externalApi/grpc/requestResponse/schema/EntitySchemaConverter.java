@@ -486,9 +486,9 @@ public class EntitySchemaConverter {
 			.setReferencedEntityTypeManaged(referenceSchema.isReferencedEntityTypeManaged())
 			.setGroupTypeRelatesToEntity(referenceSchema.isReferencedGroupTypeManaged())
 			.setReferencedGroupTypeManaged(referenceSchema.isReferencedGroupTypeManaged())
-			.addAllIndexedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isIndexed).map(EvitaEnumConverter::toGrpcScope).toList())
+			.addAllIndexedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isIndexedInScope).map(EvitaEnumConverter::toGrpcScope).toList())
 			.setIndexed(referenceSchema.isIndexed())
-			.addAllFacetedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isFaceted).map(EvitaEnumConverter::toGrpcScope).toList())
+			.addAllFacetedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).map(EvitaEnumConverter::toGrpcScope).toList())
 			.setFaceted(referenceSchema.isFaceted());
 
 		if (referenceSchema.getReferencedGroupType() != null) {

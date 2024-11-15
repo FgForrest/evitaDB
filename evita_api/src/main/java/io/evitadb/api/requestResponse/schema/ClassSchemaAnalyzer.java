@@ -350,7 +350,7 @@ public class ClassSchemaAnalyzer {
 					.map(ScopeAttributeSettings::scope)
 					.toArray(Scope[]::new);
 				if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueInScopes)) {
-					editor.unique(uniqueInScopes);
+					editor.uniqueInScope(uniqueInScopes);
 				}
 				final Scope[] uniqueWithinLocaleInScopes = Arrays.stream(scopedDefinition)
 					.filter(it -> it.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE)
@@ -366,7 +366,7 @@ public class ClassSchemaAnalyzer {
 						"the value of `filterable` property is not taken into an account " +
 						"(and thus it doesn't make sense to set it to true)!"
 				);
-				editor.filterable(
+				editor.filterableInScope(
 					Arrays.stream(scopedDefinition)
 						.filter(ScopeAttributeSettings::filterable)
 						.map(ScopeAttributeSettings::scope)
@@ -378,7 +378,7 @@ public class ClassSchemaAnalyzer {
 						"the value of `sortable` property is not taken into an account " +
 						"(and thus it doesn't make sense to set it to true)!"
 				);
-				editor.sortable(
+				editor.sortableInScope(
 					Arrays.stream(scopedDefinition)
 						.filter(ScopeAttributeSettings::sortable)
 						.map(ScopeAttributeSettings::scope)

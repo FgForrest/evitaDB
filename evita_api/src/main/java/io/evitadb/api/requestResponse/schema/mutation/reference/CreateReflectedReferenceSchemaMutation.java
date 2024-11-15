@@ -188,12 +188,12 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 								),
 								makeMutationIfDifferent(
 									createdVersion, existingVersion,
-									ref -> ref.isIndexedInherited() ? null : Arrays.stream(Scope.values()).filter(ref::isIndexed).toArray(Scope[]::new),
+									ref -> ref.isIndexedInherited() ? null : Arrays.stream(Scope.values()).filter(ref::isIndexedInScope).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaIndexedMutation(this.name, newValue)
 								),
 								makeMutationIfDifferent(
 									createdVersion, existingVersion,
-									ref -> ref.isFacetedInherited() ? null : Arrays.stream(Scope.values()).filter(ref::isFaceted).toArray(Scope[]::new),
+									ref -> ref.isFacetedInherited() ? null : Arrays.stream(Scope.values()).filter(ref::isFacetedInScope).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaFacetedMutation(this.name, newValue)
 								)
 							),

@@ -80,7 +80,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 
 			// if attribute is unique prefer O(1) hash map lookup over inverted index
 			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
-				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGlobally)
+				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)
 			) {
 				return FutureNotFormula.postProcess(
 					createNullGloballyUniqueSubtractionFormula(globalAttributeSchema, filterByVisitor),
@@ -235,7 +235,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
 			// if attribute is unique prefer O(1) hash map lookup over histogram
 			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
-				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGlobally)
+				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)
 			) {
 				return new AttributeFormula(
 					true,

@@ -198,7 +198,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 				.toList();
 
 			if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
-				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGlobally)) {
+				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)) {
 				return createGloballyUniqueAttributeFormula(
 					filterByVisitor, globalAttributeSchema, attributeKey, theComparedValues
 				);

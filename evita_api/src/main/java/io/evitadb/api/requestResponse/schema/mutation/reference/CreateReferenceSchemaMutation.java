@@ -201,13 +201,13 @@ public class CreateReferenceSchemaMutation
 								makeMutationIfDifferent(
 									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
-									ref -> Arrays.stream(Scope.values()).filter(ref::isIndexed).toArray(Scope[]::new),
+									ref -> Arrays.stream(Scope.values()).filter(ref::isIndexedInScope).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaIndexedMutation(name, newValue)
 								),
 								makeMutationIfDifferent(
 									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
-									ref -> Arrays.stream(Scope.values()).filter(ref::isFaceted).toArray(Scope[]::new),
+									ref -> Arrays.stream(Scope.values()).filter(ref::isFacetedInScope).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaFacetedMutation(name, newValue)
 								)
 							),

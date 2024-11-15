@@ -176,7 +176,7 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			final Serializable comparedValue = normalizer.apply(EvitaDataTypes.toTargetType(attributeValue, plainType));
 
 			if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
-				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGlobally)) {
+				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)) {
 				return createGloballyUniqueAttributeFormula(
 					filterByVisitor, globalAttributeSchema, attributeKey, comparedValue
 				);

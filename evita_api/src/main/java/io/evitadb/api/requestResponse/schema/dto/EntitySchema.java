@@ -511,10 +511,10 @@ public final class EntitySchema implements EntitySchemaContract {
 				referenceSchemaContract.getGroupTypeNameVariants(entityType -> null),
 				referenceSchemaContract.isReferencedGroupTypeManaged(),
 				Arrays.stream(Scope.values())
-					.filter(referenceSchemaContract::isIndexed)
+					.filter(referenceSchemaContract::isIndexedInScope)
 					.toArray(Scope[]::new),
 				Arrays.stream(Scope.values())
-					.filter(referenceSchemaContract::isFaceted)
+					.filter(referenceSchemaContract::isFacetedInScope)
 					.toArray(Scope[]::new),
 				referenceSchemaContract.getAttributes(),
 				referenceSchemaContract.getSortableAttributeCompounds()

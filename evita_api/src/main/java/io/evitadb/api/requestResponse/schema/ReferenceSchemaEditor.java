@@ -75,7 +75,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	T withoutGroupType();
 
 	/**
-	 * Contains TRUE if evitaDB should create and maintain searchable index for this reference allowing to filter by
+	 * Makes evitaDB create and maintain searchable index for this reference allowing to filter by
 	 * {@link ReferenceHaving} filtering constraints. Index is also required when reference is {@link #faceted()}.
 	 *
 	 * Do not mark reference as indexed unless you know that you'll need to filter / sort entities by this reference.
@@ -83,7 +83,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
 	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
 	 *
-	 * This method makes reference indexed only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be indexed
+	 * This method makes reference indexed only in the default (e.g. {@link Scope#LIVE}) scope, archived entities will not be indexed
 	 * by this reference unless explicitly set via {@link #faceted(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
@@ -94,7 +94,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	}
 
 	/**
-	 * Contains TRUE if evitaDB should create and maintain searchable index for this reference allowing to filter by
+	 * Makes evitaDB create and maintain searchable index for this reference allowing to filter by
 	 * {@link ReferenceHaving} filtering constraints. Index is also required when reference is {@link #faceted()}.
 	 *
 	 * Do not mark reference as indexed unless you know that you'll need to filter / sort entities by this reference.
@@ -137,7 +137,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
 	 * indexed reference occupies (memory/disk) space in the form of index.
 	 *
-	 * This method makes reference faceted only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be faceted
+	 * This method makes reference faceted only in the default (e.g. {@link Scope#LIVE}) scope, archived entities will not be faceted
 	 * by this reference unless explicitly set via {@link #faceted(Scope...)}.
 	 *
 	 * @return builder to continue with configuration

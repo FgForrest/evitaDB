@@ -123,7 +123,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Override
 	@Nonnull
-	public T filterable(@Nonnull Scope... inScope) {
+	public T filterableInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
@@ -156,7 +156,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Nonnull
 	@Override
-	public T unique(@Nonnull Scope... inScope) {
+	public T uniqueInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
@@ -227,7 +227,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Nonnull
 	@Override
-	public T sortable(@Nonnull Scope... inScope) {
+	public T sortableInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(

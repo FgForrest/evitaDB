@@ -376,7 +376,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 	}
 
 	@Override
-	public boolean isUniqueGlobally(@Nonnull Scope scope) {
+	public boolean isUniqueGloballyInScope(@Nonnull Scope scope) {
 		final GlobalAttributeUniquenessType globalAttributeUniquenessType = this.globalUniquenessTypeInScopes.get(scope);
 		return globalAttributeUniquenessType != null && globalAttributeUniquenessType != GlobalAttributeUniquenessType.NOT_UNIQUE;
 	}

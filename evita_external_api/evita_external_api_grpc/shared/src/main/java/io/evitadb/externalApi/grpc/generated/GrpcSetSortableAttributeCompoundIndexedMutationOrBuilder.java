@@ -52,7 +52,8 @@ public interface GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder extend
 
   /**
    * <pre>
-   * TODO JNO - document me
+   * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+   * This property contains set of all scopes this attribute compound is indexed in.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -61,7 +62,8 @@ public interface GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder extend
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
   /**
    * <pre>
-   * TODO JNO - document me
+   * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+   * This property contains set of all scopes this attribute compound is indexed in.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -70,7 +72,8 @@ public interface GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder extend
   int getIndexedInScopesCount();
   /**
    * <pre>
-   * TODO JNO - document me
+   * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+   * This property contains set of all scopes this attribute compound is indexed in.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -80,7 +83,8 @@ public interface GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder extend
   io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index);
   /**
    * <pre>
-   * TODO JNO - document me
+   * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+   * This property contains set of all scopes this attribute compound is indexed in.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
@@ -90,7 +94,8 @@ public interface GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder extend
   getIndexedInScopesValueList();
   /**
    * <pre>
-   * TODO JNO - document me
+   * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+   * This property contains set of all scopes this attribute compound is indexed in.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>

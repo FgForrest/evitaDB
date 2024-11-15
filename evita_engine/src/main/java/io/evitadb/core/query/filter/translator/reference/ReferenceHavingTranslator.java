@@ -67,7 +67,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
 		isTrue(
-			filterByVisitor.getEvitaRequest().getScopes().stream().anyMatch(referenceSchema::isIndexed),
+			filterByVisitor.getEvitaRequest().getScopes().stream().anyMatch(referenceSchema::isIndexedInScope),
 			() -> new ReferenceNotIndexedException(referenceName, entitySchema)
 		);
 
