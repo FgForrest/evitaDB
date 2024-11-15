@@ -1366,7 +1366,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 					entityMutation, entityFetchAll().getRequirements()
 				);
 				newProductId.set(updatedEntity.getPrimaryKey());
-				session.archiveEntity(Entities.PRODUCT, updatedEntity.getPrimaryKey());
+				assertTrue(session.archiveEntity(Entities.PRODUCT, updatedEntity.getPrimaryKey()));
 			}
 		);
 

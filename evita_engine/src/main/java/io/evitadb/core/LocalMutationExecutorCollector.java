@@ -41,6 +41,7 @@ import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
@@ -55,6 +56,8 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
@@ -120,7 +123,7 @@ class LocalMutationExecutorCollector {
 	) {
 		if (
 			this.fullEntityBody == null ||
-				this.fullEntityBody.entity().getPrimaryKey() != primaryKey ||
+				!Objects.equals(this.fullEntityBody.entity().getPrimaryKey(), primaryKey) ||
 				!this.fullEntityBody.entity().getType().equals(entityType)
 		) {
 			final EvitaRequest evitaRequest = new EvitaRequest(
@@ -161,10 +164,10 @@ class LocalMutationExecutorCollector {
 	 * @param entityIndexUpdater        Executor to update the entity index with the mutations.
 	 * @param requestUpdatedEntity      Indicates whether to return the updated entity after mutation.
 	 * @return The updated entity with fetch count if {@code returnUpdatedEntity} is true and
-	 * the entity was updated, otherwise null.
+	 * the entity was updated, or entity reference
 	 */
-	@Nullable
-	public <T> T execute(
+	@Nonnull
+	public <T> Optional<T> execute(
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityMutation entityMutation,
 		boolean checkConsistency,
@@ -197,7 +200,11 @@ class LocalMutationExecutorCollector {
 
 			final List<? extends LocalMutation<?, ?>> localMutations;
 			if (entityMutation instanceof EntityRemoveMutation) {
-				result = getFullEntityById(entityMutation.getEntityPrimaryKey(), entitySchema.getName(), entityFetcher);
+				result = getFullEntityById(
+					Objects.requireNonNull(entityMutation.getEntityPrimaryKey()),
+					entitySchema.getName(),
+					entityFetcher
+				);
 				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
 			} else {
 				localMutations = entityMutation.getLocalMutations();
@@ -260,25 +267,32 @@ class LocalMutationExecutorCollector {
 				"Requested result type is EntityWithFetchCount, but requestUpdatedEntity is null!"
 			);
 			//noinspection unchecked
-			return (T) (
-				result == null ?
-					this.persistenceService.toEntity(
-						this.catalog.getVersion(),
-						changeCollector.getEntityPrimaryKey(),
-						requestUpdatedEntity,
-						entitySchema,
-						this.dataStoreReader,
-						changeCollector.getEntityStorageParts()
-					) :
-					result
+			return Optional.of((T) (
+					result == null ?
+						this.persistenceService.toEntity(
+							this.catalog.getVersion(),
+							changeCollector.getEntityPrimaryKey(),
+							requestUpdatedEntity,
+							entitySchema,
+							this.dataStoreReader,
+							changeCollector.getEntityStorageParts()
+						) :
+						result
+				)
 			);
 		} else if (requestedResultType.equals(EntityReference.class)) {
 			//noinspection unchecked
-			return (T) new EntityReference(
-				entitySchema.getName(), changeCollector.getEntityPrimaryKey()
+			return Optional.of(
+				(T) new EntityReference(
+					entitySchema.getName(), changeCollector.getEntityPrimaryKey()
+				)
 			);
+		} else if (Void.class.equals(requestedResultType)) {
+			return Optional.empty();
 		} else {
-			return null;
+			throw new GenericEvitaInternalError(
+				"Unsupported requested result type: " + requestedResultType
+			);
 		}
 	}
 

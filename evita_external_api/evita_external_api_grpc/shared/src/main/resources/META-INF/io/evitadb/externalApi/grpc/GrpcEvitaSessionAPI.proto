@@ -542,6 +542,8 @@ message GrpcQueryParam {
     GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;
     // The expression
     string expressionValue = 23;
+    // The scope enum value.
+    GrpcEntityScope scope = 24;
 
     // The string array value.
     GrpcStringArray stringArrayValue = 101;
@@ -584,6 +586,8 @@ message GrpcQueryParam {
     GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;
     // The histogram behavior enum value.
     GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;
+    // The scope enum value.
+    GrpcEntityScopeArray scopeArrayValue = 122;
   }
 }
 

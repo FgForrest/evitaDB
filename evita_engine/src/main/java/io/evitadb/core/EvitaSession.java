@@ -101,6 +101,7 @@ import java.util.Collections;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -923,7 +924,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					// no modification occurred, we can return the reference to the original entity
 					// the `toInstance` method should be cost-free in this case, as no modifications occurred
 					final EntityContract entity = sealedEntityProxy.entity();
-					return new EntityReference(entity.getType(), entity.getPrimaryKey());
+					return new EntityReference(entity.getType(), Objects.requireNonNull(entity.getPrimaryKey()));
 				});
 		} else if (customEntity instanceof InstanceEditor<?> ie) {
 			return ie.toMutation()
@@ -932,7 +933,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					// no modification occurred, we can return the reference to the original entity
 					// the `toInstance` method should be cost-free in this case, as no modifications occurred
 					final EntityContract entity = (EntityContract) ie.toInstance();
-					return new EntityReference(entity.getType(), entity.getPrimaryKey());
+					return new EntityReference(entity.getType(), Objects.requireNonNull(entity.getPrimaryKey()));
 				});
 		} else {
 			throw new EvitaInvalidUsageException(
@@ -1027,7 +1028,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return entityBuilder.toMutation()
 			.map(it -> upsertAndFetchEntity(it, require))
 			.orElseGet(
-				() -> getEntity(entityBuilder.getType(), entityBuilder.getPrimaryKey(), require)
+				() -> getEntity(entityBuilder.getType(), Objects.requireNonNull(entityBuilder.getPrimaryKey()), require)
 					.orElseThrow(() -> new EvitaInvalidUsageException("Entity `" + entityBuilder.getType() + "` with id `" + entityBuilder.getPrimaryKey() + "` doesn't exist!"))
 			);
 	}

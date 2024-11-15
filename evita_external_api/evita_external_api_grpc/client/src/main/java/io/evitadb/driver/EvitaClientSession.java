@@ -39,8 +39,10 @@ import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.Require;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
@@ -105,6 +107,7 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.grpc.ClientCall;
 import io.grpc.stub.ClientCalls;
@@ -277,6 +280,36 @@ public class EvitaClientSession implements EvitaSessionContract {
 		} else {
 			return query.normalizeQuery();
 		}
+	}
+
+	/**
+	 * Converts a given entity of type {@code T} into an {@link EntityReference}.
+	 *
+	 * @param <T>    The type of the entity, which must be a {@link Serializable}.
+	 * @param entity The entity to be converted. Must not be null.
+	 * @return An {@link EntityReference} representing the given entity.
+	 * @throws EvitaInvalidUsageException if the entity type is unsupported.
+	 */
+	@Nonnull
+	private static <T extends Serializable> EntityReference toEntityReference(@Nonnull T entity) {
+		final EntityReference entityReference;
+		if (entity instanceof EntityClassifier entityClassifier) {
+			entityReference = new EntityReference(
+				entityClassifier.getType(),
+				Objects.requireNonNull(entityClassifier.getPrimaryKey())
+			);
+		} else if (entity instanceof SealedEntityProxy sealedEntityProxy) {
+			entityReference = new EntityReference(
+				sealedEntityProxy.entity().getType(),
+				Objects.requireNonNull(sealedEntityProxy.entity().getPrimaryKey())
+			);
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Unsupported entity type `" + entity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
+				"Unsupported entity type!"
+			);
+		}
+		return entityReference;
 	}
 
 	public EvitaClientSession(
@@ -630,19 +663,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, @Nonnull Scope[] scopes, EntityContentRequire... require) {
 		isTrue(scopes.length > 0, "At least one scope must be provided!");
 
+		final Require fullRequirements = require(
+			entityFetch(require),
+			scope(scopes)
+		);
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
-				require(
-					entityFetch(require),
-					scope(scopes)
-				)
+				fullRequirements
 			),
 			OffsetDateTime.now(),
 			SealedEntity.class,
 			null
 		);
-		return getEntityInternal(entityType, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER, primaryKey, evitaRequest, require);
+		return getEntityInternal(entityType, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER, primaryKey, evitaRequest, fullRequirements.getChildren());
 	}
 
 	@Nonnull
@@ -670,26 +704,12 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 
 		/* TOBEDONE https://gitlab.fg.cz/hv/evita/-/issues/118 */
-		final String entityType;
-		final Integer entityPk;
-		if (partiallyLoadedEntity instanceof EntityClassifier entityClassifier) {
-			entityType = entityClassifier.getType();
-			entityPk = entityClassifier.getPrimaryKey();
-		} else if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			entityType = sealedEntityProxy.entity().getType();
-			entityPk = sealedEntityProxy.entity().getPrimaryKey();
-		} else {
-			throw new EvitaInvalidUsageException(
-				"Unsupported entity type `" + partiallyLoadedEntity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
-				"Unsupported entity type!"
-			);
-		}
-
+		final EntityReference entityReference = toEntityReference(partiallyLoadedEntity);
 		final Class<?> expectedType = partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
 			sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass();
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
-				collection(entityType),
+				collection(entityReference.type()),
 				require(
 					entityFetch(require)
 				)
@@ -701,8 +721,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 
 		//noinspection unchecked
-		return (T) getEntityInternal(entityType, expectedType, this::createEntityProxy, entityPk, evitaRequest, require)
-			.orElseThrow(() -> new EntityAlreadyRemovedException(entityType, entityPk));
+		return (T) getEntityInternal(entityReference.type(), expectedType, this::createEntityProxy, entityReference.primaryKey(), evitaRequest, require)
+			.orElseThrow(() -> new EntityAlreadyRemovedException(entityReference.type(), entityReference.primaryKey()));
 	}
 
 	@Nonnull
@@ -711,27 +731,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 
 		/* TOBEDONE https://gitlab.fg.cz/hv/evita/-/issues/118 */
-		final String entityType;
-		final Integer entityPk;
-		if (partiallyLoadedEntity instanceof EntityClassifier entityClassifier) {
-			entityType = entityClassifier.getType();
-			entityPk = entityClassifier.getPrimaryKey();
-		} else if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			entityType = sealedEntityProxy.entity().getType();
-			entityPk = sealedEntityProxy.entity().getPrimaryKey();
-		} else {
-			throw new EvitaInvalidUsageException(
-				"Unsupported entity type `" + partiallyLoadedEntity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
-				"Unsupported entity type!"
-			);
-		}
-
+		final EntityReference entityReference = toEntityReference(partiallyLoadedEntity);
 		final Class<?> expectedType = partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
 			sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass();
 
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
-				collection(entityType),
+				collection(entityReference.type()),
 				require(
 					entityFetch(require)
 				)
@@ -743,8 +749,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 
 		//noinspection unchecked
-		return (T) getEntityInternal(entityType, expectedType, this::createEntityProxy, entityPk, evitaRequest, require)
-			.orElseThrow(() -> new EntityAlreadyRemovedException(entityType, entityPk));
+		return (T) getEntityInternal(entityReference.type(), expectedType, this::createEntityProxy, entityReference.primaryKey(), evitaRequest, require)
+			.orElseThrow(() -> new EntityAlreadyRemovedException(entityReference.type(), entityReference.primaryKey()));
 	}
 
 	@Override
@@ -987,7 +993,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					// no modification occurred, we can return the reference to the original entity
 					// the `toInstance` method should be cost-free in this case, as no modifications occurred
 					final EntityContract entity = (EntityContract) ie.toInstance();
-					return new EntityReference(entity.getType(), entity.getPrimaryKey());
+					return new EntityReference(entity.getType(), Objects.requireNonNull(entity.getPrimaryKey()));
 				});
 		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			return sealedEntityProxy.getEntityBuilderWithCallback()
@@ -1000,7 +1006,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					// no modification occurred, we can return the reference to the original entity
 					// the `toInstance` method should be cost-free in this case, as no modifications occurred
 					final EntityContract entity = sealedEntityProxy.entity();
-					return new EntityReference(entity.getType(), entity.getPrimaryKey());
+					return new EntityReference(entity.getType(), Objects.requireNonNull(entity.getPrimaryKey()));
 				});
 		} else {
 			throw new EvitaInvalidUsageException(
@@ -1096,7 +1102,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return entityBuilder.toMutation()
 			.map(it -> upsertAndFetchEntity(it, require))
 			.orElseGet(
-				() -> getEntity(entityBuilder.getType(), entityBuilder.getPrimaryKey(), require)
+				() -> getEntity(entityBuilder.getType(), Objects.requireNonNull(entityBuilder.getPrimaryKey()), require)
 					.orElseThrow(() -> new EvitaInvalidUsageException("Entity `" + entityBuilder.getType() + "` with id `" + entityBuilder.getPrimaryKey() + "` doesn't exist!"))
 			);
 	}
@@ -1404,7 +1410,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * If the stream is closed prematurely the server stream is cancelled and the server is notified about it.
 	 *
 	 * @param request request that specifies the criteria for the changes to be returned
-	 * @return
 	 */
 	@Nonnull
 	@Override
@@ -1414,7 +1419,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		// Observer reference that needs to be used for closing the stream
 		final MutationsStreamObserver streamObserver = new MutationsStreamObserver();
 		// Call reference is needed for cancelling stream on the server side
-		final AtomicReference<ClientCall<?,?>> callRef = new AtomicReference<>();
+		final AtomicReference<ClientCall<?, ?>> callRef = new AtomicReference<>();
 
 		executeWithAsyncEvitaSessionService(
 			session -> {
@@ -1641,26 +1646,30 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull TypeConverter<T> typeConverter,
 		int primaryKey,
 		@Nonnull EvitaRequest evitaRequest,
-		EntityContentRequire... require
+		@Nullable RequireConstraint... require
 	) {
 		assertActive();
 
-		final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
+		final GrpcEntityRequest.Builder requestBuilder = GrpcEntityRequest
+			.newBuilder()
+			.setEntityType(entityType)
+			.setPrimaryKey(primaryKey);
+		if (require != null) {
+			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
+			requestBuilder
+				.setRequire(stringWithParameters.query())
+				.addAllPositionalQueryParams(
+					stringWithParameters.parameters()
+						.stream()
+						.map(QueryConverter::convertQueryParam)
+						.toList()
+				);
+		}
+
 		final GrpcEntityResponse grpcResponse = executeWithBlockingEvitaSessionService(
 			evitaSessionService ->
 				evitaSessionService.getEntity(
-					GrpcEntityRequest
-						.newBuilder()
-						.setEntityType(entityType)
-						.setPrimaryKey(primaryKey)
-						.setRequire(stringWithParameters.query())
-						.addAllPositionalQueryParams(
-							stringWithParameters.parameters()
-								.stream()
-								.map(QueryConverter::convertQueryParam)
-								.toList()
-						)
-						.build()
+					requestBuilder.build()
 				)
 		);
 
@@ -1741,7 +1750,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private <T> T executeWithBlockingEvitaSessionService(
 		@Nonnull AsyncCallFunction<EvitaSessionServiceFutureStub, ListenableFuture<T>> lambda
 	) {
-		final Timeout timeout = this.callTimeout.peek();
+		final Timeout timeout = getCurrentTimeout();
 		try {
 			SessionIdHolder.setSessionId(getId().toString());
 			return lambda.apply(this.evitaSessionServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
@@ -1768,6 +1777,22 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	/**
+	 * Retrieves the current {@link Timeout} for the call.
+	 *
+	 * @return the current Timeout for the call.
+	 * @throws IllegalStateException if no timeout has been set for the current call.
+	 */
+	@Nonnull
+	private Timeout getCurrentTimeout() {
+		final Timeout timeout = this.callTimeout.peek();
+		Assert.isPremiseValid(
+			timeout != null,
+			"No timeout has been set for the current call! There should be always a timeout present, this is a bug!"
+		);
+		return timeout;
+	}
+
+	/**
 	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
 	 * from a channel pool.
 	 *
@@ -1776,7 +1801,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private <T> T executeWithAsyncEvitaSessionService(
 		@Nonnull AsyncCallFunction<EvitaSessionServiceStub, T> lambda
 	) {
-		final Timeout timeout = this.callTimeout.peek();
+		final Timeout timeout = getCurrentTimeout();
 		try {
 			SessionIdHolder.setSessionId(getId().toString());
 			return lambda.apply(this.evitaSessionServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()));
@@ -2241,6 +2266,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 		/**
 		 * Blocks the current thread until the next mutation is available.
+		 *
 		 * @return next mutation or empty if the stream has been completed
 		 */
 		@Nonnull
@@ -2256,7 +2282,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					}
 					return Optional.empty();
 				} else {
-					return Optional.of(valueWrapper.value());
+					return Optional.ofNullable(valueWrapper.value());
 				}
 			} catch (InterruptedException e) {
 				// finalize stream
@@ -2266,6 +2292,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 		/**
 		 * Returns true if the stream has been completed.
+		 *
 		 * @return true if the stream has been completed
 		 */
 		public boolean isCompleted() {
@@ -2308,10 +2335,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	/**
 	 * Simple wrapper class that allows to pass capture value, or signalize end of stream with possible error returned
 	 * byt the server.
-	 * @param value value returned by the server
-	 * @param error error returned by the server
+	 *
+	 * @param value     value returned by the server
+	 * @param error     error returned by the server
 	 * @param completed flag that signals the end of the stream
-	 * @param <T>
 	 */
 	public record StreamValueWrapper<T>(
 		@Nullable T value,

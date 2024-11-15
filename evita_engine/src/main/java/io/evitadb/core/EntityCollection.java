@@ -29,6 +29,7 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
+import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -464,7 +465,7 @@ public final class EntityCollection implements
 				}
 			)
 			.map(it -> it);
-		return entity.map(it -> limitEntity(it, evitaRequest.getEntityRequirement()));
+		return entity.map(it -> limitEntity(it, Objects.requireNonNull(evitaRequest.getEntityRequirement())));
 	}
 
 	@Nonnull
@@ -572,6 +573,12 @@ public final class EntityCollection implements
 			entityMutation,
 			entityMutation.getEntityPrimaryKey() == null ? this.defaultMinimalQuery : null,
 			EntityReference.class
+		).orElseThrow(
+			() -> new EntityMissingException(
+				getEntityType(),
+				entityMutation.getEntityPrimaryKey() == null ? new int[0] : new int[]{entityMutation.getEntityPrimaryKey()},
+				null
+			)
 		);
 	}
 
@@ -581,7 +588,14 @@ public final class EntityCollection implements
 		final ServerEntityDecorator internalEntity =
 			wrapToDecorator(
 				evitaRequest,
-				upsertEntityInternal(entityMutation, evitaRequest, EntityWithFetchCount.class),
+				upsertEntityInternal(entityMutation, evitaRequest, EntityWithFetchCount.class)
+					.orElseThrow(
+						() -> new EntityMissingException(
+							getEntityType(),
+							entityMutation.getEntityPrimaryKey() == null ? new int[0] : new int[]{entityMutation.getEntityPrimaryKey()},
+							null
+						)
+					),
 				false
 			);
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
@@ -608,7 +622,10 @@ public final class EntityCollection implements
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
-			final EntityWithFetchCount removedEntity = deleteEntityInternal(primaryKeys[0], evitaRequest, EntityWithFetchCount.class);
+			final EntityWithFetchCount removedEntity = deleteEntityInternal(primaryKeys[0], evitaRequest, EntityWithFetchCount.class)
+				.orElseThrow(
+					() -> new EntityMissingException(getEntityType(), primaryKeys, null)
+				);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
 			return of(
@@ -652,7 +669,8 @@ public final class EntityCollection implements
 				ServerEntityDecorator removedRoot = null;
 				for (int entityToRemove : entityHierarchy) {
 					if (removedRoot == null) {
-						final EntityWithFetchCount removedEntity = deleteEntityInternal(entityToRemove, evitaRequest, EntityWithFetchCount.class);
+						final EntityWithFetchCount removedEntity = deleteEntityInternal(entityToRemove, evitaRequest, EntityWithFetchCount.class)
+							.orElseThrow(() -> new EntityMissingException(getEntityType(), primaryKeys, null));
 						removedRoot = wrapToDecorator(evitaRequest, removedEntity, false);
 					} else {
 						deleteEntityInternal(entityToRemove, evitaRequest, Void.class);
@@ -718,7 +736,8 @@ public final class EntityCollection implements
 			removedEntities.add(
 				wrapToDecorator(
 					evitaRequest,
-					deleteEntityInternal(entityToRemove, evitaRequest, EntityWithFetchCount.class),
+					deleteEntityInternal(entityToRemove, evitaRequest, EntityWithFetchCount.class)
+						.orElseThrow(() -> new GenericEvitaInternalError("Some entities were not found!")),
 					false
 				)
 			);
@@ -744,7 +763,8 @@ public final class EntityCollection implements
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
-			final EntityWithFetchCount archivedEntity = changeEntityScopeInternal(primaryKeys[0], Scope.ARCHIVED, evitaRequest, EntityWithFetchCount.class);
+			final EntityWithFetchCount archivedEntity = changeEntityScopeInternal(primaryKeys[0], Scope.ARCHIVED, evitaRequest, EntityWithFetchCount.class)
+				.orElseThrow(() -> new EntityMissingException(getEntityType(), primaryKeys, null));
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
 			return of(
@@ -773,13 +793,15 @@ public final class EntityCollection implements
 	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
-		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
-			final EntityWithFetchCount restoredEntity = changeEntityScopeInternal(primaryKeys[0], Scope.LIVE, evitaRequest, EntityWithFetchCount.class);
+		if (getGlobalArchiveIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
+			final EntityWithFetchCount restoredEntity = changeEntityScopeInternal(primaryKeys[0], Scope.LIVE, evitaRequest, EntityWithFetchCount.class)
+				.orElseThrow(() -> new EntityMissingException(getEntityType(), primaryKeys, null));
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 			//noinspection unchecked
-			return of(
-				(T) applyReferenceFetcher(
-					wrapToDecorator(evitaRequest, restoredEntity, false),
+			return ofNullable(restoredEntity)
+				.map(
+					it -> (T) applyReferenceFetcher(
+					wrapToDecorator(evitaRequest, it, false),
 					referenceFetcher
 				)
 			);
@@ -945,7 +967,7 @@ public final class EntityCollection implements
 					);
 				}
 			}
-			if (referenceSchemaContract.isReferencedGroupTypeManaged() && referenceSchemaContract.getReferencedGroupType().equals(oldName)) {
+			if (referenceSchemaContract.isReferencedGroupTypeManaged() && Objects.equals(referenceSchemaContract.getReferencedGroupType(), oldName)) {
 				if (referenceSchemaContract instanceof ReferenceSchema referenceSchema) {
 					updatedSchema = updatedSchema.withReplacedReferenceSchema(
 						referenceSchema.withUpdatedReferencedGroupType(newSchemaName)
@@ -1350,7 +1372,7 @@ public final class EntityCollection implements
 				CatalogState.ALIVE, this.entityTypePrimaryKey,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.schema)
 					.map(EntitySchemaDecorator::getDelegate)
-					.orElse(null),
+					.orElseThrow(() -> new GenericEvitaInternalError("Schema was unexpectedly found null after transaction completion!")),
 				this.pkSequence,
 				this.indexPkSequence,
 				this.catalogPersistenceService,
@@ -1490,8 +1512,8 @@ public final class EntityCollection implements
 	/**
 	 * Deletes passed entity both from indexes and the storage.
 	 */
-	@Nullable
-	private <T> T deleteEntityInternal(
+	@Nonnull
+	private <T> Optional<T> deleteEntityInternal(
 		int primaryKey,
 		@Nullable EvitaRequest returnDeletedEntity,
 		@Nonnull Class<T> returnType
@@ -1517,8 +1539,8 @@ public final class EntityCollection implements
 	 * @param returnType the class type of the object to be returned
 	 * @return the result of the mutation operation, which can be null if the operation fails or no entity is found
 	 */
-	@Nullable
-	private <T> T changeEntityScopeInternal(
+	@Nonnull
+	private <T> Optional<T> changeEntityScopeInternal(
 		int primaryKey,
 		@Nonnull Scope scope,
 		@Nullable EvitaRequest returnEntity,
@@ -1576,11 +1598,11 @@ public final class EntityCollection implements
 						reflectedReferenceSchema.withReferencedSchema(originalReference)
 					);
 				}
-			} else if (referenceInStake.isReferencedEntityTypeManaged()) {
+			} else if (referenceInStake.isReferencedEntityTypeManaged() && updatedReference.isPresent()) {
 				// notify the target entity schema about the reference change in our schema
 				EntitySchema finalUpdatedSchema = updatedSchema;
 				this.catalog.getCollectionForEntity(referenceInStake.getReferencedEntityType())
-					.ifPresent(it -> ((EntityCollection) it).notifyAboutExternalReferenceUpdate(finalUpdatedSchema, updatedReference.orElse(null)));
+					.ifPresent(it -> ((EntityCollection) it).notifyAboutExternalReferenceUpdate(finalUpdatedSchema, updatedReference.get()));
 			}
 		}
 		return updatedSchema;
@@ -1665,7 +1687,7 @@ public final class EntityCollection implements
 		// we need to load global index first, this is the only one index containing all data
 		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) this.persistenceService.readEntityIndex(
 			catalogVersion,
-			entityHeader.globalEntityIndexId(),
+			Objects.requireNonNull(entityHeader.globalEntityIndexId()),
 			this.initialSchema
 		);
 		Assert.isPremiseValid(
@@ -1801,8 +1823,8 @@ public final class EntityCollection implements
 	/**
 	 * Creates or updates entity and returns its primary key.
 	 */
-	@Nullable
-	private <T> T upsertEntityInternal(
+	@Nonnull
+	private <T> Optional<T> upsertEntityInternal(
 		@Nonnull EntityMutation entityMutation,
 		@Nullable EvitaRequest returnUpdatedEntity,
 		@Nonnull Class<T> returnType
@@ -1878,7 +1900,8 @@ public final class EntityCollection implements
 				);
 			} else if (entityMutation.expects() == EntityExistence.MAY_EXIST) {
 				Assert.isTrue(
-					getGlobalIndex().isPrimaryKeyKnown(entityMutation.getEntityPrimaryKey()),
+					entityMutation.getEntityPrimaryKey() != null &&
+						getGlobalIndex().isPrimaryKeyKnown(entityMutation.getEntityPrimaryKey()),
 					() -> new InvalidMutationException(
 						"Entity of type `" + currentSchema.getName() +
 							"` is expected to have primary key automatically generated by Evita!"
@@ -1909,8 +1932,8 @@ public final class EntityCollection implements
 	 *                                  (if set to empty set, no implicit mutations will be generated)
 	 * @return entity with fetch count
 	 */
-	@Nullable
-	<T> T applyMutations(
+	@Nonnull
+	<T> Optional<T> applyMutations(
 		@Nonnull EntityMutation entityMutation,
 		boolean undoOnError,
 		boolean checkConsistency,
@@ -1920,7 +1943,7 @@ public final class EntityCollection implements
 		@Nonnull Class<T> requestedType
 	) {
 		// prepare collectors
-		final Integer entityPrimaryKey = entityMutation.getEntityPrimaryKey();
+		final int entityPrimaryKey = Objects.requireNonNull(entityMutation.getEntityPrimaryKey());
 		final String entityType = entityMutation.getEntityType();
 		final ContainerizedLocalMutationExecutor changeCollector = new ContainerizedLocalMutationExecutor(
 			this.dataStoreBuffer,

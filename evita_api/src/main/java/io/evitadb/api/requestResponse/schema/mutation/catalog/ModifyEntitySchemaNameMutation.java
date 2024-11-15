@@ -82,7 +82,7 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 		return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.notNull(

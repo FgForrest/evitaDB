@@ -227,6 +227,12 @@ message GrpcHistogramBehaviorTypeArray {
   repeated GrpcHistogramBehavior value = 1;
 }
 
+// Wrapper for representing an array of Scope enums.
+message GrpcEntityScopeArray {
+  // Value that supports storing a Scope array.
+  repeated GrpcEntityScope value = 1;
+}
+
 // Structure that holds one of the supported data type values, its type and version of stored value.
 message GrpcEvitaValue {
   // The stored value. May by only one of the following at the time.
