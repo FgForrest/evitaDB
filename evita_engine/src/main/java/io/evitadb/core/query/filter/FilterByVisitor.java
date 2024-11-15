@@ -345,7 +345,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			new ProcessingScope<>(
 				indexSetToUse.getIndexType(),
 				indexSetToUse.getIndexes(),
-				queryContext.getEvitaRequest().getScopes(),
+				queryContext.getScopes(),
 				AttributeContent.ALL_ATTRIBUTES,
 				queryContext.isEntityTypeKnown() ? queryContext.getSchema() : null,
 				null, null,
@@ -410,7 +410,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	) {
 		return getProcessingScope()
 			.getAttributeSchemaAccessor()
-			.getAttributeSchema(attributeName, this.getEvitaRequest().getScopes(), requiredTrait);
+			.getAttributeSchema(attributeName, this.getScopes(), requiredTrait);
 	}
 
 	/**
@@ -424,7 +424,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	) {
 		return getProcessingScope()
 			.getAttributeSchemaAccessor()
-			.getAttributeSchema(entitySchema, attributeName, this.getEvitaRequest().getScopes(), requiredTrait);
+			.getAttributeSchema(entitySchema, attributeName, this.getScopes(), requiredTrait);
 	}
 
 	/**
@@ -585,7 +585,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		final List<ReducedEntityIndex> result = new ArrayList<>(referencedRecordIds.size());
 		for (Integer referencedRecordId : referencedRecordIds) {
 			getReferencedEntityIndex(entitySchema, referenceName, referencedRecordId)
-				.ifPresent(result::add);
+				.forEach(result::add);
 		}
 		return result;
 	}
@@ -606,33 +606,42 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull FilterBy filterBy
 	) {
 		final String referenceName = referenceSchema.getName();
+		final Set<Scope> scopesToLookUp = this.getScopes();
 		isTrue(
-			this.getEvitaRequest().getScopes().stream().anyMatch(referenceSchema::isIndexedInScope),
+			scopesToLookUp.stream().anyMatch(referenceSchema::isIndexedInScope),
 			() -> new ReferenceNotIndexedException(referenceName, entitySchema)
 		);
 
-		final Optional<ReferencedTypeEntityIndex> entityIndex = getIndex(
-			entitySchema.getName(),
-			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName),
-			ReferencedTypeEntityIndex.class
-		);
-		if (entityIndex.isEmpty()) {
-			return EmptyFormula.INSTANCE;
-		}
+		final Formula resultFormula = FormulaFactory.or(
+			scopesToLookUp
+				.stream()
+				.map(scope -> {
+					final Optional<ReferencedTypeEntityIndex> entityIndex = getIndex(
+						entitySchema.getName(),
+						new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName),
+						ReferencedTypeEntityIndex.class
+					);
+					if (entityIndex.isEmpty()) {
+						return EmptyFormula.INSTANCE;
+					}
 
-		final Formula resultFormula = executeInContextAndIsolatedFormulaStack(
-			ReferencedTypeEntityIndex.class,
-			() -> Collections.singletonList(entityIndex.get()),
-			ReferenceContent.ALL_REFERENCES,
-			entitySchema,
-			referenceSchema,
-			null, null,
-			getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName()),
-			(theEntity, attributeName, locale) -> theEntity.getReferences(referenceName).stream().map(it -> it.getAttributeValue(attributeName, locale)),
-			() -> {
-				filterBy.accept(this);
-				return getFormulaAndClear();
-			}
+					return executeInContextAndIsolatedFormulaStack(
+						ReferencedTypeEntityIndex.class,
+						() -> Collections.singletonList(entityIndex.get()),
+						ReferenceContent.ALL_REFERENCES,
+						entitySchema,
+						referenceSchema,
+						null, null,
+						getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName()),
+						(theEntity, attributeName, locale) -> theEntity.getReferences(referenceName).stream().map(it -> it.getAttributeValue(attributeName, locale)),
+						() -> {
+							filterBy.accept(this);
+							return getFormulaAndClear();
+						}
+					);
+				})
+				.filter(it -> it != EmptyFormula.INSTANCE)
+				.toArray(Formula[]::new)
 		);
 
 		// we need to initialize formula here, because the result will be needed in internal phase
@@ -669,7 +678,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Returns {@link EntityIndex} that contains indexed entities that reference `referenceName` and `referencedEntityId`.
 	 */
 	@Nonnull
-	public Optional<ReducedEntityIndex> getReferencedEntityIndex(
+	public Stream<ReducedEntityIndex> getReferencedEntityIndex(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int referencedEntityId
@@ -685,19 +694,26 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Returns {@link EntityIndex} that contains indexed entities that reference `referenceName` and `referencedEntityId`.
 	 */
 	@Nonnull
-	public Optional<ReducedEntityIndex> getReferencedEntityIndex(
+	public Stream<ReducedEntityIndex> getReferencedEntityIndex(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String referenceName,
 		int referencedEntityId
 	) {
-		return getQueryContext().getIndex(
-			entitySchema.getName(),
-			new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY,
-				new ReferenceKey(referenceName, referencedEntityId)
-			),
-			ReducedEntityIndex.class
-		);
+		return getEvitaRequest()
+			.getScopes()
+			.stream()
+			.map(scope -> getQueryContext().getIndex(
+					entitySchema.getName(),
+					new EntityIndexKey(
+						EntityIndexType.REFERENCED_ENTITY,
+						scope,
+						new ReferenceKey(referenceName, referencedEntityId)
+					),
+					ReducedEntityIndex.class
+				)
+			)
+			.filter(Optional::isPresent)
+			.map(Optional::get);
 	}
 
 	/**
@@ -778,7 +794,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					indexType,
 					targetIndexes,
 					// the requested scopes never change
-					this.getEvitaRequest().getScopes(),
+					this.getScopes(),
 					requirements,
 					entitySchema,
 					referenceSchema,
@@ -818,7 +834,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					indexType,
 					targetIndexSupplier,
 					// the requested scopes never change
-					this.getEvitaRequest().getScopes(),
+					this.getScopes(),
 					requirements,
 					entitySchema,
 					referenceSchema,
@@ -867,10 +883,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
-		final EnumSet<Scope> allowedScopes = getEvitaRequest().getScopes();
+		final Set<Scope> allowedScopes = getScopes();
 		return FormulaFactory.or(
-			Arrays.stream(Scope.values())
-				.filter(allowedScopes::contains)
+			allowedScopes
+				.stream()
 				.map(CatalogIndexKey::new)
 				.map(this::getIndex)
 				.filter(Optional::isPresent)

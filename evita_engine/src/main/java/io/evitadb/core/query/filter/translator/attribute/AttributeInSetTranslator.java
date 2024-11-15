@@ -49,10 +49,10 @@ import io.evitadb.utils.ArrayUtils;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeComparisonTranslator.createAlternativeBitmapFilter;
@@ -183,7 +183,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
-			final EnumSet<Scope> scopes = filterByVisitor.getEvitaRequest().getScopes();
+			final Set<Scope> scopes = filterByVisitor.getScopes();
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));

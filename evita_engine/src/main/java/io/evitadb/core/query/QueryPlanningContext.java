@@ -65,6 +65,7 @@ import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
 import io.evitadb.core.query.policy.DefaultPolicy;
 import io.evitadb.core.query.policy.PlanningPolicy;
 import io.evitadb.core.query.policy.PlanningPolicy.PrefetchPolicy;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
@@ -83,15 +84,7 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
-import java.util.Arrays;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
@@ -294,6 +287,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this.cacheSupervisor = cacheSupervisor;
 		this.queryFinishedEvent = event;
 		this.internalExecutionContext = createExecutionContext();
+	}
+
+	/**
+	 * Shortcut for {@link EvitaRequest#getScopes()}.
+	 *
+	 * @return set of requested scopes in the query
+	 */
+	@Nonnull
+	public Set<Scope> getScopes() {
+		return this.evitaRequest.getScopes();
 	}
 
 	/**

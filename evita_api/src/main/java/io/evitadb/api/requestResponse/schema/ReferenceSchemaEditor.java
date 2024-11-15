@@ -84,13 +84,13 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
 	 *
 	 * This method makes reference indexed only in the default (e.g. {@link Scope#LIVE}) scope, archived entities will not be indexed
-	 * by this reference unless explicitly set via {@link #faceted(Scope...)}.
+	 * by this reference unless explicitly set via {@link #facetedInScope(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T indexed() {
-		return indexed(Scope.DEFAULT_SCOPE);
+		return indexedInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -106,7 +106,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T indexed(@Nullable Scope... inScope);
+	T indexedInScope(@Nullable Scope... inScope);
 
 	/**
 	 * Makes reference as non-faceted in all scopes. This means reference information will be available on entity when
@@ -138,13 +138,13 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * indexed reference occupies (memory/disk) space in the form of index.
 	 *
 	 * This method makes reference faceted only in the default (e.g. {@link Scope#LIVE}) scope, archived entities will not be faceted
-	 * by this reference unless explicitly set via {@link #faceted(Scope...)}.
+	 * by this reference unless explicitly set via {@link #facetedInScope(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T faceted() {
-		return faceted(Scope.DEFAULT_SCOPE);
+		return facetedInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -159,7 +159,7 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T faceted(@Nonnull Scope... inScope);
+	T facetedInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * Makes reference as non-faceted in all scopes. This means reference information will be available on entity when

@@ -74,7 +74,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(facetHaving.getReferenceName());
 		isTrue(
-			filterByVisitor.getEvitaRequest().getScopes().stream().anyMatch(referenceSchema::isFacetedInScope),
+			filterByVisitor.getScopes().stream().anyMatch(referenceSchema::isFacetedInScope),
 			() -> new ReferenceNotFacetedException(facetHaving.getReferenceName(), entitySchema)
 		);
 

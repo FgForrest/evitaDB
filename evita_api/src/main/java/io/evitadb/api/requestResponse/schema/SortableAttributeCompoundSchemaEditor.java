@@ -52,7 +52,7 @@ public interface SortableAttributeCompoundSchemaEditor<S extends SortableAttribu
 	 */
 	@Nonnull
 	default S indexed() {
-		return indexed(Scope.DEFAULT_SCOPE);
+		return indexedInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -63,7 +63,7 @@ public interface SortableAttributeCompoundSchemaEditor<S extends SortableAttribu
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	S indexed(@Nullable Scope... inScope);
+	S indexedInScope(@Nullable Scope... inScope);
 
 	/**
 	 * Makes evitaDB drop sortable index for this attribute compound effectively preventing to order entities by it.

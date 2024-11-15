@@ -275,7 +275,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		@Nonnull String attributeName
 	) {
 		return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(
-			attributeName, this.getEvitaRequest().getScopes()
+			attributeName, this.getScopes()
 		);
 	}
 
@@ -295,7 +295,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		@Nonnull AttributeTrait... requiredTrait
 	) {
 		return attributeSchemaAccessor.getAttributeSchema(
-			attributeName, this.getEvitaRequest().getScopes(), requiredTrait
+			attributeName, this.getScopes(), requiredTrait
 		);
 	}
 

@@ -100,7 +100,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 				.collect(Collectors.toList());
 
 			// retrieve attribute schema for requested attribute
-			final AttributeSchemaContract attributeSchema = getAttributeSchema(schema, extraResultPlanner.getEvitaRequest().getScopes(), attributeName);
+			final AttributeSchemaContract attributeSchema = getAttributeSchema(schema, extraResultPlanner.getScopes(), attributeName);
 
 			// register computational lambda for producing attribute histogram
 			attributeHistogramProducer.addAttributeHistogramRequest(

@@ -141,7 +141,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			Collections.emptyMap(),
 			Collections.emptyMap(),
 			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
-			new String[0],
+			ArrayUtils.EMPTY_STRING_ARRAY,
 			null
 		);
 	}
@@ -185,7 +185,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			attributes,
 			sortableAttributeCompounds,
 			attributesInherited,
-			attributesExcludedFromInheritance == null ? new String[0] : attributesExcludedFromInheritance,
+			attributesExcludedFromInheritance == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributesExcludedFromInheritance,
 			null
 		);
 	}
@@ -228,7 +228,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			attributes,
 			sortableAttributeCompounds,
 			attributesInherited,
-			attributesExcludedFromInheritance == null ? new String[0] : attributesExcludedFromInheritance,
+			attributesExcludedFromInheritance == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributesExcludedFromInheritance,
 			null
 		);
 	}
@@ -290,7 +290,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			indexedInherited,
 			facetedInherited,
 			attributesInherited,
-			attributesExcludedFromInheritance == null ? new String[0] : attributesExcludedFromInheritance,
+			attributesExcludedFromInheritance == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributesExcludedFromInheritance,
 			reflectedReference
 		);
 	}
@@ -434,7 +434,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					attributes,
 					invertNecessaryAttributeTypes(reflectedReference.getAttributes()),
 					attributesInheritanceBehavior,
-					attributeInheritanceFilter
+					attributeInheritanceFilter == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter
 				),
 			reflectedReference == null ?
 				sortableAttributeCompounds :
@@ -442,12 +442,12 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					sortableAttributeCompounds,
 					reflectedReference.getSortableAttributeCompounds(),
 					attributesInheritanceBehavior,
-					attributeInheritanceFilter
+					attributeInheritanceFilter == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter
 				)
 		);
 		Assert.isTrue(
 			reflectedReference == null || reflectedReference.getName().equals(reflectedReferenceName),
-			() -> "Reflected reference name `" + referencedEntityType + "` must have the same name as the target reference (`" + reflectedReference.getName() + "`)!"
+			() -> "Reflected reference name `" + referencedEntityType + "` must have the same name as the target reference (`" + (reflectedReference == null ? "NULL" : reflectedReference.getName()) + "`)!"
 		);
 		Assert.isTrue(
 			reflectedReference == null || reflectedReference.isReferencedEntityTypeManaged(),
@@ -473,7 +473,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			"Faceted scopes must be either inherited or specified explicitly!"
 		);
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
-		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? new String[0] : attributeInheritanceFilter;
+		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter;
 		if (this.reflectedReference == null) {
 			this.inheritedAttributes = Collections.emptySet();
 		} else {
@@ -501,7 +501,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Cardinality cardinality,
 		@Nonnull String referencedEntityType,
 		@Nonnull Map<NamingConvention, String> entityTypeVariants,
-		@Nonnull String referencedGroupType,
+		@Nullable String referencedGroupType,
 		@Nullable Map<NamingConvention, String> groupTypeVariants,
 		boolean referencedGroupManaged,
 		@Nonnull String reflectedReferenceName,
@@ -529,8 +529,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			referencedGroupType,
 			groupTypeVariants == null ? Map.of() : groupTypeVariants,
 			referencedGroupManaged,
-			indexedInScopes,
-			facetedInScopes,
+			indexedInScopes == null ? EnumSet.noneOf(Scope.class) : indexedInScopes,
+			facetedInScopes == null ? EnumSet.noneOf(Scope.class) : facetedInScopes,
 			attributes,
 			sortableAttributeCompounds
 		);
@@ -542,7 +542,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		this.indexedInherited = indexedInherited;
 		this.facetedInherited = facetedInherited;
 		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
-		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? new String[0] : attributeInheritanceFilter;
+		this.attributeInheritanceFilter = attributeInheritanceFilter == null ? ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter;
 		if (this.reflectedReference == null) {
 			this.inheritedAttributes = Collections.emptySet();
 		} else {
@@ -926,7 +926,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * @return copy of the schema with applied changes
 	 */
 	@Nonnull
-	public ReflectedReferenceSchemaContract withName(@Nullable String name) {
+	public ReflectedReferenceSchemaContract withName(@Nonnull String name) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, name);
 		return new ReflectedReferenceSchema(
 			name,

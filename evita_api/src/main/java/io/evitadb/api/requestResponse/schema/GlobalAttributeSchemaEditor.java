@@ -47,13 +47,13 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 * better to have this ensured by the database engine.
 	 *
 	 * This method makes attribute unique only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not be unique
-	 * by this attribute unless explicitly set via {@link #uniqueGlobally(Scope...)}.
+	 * by this attribute unless explicitly set via {@link #uniqueGloballyInScope(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T uniqueGlobally() {
-		return uniqueGlobally(Scope.DEFAULT_SCOPE);
+		return uniqueGloballyInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -69,7 +69,7 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T uniqueGlobally(@Nonnull Scope... inScope);
+	T uniqueGloballyInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -97,7 +97,7 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 */
 	@Nonnull
 	default T nonUniqueGlobally() {
-		return nonUniqueGlobally(Scope.values());
+		return nonUniqueGloballyInScope(Scope.values());
 	}
 
 	/**
@@ -109,7 +109,7 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T nonUniqueGlobally(@Nonnull Scope... inScope);
+	T nonUniqueGloballyInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single

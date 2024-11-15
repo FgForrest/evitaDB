@@ -138,7 +138,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Nonnull
 	@Override
-	public T nonFilterable(@Nonnull Scope... inScope) {
+	public T nonFilterableInScope(@Nonnull Scope... inScope) {
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
@@ -173,7 +173,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Nonnull
 	@Override
-	public T nonUnique(@Nonnull Scope... inScope) {
+	public T nonUniqueInScope(@Nonnull Scope... inScope) {
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
@@ -208,7 +208,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Nonnull
 	@Override
-	public T nonUniqueWithinLocale(@Nonnull Scope... inScope) {
+	public T nonUniqueWithinLocaleInScope(@Nonnull Scope... inScope) {
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
@@ -242,7 +242,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Nonnull
 	@Override
-	public T nonSortable(@Nonnull Scope... inScope) {
+	public T nonSortableInScope(@Nonnull Scope... inScope) {
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,

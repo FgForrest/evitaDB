@@ -434,7 +434,7 @@ public class ClassSchemaAnalyzer {
 							.map(ScopeAttributeSettings::scope)
 							.toArray(Scope[]::new);
 						if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueGloballyInScopes)) {
-							whichIs.uniqueGlobally(uniqueGloballyInScopes);
+							whichIs.uniqueGloballyInScope(uniqueGloballyInScopes);
 						}
 						final Scope[] uniqueGloballyWithinLocaleInScopes = Arrays.stream(scopedDefinition)
 							.filter(it -> it.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE)
@@ -1062,7 +1062,7 @@ public class ClassSchemaAnalyzer {
 						"the value of `indexed` property is not taken into an account " +
 						"(and thus it doesn't make sense to set it to true)!"
 				);
-				editor.indexed(
+				editor.indexedInScope(
 					Arrays.stream(scopedDefinition)
 						.filter(ScopeReferenceSettings::indexed)
 						.map(ScopeReferenceSettings::scope)
@@ -1074,7 +1074,7 @@ public class ClassSchemaAnalyzer {
 						"the value of `faceted` property is not taken into an account " +
 						"(and thus it doesn't make sense to set it to true)!"
 				);
-				editor.indexed(
+				editor.indexedInScope(
 					Arrays.stream(scopedDefinition)
 						.filter(ScopeReferenceSettings::faceted)
 						.map(ScopeReferenceSettings::scope)
@@ -1170,7 +1170,7 @@ public class ClassSchemaAnalyzer {
 					editor.nonFaceted();
 				}
 			} else {
-				editor.indexed(
+				editor.indexedInScope(
 					Arrays.stream(scopedDefinition)
 						.filter(ScopeReferenceSettings::indexed)
 						.map(ScopeReferenceSettings::scope)
@@ -1182,7 +1182,7 @@ public class ClassSchemaAnalyzer {
 						"the value of `faceted` property is not taken into an account " +
 						"(and thus it doesn't make sense to set it to true)!"
 				);
-				editor.indexed(
+				editor.indexedInScope(
 					Arrays.stream(scopedDefinition)
 						.filter(ScopeReferenceSettings::faceted)
 						.map(ScopeReferenceSettings::scope)

@@ -226,7 +226,7 @@ public final class ReferenceSchemaBuilder
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaBuilder indexed(@Nullable Scope... inScope) {
+	public ReferenceSchemaBuilder indexedInScope(@Nullable Scope... inScope) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
@@ -259,7 +259,7 @@ public final class ReferenceSchemaBuilder
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaBuilder faceted(@Nonnull Scope... inScope) {
+	public ReferenceSchemaBuilder facetedInScope(@Nonnull Scope... inScope) {
 		if (Arrays.stream(inScope).allMatch(this::isIndexedInScope)) {
 			// just update the faceted scopes
 			this.updatedSchemaDirty = updateMutationImpact(

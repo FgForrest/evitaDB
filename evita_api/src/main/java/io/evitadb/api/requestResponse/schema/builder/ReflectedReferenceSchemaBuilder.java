@@ -315,7 +315,7 @@ public final class ReflectedReferenceSchemaBuilder
 	 */
 	@Nonnull
 	@Override
-	public ReflectedReferenceSchemaBuilder indexed(@Nullable Scope... inScope) {
+	public ReflectedReferenceSchemaBuilder indexedInScope(@Nullable Scope... inScope) {
 		Assert.isTrue(
 			!(inScope != null && inScope.length == 0),
 			() -> new InvalidSchemaMutationException("Reflected references must be indexed (otherwise we wouldn't be able to propagate the reflections)!")
@@ -373,7 +373,7 @@ public final class ReflectedReferenceSchemaBuilder
 
 	@Nonnull
 	@Override
-	public ReflectedReferenceSchemaBuilder faceted(@Nonnull Scope... inScope) {
+	public ReflectedReferenceSchemaBuilder facetedInScope(@Nonnull Scope... inScope) {
 		final boolean reflectedReferenceAvailable = isReflectedReferenceAvailable();
 		if (reflectedReferenceAvailable && Arrays.stream(inScope).allMatch(this::isIndexedInScope)) {
 			// just update the faceted scopes

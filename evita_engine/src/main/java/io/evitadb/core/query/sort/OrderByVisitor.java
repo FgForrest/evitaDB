@@ -163,7 +163,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		this.filteringFormula = filteringFormula;
 		this.scope.push(
 			new ProcessingScope(
-				this.queryContext.getEvitaRequest().getScopes(),
+				this.queryContext.getScopes(),
 				this.queryContext.getGlobalEntityIndexIfExists()
 					.map(it -> new EntityIndex[]{it})
 					.orElse(EMPTY_INDEX_ARRAY),
@@ -224,7 +224,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			this.scope.push(
 				new ProcessingScope(
 					// the requested scopes never change
-					this.queryContext.getEvitaRequest().getScopes(),
+					this.queryContext.getScopes(),
 					currentScope.entityIndex(),
 					currentScope.entityType(),
 					currentScope.referenceSchema(),
@@ -256,7 +256,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			this.scope.push(
 				new ProcessingScope(
 					// the requested scopes never change
-					this.queryContext.getEvitaRequest().getScopes(),
+					this.queryContext.getScopes(),
 					entityIndex,
 					entityType,
 					null,
@@ -287,7 +287,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			this.scope.push(
 				new ProcessingScope(
 					// the requested scopes never change
-					this.queryContext.getEvitaRequest().getScopes(),
+					this.queryContext.getScopes(),
 					entityIndex,
 					referenceSchema.getReferencedEntityType(),
 					referenceSchema,

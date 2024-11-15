@@ -48,8 +48,8 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 
 import javax.annotation.Nonnull;
-import java.util.EnumSet;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link AttributeIs} to {@link AbstractFormula}.
@@ -72,7 +72,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final EnumSet<Scope> scopes = filterByVisitor.getEvitaRequest().getScopes();
+			final Set<Scope> scopes = filterByVisitor.getScopes();
 			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
@@ -228,7 +228,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final EnumSet<Scope> scopes = filterByVisitor.getEvitaRequest().getScopes();
+			final Set<Scope> scopes = filterByVisitor.getScopes();
 			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));

@@ -41,6 +41,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -150,8 +151,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 
-		// check product entity is not in indexes
-		checkProductCannotBeLookedUpByIndexes();
+		// check product entity is not in any of indexes
+		checkProductCannotBeLookedUpByIndexes(Scope.values());
 
 		// check archive indexes exist and previous indexes are removed
 		final Catalog catalog2 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
@@ -229,7 +230,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 2));
 	}
 
-	@DisplayName("Entity should be removed from indexes when archived")
+	@DisplayName("Entity should be moved to archive indexes when archived")
 	@Test
 	void shouldArchiveEntityAndMoveToArchivedIndexes() {
 		/* create schema for entity archival */
@@ -253,8 +254,10 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 
-		// check product entity is in indexes
+		// check product entity is in LIVE indexes
 		checkProductCanBeLookedUpByIndexes();
+		// check product entity is not in ARCHIVED indexes
+		checkProductCannotBeLookedUpByIndexes(Scope.ARCHIVED);
 
 		// check indexes exist
 		final Catalog catalog1 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
@@ -282,8 +285,10 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 
-		// check product entity is not in indexes
+		// check product entity is in LIVE indexes
 		checkProductCannotBeLookedUpByIndexes();
+		// check product entity is in ARCHIVED indexes
+		checkProductCanBeLookedUpByIndexes(Scope.values());
 
 		// check archive indexes exist and previous indexes are removed
 		final Catalog catalog2 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
@@ -311,8 +316,10 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 
-		// check product entity is in indexes
+		// check product entity is in LIVE indexes
 		checkProductCanBeLookedUpByIndexes();
+		// check product entity is not in ARCHIVED indexes
+		checkProductCannotBeLookedUpByIndexes(Scope.ARCHIVED);
 
 		// check live indexes exist and previous indexes are removed
 		final Catalog catalog3 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
@@ -507,7 +514,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		/* create schema for entity archival */
 		final Scope[] scopes = new Scope[] {Scope.LIVE, Scope.ARCHIVED};
 		evita.defineCatalog(TEST_CATALOG)
-			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally(scopes).sortableInScope(scopes))
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGloballyInScope(scopes).sortableInScope(scopes))
 			.updateViaNewSession(evita);
 
 		evita.updateCatalog(
@@ -520,7 +527,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						"products",
 						Entities.PRODUCT,
 						Entities.CATEGORY,
-						whichIs -> whichIs.indexed(scopes).withAttributesInherited()
+						whichIs -> whichIs.indexedInScope(scopes).withAttributesInherited()
 					)
 					.withHierarchy()
 					.updateVia(session);
@@ -540,7 +547,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						Entities.CATEGORY,
 						Cardinality.ZERO_OR_MORE,
 						thatIs -> thatIs
-							.indexed(scopes)
+							.indexedInScope(scopes)
 							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterableInScope(scopes).sortableInScope(scopes))
 							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterableInScope(scopes))
 							.withSortableAttributeCompound(
@@ -750,17 +757,55 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldBeAbleToDeleteArchivedEntity() {
+		/* create schema for entity archival */
+		createSchemaForEntityArchiving(Scope.LIVE, Scope.ARCHIVED);
+
+		// upsert entities product depends on
+		createBrandAndCategoryEntities();
+
+		// create product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.setReference(Entities.BRAND, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "123"))
+					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+			}
+		);
+
+		// archive product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 100);
+			}
+		);
+
+		// delete archived entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.deleteEntity(Entities.PRODUCT, 100);
+			}
+		);
+
+		// check entity can't be found in any scope
+		checkProductCannotBeLookedUpByIndexes(Scope.values());
+	}
+
+	@Test
 	void shouldBeAbleToViolateUniqueConstraintsWhenEntityIsArchived() {
 		/* TODO JNO - Implement me */
 	}
 
 	@Test
 	void shouldPreferEntityInLiveScopeWhenUniqueKeyConflicts() {
-		/* TODO JNO - Implement me */
-	}
-
-	@Test
-	void shouldBeAbleToDeleteArchivedEntity() {
 		/* TODO JNO - Implement me */
 	}
 
@@ -851,7 +896,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 
 	private void createSchemaForEntityArchiving(@Nonnull Scope... indexScope) {
 		evita.defineCatalog(TEST_CATALOG)
-			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally(indexScope).sortableInScope(indexScope))
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGloballyInScope(indexScope).sortableInScope(indexScope))
 			.updateViaNewSession(evita);
 
 		evita.updateCatalog(
@@ -873,8 +918,11 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterableInScope(indexScope).sortableInScope(indexScope))
 					.withSortableAttributeCompound(
 						ATTRIBUTE_CODE_NAME,
-						new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-						new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+						new AttributeElement[] {
+							new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+							new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+						},
+						whichIs -> whichIs.indexedInScope(indexScope)
 					)
 					.withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
 					.withReferenceToEntity(
@@ -882,7 +930,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						Entities.BRAND,
 						Cardinality.ZERO_OR_ONE,
 						thatIs -> thatIs
-							.indexed(indexScope)
+							.indexedInScope(indexScope)
 							.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, whichIs -> whichIs.filterableInScope(indexScope).sortableInScope(indexScope))
 					)
 					.withReferenceToEntity(
@@ -890,7 +938,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						Entities.CATEGORY,
 						Cardinality.ZERO_OR_MORE,
 						thatIs -> thatIs
-							.indexed(indexScope)
+							.indexedInScope(indexScope)
 							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterableInScope(indexScope).sortableInScope(indexScope))
 							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterableInScope(indexScope))
 							.withSortableAttributeCompound(
@@ -904,50 +952,59 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 	}
 
-	private void checkProductCanBeLookedUpByIndexes() {
+	private void checkProductCanBeLookedUpByIndexes(Scope... scope) {
 		final EntityReference productReference = new EntityReference(Entities.PRODUCT, 100);
 		assertEquals(
 			productReference,
-			queryProductReferenceBy(attributeEquals(ATTRIBUTE_CODE, "TV-123"))
+			queryProductReferenceBy(scope, attributeEquals(ATTRIBUTE_CODE, "TV-123"))
 		);
 		assertEquals(
 			productReference,
-			queryProductReferenceBy(attributeEquals(ATTRIBUTE_NAME, "TV"), entityLocaleEquals(Locale.ENGLISH))
+			queryProductReferenceBy(scope, attributeEquals(ATTRIBUTE_NAME, "TV"), entityLocaleEquals(Locale.ENGLISH))
 		);
 		assertEquals(
 			productReference,
-			queryProductReferenceBy(referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1)))
+			queryProductReferenceBy(scope, referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1)))
 		);
 		assertEquals(
 			productReference,
-			queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)))
+			queryProductReferenceBy(scope, hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)))
 		);
 		assertEquals(
 			productReference,
-			queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)))
+			queryProductReferenceBy(scope, hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)))
 		);
 		assertEquals(
 			productReference,
-			queryProductReferenceBy(priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC))
+			queryProductReferenceBy(scope, priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC))
 		);
 	}
 
-	private void checkProductCannotBeLookedUpByIndexes() {
-		assertNull(queryProductReferenceBy(attributeEquals(ATTRIBUTE_CODE, "TV-123")));
-		assertNull(queryProductReferenceBy(attributeEquals(ATTRIBUTE_NAME, "TV"), entityLocaleEquals(Locale.ENGLISH)));
-		assertNull(queryProductReferenceBy(referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1))));
-		assertNull(queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))));
-		assertNull(queryProductReferenceBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))));
-		assertNull(queryProductReferenceBy(priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC)));
+	private void checkProductCannotBeLookedUpByIndexes(Scope... scope) {
+		// global attribute
+		assertNull(queryProductReferenceBy(scope, attributeEquals(ATTRIBUTE_CODE, "TV-123")));
+		// entity attribute
+		assertNull(queryProductReferenceBy(scope, attributeEquals(ATTRIBUTE_NAME, "TV"), entityLocaleEquals(Locale.ENGLISH)));
+		// references
+		assertNull(queryProductReferenceBy(scope, referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1))));
+		// hierarchy
+		assertNull(queryProductReferenceBy(scope, hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))));
+		assertNull(queryProductReferenceBy(scope, hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))));
+		// price
+		assertNull(queryProductReferenceBy(scope, priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC)));
 	}
 
 	@Nullable
-	private EntityReference queryProductReferenceBy(@Nonnull FilterConstraint... filterBy) {
+	private EntityReference queryProductReferenceBy(@Nonnull Scope[] scope, @Nonnull FilterConstraint... filterBy) {
 		return evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.queryOne(
-					query(collection(Entities.PRODUCT), filterBy(filterBy)),
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(filterBy),
+						ArrayUtils.isEmptyOrItsValuesNull(scope) ? null : require(scope(scope))
+					).normalizeQuery(),
 					EntityReference.class
 				);
 			}

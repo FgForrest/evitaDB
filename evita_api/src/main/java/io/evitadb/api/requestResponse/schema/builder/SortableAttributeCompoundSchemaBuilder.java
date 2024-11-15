@@ -154,7 +154,7 @@ public final class SortableAttributeCompoundSchemaBuilder
 
 	@Nonnull
 	@Override
-	public SortableAttributeCompoundSchemaBuilder indexed(@Nullable Scope... inScope) {
+	public SortableAttributeCompoundSchemaBuilder indexedInScope(@Nullable Scope... inScope) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(

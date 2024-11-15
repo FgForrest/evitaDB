@@ -183,7 +183,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withIndexedHierarchy(@Nonnull Scope... inScopes) {
+	public EntitySchemaBuilder withHierarchyIndexedInScope(@Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
@@ -209,7 +209,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Nonnull
 	@Override
-	public EntitySchemaBuilder withoutIndexedHierarchy(@Nonnull Scope... inScopes) {
+	public EntitySchemaBuilder withoutHierarchyIndexedInScope(@Nonnull Scope... inScopes) {
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScopes);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
@@ -229,7 +229,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withIndexedPrice(@Nonnull Scope... inScopes) {
+	public EntitySchemaBuilder withPriceIndexedInScope(@Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
@@ -242,7 +242,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withIndexedPrice(int indexedDecimalPlaces, @Nonnull Scope... inScopes) {
+	public EntitySchemaBuilder withPriceIndexedInScope(int indexedDecimalPlaces, @Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
@@ -269,7 +269,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withIndexedPriceInCurrency(int indexedPricePlaces, @Nonnull Currency[] currency, @Nonnull Scope... inScopes) {
+	public EntitySchemaBuilder withPriceInCurrencyIndexedInScope(int indexedPricePlaces, @Nonnull Currency[] currency, @Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
@@ -296,7 +296,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Nonnull
 	@Override
-	public EntitySchemaBuilder withoutIndexedPrice(@Nonnull Scope... inScopes) {
+	public EntitySchemaBuilder withoutPriceIndexedInScope(@Nonnull Scope... inScopes) {
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScopes);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,

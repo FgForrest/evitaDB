@@ -114,7 +114,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	default T nonFilterable() {
-		return nonFilterable(Scope.values());
+		return nonFilterableInScope(Scope.values());
 	}
 
 	/**
@@ -125,7 +125,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T nonFilterable(@Nonnull Scope... inScope);
+	T nonFilterableInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute value is unique it is automatically filterable, and it is ensured there is exactly one single entity
@@ -194,7 +194,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	default T nonUnique() {
-		return nonUnique(Scope.values());
+		return nonUniqueInScope(Scope.values());
 	}
 
 	/**
@@ -206,7 +206,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T nonUnique(@Nonnull Scope... inScope);
+	T nonUniqueInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
@@ -261,7 +261,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	default T nonUniqueWithinLocale() {
-		return nonUniqueWithinLocale(Scope.values());
+		return nonUniqueWithinLocaleInScope(Scope.values());
 	}
 
 	/**
@@ -273,7 +273,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T nonUniqueWithinLocale(@Nonnull Scope... inScope);
+	T nonUniqueWithinLocaleInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
@@ -336,7 +336,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	default T nonSortable() {
-		return nonSortable(Scope.values());
+		return nonSortableInScope(Scope.values());
 	}
 
 	/**
@@ -347,7 +347,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T nonSortable(@Nonnull Scope... inScope);
+	T nonSortableInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute

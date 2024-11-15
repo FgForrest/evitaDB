@@ -593,7 +593,8 @@ public final class EntityCollection implements
 
 	@Override
 	public boolean deleteEntity(int primaryKey) {
-		if (this.getGlobalIndexIfExists().map(it -> it.contains(primaryKey)).orElse(false)) {
+		if (this.getGlobalIndexIfExists().map(it -> it.contains(primaryKey)).orElse(false) ||
+				this.getGlobalArchiveIndexIfExists().map(it -> it.contains(primaryKey)).orElse(false)) {
 			deleteEntityInternal(primaryKey, null, Void.class);
 			return true;
 		} else {

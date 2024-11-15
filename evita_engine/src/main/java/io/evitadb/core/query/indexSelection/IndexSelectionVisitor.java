@@ -59,10 +59,10 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -83,7 +83,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 
 	public IndexSelectionVisitor(@Nonnull QueryPlanningContext queryContext) {
 		this.queryContext = queryContext;
-		final EnumSet<Scope> allowedScopes = this.queryContext.getEvitaRequest().getScopes();
+		final Set<Scope> allowedScopes = this.queryContext.getScopes();
 		if (this.queryContext.hasEntityGlobalIndex()) {
 			final List<EntityIndex> indexes = Arrays.stream(Scope.values())
 				.filter(allowedScopes::contains)
@@ -172,17 +172,21 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						targetIndexes.add(TargetIndexes.EMPTY);
 					}
 					// locate all hierarchy indexes
+					final Set<Scope> scopes = queryContext.getScopes();
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
-					final List<ReducedEntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size());
+					final List<ReducedEntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size() * scopes.size());
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
-						queryContext.getIndex(
-								new EntityIndexKey(
-									EntityIndexType.REFERENCED_ENTITY,
-									new ReferenceKey(filteredHierarchyReferenceName, hierarchyEntityId)
+						for (Scope scope : scopes) {
+							queryContext.getIndex(
+									new EntityIndexKey(
+										EntityIndexType.REFERENCED_ENTITY,
+										scope,
+										new ReferenceKey(filteredHierarchyReferenceName, hierarchyEntityId)
+									)
 								)
-							)
-							.map(ReducedEntityIndex.class::cast)
-							.ifPresent(theTargetIndexes::add);
+								.map(ReducedEntityIndex.class::cast)
+								.ifPresent(theTargetIndexes::add);
+						}
 					}
 					// add indexes as potential target indexes
 					this.targetIndexes.add(

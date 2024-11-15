@@ -33,8 +33,8 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.util.EnumSet;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The AbstractAttributeTranslator class provides utility methods for handling attribute keys within
@@ -60,7 +60,7 @@ class AbstractAttributeTranslator {
 		@Nonnull AttributeSchemaContract attributeDefinition
 	) {
 		final String attributeName = attributeDefinition.getName();
-		final EnumSet<Scope> scopes = filterByVisitor.getEvitaRequest().getScopes();
+		final Set<Scope> scopes = filterByVisitor.getScopes();
 		Assert.isTrue(
 			!attributeDefinition.isLocalized() || filterByVisitor.getLocale() != null ||
 				(scopes.stream().anyMatch(scope -> attributeDefinition.isUnique(scope) && !attributeDefinition.isUniqueWithinLocale(scope))),

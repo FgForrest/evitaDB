@@ -279,7 +279,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
 		isTrue(
-			extraResultPlanner.getEvitaRequest().getScopes().stream().anyMatch(referenceSchema::isFacetedInScope),
+			extraResultPlanner.getScopes().stream().anyMatch(referenceSchema::isFacetedInScope),
 			() -> new ReferenceNotFacetedException(referenceName, entitySchema)
 		);
 

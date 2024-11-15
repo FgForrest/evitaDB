@@ -55,6 +55,8 @@ import java.util.function.UnaryOperator;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ArrayUtils {
 
+	public static final String[] EMPTY_STRING_ARRAY = new String[0];
+
 	/**
 	 * Returns true if array is either null or has no items in it
 	 *

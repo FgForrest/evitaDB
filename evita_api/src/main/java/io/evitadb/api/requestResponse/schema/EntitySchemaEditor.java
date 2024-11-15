@@ -136,7 +136,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	default S withHierarchy() {
-		return withIndexedHierarchy(Scope.DEFAULT_SCOPE);
+		return withHierarchyIndexedInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -153,7 +153,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * by hierarchy structure in these scopes.
 	 */
 	@Nonnull
-	S withIndexedHierarchy(@Nonnull Scope... inScopes);
+	S withHierarchyIndexedInScope(@Nonnull Scope... inScopes);
 
 	/**
 	 * Disables hierarchy structure for this type of entity. This is default setting for new entity types.
@@ -167,7 +167,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * anymore. If you want to remove hierarchy information completely use {@link #withoutHierarchy()} method.
 	 */
 	@Nonnull
-	S withoutIndexedHierarchy(@Nonnull Scope... inScopes);
+	S withoutHierarchyIndexedInScope(@Nonnull Scope... inScopes);
 
 	/**
 	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
@@ -190,7 +190,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	default S withPrice() {
-		return withIndexedPrice(Scope.DEFAULT_SCOPE);
+		return withPriceIndexedInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -215,7 +215,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * places.
 	 */
 	@Nonnull
-	S withIndexedPrice(@Nonnull Scope... inScopes);
+	S withPriceIndexedInScope(@Nonnull Scope... inScopes);
 
 	/**
 	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
@@ -240,7 +240,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	default S withPrice(int indexedDecimalPlaces) {
-		return withIndexedPrice(indexedDecimalPlaces, Scope.DEFAULT_SCOPE);
+		return withPriceIndexedInScope(indexedDecimalPlaces, Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -265,7 +265,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * "infinite" decimal places.
 	 */
 	@Nonnull
-	S withIndexedPrice(int indexedDecimalPlaces, @Nonnull Scope... inScopes);
+	S withPriceIndexedInScope(int indexedDecimalPlaces, @Nonnull Scope... inScopes);
 
 	/**
 	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
@@ -352,7 +352,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 */
 	@Nonnull
 	default S withPriceInCurrency(int indexedPricePlaces, @Nonnull Currency... currency) {
-		return withIndexedPriceInCurrency(indexedPricePlaces, currency, Scope.DEFAULT_SCOPE);
+		return withPriceInCurrencyIndexedInScope(indexedPricePlaces, currency, Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -381,7 +381,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * This will add currencies to the schema automatically as they are encountered in the data.
 	 */
 	@Nonnull
-	S withIndexedPriceInCurrency(int indexedPricePlaces, @Nonnull Currency[] currency, @Nonnull Scope... inScopes);
+	S withPriceInCurrencyIndexedInScope(int indexedPricePlaces, @Nonnull Currency[] currency, @Nonnull Scope... inScopes);
 
 	/**
 	 * Disables price related data for this type of entity. This is default setting for new entity types.
@@ -395,7 +395,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * anymore. If you want to remove price information completely use {@link #withoutPrice()} method.
 	 */
 	@Nonnull
-	S withoutIndexedPrice(@Nonnull Scope... inScopes);
+	S withoutPriceIndexedInScope(@Nonnull Scope... inScopes);
 
 	/**
 	 * Disables set of allowed currencies for this entity type but leaves the price information available on the entity

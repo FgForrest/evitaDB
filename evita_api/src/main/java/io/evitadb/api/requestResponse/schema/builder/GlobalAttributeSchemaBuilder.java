@@ -113,7 +113,7 @@ public final class GlobalAttributeSchemaBuilder
 
 	@Override
 	@Nonnull
-	public GlobalAttributeSchemaBuilder uniqueGlobally(@Nonnull Scope... scope) {
+	public GlobalAttributeSchemaBuilder uniqueGloballyInScope(@Nonnull Scope... scope) {
 		this.updatedSchemaDirty = addMutations(
 			new SetAttributeSchemaGloballyUniqueMutation(
 				toInstance().getName(),
@@ -127,7 +127,7 @@ public final class GlobalAttributeSchemaBuilder
 
 	@Nonnull
 	@Override
-	public GlobalAttributeSchemaBuilder nonUniqueGlobally(@Nonnull Scope... inScope) {
+	public GlobalAttributeSchemaBuilder nonUniqueGloballyInScope(@Nonnull Scope... inScope) {
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
