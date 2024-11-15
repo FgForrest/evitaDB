@@ -102,7 +102,8 @@ public interface AttributeIndexMutator {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
-					entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, scope, locale, theValue.value(), entityPrimaryKey);
+					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
+					entityIndex.removeUniqueAttribute(attributeDefinition, allowedLocales, scope, locale, theValueToRemove, entityPrimaryKey);
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(() -> entityIndex.insertUniqueAttribute(attributeDefinition, allowedLocales, scope, locale, theValue.value(), entityPrimaryKey));
 					}
@@ -130,7 +131,8 @@ public interface AttributeIndexMutator {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
-					entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
+					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
+					entityIndex.removeFilterAttribute(attributeDefinition, allowedLocales, locale, theValueToRemove, entityPrimaryKey);
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(() -> entityIndex.insertFilterAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
 					}
@@ -144,7 +146,8 @@ public interface AttributeIndexMutator {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				existingValue.ifPresent(theValue -> {
-					entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
+					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
+					entityIndex.removeSortAttribute(attributeDefinition, allowedLocales, locale, theValueToRemove, entityPrimaryKey);
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(() -> entityIndex.insertSortAttribute(attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
 					}
@@ -364,14 +367,17 @@ public interface AttributeIndexMutator {
 				if (existingValue == null) {
 					final T oldValue = valueToRemoveSupplier.get();
 
-					//noinspection unchecked
-					return (T) NumberUtils.sum(
-						(Number) oldValue,
+					final Number newValue = Objects.requireNonNull(
 						(Number) EvitaDataTypes.toTargetType(
 							delta,
 							attributeDefinition.getType(),
 							attributeDefinition.getIndexedDecimalPlaces()
 						)
+					);
+					//noinspection unchecked
+					return (T) NumberUtils.sum(
+						(Number) oldValue,
+						newValue
 					);
 				} else {
 					return existingValue;

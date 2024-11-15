@@ -909,7 +909,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 				session.defineEntitySchema(Entities.CATEGORY)
 					.withoutGeneratedPrimaryKey()
 					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withHierarchy()
+					.withHierarchyIndexedInScope(indexScope)
 					.updateVia(session);
 
 				session.defineEntitySchema(Entities.PRODUCT)
@@ -924,7 +924,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						},
 						whichIs -> whichIs.indexedInScope(indexScope)
 					)
-					.withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
+					.withPriceInCurrencyIndexedInScope(2, new Currency [] {CURRENCY_CZK, CURRENCY_EUR}, indexScope)
 					.withReferenceToEntity(
 						Entities.BRAND,
 						Entities.BRAND,

@@ -25,7 +25,9 @@ package io.evitadb.index.mutation.index;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
@@ -97,63 +99,67 @@ public interface PriceIndexMutator {
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
-		final int indexedPricePlaces = executor.getEntitySchema().getIndexedPricePlaces();
-		// remove former price first
-		if (formerPrice != null && formerPrice.exists() && formerPrice.indexed()) {
-			final Integer formerInternalPriceId = Objects.requireNonNull(formerPrice.getInternalPriceId());
-			final Integer formerInnerRecordId = formerPrice.innerRecordId();
-			final DateTimeRange formerValidity = formerPrice.validity();
-			final int formerPriceWithoutTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithoutTax(), indexedPricePlaces);
-			final int formerPriceWithTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithTax(), indexedPricePlaces);
-			entityIndex.priceRemove(
-				entityPrimaryKey,
-				formerInternalPriceId,
-				priceKey, innerRecordHandling, formerInnerRecordId,
-				formerValidity,
-				formerPriceWithoutTax,
-				formerPriceWithTax
-			);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> entityIndex.addPrice(
-						entityPrimaryKey,
-						formerInternalPriceId,
-						priceKey, innerRecordHandling, formerInnerRecordId,
-						formerValidity,
-						formerPriceWithoutTax,
-						formerPriceWithTax
-					)
+		final EntitySchema entitySchema = executor.getEntitySchema();
+		final int indexedPricePlaces = entitySchema.getIndexedPricePlaces();
+		final Scope scope = entityIndex.getIndexKey().scope();
+		if (entitySchema.isPriceIndexedInScope(scope)) {
+			// remove former price first
+			if (formerPrice != null && formerPrice.exists() && formerPrice.indexed()) {
+				final Integer formerInternalPriceId = Objects.requireNonNull(formerPrice.getInternalPriceId());
+				final Integer formerInnerRecordId = formerPrice.innerRecordId();
+				final DateTimeRange formerValidity = formerPrice.validity();
+				final int formerPriceWithoutTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithoutTax(), indexedPricePlaces);
+				final int formerPriceWithTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithTax(), indexedPricePlaces);
+				entityIndex.priceRemove(
+					entityPrimaryKey,
+					formerInternalPriceId,
+					priceKey, innerRecordHandling, formerInnerRecordId,
+					formerValidity,
+					formerPriceWithoutTax,
+					formerPriceWithTax
 				);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> entityIndex.addPrice(
+							entityPrimaryKey,
+							formerInternalPriceId,
+							priceKey, innerRecordHandling, formerInnerRecordId,
+							formerValidity,
+							formerPriceWithoutTax,
+							formerPriceWithTax
+						)
+					);
+				}
 			}
-		}
-		// now insert new price
-		if (indexed) {
-			final Integer internalPriceId = internalIdSupplier.apply(priceKey, innerRecordId);
-			final int priceWithoutTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithoutTax, indexedPricePlaces);
-			final int priceWithTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithTax, indexedPricePlaces);
-			final int priceId = entityIndex.addPrice(
-				entityPrimaryKey,
-				internalPriceId,
-				priceKey, innerRecordHandling, innerRecordId,
-				validity,
-				priceWithoutTaxAsInt,
-				priceWithTaxAsInt
-			);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> entityIndex.priceRemove(
-						entityPrimaryKey,
-						priceId,
-						priceKey, innerRecordHandling, innerRecordId,
-						validity,
-						priceWithoutTaxAsInt,
-						priceWithTaxAsInt
-					)
+			// now insert new price
+			if (indexed) {
+				final Integer internalPriceId = internalIdSupplier.apply(priceKey, innerRecordId);
+				final int priceWithoutTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithoutTax, indexedPricePlaces);
+				final int priceWithTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithTax, indexedPricePlaces);
+				final int priceId = entityIndex.addPrice(
+					entityPrimaryKey,
+					internalPriceId,
+					priceKey, innerRecordHandling, innerRecordId,
+					validity,
+					priceWithoutTaxAsInt,
+					priceWithTaxAsInt
 				);
-			}
-			if (internalPriceId == null) {
-				executor.getContainerAccessor()
-					.registerAssignedPriceId(entityPrimaryKey, priceKey, priceId);
+				if (undoActionConsumer != null) {
+					undoActionConsumer.accept(
+						() -> entityIndex.priceRemove(
+							entityPrimaryKey,
+							priceId,
+							priceKey, innerRecordHandling, innerRecordId,
+							validity,
+							priceWithoutTaxAsInt,
+							priceWithTaxAsInt
+						)
+					);
+				}
+				if (internalPriceId == null) {
+					executor.getContainerAccessor()
+						.registerAssignedPriceId(entityPrimaryKey, priceKey, priceId);
+				}
 			}
 		}
 	}
@@ -186,42 +192,48 @@ public interface PriceIndexMutator {
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
-		final int indexedPricePlaces = executor.getEntitySchema().getIndexedPricePlaces();
+		final EntitySchema entitySchema = executor.getEntitySchema();
+		final int indexedPricePlaces = entitySchema.getIndexedPricePlaces();
 
-		if (formerPrice != null) {
-			if (formerPrice.exists() && formerPrice.indexed()) {
-				final int internalPriceId = formerPrice.getInternalPriceId();
-				final Integer innerRecordId = formerPrice.innerRecordId();
-				final DateTimeRange validity = formerPrice.validity();
-				final int priceWithoutTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithoutTax(), indexedPricePlaces);
-				final int priceWithTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithTax(), indexedPricePlaces);
-				entityIndex.priceRemove(
-					entityPrimaryKey,
-					internalPriceId,
-					priceKey,
-					innerRecordHandling,
-					innerRecordId,
-					validity,
-					priceWithoutTax,
-					priceWithTax
-				);
-				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(
-						() -> entityIndex.addPrice(
-							entityPrimaryKey,
-							internalPriceId,
-							priceKey,
-							innerRecordHandling,
-							innerRecordId,
-							validity,
-							priceWithoutTax,
-							priceWithTax
-						)
+		final Scope scope = entityIndex.getIndexKey().scope();
+		if (entitySchema.isPriceIndexedInScope(scope)) {
+			if (formerPrice != null) {
+				if (formerPrice.exists() && formerPrice.indexed()) {
+					final Integer internalPriceIdRef = formerPrice.getInternalPriceId();
+					Assert.isPremiseValid(internalPriceIdRef != null, "Price " + priceKey + " doesn't have internal id!");
+					final int internalPriceId = internalPriceIdRef;
+					final Integer innerRecordId = formerPrice.innerRecordId();
+					final DateTimeRange validity = formerPrice.validity();
+					final int priceWithoutTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithoutTax(), indexedPricePlaces);
+					final int priceWithTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithTax(), indexedPricePlaces);
+					entityIndex.priceRemove(
+						entityPrimaryKey,
+						internalPriceId,
+						priceKey,
+						innerRecordHandling,
+						innerRecordId,
+						validity,
+						priceWithoutTax,
+						priceWithTax
 					);
+					if (undoActionConsumer != null) {
+						undoActionConsumer.accept(
+							() -> entityIndex.addPrice(
+								entityPrimaryKey,
+								internalPriceId,
+								priceKey,
+								innerRecordHandling,
+								innerRecordId,
+								validity,
+								priceWithoutTax,
+								priceWithTax
+							)
+						);
+					}
 				}
+			} else {
+				throw new EvitaInvalidUsageException("Price " + priceKey + " doesn't exist and cannot be removed!");
 			}
-		} else {
-			throw new EvitaInvalidUsageException("Price " + priceKey + " doesn't exist and cannot be removed!");
 		}
 	}
 
