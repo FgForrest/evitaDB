@@ -308,11 +308,19 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 * @param facetedScopes the set of scopes where faceting is enabled; must not be null
 	 * @param indexedScopes the set of scopes where indexing is enabled; must not be null
 	 */
-	static void validateScopeSettings(@Nonnull Set<Scope> facetedScopes, @Nonnull Set<Scope> indexedScopes) {
+	static void validateScopeSettings(
+		@Nonnull Set<Scope> facetedScopes,
+		@Nonnull Set<Scope> indexedScopes
+	) {
 		final Scope[] scopes = Scope.values();
 		for (Scope scope : scopes) {
 			if (facetedScopes.contains(scope)) {
-				Assert.isTrue(indexedScopes.contains(scope), "When reference is marked as faceted in scope `" + scope + "`, it needs also to be indexed for the same scope.");
+				Assert.isTrue(
+					indexedScopes.contains(scope),
+					() -> new InvalidSchemaMutationException(
+						"When reference is marked as faceted in scope `" + scope + "`, it needs also to be indexed for the same scope."
+					)
+				);
 			}
 		}
 	}
@@ -339,7 +347,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		this.nameVariants = Collections.unmodifiableMap(nameVariants);
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.cardinality = cardinality;
+		this.cardinality = cardinality == null ? Cardinality.ZERO_OR_MORE : cardinality;
 		this.referencedEntityType = referencedEntityType;
 		this.entityTypeNameVariants = Collections.unmodifiableMap(entityTypeNameVariants);
 		this.referencedEntityTypeManaged = referencedEntityTypeManaged;
@@ -460,18 +468,22 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 				referenceErrors,
 				Stream.of("Referenced entity type `" + this.referencedEntityType + "` is present in catalog `" + catalogSchema.getName() + "` schema, but it's marked as not managed!"));
 		}
-		if (this.referencedGroupTypeManaged &&
-			catalogSchema.getEntitySchema(this.referencedGroupType).isEmpty()
-		) {
-			referenceErrors = Stream.concat(
-				referenceErrors,
-				Stream.of("Referenced group entity type `" + this.referencedGroupType + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
-		} else if (!this.referencedGroupTypeManaged &&
-			catalogSchema.getEntitySchema(this.referencedGroupType).isPresent()
-		) {
-			referenceErrors = Stream.concat(
-				referenceErrors,
-				Stream.of("Referenced group entity type `" + this.referencedGroupType + "` is present in catalog `" + catalogSchema.getName() + "` schema, but it's marked as not managed!"));
+		if (this.referencedGroupTypeManaged) {
+			if (this.referencedGroupType == null) {
+				referenceErrors = Stream.concat(
+					referenceErrors,
+					Stream.of("Referenced group entity is not defined even though it's declared as managed!"));
+			} else if (catalogSchema.getEntitySchema(this.referencedGroupType).isEmpty()) {
+				referenceErrors = Stream.concat(
+					referenceErrors,
+					Stream.of("Referenced group entity type `" + this.referencedGroupType + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
+			}
+		} else if (this.referencedGroupType != null) {
+			if (catalogSchema.getEntitySchema(this.referencedGroupType).isPresent()) {
+				referenceErrors = Stream.concat(
+					referenceErrors,
+					Stream.of("Referenced group entity type `" + this.referencedGroupType + "` is present in catalog `" + catalogSchema.getName() + "` schema, but it's marked as not managed!"));
+			}
 		}
 
 		referenceErrors = Stream.concat(

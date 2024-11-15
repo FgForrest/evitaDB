@@ -357,7 +357,7 @@ public class ClassSchemaAnalyzer {
 					.map(ScopeAttributeSettings::scope)
 					.toArray(Scope[]::new);
 				if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueWithinLocaleInScopes)) {
-					editor.uniqueWithinLocale(uniqueWithinLocaleInScopes);
+					editor.uniqueWithinLocaleInScope(uniqueWithinLocaleInScopes);
 				}
 
 				Assert.isTrue(

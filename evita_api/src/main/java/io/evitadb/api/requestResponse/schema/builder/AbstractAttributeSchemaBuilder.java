@@ -191,7 +191,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Override
 	@Nonnull
-	public T uniqueWithinLocale(@Nonnull Scope... inScope) {
+	public T uniqueWithinLocaleInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(

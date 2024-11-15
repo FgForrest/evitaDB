@@ -82,7 +82,7 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		return new AttributeFormula(
 			true,
 			attributeKey,
-			filterByVisitor.applyOnGlobalUniqueIndex(
+			filterByVisitor.applyOnFirstGlobalUniqueIndex(
 				globalAttributeSchema,
 				index -> {
 					final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue(
@@ -120,7 +120,7 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		return new AttributeFormula(
 			attributeDefinition instanceof GlobalAttributeSchemaContract,
 			attributeKey,
-			filterByVisitor.applyOnUniqueIndexes(
+			filterByVisitor.applyOnFirstUniqueIndex(
 				attributeDefinition, index -> {
 					final Integer recordId = index.getRecordIdByUniqueValue(comparedValue);
 					return ofNullable(recordId)

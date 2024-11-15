@@ -719,12 +719,27 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 						"contains reference `" + this.reflectedReferenceName + "`, " +
 						"but it's not managed entity type!")
 			);
-		} else if (this.reflectedReference == null) {
-			referenceErrors = Stream.concat(
-				referenceErrors,
-				Stream.of(
-					"Reflected reference schema `" + getName() + "` is not properly initialized!")
-			);
+		} else {
+			final ReferenceSchemaContract theReflectedReference = this.reflectedReference;
+			if (theReflectedReference == null) {
+				referenceErrors = Stream.concat(
+					referenceErrors,
+					Stream.of(
+						"Reflected reference schema `" + getName() + "` is not properly initialized!")
+				);
+			} else {
+				for (Scope scope : this.indexedInScopes) {
+					if (!theReflectedReference.isIndexedInScope(scope)) {
+						referenceErrors = Stream.concat(
+							referenceErrors,
+							Stream.of(
+								"Referenced entity type `" + referencedEntityType + "` " +
+									"is not indexed in scope `" + scope + "` " +
+									"which is used for reflected reference `" + this.getName() + "` in `" + entitySchema.getName() + "`!")
+						);
+					}
+				}
+			}
 		}
 
 		if (

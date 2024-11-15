@@ -148,7 +148,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		return new Formula[]{
-			filterByVisitor.applyOnGlobalUniqueIndex(
+			filterByVisitor.applyOnFirstGlobalUniqueIndex(
 				attributeDefinition,
 				uniqueIndex -> new NotFormula(
 					uniqueIndex.getRecordIdsFormula(filterByVisitor.getEntityType()),
@@ -240,7 +240,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 				return new AttributeFormula(
 					true,
 					attributeKey,
-					filterByVisitor.applyOnGlobalUniqueIndex(
+					filterByVisitor.applyOnFirstGlobalUniqueIndex(
 						globalAttributeSchema,
 						index -> new ConstantFormula(index.getRecordIds(filterByVisitor.getEntityType()))
 					)
@@ -249,7 +249,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 				return new AttributeFormula(
 					attributeDefinition instanceof GlobalAttributeSchemaContract,
 					attributeKey,
-					filterByVisitor.applyOnUniqueIndexes(
+					filterByVisitor.applyOnFirstUniqueIndex(
 						attributeDefinition,
 						index -> new ConstantFormula(index.getRecordIds())
 					)

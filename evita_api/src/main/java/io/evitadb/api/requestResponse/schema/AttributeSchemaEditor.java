@@ -223,13 +223,13 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different locales.
 	 *
 	 * This method makes attribute unique within locale only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will
-	 * not be unique by this attribute unless explicitly set via {@link #uniqueWithinLocale(Scope...)}.
+	 * not be unique by this attribute unless explicitly set via {@link #uniqueWithinLocaleInScope(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T uniqueWithinLocale() {
-		return uniqueWithinLocale(Scope.DEFAULT_SCOPE);
+		return uniqueWithinLocaleInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -250,7 +250,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T uniqueWithinLocale(@Nonnull Scope... inScope);
+	T uniqueWithinLocaleInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * Makes attribute values not unique among other values in particular locale in all scopes. This method resets all

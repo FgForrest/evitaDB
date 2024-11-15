@@ -27,6 +27,7 @@ package io.evitadb.api;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
@@ -62,6 +63,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * This test verifies archiving (changing scope) of the entities.
@@ -82,6 +84,72 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
 
 	private Evita evita;
+
+	@Nullable
+	private static EntityReference queryOne(@Nonnull EvitaSessionContract session, int entityPrimaryKey, @Nonnull Scope... scope) {
+		return session.queryOne(
+			Query.query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(entityPrimaryKey)
+				),
+				require(
+					scope(scope)
+				)
+			),
+			EntityReference.class
+		).orElse(null);
+	}
+
+	@Nonnull
+	private static List<Integer> queryList(@Nonnull EvitaSessionContract session, @Nonnull Scope... scope) {
+		return session.queryList(
+				Query.query(
+					collection(Entities.PRODUCT),
+					require(
+						scope(scope)
+					)
+				),
+				EntityReference.class
+			)
+			.stream()
+			.map(EntityReference::getPrimaryKey)
+			.toList();
+	}
+
+	@Nonnull
+	private static List<Integer> queryPage(@Nonnull EvitaSessionContract session, @Nonnull Scope... scope) {
+		return session.query(
+				Query.query(
+					collection(Entities.PRODUCT),
+					require(
+						page(1, Integer.MAX_VALUE),
+						scope(scope)
+					)
+				),
+				EntityReference.class
+			)
+			.getRecordData()
+			.stream()
+			.map(EntityReference::getPrimaryKey)
+			.toList();
+	}
+
+	@Nullable
+	private static EntityReference queryOne(@Nonnull EvitaSessionContract session, @Nonnull String code, @Nonnull Scope... scope) {
+		return session.queryOne(
+			Query.query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeEquals(ATTRIBUTE_CODE, code)
+				),
+				require(
+					scope(scope)
+				)
+			),
+			EntityReference.class
+		).orElse(null);
+	}
 
 	@BeforeEach
 	void setUp() {
@@ -505,14 +573,77 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToSetUpReflectedReferencesIncompatiblyWithMainReference() {
-		// TODO JNO - Implement me
+		/* create schema for entity archival */
+		evita.defineCatalog(TEST_CATALOG)
+			.updateViaNewSession(evita);
+
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() ->
+				evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.defineEntitySchema(Entities.CATEGORY)
+							.withoutGeneratedPrimaryKey()
+							.withReflectedReferenceToEntity(
+								"products",
+								Entities.PRODUCT,
+								Entities.CATEGORY,
+								whichIs -> whichIs.indexedInScope(Scope.ARCHIVED).withAttributesInherited()
+							)
+							.updateVia(session);
+
+						session.defineEntitySchema(Entities.PRODUCT)
+							.withoutGeneratedPrimaryKey()
+							.withReferenceToEntity(
+								Entities.CATEGORY,
+								Entities.CATEGORY,
+								Cardinality.ZERO_OR_MORE,
+								thatIs -> thatIs
+									.indexedInScope(Scope.LIVE)
+									.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable().sortable())
+									.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable())
+							)
+							.updateVia(session);
+					}
+				)
+		);
+	}
+
+	@Test
+	void shouldFailToSetUpEntityWithReferenceAttributesInIncompatibleScopes() {
+		/* create schema for entity archival */
+		evita.defineCatalog(TEST_CATALOG)
+			.updateViaNewSession(evita);
+
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withReferenceToEntity(
+							Entities.CATEGORY,
+							Entities.CATEGORY,
+							Cardinality.ZERO_OR_MORE,
+							thatIs -> thatIs
+								.indexedInScope(Scope.LIVE)
+								.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.ARCHIVED))
+								.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterableInScope(Scope.ARCHIVED))
+						)
+						.updateVia(session);
+				}
+			)
+		);
+
 	}
 
 	@DisplayName("Entity reflected references should be recreated in separate scopes")
 	@Test
 	void shouldRecreateReflectedReferencesInSeparateScopes() {
 		/* create schema for entity archival */
-		final Scope[] scopes = new Scope[] {Scope.LIVE, Scope.ARCHIVED};
+		final Scope[] scopes = new Scope[]{Scope.LIVE, Scope.ARCHIVED};
 		evita.defineCatalog(TEST_CATALOG)
 			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGloballyInScope(scopes).sortableInScope(scopes))
 			.updateViaNewSession(evita);
@@ -724,8 +855,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				// check only product 101 is retrievable in live scope
-				assertNull(session.getEntity(Entities.PRODUCT, 100, new Scope[] {Scope.LIVE}, entityFetchAllContent()).orElse(null));
-				assertNotNull(session.getEntity(Entities.PRODUCT, 101, new Scope[] {Scope.LIVE}, entityFetchAllContent()).orElse(null));
+				assertNull(session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.LIVE}, entityFetchAllContent()).orElse(null));
+				assertNotNull(session.getEntity(Entities.PRODUCT, 101, new Scope[]{Scope.LIVE}, entityFetchAllContent()).orElse(null));
 				assertNull(queryOne(session, 100, Scope.LIVE));
 				assertNotNull(queryOne(session, 101, Scope.LIVE));
 				assertNull(queryOne(session, "TV-123", Scope.LIVE));
@@ -734,8 +865,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 				assertEquals(List.of(101), queryPage(session, Scope.LIVE));
 
 				// check only product 100 is retrievable in archive scope
-				assertNotNull(session.getEntity(Entities.PRODUCT, 100, new Scope[] {Scope.ARCHIVED}, entityFetchAllContent()).orElse(null));
-				assertNull(session.getEntity(Entities.PRODUCT, 101, new Scope[] {Scope.ARCHIVED}, entityFetchAllContent()).orElse(null));
+				assertNotNull(session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null));
+				assertNull(session.getEntity(Entities.PRODUCT, 101, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()).orElse(null));
 				assertNotNull(queryOne(session, 100, Scope.ARCHIVED));
 				assertNull(queryOne(session, 101, Scope.ARCHIVED));
 				assertNotNull(queryOne(session, "TV-123", Scope.ARCHIVED));
@@ -744,8 +875,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 				assertEquals(List.of(100), queryPage(session, Scope.ARCHIVED));
 
 				// check both products are retrievable in all scopes
-				assertNotNull(session.getEntity(Entities.PRODUCT, 100, new Scope[] {Scope.LIVE, Scope.ARCHIVED}, entityFetchAllContent()).orElse(null));
-				assertNotNull(session.getEntity(Entities.PRODUCT, 101, new Scope[] {Scope.LIVE, Scope.ARCHIVED}, entityFetchAllContent()).orElse(null));
+				assertNotNull(session.getEntity(Entities.PRODUCT, 100, new Scope[]{Scope.LIVE, Scope.ARCHIVED}, entityFetchAllContent()).orElse(null));
+				assertNotNull(session.getEntity(Entities.PRODUCT, 101, new Scope[]{Scope.LIVE, Scope.ARCHIVED}, entityFetchAllContent()).orElse(null));
 				assertNotNull(queryOne(session, 100, Scope.LIVE, Scope.ARCHIVED));
 				assertNotNull(queryOne(session, 101, Scope.LIVE, Scope.ARCHIVED));
 				assertNotNull(queryOne(session, "TV-123", Scope.LIVE, Scope.ARCHIVED));
@@ -801,78 +932,95 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldBeAbleToViolateUniqueConstraintsWhenEntityIsArchived() {
-		/* TODO JNO - Implement me */
-	}
-
-	@Test
-	void shouldPreferEntityInLiveScopeWhenUniqueKeyConflicts() {
-		/* TODO JNO - Implement me */
-	}
-
-	@Nullable
-	private static EntityReference queryOne(@Nonnull EvitaSessionContract session, int entityPrimaryKey, @Nonnull Scope... scope) {
-		return session.queryOne(
-			Query.query(
-				collection(Entities.PRODUCT),
-				filterBy(
-					entityPrimaryKeyInSet(entityPrimaryKey)
-				),
-				require(
-					scope(scope)
-				)
-			),
-			EntityReference.class
-		).orElse(null);
-	}
-
-	@Nonnull
-	private static List<Integer> queryList(@Nonnull EvitaSessionContract session, @Nonnull Scope... scope) {
-		return session.queryList(
-			Query.query(
-				collection(Entities.PRODUCT),
-				require(
-					scope(scope)
-				)
-			),
-			EntityReference.class
-		)
-			.stream()
-			.map(EntityReference::getPrimaryKey)
-			.toList();
-	}
-
-	@Nonnull
-	private static List<Integer> queryPage(@Nonnull EvitaSessionContract session, @Nonnull Scope... scope) {
-		return session.query(
-				Query.query(
-					collection(Entities.PRODUCT),
-					require(
-						page(1, Integer.MAX_VALUE),
-						scope(scope)
-					)
-				),
-				EntityReference.class
+		/* create schema for entity archival */
+		evita.defineCatalog(TEST_CATALOG)
+			.withAttribute(
+				ATTRIBUTE_CODE,
+				String.class,
+				thatIs -> thatIs
+					.uniqueGloballyInScope(Scope.values())
+					.sortableInScope(Scope.values())
 			)
-			.getRecordData()
-			.stream()
-			.map(EntityReference::getPrimaryKey)
-			.toList();
-	}
+			.updateViaNewSession(evita);
 
-	@Nullable
-	private static EntityReference queryOne(@Nonnull EvitaSessionContract session, @Nonnull String code, @Nonnull Scope... scope) {
-		return session.queryOne(
-			Query.query(
-				collection(Entities.PRODUCT),
-				filterBy(
-					attributeEquals(ATTRIBUTE_CODE, code)
-				),
-				require(
-					scope(scope)
-				)
-			),
-			EntityReference.class
-		).orElse(null);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withAttribute(
+						ATTRIBUTE_NAME,
+						String.class,
+						thatIs -> thatIs.localized().uniqueWithinLocaleInScope(Scope.values()))
+					.updateVia(session);
+			}
+		);
+
+		// upsert non-conflicting entities
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_CODE, "electronics")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "electronics")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 2)
+					.setAttribute(ATTRIBUTE_CODE, "TV")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.upsertVia(session);
+			}
+		);
+
+		// archive product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 1);
+			}
+		);
+
+		// upsert change unique key to conflict with archived entity and upsert it
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(Entities.PRODUCT, 2, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_CODE, "electronics")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "electronics")
+					.upsertVia(session);
+			}
+		);
+
+		// try to find entities by the conflicting unique key
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 2),
+			queryProductReferenceBy(new Scope[] { Scope.LIVE }, attributeEquals(ATTRIBUTE_CODE, "electronics"))
+		);
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 2),
+			queryProductReferenceBy(new Scope[] { Scope.LIVE }, attributeEquals(ATTRIBUTE_NAME, "electronics"), entityLocaleEquals(Locale.ENGLISH))
+		);
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 1),
+			queryProductReferenceBy(new Scope[] { Scope.ARCHIVED }, attributeEquals(ATTRIBUTE_CODE, "electronics"))
+		);
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 1),
+			queryProductReferenceBy(new Scope[] { Scope.ARCHIVED }, attributeEquals(ATTRIBUTE_NAME, "electronics"), entityLocaleEquals(Locale.ENGLISH))
+		);
+
+		// when we look for the unique key in both scopes, the engine should prefer the live entity
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 2),
+			queryProductReferenceBy(new Scope[] { Scope.LIVE, Scope.ARCHIVED }, attributeEquals(ATTRIBUTE_CODE, "electronics"))
+		);
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 2),
+			queryProductReferenceBy(new Scope[] { Scope.LIVE, Scope.ARCHIVED }, attributeEquals(ATTRIBUTE_NAME, "electronics"), entityLocaleEquals(Locale.ENGLISH))
+		);
 	}
 
 	private void createBrandAndCategoryEntities() {
@@ -918,13 +1066,13 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterableInScope(indexScope).sortableInScope(indexScope))
 					.withSortableAttributeCompound(
 						ATTRIBUTE_CODE_NAME,
-						new AttributeElement[] {
+						new AttributeElement[]{
 							new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 							new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 						},
 						whichIs -> whichIs.indexedInScope(indexScope)
 					)
-					.withPriceInCurrencyIndexedInScope(2, new Currency [] {CURRENCY_CZK, CURRENCY_EUR}, indexScope)
+					.withPriceInCurrencyIndexedInScope(2, new Currency[]{CURRENCY_CZK, CURRENCY_EUR}, indexScope)
 					.withReferenceToEntity(
 						Entities.BRAND,
 						Entities.BRAND,

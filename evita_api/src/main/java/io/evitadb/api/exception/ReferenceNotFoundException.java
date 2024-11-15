@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,10 @@ import static java.util.Optional.ofNullable;
  */
 public class ReferenceNotFoundException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -8969284548331815445L;
+
+	public ReferenceNotFoundException(@Nonnull String referenceName) {
+		super("Reference with name `" + referenceName + "` cannot be located when entity type is not known.");
+	}
 
 	public ReferenceNotFoundException(@Nonnull String referenceName, @Nonnull EntitySchemaContract entitySchema) {
 		super("Reference with name `" + referenceName + "` is not present in schema of `" + entitySchema.getName() + "` entity.");

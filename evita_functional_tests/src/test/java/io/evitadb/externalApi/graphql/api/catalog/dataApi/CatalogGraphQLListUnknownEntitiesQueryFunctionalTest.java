@@ -317,8 +317,8 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 
 	@Test
 	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
-	@DisplayName("Should return both live and archived entities explicitly")
-	void shouldReturnBothLiveAndArchivedEntitiesExplicitly(Evita evita, GraphQLTester tester) {
+	@DisplayName("Should prefer live when unique attribute is in conflict")
+	void shouldReturnPreferLiveEntitiesExplicitlyOnUniqueAttributeConflict(Evita evita, GraphQLTester tester) {
 		final SealedEntity liveEntity = getEntity(
 			evita,
 			query(
@@ -344,7 +344,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			SealedEntity.class
 		);
 
-		final var expectedBodyOfArchivedEntities = Stream.of(liveEntity, archivedEntity)
+		final var expectedBodyOfArchivedEntities = Stream.of(liveEntity)
 			.map(entity ->
 				map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())

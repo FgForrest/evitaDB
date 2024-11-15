@@ -88,7 +88,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		return new AttributeFormula(
 			true,
 			attributeKey,
-			filterByVisitor.applyOnGlobalUniqueIndex(
+			filterByVisitor.applyOnFirstGlobalUniqueIndex(
 				globalAttributeSchema,
 				index -> {
 					final EntityReferenceWithLocale[] filteredEntityMaskedIds = theComparedValues.stream()

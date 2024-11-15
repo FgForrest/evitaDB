@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownEntitiesEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.QueryHeaderFilterArgumentsJoinType;
@@ -107,8 +106,8 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 
 	@Test
 	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
-	@DisplayName("Should return both live and archived entities explicitly")
-	void shouldReturnBothLiveAndArchivedEntitiesExplicitly(Evita evita, RestTester tester) {
+	@DisplayName("Should prefer live when unique attribute is in conflict")
+	void shouldReturnPreferLiveEntitiesExplicitlyOnUniqueAttributeConflict(Evita evita, RestTester tester) {
 		final List<SealedEntity> liveEntities = getEntities(
 			evita,
 			query(
@@ -134,7 +133,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			SealedEntity.class
 		);
 
-		final var expectedBodyOfArchivedEntities = Stream.concat(liveEntities.stream(), archivedEntities.stream())
+		final var expectedBodyOfArchivedEntities = liveEntities.stream()
 			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))
 			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
 			.toList();
