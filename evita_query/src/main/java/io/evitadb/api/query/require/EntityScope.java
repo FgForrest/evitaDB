@@ -61,7 +61,7 @@ import java.util.EnumSet;
 @ConstraintDefinition(
 	name = "scope",
 	shortDescription = "Constraint can be used to control the scope of the entity search. It has single vararg argument that accepts one or more scopes where the entity should be searched",
-	userDocsLink = "/documentation/query/requirements/fetching#scope" // TODO JNO: revise path when documentation is ready
+	userDocsLink = "/documentation/query/filtering/behavioral#scope"
 )
 public class EntityScope extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -7172389493449298316L;
