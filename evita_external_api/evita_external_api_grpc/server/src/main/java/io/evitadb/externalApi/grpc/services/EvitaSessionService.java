@@ -30,10 +30,8 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.query.Query;
-import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.EntityScope;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -60,13 +58,13 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.StripList;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsBuilder;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
@@ -92,7 +90,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -747,33 +744,22 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			session -> {
 				final String require = request.getRequire();
 				final Optional<SealedEntity> entity;
-				final List<RequireConstraint> requireConstraints = require.isEmpty() ?
-					List.of() :
-					QueryUtil.parseRequireContents(
+				final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
+					new EntityContentRequire[0] :
+					QueryUtil.parseEntityRequiredContents(
 						request.getRequire(),
 						request.getPositionalQueryParamsList(),
 						request.getNamedQueryParamsMap(),
 						responseObserver
 					);
+				final Scope[] scopes = request.getScopesList()
+					.stream()
+					.map(EvitaEnumConverter::toScope)
+					.toArray(Scope[]::new);
 
-				Set<Scope> scopes = null;
-				final List<EntityContentRequire> entityContentRequires = new ArrayList<>();
-				for (RequireConstraint requireConstraint : requireConstraints) {
-					if (requireConstraint instanceof EntityFetch entityFetch) {
-						entityContentRequires.addAll(Arrays.asList(entityFetch.getRequirements()));
-					} else if (requireConstraint instanceof EntityContentRequire entityContentRequire) {
-						entityContentRequires.add(entityContentRequire);
-					} else if (requireConstraint instanceof EntityScope entityScope) {
-						scopes = entityScope.getScope();
-					} else {
-						throw new EvitaInvalidUsageException("Only content require constraints and scopes are supported.");
-					}
-				}
-
-				final EntityContentRequire[] entityContentRequireArray = entityContentRequires.toArray(EntityContentRequire[]::new);
-				entity = scopes == null ?
-					session.getEntity(request.getEntityType(), request.getPrimaryKey(), entityContentRequireArray) :
-					session.getEntity(request.getEntityType(), request.getPrimaryKey(), scopes.toArray(Scope[]::new), entityContentRequireArray);
+				entity = scopes.length == 0 ?
+					session.getEntity(request.getEntityType(), request.getPrimaryKey(), entityContentRequires) :
+					session.getEntity(request.getEntityType(), request.getPrimaryKey(), scopes, entityContentRequires);
 				final GrpcEntityResponse.Builder evitaEntityResponseBuilder = GrpcEntityResponse.newBuilder();
 				entity.ifPresent(it -> evitaEntityResponseBuilder.setEntity(EntityConverter.toGrpcSealedEntity(it)));
 				responseObserver.onNext(evitaEntityResponseBuilder.build());

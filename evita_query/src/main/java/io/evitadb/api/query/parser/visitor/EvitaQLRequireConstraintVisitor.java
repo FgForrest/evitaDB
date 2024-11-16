@@ -36,7 +36,6 @@ import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.api.query.require.*;
-import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -109,7 +108,6 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		String[].class,
 		Iterable.class
 	);
-	protected final EvitaQLValueTokenVisitor scopeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(Scope.class);
 
 	@Nonnull
 	private static ManagedReferencesBehaviour toManagedReferencesBehaviour(@Nonnull Serializable arg) {
@@ -1996,14 +1994,6 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	@Override
 	public RequireConstraint visitQueryTelemetryConstraint(@Nonnull QueryTelemetryConstraintContext ctx) {
 		return parse(ctx, QueryTelemetry::new);
-	}
-
-	@Override
-	public RequireConstraint visitEntityScopeConstraint(EntityScopeConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> new EntityScope(ctx.args.variadicValueTokens().accept(scopeValueTokenVisitor).asEnumArray(Scope.class))
-		);
 	}
 
 	@Nonnull

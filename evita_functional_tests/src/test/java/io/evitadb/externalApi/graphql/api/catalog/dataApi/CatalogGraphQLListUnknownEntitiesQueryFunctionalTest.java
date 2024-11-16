@@ -275,10 +275,12 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 2),
-					entityFetch(attributeContent(ATTRIBUTE_CODE)),
-					scope(Scope.ARCHIVED)
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),
 			SealedEntity.class
@@ -323,10 +325,12 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.LIVE)
+				),
 				require(
 					page(1, 1),
-					entityFetch(attributeContent(ATTRIBUTE_CODE)),
-					scope(Scope.LIVE)
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),
 			SealedEntity.class
@@ -335,10 +339,12 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 1),
-					entityFetch(attributeContent(ATTRIBUTE_CODE)),
-					scope(Scope.ARCHIVED)
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),
 			SealedEntity.class
@@ -382,10 +388,12 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 1),
-					entityFetch(attributeContent(ATTRIBUTE_CODE)),
-					scope(Scope.ARCHIVED)
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),
 			SealedEntity.class

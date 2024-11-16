@@ -42,7 +42,6 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -57,7 +56,6 @@ import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
-import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -77,10 +75,12 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 1),
-					entityFetch(attributeContent(ATTRIBUTE_CODE)),
-					scope(Scope.ARCHIVED)
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),
 			SealedEntity.class
@@ -105,10 +105,12 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 1),
-					entityFetch(attributeContent(ATTRIBUTE_CODE)),
-					scope(Scope.ARCHIVED)
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),
 			SealedEntity.class

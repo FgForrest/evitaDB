@@ -184,10 +184,12 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 1),
-					entityFetch(),
-					scope(Scope.ARCHIVED)
+					entityFetch()
 				)
 			),
 			SealedEntity.class
@@ -227,10 +229,12 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 1),
-					entityFetch(),
-					scope(Scope.ARCHIVED)
+					entityFetch()
 				)
 			),
 			SealedEntity.class

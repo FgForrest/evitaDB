@@ -165,6 +165,8 @@ message GrpcEntityRequest {
   repeated GrpcQueryParam positionalQueryParams = 4;
   // The named query parameters.
   map<string, GrpcQueryParam> namedQueryParams = 5;
+  // The set of scopes to search for the entity.
+  repeated GrpcEntityScope scopes = 6;
 }
 
 // Response to GetEntity request.

@@ -170,6 +170,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		TRANSLATORS.put(HierarchyWithinRoot.class, new HierarchyWithinRootTranslator());
 		TRANSLATORS.put(FacetHaving.class, new FacetHavingTranslator());
 		TRANSLATORS.put(UserFilter.class, new UserFilterTranslator());
+		TRANSLATORS.put(EntityScope.class, FilteringConstraintTranslator.noOpTranslator());
 
 		CONJUNCTIVE_FORMULAS = new HashSet<>();
 		CONJUNCTIVE_FORMULAS.add(AndFormula.class);

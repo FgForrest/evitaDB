@@ -27,7 +27,7 @@ import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
-import io.evitadb.api.query.require.EntityScope;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;

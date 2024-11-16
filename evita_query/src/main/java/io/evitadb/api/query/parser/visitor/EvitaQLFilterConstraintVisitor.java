@@ -29,7 +29,9 @@ import io.evitadb.api.query.parser.Value;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeInRangeNowConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityScopeConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -91,7 +93,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	protected final EvitaQLValueTokenVisitor localeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Locale.class);
 	protected final EvitaQLValueTokenVisitor currencyValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Currency.class);
 	protected final EvitaQLValueTokenVisitor attributeSpecialValueValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(AttributeSpecialValue.class);
-
+	protected final EvitaQLValueTokenVisitor scopeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(Scope.class);
 
 	@Override
 	public FilterConstraint visitFilterByConstraint(@Nonnull EvitaQLParser.FilterByConstraintContext ctx) {
@@ -616,6 +618,14 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new EntityHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+		);
+	}
+
+	@Override
+	public FilterConstraint visitEntityScopeConstraint(EntityScopeConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new EntityScope(ctx.args.variadicValueTokens().accept(scopeValueTokenVisitor).asEnumArray(Scope.class))
 		);
 	}
 }

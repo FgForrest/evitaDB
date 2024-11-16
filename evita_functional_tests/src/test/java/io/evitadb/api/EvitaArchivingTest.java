@@ -91,9 +91,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			Query.query(
 				collection(Entities.PRODUCT),
 				filterBy(
-					entityPrimaryKeyInSet(entityPrimaryKey)
-				),
-				require(
+					entityPrimaryKeyInSet(entityPrimaryKey),
 					scope(scope)
 				)
 			),
@@ -106,7 +104,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		return session.queryList(
 				Query.query(
 					collection(Entities.PRODUCT),
-					require(
+					filterBy(
 						scope(scope)
 					)
 				),
@@ -122,9 +120,11 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		return session.query(
 				Query.query(
 					collection(Entities.PRODUCT),
-					require(
-						page(1, Integer.MAX_VALUE),
+					filterBy(
 						scope(scope)
+					),
+					require(
+						page(1, Integer.MAX_VALUE)
 					)
 				),
 				EntityReference.class
@@ -141,9 +141,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			Query.query(
 				collection(Entities.PRODUCT),
 				filterBy(
-					attributeEquals(ATTRIBUTE_CODE, code)
-				),
-				require(
+					attributeEquals(ATTRIBUTE_CODE, code),
 					scope(scope)
 				)
 			),
@@ -769,10 +767,10 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					Query.query(
 						collection(Entities.CATEGORY),
 						filterBy(
+							scope(Scope.ARCHIVED),
 							entityPrimaryKeyInSet(2)
 						),
 						require(
-							scope(Scope.ARCHIVED),
 							entityFetchAll()
 						)
 					),
@@ -1149,8 +1147,13 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 				return session.queryOne(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(filterBy),
-						ArrayUtils.isEmptyOrItsValuesNull(scope) ? null : require(scope(scope))
+						filterBy(
+							ArrayUtils.mergeArrays(
+								filterBy,
+								ArrayUtils.isEmptyOrItsValuesNull(scope) ?
+									new FilterConstraint[0] : new FilterConstraint[] { scope(scope) }
+							)
+						)
 					).normalizeQuery(),
 					EntityReference.class
 				);

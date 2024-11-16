@@ -42,7 +42,6 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.Require;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
@@ -139,10 +138,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetch;
-import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.extractEntityTypeFromClass;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toOffsetDateTime;
@@ -663,20 +659,22 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, @Nonnull Scope[] scopes, EntityContentRequire... require) {
 		isTrue(scopes.length > 0, "At least one scope must be provided!");
 
-		final Require fullRequirements = require(
-			entityFetch(require),
-			scope(scopes)
-		);
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
-				fullRequirements
+				filterBy(
+					entityPrimaryKeyInSet(primaryKey),
+					scope(scopes)
+				),
+				require(
+					entityFetch(require)
+				)
 			),
 			OffsetDateTime.now(),
 			SealedEntity.class,
 			null
 		);
-		return getEntityInternal(entityType, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER, primaryKey, evitaRequest, fullRequirements.getChildren());
+		return getEntityInternal(entityType, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER, primaryKey, evitaRequest, require);
 	}
 
 	@Nonnull
@@ -1653,7 +1651,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final GrpcEntityRequest.Builder requestBuilder = GrpcEntityRequest
 			.newBuilder()
 			.setEntityType(entityType)
-			.setPrimaryKey(primaryKey);
+			.setPrimaryKey(primaryKey)
+			.addAllScopes(
+				evitaRequest.getScopes()
+					.stream()
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			);
 		if (require != null) {
 			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
 			requestBuilder

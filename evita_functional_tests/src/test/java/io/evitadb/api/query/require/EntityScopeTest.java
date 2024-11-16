@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 

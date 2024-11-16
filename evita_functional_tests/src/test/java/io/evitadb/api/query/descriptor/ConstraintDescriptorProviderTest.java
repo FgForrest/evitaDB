@@ -134,7 +134,7 @@ class ConstraintDescriptorProviderTest {
 
 	@Test
 	void shouldFindAllConstraintsForSpecificType() {
-		assertEquals(37, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size());
+		assertEquals(38, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size());
 		assertEquals(18, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size());
 	}
 

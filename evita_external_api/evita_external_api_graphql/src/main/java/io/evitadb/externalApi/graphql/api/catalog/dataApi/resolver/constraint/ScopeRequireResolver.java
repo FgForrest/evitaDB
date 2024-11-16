@@ -25,17 +25,13 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.dataType.Scope;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.DataChunkFieldHeaderDescriptor;
+import io.evitadb.api.query.filter.EntityScope;
 
 import javax.annotation.Nonnull;
-import java.util.List;
 import java.util.Optional;
 
-import static io.evitadb.api.query.QueryConstraints.scope;
-
 /**
- * Resolves {@link io.evitadb.api.query.require.EntityScope} constraint from data chunk output fields
+ * Resolves {@link EntityScope} constraint from data chunk output fields
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
@@ -44,8 +40,10 @@ public class ScopeRequireResolver {
 	@Nonnull
 	public Optional<RequireConstraint> resolve(@Nonnull SelectedField recordField) {
 		//noinspection unchecked
-		final List<Scope> requestedScopes = (List<Scope>) recordField.getArguments().get(DataChunkFieldHeaderDescriptor.SCOPE.name());
+		// TODO LHO - nekompiluje pro přesunu scopes do filtru
+		/*final List<Scope> requestedScopes = (List<Scope>) recordField.getArguments().get(DataChunkFieldHeaderDescriptor.SCOPE.name());
 		return Optional.ofNullable(requestedScopes)
-			.map(scopes -> scope(requestedScopes.toArray(Scope[]::new)));
+			.map(scopes -> scope(requestedScopes.toArray(Scope[]::new)));*/
+		return Optional.empty();
 	}
 }

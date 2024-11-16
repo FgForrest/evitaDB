@@ -38,7 +38,6 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
-import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -2954,34 +2953,6 @@ class EvitaQLRequireConstraintVisitorTest {
 	void shouldNotParseQueryTelemetryConstraint() {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("queryTelemetry"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("queryTelemetry('a','b')"));
-	}
-
-	@Test
-	void shouldParseScopeConstraint() {
-		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("scope(LIVE)");
-		assertEquals(scope(Scope.LIVE), constraint1);
-
-		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("scope ( LIVE )");
-		assertEquals(scope(Scope.LIVE), constraint2);
-
-		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("scope ( ARCHIVED )");
-		assertEquals(scope(Scope.ARCHIVED), constraint3);
-
-		final RequireConstraint constraint4 = parseRequireConstraintUnsafe("scope ( ARCHIVED,    LIVE )");
-		assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), constraint4);
-
-		final RequireConstraint constraint5 = parseRequireConstraint("scope ( ?,    ? )", Scope.ARCHIVED, Scope.LIVE);
-		assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), constraint5);
-
-		final RequireConstraint constraint = parseRequireConstraint("scope ( @a,    @b )", Map.of("a", Scope.ARCHIVED, "b", Scope.LIVE));
-		assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), constraint);
-	}
-
-	@Test
-	void shouldNotParseScopeConstraint() {
-		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("scope"));
-		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("scope(LIVE)"));
-		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("scope('a','b')"));
 	}
 
 	/**

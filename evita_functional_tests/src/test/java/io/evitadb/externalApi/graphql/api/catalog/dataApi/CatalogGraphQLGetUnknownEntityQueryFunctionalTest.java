@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -238,10 +237,12 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 1),
-					entityFetch(attributeContent(ATTRIBUTE_CODE)),
-					scope(Scope.ARCHIVED)
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),
 			SealedEntity.class
@@ -282,10 +283,12 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 1),
-					entityFetch(attributeContent(ATTRIBUTE_CODE)),
-					scope(Scope.ARCHIVED)
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),
 			SealedEntity.class

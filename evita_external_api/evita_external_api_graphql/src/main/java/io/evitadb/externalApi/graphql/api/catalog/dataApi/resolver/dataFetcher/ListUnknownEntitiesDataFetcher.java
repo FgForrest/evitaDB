@@ -232,7 +232,8 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
             requireConstraints.add(strip(0, arguments.limit()));
         }
 
-        requireConstraints.add(scope(arguments.scopes()));
+        // TODO LHO - nekompiluje pro přesunu scopes do filtru
+        /*requireConstraints.add(scope(arguments.scopes()));*/
 
         return require(
             requireConstraints.toArray(RequireConstraint[]::new)

@@ -69,7 +69,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.api.query.QueryConstraints.strip;
 
 /**
@@ -189,9 +188,10 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             );
         }
 
-        if (arguments.scopes() != null) {
+        // TODO LHO - nekompiluje pro přesunu scopes do filtru
+        /*if (arguments.scopes() != null) {
             requireConstraints.add(scope(arguments.scopes()));
-        }
+        }*/
 
         return require(
             requireConstraints.toArray(RequireConstraint[]::new)

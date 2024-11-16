@@ -82,6 +82,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
@@ -91,7 +92,6 @@ import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static org.hamcrest.Matchers.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -166,10 +166,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 2),
-					entityFetch(),
-					scope(Scope.ARCHIVED)
+					entityFetch()
 				)
 			),
 			SealedEntity.class
@@ -208,10 +210,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.LIVE)
+				),
 				require(
 					page(1, 2),
-					entityFetch(),
-					scope(Scope.LIVE)
+					entityFetch()
 				)
 			),
 			SealedEntity.class
@@ -220,10 +224,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 2),
-					entityFetch(),
-					scope(Scope.ARCHIVED)
+					entityFetch()
 				)
 			),
 			SealedEntity.class
@@ -265,10 +271,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			evita,
 			query(
 				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
 				require(
 					page(1, 1),
-					entityFetch(),
-					scope(Scope.ARCHIVED)
+					entityFetch()
 				)
 			),
 			SealedEntity.class

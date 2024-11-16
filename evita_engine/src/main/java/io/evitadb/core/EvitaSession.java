@@ -566,9 +566,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
-				require(
-					entityFetch(require),
+				filterBy(
+					entityPrimaryKeyInSet(primaryKey),
 					scope(scopes)
+				),
+				require(
+					entityFetch(require)
 				)
 			),
 			OffsetDateTime.now(),

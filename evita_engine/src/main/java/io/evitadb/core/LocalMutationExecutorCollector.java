@@ -59,10 +59,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
-import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation.computeLocalMutationsForEntityRemoval;
 
 /**
@@ -129,10 +126,8 @@ class LocalMutationExecutorCollector {
 			final EvitaRequest evitaRequest = new EvitaRequest(
 				Query.query(
 					collection(entityType),
-					require(
-						scope(Scope.LIVE, Scope.ARCHIVED),
-						entityFetchAll()
-					)
+					filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+					require(entityFetchAll())
 				),
 				OffsetDateTime.now(),
 				Entity.class,

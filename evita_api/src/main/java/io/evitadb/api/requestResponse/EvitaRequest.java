@@ -30,6 +30,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
@@ -926,7 +927,7 @@ public class EvitaRequest {
 	@Nonnull
 	public EnumSet<Scope> getScopes() {
 		if (this.scopes == null) {
-			this.scopes = ofNullable(QueryUtils.findRequire(this.query, EntityScope.class))
+			this.scopes = ofNullable(QueryUtils.findFilter(this.query, EntityScope.class))
 				.map(EntityScope::getScope)
 				.orElse(DEFAULT_SCOPES);
 		}

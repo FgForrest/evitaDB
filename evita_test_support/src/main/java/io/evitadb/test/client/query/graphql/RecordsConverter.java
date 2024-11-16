@@ -24,8 +24,8 @@
 package io.evitadb.test.client.query.graphql;
 
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.EntityScope;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;

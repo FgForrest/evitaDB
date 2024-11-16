@@ -81,6 +81,7 @@ filterConstraint
     | 'excludingRoot'                       emptyArgs                                                       # hierarchyExcludingRootConstraint
     | 'excluding'                           args = filterConstraintListArgs                                 # hierarchyExcludingConstraint
     | 'entityHaving'                        args = filterConstraintArgs                                     # entityHavingConstraint
+    | 'scope'                               args = valueListArgs                                            # entityScopeConstraint
     ;
 
 orderConstraint
@@ -183,7 +184,6 @@ requireConstraint
     | 'hierarchyOfReference'                args = fullHierarchyOfReferenceArgs                             # fullHierarchyOfReferenceConstraint
     | 'hierarchyOfReference'                args = fullHierarchyOfReferenceWithBehaviourArgs                # fullHierarchyOfReferenceWithBehaviourConstraint
     | 'queryTelemetry'                      emptyArgs                                                       # queryTelemetryConstraint
-    | 'scope'                               args = valueListArgs                                            # entityScopeConstraint
     ;
 
 headConstraintList : constraints += headConstraint (ARGS_DELIMITER constraints += headConstraint)* ;

@@ -2170,10 +2170,10 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 					Query.query(
 						collection(Entities.CATEGORY),
 						filterBy(
+							scope(Scope.ARCHIVED),
 							entityPrimaryKeyInSet(2)
 						),
 						require(
-							scope(Scope.ARCHIVED),
 							entityFetchAll()
 						)
 					),

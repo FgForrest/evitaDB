@@ -33,10 +33,8 @@ import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.Require;
-import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ScopeAwareEndpointHeaderDescriptor;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -50,7 +48,6 @@ import java.util.Map;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
 import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.query.QueryConstraints.scope;
 
 /**
  * Creates {@link Require} constraint for Evita query from request parameters
@@ -74,10 +71,11 @@ public class RequireConstraintFromRequestQueryBuilder {
 			requireConstraints.add(entityFetch(contentRequires));
 		}
 
-		final Scope[] scopes = (Scope[]) parameters.get(ScopeAwareEndpointHeaderDescriptor.SCOPE.name());
+		// TODO LHO - nekompiluje pro přesunu scopes do filtru
+		/*final Scope[] scopes = (Scope[]) parameters.get(ScopeAwareEndpointHeaderDescriptor.SCOPE.name());
 		if (scopes != null) {
 			requireConstraints.add(scope(scopes));
-		}
+		}*/
 
 		if (requireConstraints.isEmpty()) {
 			return null;
