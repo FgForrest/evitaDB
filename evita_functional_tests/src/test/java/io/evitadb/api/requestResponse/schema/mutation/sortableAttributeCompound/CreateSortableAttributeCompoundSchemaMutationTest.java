@@ -50,8 +50,6 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * This test verifies {@link CreateSortableAttributeCompoundSchemaMutation} class.
  *
- * TODO JNO - DOPSAT TEST PRO SET COMPOUND INDEXED MUTACI, a asi i chybí testy na mutace pro reflected reference a možná i další nové mutace
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class CreateSortableAttributeCompoundSchemaMutationTest {

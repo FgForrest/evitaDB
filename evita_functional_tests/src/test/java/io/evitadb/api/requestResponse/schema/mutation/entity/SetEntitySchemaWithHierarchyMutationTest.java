@@ -42,7 +42,7 @@ public class SetEntitySchemaWithHierarchyMutationTest {
 
 	@Test
 	void shouldOverrideHierarchySettingsOfPreviousMutationIfNamesMatch() {
-		SetEntitySchemaWithHierarchyMutation mutation = new SetEntitySchemaWithHierarchyMutation(true, new Scope[] { Scope.LIVE });
+		SetEntitySchemaWithHierarchyMutation mutation = new SetEntitySchemaWithHierarchyMutation(true, Scope.values());
 		SetEntitySchemaWithHierarchyMutation existingMutation = new SetEntitySchemaWithHierarchyMutation(false, Scope.NO_SCOPE);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
@@ -51,11 +51,12 @@ public class SetEntitySchemaWithHierarchyMutationTest {
 		assertNotNull(result.current());
 		assertInstanceOf(SetEntitySchemaWithHierarchyMutation.class, result.current()[0]);
 		assertTrue(((SetEntitySchemaWithHierarchyMutation) result.current()[0]).isWithHierarchy());
+		assertArrayEquals(Scope.values(), ((SetEntitySchemaWithHierarchyMutation) result.current()[0]).getIndexedInScopes());
 	}
 
 	@Test
 	void shouldMutateEntitySchema() {
-		SetEntitySchemaWithHierarchyMutation mutation = new SetEntitySchemaWithHierarchyMutation(true, new Scope[] { Scope.LIVE });
+		SetEntitySchemaWithHierarchyMutation mutation = new SetEntitySchemaWithHierarchyMutation(true, Scope.values());
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.version()).thenReturn(1);
 		final EntitySchemaContract newEntitySchema = mutation.mutate(
@@ -64,6 +65,7 @@ public class SetEntitySchemaWithHierarchyMutationTest {
 		);
 		assertEquals(2, newEntitySchema.version());
 		assertTrue(newEntitySchema.isWithHierarchy());
+		assertArrayEquals(Scope.values(), newEntitySchema.getHierarchyIndexedInScopes().toArray(Scope[]::new));
 	}
 
 }

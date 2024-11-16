@@ -108,8 +108,8 @@ public class SetSortableAttributeCompoundIndexedMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifySortableAttributeCompoundSchemaNameMutation theExistingMutation &&
-			name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetSortableAttributeCompoundIndexedMutation theExistingMutation &&
+			this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;

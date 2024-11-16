@@ -39,6 +39,8 @@ import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.util.Map;
+
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
@@ -53,9 +55,17 @@ class SetAttributeSchemaUniqueMutationTest {
 	@Test
 	void shouldOverrideUniqueOfPreviousGlobalAttributeMutationIfNamesMatch() {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
-			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
-		SetAttributeSchemaUniqueMutation existingMutation = new SetAttributeSchemaUniqueMutation(ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE);
+		SetAttributeSchemaUniqueMutation existingMutation = new SetAttributeSchemaUniqueMutation(
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE)
+			}
+		);
 		final CatalogSchemaContract entitySchema = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingGlobalAttributeSchema()));
 		final MutationCombinationResult<LocalCatalogSchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation);
@@ -64,12 +74,21 @@ class SetAttributeSchemaUniqueMutationTest {
 		assertNotNull(result.current());
 		assertInstanceOf(SetAttributeSchemaUniqueMutation.class, result.current()[0]);
 		assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, ((SetAttributeSchemaUniqueMutation) result.current()[0]).getUnique());
+		assertArrayEquals(
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			},
+			((SetAttributeSchemaUniqueMutation) result.current()[0]).getUniqueInScopes()
+		);
 	}
 
 	@Test
 	void shouldLeaveBothMutationsIfTheNameOfNewGlobalAttributeMutationDoesntMatch() {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
-			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
 		SetAttributeSchemaUniqueMutation existingMutation = new SetAttributeSchemaUniqueMutation("differentName", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE);
 		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), existingMutation));
@@ -78,9 +97,17 @@ class SetAttributeSchemaUniqueMutationTest {
 	@Test
 	void shouldOverrideUniqueOfPreviousMutationIfNamesMatch() {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
-			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
-		SetAttributeSchemaUniqueMutation existingMutation = new SetAttributeSchemaUniqueMutation(ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE);
+		SetAttributeSchemaUniqueMutation existingMutation = new SetAttributeSchemaUniqueMutation(
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE)
+			}
+		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingEntityAttributeSchema()));
 		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
@@ -89,12 +116,21 @@ class SetAttributeSchemaUniqueMutationTest {
 		assertNotNull(result.current());
 		assertInstanceOf(SetAttributeSchemaUniqueMutation.class, result.current()[0]);
 		assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, ((SetAttributeSchemaUniqueMutation) result.current()[0]).getUnique());
+		assertArrayEquals(
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			},
+			((SetAttributeSchemaUniqueMutation) result.current()[0]).getUniqueInScopes()
+		);
 	}
 
 	@Test
 	void shouldLeaveBothMutationsIfTheNameOfNewMutationDoesntMatch() {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
-			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
 		SetAttributeSchemaUniqueMutation existingMutation = new SetAttributeSchemaUniqueMutation("differentName", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE);
 		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation));
@@ -103,29 +139,46 @@ class SetAttributeSchemaUniqueMutationTest {
 	@Test
 	void shouldMutateGlobalAttributeSchema() {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
-			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
 		final GlobalAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingGlobalAttributeSchema(), GlobalAttributeSchemaContract.class);
 		assertNotNull(mutatedSchema);
 		assertTrue(mutatedSchema.isUnique());
 		assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, mutatedSchema.getUniquenessType());
+		assertEquals(
+			Map.of(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION),
+			mutatedSchema.getUniquenessTypeInScopes()
+		);
 	}
 
 	@Test
 	void shouldMutateEntityAttributeSchema() {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
-			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
 		final EntityAttributeSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), createExistingEntityAttributeSchema(), EntityAttributeSchemaContract.class);
 		assertNotNull(mutatedSchema);
 		assertTrue(mutatedSchema.isUnique());
 		assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, mutatedSchema.getUniquenessType());
+		assertEquals(
+			Map.of(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION),
+			mutatedSchema.getUniquenessTypeInScopes()
+		);
 	}
 
 	@Test
 	void shouldMutateCatalogSchema() {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
-			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
 		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchemaContract.class);
 		Mockito.when(catalogSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingGlobalAttributeSchema()));
@@ -139,12 +192,19 @@ class SetAttributeSchemaUniqueMutationTest {
 		final GlobalAttributeSchemaContract mutatedSchema = newCatalogSchema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
 		assertTrue(mutatedSchema.isUnique());
 		assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, mutatedSchema.getUniquenessType());
+		assertEquals(
+			Map.of(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION),
+			mutatedSchema.getUniquenessTypeInScopes()
+		);
 	}
 
 	@Test
 	void shouldMutateEntitySchema() {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
-			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingEntityAttributeSchema()));
@@ -157,12 +217,19 @@ class SetAttributeSchemaUniqueMutationTest {
 		final AttributeSchemaContract mutatedSchema = newEntitySchema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
 		assertTrue(mutatedSchema.isUnique());
 		assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, mutatedSchema.getUniquenessType());
+		assertEquals(
+			Map.of(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION),
+			mutatedSchema.getUniquenessTypeInScopes()
+		);
 	}
 
 	@Test
 	void shouldMutateReferenceSchema() {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
-			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
 		final EntitySchemaContract mockedEntitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(mockedEntitySchema.getName()).thenReturn("mockedEntitySchema");
@@ -178,12 +245,19 @@ class SetAttributeSchemaUniqueMutationTest {
 		final AttributeSchemaContract newAttributeSchema = mutatedSchema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
 		assertTrue(newAttributeSchema.isUnique());
 		assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, newAttributeSchema.getUniquenessType());
+		assertEquals(
+			Map.of(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION),
+			newAttributeSchema.getUniquenessTypeInScopes()
+		);
 	}
 
 	@Test
 	void shouldFailMutateReferenceSchemaIfNotIndexed() {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
-			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
 		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingAttributeSchema()));
@@ -201,7 +275,10 @@ class SetAttributeSchemaUniqueMutationTest {
 	@Test
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithNonExistingAttribute() {
 		SetAttributeSchemaUniqueMutation mutation = new SetAttributeSchemaUniqueMutation(
-			ATTRIBUTE_NAME, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			ATTRIBUTE_NAME,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
 		assertThrows(
 			InvalidSchemaMutationException.class,

@@ -42,7 +42,7 @@ public class SetEntitySchemaWithPriceMutationTest {
 
 	@Test
 	void shouldOverridePriceSettingsOfPreviousMutationIfNamesMatch() {
-		SetEntitySchemaWithPriceMutation mutation = new SetEntitySchemaWithPriceMutation(true, new Scope[] { Scope.LIVE },2);
+		SetEntitySchemaWithPriceMutation mutation = new SetEntitySchemaWithPriceMutation(true, Scope.values(),2);
 		SetEntitySchemaWithPriceMutation existingMutation = new SetEntitySchemaWithPriceMutation(false, Scope.NO_SCOPE,0);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
@@ -52,11 +52,12 @@ public class SetEntitySchemaWithPriceMutationTest {
 		assertInstanceOf(SetEntitySchemaWithPriceMutation.class, result.current()[0]);
 		assertTrue(((SetEntitySchemaWithPriceMutation) result.current()[0]).isWithPrice());
 		assertEquals(2, ((SetEntitySchemaWithPriceMutation) result.current()[0]).getIndexedPricePlaces());
+		assertArrayEquals(Scope.values(), ((SetEntitySchemaWithPriceMutation) result.current()[0]).getIndexedInScopes());
 	}
 
 	@Test
 	void shouldMutateEntitySchema() {
-		SetEntitySchemaWithPriceMutation mutation = new SetEntitySchemaWithPriceMutation(true, new Scope[] { Scope.LIVE },2);
+		SetEntitySchemaWithPriceMutation mutation = new SetEntitySchemaWithPriceMutation(true, Scope.values(),2);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.version()).thenReturn(1);
 		final EntitySchemaContract newEntitySchema = mutation.mutate(
@@ -66,6 +67,7 @@ public class SetEntitySchemaWithPriceMutationTest {
 		assertEquals(2, newEntitySchema.version());
 		assertTrue(newEntitySchema.isWithPrice());
 		assertEquals(2, newEntitySchema.getIndexedPricePlaces());
+		assertArrayEquals(Scope.values(), newEntitySchema.getPriceIndexedInScopes().toArray(Scope[]::new));
 	}
 
 }

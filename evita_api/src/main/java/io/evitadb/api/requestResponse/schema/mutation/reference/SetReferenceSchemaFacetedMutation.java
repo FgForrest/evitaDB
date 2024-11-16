@@ -116,7 +116,7 @@ public class SetReferenceSchemaFacetedMutation
 				return reflectedReferenceSchema.withFaceted(this.facetedInScopes);
 			}
 		} else {
-			if (referenceSchema.getFacetedInScopes().equals(facetedScopes)) {
+			if (facetedScopes.containsAll(referenceSchema.getFacetedInScopes()) && facetedScopes.size() == referenceSchema.getFacetedInScopes().size()) {
 				return referenceSchema;
 			} else {
 				return ReferenceSchema._internalBuild(

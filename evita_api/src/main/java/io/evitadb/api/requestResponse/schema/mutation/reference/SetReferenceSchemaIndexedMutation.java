@@ -120,7 +120,7 @@ public class SetReferenceSchemaIndexedMutation
 				return reflectedReferenceSchema.withIndexed(this.indexedInScopes);
 			}
 		} else {
-			if (referenceSchema.getIndexedInScopes().equals(indexedScopes)) {
+			if (indexedScopes.containsAll(referenceSchema.getIndexedInScopes()) && indexedScopes.size() == referenceSchema.getIndexedInScopes().size()) {
 				// schema is already indexed
 				return referenceSchema;
 			} else {

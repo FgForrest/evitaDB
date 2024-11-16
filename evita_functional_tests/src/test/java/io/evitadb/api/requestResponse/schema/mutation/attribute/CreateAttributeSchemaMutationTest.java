@@ -187,7 +187,8 @@ class CreateAttributeSchemaMutationTest {
 	void shouldCreateEntityAttribute() {
 		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
-			AttributeUniquenessType.NOT_UNIQUE, false, false, true, true, false,
+			new ScopedAttributeUniquenessType[]{ new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE) },
+			Scope.NO_SCOPE, Scope.NO_SCOPE, true, true, false,
 			String.class, null, 0
 		);
 		final EntityAttributeSchemaContract attributeSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), null, EntityAttributeSchemaContract.class);
@@ -199,7 +200,9 @@ class CreateAttributeSchemaMutationTest {
 		assertTrue(attributeSchema.isLocalized());
 		assertTrue(attributeSchema.isNullable());
 		assertFalse(attributeSchema.isSortable());
+		assertTrue(attributeSchema.getSortableInScopes().isEmpty());
 		assertFalse(attributeSchema.isFilterable());
+		assertTrue(attributeSchema.getFilterableInScopes().isEmpty());
 		assertEquals(AttributeUniquenessType.NOT_UNIQUE, attributeSchema.getUniquenessType());
 		assertNull(attributeSchema.getDefaultValue());
 		assertEquals(0, attributeSchema.getIndexedDecimalPlaces());
@@ -209,7 +212,8 @@ class CreateAttributeSchemaMutationTest {
 	void shouldCreateReferenceAttribute() {
 		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
-			AttributeUniquenessType.NOT_UNIQUE, false, false, true, true, false,
+			new ScopedAttributeUniquenessType[]{ new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE) },
+			Scope.NO_SCOPE, Scope.NO_SCOPE, true, true, false,
 			String.class, null, 0
 		);
 		final AttributeSchemaContract attributeSchema = mutation.mutate(Mockito.mock(CatalogSchemaContract.class), null, AttributeSchemaContract.class);
@@ -221,7 +225,9 @@ class CreateAttributeSchemaMutationTest {
 		assertTrue(attributeSchema.isLocalized());
 		assertTrue(attributeSchema.isNullable());
 		assertFalse(attributeSchema.isSortable());
+		assertTrue(attributeSchema.getSortableInScopes().isEmpty());
 		assertFalse(attributeSchema.isFilterable());
+		assertTrue(attributeSchema.getFilterableInScopes().isEmpty());
 		assertEquals(AttributeUniquenessType.NOT_UNIQUE, attributeSchema.getUniquenessType());
 		assertNull(attributeSchema.getDefaultValue());
 		assertEquals(0, attributeSchema.getIndexedDecimalPlaces());
@@ -231,7 +237,8 @@ class CreateAttributeSchemaMutationTest {
 	void shouldCreateAttributeInEntity() {
 		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
-			AttributeUniquenessType.NOT_UNIQUE, false, false, true, true, false,
+			new ScopedAttributeUniquenessType[]{ new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE) },
+			Scope.NO_SCOPE, Scope.NO_SCOPE, true, true, false,
 			String.class, null, 0
 		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
@@ -248,7 +255,9 @@ class CreateAttributeSchemaMutationTest {
 		assertTrue(attributeSchema.isLocalized());
 		assertTrue(attributeSchema.isNullable());
 		assertFalse(attributeSchema.isSortable());
+		assertTrue(attributeSchema.getSortableInScopes().isEmpty());
 		assertFalse(attributeSchema.isFilterable());
+		assertTrue(attributeSchema.getFilterableInScopes().isEmpty());
 		assertEquals(AttributeUniquenessType.NOT_UNIQUE, attributeSchema.getUniquenessType());
 		assertNull(attributeSchema.getDefaultValue());
 		assertEquals(0, attributeSchema.getIndexedDecimalPlaces());
@@ -258,7 +267,8 @@ class CreateAttributeSchemaMutationTest {
 	void shouldCreateAttributeInReference() {
 		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
-			AttributeUniquenessType.NOT_UNIQUE, false, false, true, true, false,
+			new ScopedAttributeUniquenessType[]{ new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE) },
+			Scope.NO_SCOPE, Scope.NO_SCOPE, true, true, false,
 			String.class, null, 0
 		);
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
@@ -273,8 +283,10 @@ class CreateAttributeSchemaMutationTest {
 		assertTrue(attributeSchema.isLocalized());
 		assertTrue(attributeSchema.isNullable());
 		assertFalse(attributeSchema.isSortable());
+		assertTrue(attributeSchema.getSortableInScopes().isEmpty());
 		assertFalse(attributeSchema.isFilterable());
-		assertEquals(AttributeUniquenessType.NOT_UNIQUE, attributeSchema.getUniquenessType());
+		assertTrue(attributeSchema.getFilterableInScopes().isEmpty());
+		assertEquals(AttributeUniquenessType.NOT_UNIQUE, attributeSchema.getUniquenessType(Scope.LIVE));
 		assertNull(attributeSchema.getDefaultValue());
 		assertEquals(0, attributeSchema.getIndexedDecimalPlaces());
 	}
@@ -283,7 +295,8 @@ class CreateAttributeSchemaMutationTest {
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithExistingAttribute() {
 		CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 			ATTRIBUTE_NAME, "description", "deprecationNotice",
-			AttributeUniquenessType.NOT_UNIQUE, false, false, false, false, false,
+			new ScopedAttributeUniquenessType[]{ new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE) },
+			Scope.NO_SCOPE, Scope.NO_SCOPE, false, false, false,
 			String.class, null, 0
 		);
 		assertThrows(
