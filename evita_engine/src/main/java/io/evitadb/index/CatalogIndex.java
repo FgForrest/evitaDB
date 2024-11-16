@@ -207,7 +207,7 @@ public class CatalogIndex implements
 		theUniqueIndex.unregisterUniqueKey(value, entitySchema.getName(), locale, recordId);
 
 		if (theUniqueIndex.isEmpty()) {
-			this.uniqueIndex.remove(lookupKey);
+			Assert.isPremiseValid(theUniqueIndex == this.uniqueIndex.remove(lookupKey), "Expected unique index was not removed!");
 			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theUniqueIndex));
 			this.dirty.setToTrue();
@@ -289,15 +289,15 @@ public class CatalogIndex implements
 		}
 
 		public void addRemovedItem(@Nonnull GlobalUniqueIndex uniqueIndex) {
-			uniqueIndexChanges.addRemovedItem(uniqueIndex);
+			this.uniqueIndexChanges.addRemovedItem(uniqueIndex);
 		}
 
 		public void clean(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			uniqueIndexChanges.clean(transactionalLayer);
+			this.uniqueIndexChanges.clean(transactionalLayer);
 		}
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			uniqueIndexChanges.cleanAll(transactionalLayer);
+			this.uniqueIndexChanges.cleanAll(transactionalLayer);
 		}
 
 	}

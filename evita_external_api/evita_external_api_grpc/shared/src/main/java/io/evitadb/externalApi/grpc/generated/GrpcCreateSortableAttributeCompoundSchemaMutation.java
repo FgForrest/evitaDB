@@ -28,8 +28,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
- * Mutation can be used for altering also the existing `AttributeSchema` alone.
+ * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+ * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation}
@@ -682,8 +682,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
-   * Mutation can be used for altering also the existing `AttributeSchema` alone.
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation}

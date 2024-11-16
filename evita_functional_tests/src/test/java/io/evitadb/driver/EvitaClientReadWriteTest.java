@@ -35,6 +35,8 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.CategoryInterface;
 import io.evitadb.api.mock.ProductInterface;
 import io.evitadb.api.mock.TestEntity;
+import io.evitadb.api.query.Query;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
@@ -50,15 +52,8 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.*;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -123,8 +118,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
@@ -140,8 +133,19 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	public static final String ATTRIBUTE_ORDER = "order";
 	public static final String ATTRIBUTE_CATEGORY_ORDER = "orderInCategory";
 	public static final String ATTRIBUTE_UUID = "uuid";
+	private static final String ATTRIBUTE_CODE = "code";
+	private static final String ATTRIBUTE_NAME = "name";
+	private static final String ATTRIBUTE_CODE_NAME = "codeName";
+	private static final String ATTRIBUTE_CATEGORY_OPEN = "open";
+	private static final String ATTRIBUTE_CATEGORY_MARKET_OPEN = "marketOpen";
+	private static final String ATTRIBUTE_CATEGORY_MARKET = "market";
+	private static final String PRICE_LIST_BASIC = "basic";
+	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
+	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
+
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "EvitaReadWriteClientDataSet";
+	private static final String EVITA_CLIENT_EMPTY_DATA_SET = "EvitaReadWriteClientEmptyDataSet";
 	private static final Map<Serializable, Integer> GENERATED_ENTITIES = new HashMap<>(20);
 	private static final BiFunction<String, Faker, Integer> RANDOM_ENTITY_PICKER = (entityType, faker) -> {
 		final int entityCount = GENERATED_ENTITIES.computeIfAbsent(entityType, serializable -> 0);
@@ -347,6 +351,35 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			"products", products.get(),
 			"productSchema", productSchema.get()
 		);
+	}
+
+	@DataSet(value = EVITA_CLIENT_EMPTY_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
+	static EvitaClient initEmptyDataSet(EvitaServer evitaServer) {
+		final ApiOptions apiOptions = evitaServer.getExternalApiServer()
+			.getApiOptions();
+		final HostDefinition grpcHost = apiOptions
+			.getEndpointConfiguration(GrpcProvider.CODE)
+			.getHost()[0];
+		final HostDefinition systemHost = apiOptions
+			.getEndpointConfiguration(SystemProvider.CODE)
+			.getHost()[0];
+
+		final String serverCertificates = evitaServer.getExternalApiServer().getApiOptions().certificate().getFolderPath().toString();
+		final int lastDash = serverCertificates.lastIndexOf('-');
+		assertTrue(lastDash > 0, "Dash not found! Look at the evita-configuration.yml in test resources!");
+		final Path clientCertificates = Path.of(serverCertificates.substring(0, lastDash) + "-client");
+		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration.builder()
+			.host(grpcHost.hostAddress())
+			.port(grpcHost.port())
+			.systemApiPort(systemHost.port())
+			.mtlsEnabled(false)
+			.certificateFolderPath(clientCertificates)
+			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
+			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+			.timeoutUnit(10, TimeUnit.MINUTES)
+			.build();
+
+		return new EvitaClient(evitaClientConfiguration);
 	}
 
 	private static void assertCategoryParent(
@@ -2005,6 +2038,176 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final GrpcReservedKeywordsResponse keywords = managementStub.listReservedKeywords(Empty.newBuilder().build()).get();
 		assertNotNull(keywords);
 		assertTrue(keywords.getKeywordsCount() > 20);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_EMPTY_DATA_SET, destroyAfterTest = true)
+	void shouldVerifyDifferentScopeSettingsForSchemaAndLookups(EvitaClient evitaClient) {
+		/* create schema for entity archival */
+		final Scope[] scopes = new Scope[]{Scope.LIVE, Scope.ARCHIVED};
+		evitaClient.defineCatalog(TEST_CATALOG)
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGloballyInScope(scopes).sortableInScope(scopes))
+			.updateViaNewSession(evitaClient);
+
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withReflectedReferenceToEntity(
+						"products",
+						Entities.PRODUCT,
+						Entities.CATEGORY,
+						whichIs -> whichIs.indexedInScope(scopes).withAttributesInherited()
+					)
+					.withHierarchy()
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterableInScope(scopes).sortableInScope(scopes))
+					.withSortableAttributeCompound(
+						ATTRIBUTE_CODE_NAME,
+						new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+						new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+					)
+					.withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
+					.withReferenceToEntity(
+						Entities.CATEGORY,
+						Entities.CATEGORY,
+						Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs
+							.indexedInScope(scopes)
+							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterableInScope(scopes).sortableInScope(scopes))
+							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterableInScope(scopes))
+							.withSortableAttributeCompound(
+								ATTRIBUTE_CATEGORY_MARKET_OPEN,
+								new AttributeElement(ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+								new AttributeElement(ATTRIBUTE_CATEGORY_OPEN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+							)
+					)
+					.updateVia(session);
+			}
+		);
+
+		// upsert entities product depends on
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.CATEGORY, 1)
+					.setAttribute(ATTRIBUTE_CODE, "electronics")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.CATEGORY, 2)
+					.setParent(1)
+					.setAttribute(ATTRIBUTE_CODE, "TV")
+					.upsertVia(session);
+			}
+		);
+
+		// create product entity
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+			}
+		);
+
+		// check category has reflected reference to product
+		final SealedEntity category = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+					.orElse(null);
+			}
+		);
+		assertNotNull(category);
+		final ReferenceContract products = category.getReference("products", 100).orElse(null);
+		assertNotNull(products);
+		assertEquals("EU", products.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+
+		// archive product entity
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 100);
+			}
+		);
+
+		// check category has no reflected reference to product
+		final SealedEntity categoryAfterArchiving = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+					.orElse(null);
+			}
+		);
+		assertNotNull(categoryAfterArchiving);
+		final ReferenceContract productsAfterArchiving = categoryAfterArchiving.getReference("products", 100).orElse(null);
+		assertNull(productsAfterArchiving);
+
+		// archive category entity
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.CATEGORY, 2);
+			}
+		);
+
+		// check archived category has reflected reference to product
+		final SealedEntity archivedCategory = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOne(
+					Query.query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(2)
+						),
+						require(
+							scope(Scope.ARCHIVED),
+							entityFetchAll()
+						)
+					),
+					SealedEntity.class
+				).orElse(null);
+			}
+		);
+
+		assertNotNull(archivedCategory);
+		final ReferenceContract archivedProducts = archivedCategory.getReference("products", 100).orElse(null);
+		assertNotNull(archivedProducts);
+		assertEquals("EU", archivedProducts.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+
+		// restore both category and product entity
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.restoreEntity(Entities.CATEGORY, 2);
+				session.restoreEntity(Entities.PRODUCT, 100);
+			}
+		);
+
+		// check restored category has reflected reference to product again
+		final SealedEntity categoryAfterRestore = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+					.orElse(null);
+			}
+		);
+		assertNotNull(categoryAfterRestore);
+		final ReferenceContract productsAfterRestore = categoryAfterRestore.getReference("products", 100).orElse(null);
+		assertNotNull(productsAfterRestore);
+		assertEquals("EU", productsAfterRestore.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
 	}
 
 	@Nonnull

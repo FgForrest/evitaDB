@@ -8,8 +8,8 @@ import "GrpcEntitySchema.proto";
 import "GrpcEnums.proto";
 import "google/protobuf/wrappers.proto";
 
-// Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
-// Mutation can be used for altering also the existing `AttributeSchema` alone.
+// Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+// Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
 message GrpcCreateSortableAttributeCompoundSchemaMutation {
   // Name of the sortable attribute compound the mutation is targeting.
   string name = 1;

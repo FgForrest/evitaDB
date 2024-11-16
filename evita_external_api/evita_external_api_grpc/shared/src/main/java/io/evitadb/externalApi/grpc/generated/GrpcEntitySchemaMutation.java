@@ -719,6 +719,104 @@ private static final long serialVersionUID = 0L;
             mutationCase_ = 92;
             break;
           }
+          case 746: {
+            io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.Builder subBuilder = null;
+            if (mutationCase_ == 93) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 93;
+            break;
+          }
+          case 962: {
+            io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.Builder subBuilder = null;
+            if (mutationCase_ == 120) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 120;
+            break;
+          }
+          case 970: {
+            io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.Builder subBuilder = null;
+            if (mutationCase_ == 121) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 121;
+            break;
+          }
+          case 978: {
+            io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.Builder subBuilder = null;
+            if (mutationCase_ == 122) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 122;
+            break;
+          }
+          case 986: {
+            io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.Builder subBuilder = null;
+            if (mutationCase_ == 123) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 123;
+            break;
+          }
+          case 994: {
+            io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.Builder subBuilder = null;
+            if (mutationCase_ == 124) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 124;
+            break;
+          }
+          case 1002: {
+            io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.Builder subBuilder = null;
+            if (mutationCase_ == 125) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 125;
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -802,6 +900,13 @@ private static final long serialVersionUID = 0L;
     SETREFERENCESCHEMAINDEXEDMUTATION(90),
     CREATEREFLECTEDREFERENCESCHEMAMUTATION(91),
     MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION(92),
+    MODIFYREFERENCESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION(93),
+    CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION(120),
+    MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADEPRECATIONNOTICEMUTATION(121),
+    MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADESCRIPTIONMUTATION(122),
+    MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMANAMEMUTATION(123),
+    REMOVESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION(124),
+    SETSORTABLEATTRIBUTECOMPOUNDINDEXEDMUTATION(125),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -865,6 +970,13 @@ private static final long serialVersionUID = 0L;
         case 90: return SETREFERENCESCHEMAINDEXEDMUTATION;
         case 91: return CREATEREFLECTEDREFERENCESCHEMAMUTATION;
         case 92: return MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION;
+        case 93: return MODIFYREFERENCESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION;
+        case 120: return CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION;
+        case 121: return MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADEPRECATIONNOTICEMUTATION;
+        case 122: return MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADESCRIPTIONMUTATION;
+        case 123: return MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMANAMEMUTATION;
+        case 124: return REMOVESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION;
+        case 125: return SETSORTABLEATTRIBUTECOMPOUNDINDEXEDMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -2951,6 +3063,319 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
   }
 
+  public static final int MODIFYREFERENCESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER = 93;
+  /**
+   * <pre>
+   * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+   * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+   * @return Whether the modifyReferenceSortableAttributeCompoundSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasModifyReferenceSortableAttributeCompoundSchemaMutation() {
+    return mutationCase_ == 93;
+  }
+  /**
+   * <pre>
+   * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+   * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+   * @return The modifyReferenceSortableAttributeCompoundSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation getModifyReferenceSortableAttributeCompoundSchemaMutation() {
+    if (mutationCase_ == 93) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+   * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutationOrBuilder getModifyReferenceSortableAttributeCompoundSchemaMutationOrBuilder() {
+    if (mutationCase_ == 93) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER = 120;
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+   * @return Whether the createSortableAttributeCompoundSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasCreateSortableAttributeCompoundSchemaMutation() {
+    return mutationCase_ == 120;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+   * @return The createSortableAttributeCompoundSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation getCreateSortableAttributeCompoundSchemaMutation() {
+    if (mutationCase_ == 120) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder getCreateSortableAttributeCompoundSchemaMutationOrBuilder() {
+    if (mutationCase_ == 120) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADEPRECATIONNOTICEMUTATION_FIELD_NUMBER = 121;
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+   * or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+   * @return Whether the modifySortableAttributeCompoundSchemaDeprecationNoticeMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasModifySortableAttributeCompoundSchemaDeprecationNoticeMutation() {
+    return mutationCase_ == 121;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+   * or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+   * @return The modifySortableAttributeCompoundSchemaDeprecationNoticeMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation getModifySortableAttributeCompoundSchemaDeprecationNoticeMutation() {
+    if (mutationCase_ == 121) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+   * or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder getModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder() {
+    if (mutationCase_ == 121) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.getDefaultInstance();
+  }
+
+  public static final int MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADESCRIPTIONMUTATION_FIELD_NUMBER = 122;
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+   * `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+   * @return Whether the modifySortableAttributeCompoundSchemaDescriptionMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasModifySortableAttributeCompoundSchemaDescriptionMutation() {
+    return mutationCase_ == 122;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+   * `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+   * @return The modifySortableAttributeCompoundSchemaDescriptionMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation getModifySortableAttributeCompoundSchemaDescriptionMutation() {
+    if (mutationCase_ == 122) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+   * `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder getModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder() {
+    if (mutationCase_ == 122) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.getDefaultInstance();
+  }
+
+  public static final int MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMANAMEMUTATION_FIELD_NUMBER = 123;
+  /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+   * @return Whether the modifySortableAttributeCompoundSchemaNameMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasModifySortableAttributeCompoundSchemaNameMutation() {
+    return mutationCase_ == 123;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+   * @return The modifySortableAttributeCompoundSchemaNameMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation getModifySortableAttributeCompoundSchemaNameMutation() {
+    if (mutationCase_ == 123) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutationOrBuilder getModifySortableAttributeCompoundSchemaNameMutationOrBuilder() {
+    if (mutationCase_ == 123) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.getDefaultInstance();
+  }
+
+  public static final int REMOVESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER = 124;
+  /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+   * @return Whether the removeSortableAttributeCompoundSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasRemoveSortableAttributeCompoundSchemaMutation() {
+    return mutationCase_ == 124;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+   * @return The removeSortableAttributeCompoundSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation getRemoveSortableAttributeCompoundSchemaMutation() {
+    if (mutationCase_ == 124) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutationOrBuilder getRemoveSortableAttributeCompoundSchemaMutationOrBuilder() {
+    if (mutationCase_ == 124) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int SETSORTABLEATTRIBUTECOMPOUNDINDEXEDMUTATION_FIELD_NUMBER = 125;
+  /**
+   * <pre>
+   * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+   * @return Whether the setSortableAttributeCompoundIndexedMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasSetSortableAttributeCompoundIndexedMutation() {
+    return mutationCase_ == 125;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+   * @return The setSortableAttributeCompoundIndexedMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation getSetSortableAttributeCompoundIndexedMutation() {
+    if (mutationCase_ == 125) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder getSetSortableAttributeCompoundIndexedMutationOrBuilder() {
+    if (mutationCase_ == 125) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -3102,6 +3527,27 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 92) {
       output.writeMessage(92, (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 93) {
+      output.writeMessage(93, (io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 120) {
+      output.writeMessage(120, (io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 121) {
+      output.writeMessage(121, (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) mutation_);
+    }
+    if (mutationCase_ == 122) {
+      output.writeMessage(122, (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) mutation_);
+    }
+    if (mutationCase_ == 123) {
+      output.writeMessage(123, (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation) mutation_);
+    }
+    if (mutationCase_ == 124) {
+      output.writeMessage(124, (io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 125) {
+      output.writeMessage(125, (io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation) mutation_);
     }
     unknownFields.writeTo(output);
   }
@@ -3295,6 +3741,34 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 92) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(92, (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 93) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(93, (io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 120) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(120, (io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 121) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(121, (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) mutation_);
+    }
+    if (mutationCase_ == 122) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(122, (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) mutation_);
+    }
+    if (mutationCase_ == 123) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(123, (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation) mutation_);
+    }
+    if (mutationCase_ == 124) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(124, (io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 125) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(125, (io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation) mutation_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -3497,6 +3971,34 @@ private static final long serialVersionUID = 0L;
         if (!getModifyReflectedReferenceAttributeInheritanceSchemaMutation()
             .equals(other.getModifyReflectedReferenceAttributeInheritanceSchemaMutation())) return false;
         break;
+      case 93:
+        if (!getModifyReferenceSortableAttributeCompoundSchemaMutation()
+            .equals(other.getModifyReferenceSortableAttributeCompoundSchemaMutation())) return false;
+        break;
+      case 120:
+        if (!getCreateSortableAttributeCompoundSchemaMutation()
+            .equals(other.getCreateSortableAttributeCompoundSchemaMutation())) return false;
+        break;
+      case 121:
+        if (!getModifySortableAttributeCompoundSchemaDeprecationNoticeMutation()
+            .equals(other.getModifySortableAttributeCompoundSchemaDeprecationNoticeMutation())) return false;
+        break;
+      case 122:
+        if (!getModifySortableAttributeCompoundSchemaDescriptionMutation()
+            .equals(other.getModifySortableAttributeCompoundSchemaDescriptionMutation())) return false;
+        break;
+      case 123:
+        if (!getModifySortableAttributeCompoundSchemaNameMutation()
+            .equals(other.getModifySortableAttributeCompoundSchemaNameMutation())) return false;
+        break;
+      case 124:
+        if (!getRemoveSortableAttributeCompoundSchemaMutation()
+            .equals(other.getRemoveSortableAttributeCompoundSchemaMutation())) return false;
+        break;
+      case 125:
+        if (!getSetSortableAttributeCompoundIndexedMutation()
+            .equals(other.getSetSortableAttributeCompoundIndexedMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -3695,6 +4197,34 @@ private static final long serialVersionUID = 0L;
       case 92:
         hash = (37 * hash) + MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getModifyReflectedReferenceAttributeInheritanceSchemaMutation().hashCode();
+        break;
+      case 93:
+        hash = (37 * hash) + MODIFYREFERENCESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getModifyReferenceSortableAttributeCompoundSchemaMutation().hashCode();
+        break;
+      case 120:
+        hash = (37 * hash) + CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getCreateSortableAttributeCompoundSchemaMutation().hashCode();
+        break;
+      case 121:
+        hash = (37 * hash) + MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADEPRECATIONNOTICEMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getModifySortableAttributeCompoundSchemaDeprecationNoticeMutation().hashCode();
+        break;
+      case 122:
+        hash = (37 * hash) + MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADESCRIPTIONMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getModifySortableAttributeCompoundSchemaDescriptionMutation().hashCode();
+        break;
+      case 123:
+        hash = (37 * hash) + MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMANAMEMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getModifySortableAttributeCompoundSchemaNameMutation().hashCode();
+        break;
+      case 124:
+        hash = (37 * hash) + REMOVESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getRemoveSortableAttributeCompoundSchemaMutation().hashCode();
+        break;
+      case 125:
+        hash = (37 * hash) + SETSORTABLEATTRIBUTECOMPOUNDINDEXEDMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetSortableAttributeCompoundIndexedMutation().hashCode();
         break;
       case 0:
       default:
@@ -4186,6 +4716,55 @@ private static final long serialVersionUID = 0L;
           result.mutation_ = modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.build();
         }
       }
+      if (mutationCase_ == 93) {
+        if (modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_.build();
+        }
+      }
+      if (mutationCase_ == 120) {
+        if (createSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = createSortableAttributeCompoundSchemaMutationBuilder_.build();
+        }
+      }
+      if (mutationCase_ == 121) {
+        if (modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_.build();
+        }
+      }
+      if (mutationCase_ == 122) {
+        if (modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_.build();
+        }
+      }
+      if (mutationCase_ == 123) {
+        if (modifySortableAttributeCompoundSchemaNameMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = modifySortableAttributeCompoundSchemaNameMutationBuilder_.build();
+        }
+      }
+      if (mutationCase_ == 124) {
+        if (removeSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = removeSortableAttributeCompoundSchemaMutationBuilder_.build();
+        }
+      }
+      if (mutationCase_ == 125) {
+        if (setSortableAttributeCompoundIndexedMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = setSortableAttributeCompoundIndexedMutationBuilder_.build();
+        }
+      }
       result.mutationCase_ = mutationCase_;
       onBuilt();
       return result;
@@ -4418,6 +4997,34 @@ private static final long serialVersionUID = 0L;
         }
         case MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION: {
           mergeModifyReflectedReferenceAttributeInheritanceSchemaMutation(other.getModifyReflectedReferenceAttributeInheritanceSchemaMutation());
+          break;
+        }
+        case MODIFYREFERENCESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION: {
+          mergeModifyReferenceSortableAttributeCompoundSchemaMutation(other.getModifyReferenceSortableAttributeCompoundSchemaMutation());
+          break;
+        }
+        case CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION: {
+          mergeCreateSortableAttributeCompoundSchemaMutation(other.getCreateSortableAttributeCompoundSchemaMutation());
+          break;
+        }
+        case MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADEPRECATIONNOTICEMUTATION: {
+          mergeModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(other.getModifySortableAttributeCompoundSchemaDeprecationNoticeMutation());
+          break;
+        }
+        case MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADESCRIPTIONMUTATION: {
+          mergeModifySortableAttributeCompoundSchemaDescriptionMutation(other.getModifySortableAttributeCompoundSchemaDescriptionMutation());
+          break;
+        }
+        case MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMANAMEMUTATION: {
+          mergeModifySortableAttributeCompoundSchemaNameMutation(other.getModifySortableAttributeCompoundSchemaNameMutation());
+          break;
+        }
+        case REMOVESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION: {
+          mergeRemoveSortableAttributeCompoundSchemaMutation(other.getRemoveSortableAttributeCompoundSchemaMutation());
+          break;
+        }
+        case SETSORTABLEATTRIBUTECOMPOUNDINDEXEDMUTATION: {
+          mergeSetSortableAttributeCompoundIndexedMutation(other.getSetSortableAttributeCompoundIndexedMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -12887,6 +13494,1281 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 92;
       onChanged();;
       return modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutationOrBuilder> modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+     * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+     * @return Whether the modifyReferenceSortableAttributeCompoundSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasModifyReferenceSortableAttributeCompoundSchemaMutation() {
+      return mutationCase_ == 93;
+    }
+    /**
+     * <pre>
+     * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+     * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+     * @return The modifyReferenceSortableAttributeCompoundSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation getModifyReferenceSortableAttributeCompoundSchemaMutation() {
+      if (modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 93) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 93) {
+          return modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+     * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+     */
+    public Builder setModifyReferenceSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation value) {
+      if (modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 93;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+     * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+     */
+    public Builder setModifyReferenceSortableAttributeCompoundSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.Builder builderForValue) {
+      if (modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 93;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+     * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+     */
+    public Builder mergeModifyReferenceSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation value) {
+      if (modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 93 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 93) {
+          modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_.mergeFrom(value);
+        }
+        modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 93;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+     * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+     */
+    public Builder clearModifyReferenceSortableAttributeCompoundSchemaMutation() {
+      if (modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 93) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 93) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+     * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.Builder getModifyReferenceSortableAttributeCompoundSchemaMutationBuilder() {
+      return getModifyReferenceSortableAttributeCompoundSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+     * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutationOrBuilder getModifyReferenceSortableAttributeCompoundSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 93) && (modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_ != null)) {
+        return modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 93) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+     * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutationOrBuilder>
+        getModifyReferenceSortableAttributeCompoundSchemaMutationFieldBuilder() {
+      if (modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 93)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+        }
+        modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 93;
+      onChanged();;
+      return modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder> createSortableAttributeCompoundSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+     * @return Whether the createSortableAttributeCompoundSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasCreateSortableAttributeCompoundSchemaMutation() {
+      return mutationCase_ == 120;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+     * @return The createSortableAttributeCompoundSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation getCreateSortableAttributeCompoundSchemaMutation() {
+      if (createSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 120) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 120) {
+          return createSortableAttributeCompoundSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+     */
+    public Builder setCreateSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation value) {
+      if (createSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        createSortableAttributeCompoundSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 120;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+     */
+    public Builder setCreateSortableAttributeCompoundSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.Builder builderForValue) {
+      if (createSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        createSortableAttributeCompoundSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 120;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+     */
+    public Builder mergeCreateSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation value) {
+      if (createSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 120 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 120) {
+          createSortableAttributeCompoundSchemaMutationBuilder_.mergeFrom(value);
+        }
+        createSortableAttributeCompoundSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 120;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+     */
+    public Builder clearCreateSortableAttributeCompoundSchemaMutation() {
+      if (createSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 120) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 120) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        createSortableAttributeCompoundSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.Builder getCreateSortableAttributeCompoundSchemaMutationBuilder() {
+      return getCreateSortableAttributeCompoundSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder getCreateSortableAttributeCompoundSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 120) && (createSortableAttributeCompoundSchemaMutationBuilder_ != null)) {
+        return createSortableAttributeCompoundSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 120) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder>
+        getCreateSortableAttributeCompoundSchemaMutationFieldBuilder() {
+      if (createSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 120)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+        }
+        createSortableAttributeCompoundSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 120;
+      onChanged();;
+      return createSortableAttributeCompoundSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder> modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+     * or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+     * @return Whether the modifySortableAttributeCompoundSchemaDeprecationNoticeMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasModifySortableAttributeCompoundSchemaDeprecationNoticeMutation() {
+      return mutationCase_ == 121;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+     * or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+     * @return The modifySortableAttributeCompoundSchemaDeprecationNoticeMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation getModifySortableAttributeCompoundSchemaDeprecationNoticeMutation() {
+      if (modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_ == null) {
+        if (mutationCase_ == 121) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 121) {
+          return modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+     * or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+     */
+    public Builder setModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation value) {
+      if (modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 121;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+     * or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+     */
+    public Builder setModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.Builder builderForValue) {
+      if (modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 121;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+     * or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+     */
+    public Builder mergeModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation value) {
+      if (modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_ == null) {
+        if (mutationCase_ == 121 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 121) {
+          modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_.mergeFrom(value);
+        }
+        modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 121;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+     * or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+     */
+    public Builder clearModifySortableAttributeCompoundSchemaDeprecationNoticeMutation() {
+      if (modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_ == null) {
+        if (mutationCase_ == 121) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 121) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+     * or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.Builder getModifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder() {
+      return getModifySortableAttributeCompoundSchemaDeprecationNoticeMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+     * or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder getModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder() {
+      if ((mutationCase_ == 121) && (modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_ != null)) {
+        return modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 121) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+     * or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder>
+        getModifySortableAttributeCompoundSchemaDeprecationNoticeMutationFieldBuilder() {
+      if (modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_ == null) {
+        if (!(mutationCase_ == 121)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.getDefaultInstance();
+        }
+        modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 121;
+      onChanged();;
+      return modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder> modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+     * `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+     * @return Whether the modifySortableAttributeCompoundSchemaDescriptionMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasModifySortableAttributeCompoundSchemaDescriptionMutation() {
+      return mutationCase_ == 122;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+     * `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+     * @return The modifySortableAttributeCompoundSchemaDescriptionMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation getModifySortableAttributeCompoundSchemaDescriptionMutation() {
+      if (modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_ == null) {
+        if (mutationCase_ == 122) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 122) {
+          return modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+     * `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+     */
+    public Builder setModifySortableAttributeCompoundSchemaDescriptionMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation value) {
+      if (modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 122;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+     * `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+     */
+    public Builder setModifySortableAttributeCompoundSchemaDescriptionMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.Builder builderForValue) {
+      if (modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 122;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+     * `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+     */
+    public Builder mergeModifySortableAttributeCompoundSchemaDescriptionMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation value) {
+      if (modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_ == null) {
+        if (mutationCase_ == 122 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 122) {
+          modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_.mergeFrom(value);
+        }
+        modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 122;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+     * `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+     */
+    public Builder clearModifySortableAttributeCompoundSchemaDescriptionMutation() {
+      if (modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_ == null) {
+        if (mutationCase_ == 122) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 122) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+     * `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.Builder getModifySortableAttributeCompoundSchemaDescriptionMutationBuilder() {
+      return getModifySortableAttributeCompoundSchemaDescriptionMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+     * `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder getModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder() {
+      if ((mutationCase_ == 122) && (modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_ != null)) {
+        return modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 122) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+     * `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder>
+        getModifySortableAttributeCompoundSchemaDescriptionMutationFieldBuilder() {
+      if (modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_ == null) {
+        if (!(mutationCase_ == 122)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.getDefaultInstance();
+        }
+        modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 122;
+      onChanged();;
+      return modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutationOrBuilder> modifySortableAttributeCompoundSchemaNameMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+     * @return Whether the modifySortableAttributeCompoundSchemaNameMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasModifySortableAttributeCompoundSchemaNameMutation() {
+      return mutationCase_ == 123;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+     * @return The modifySortableAttributeCompoundSchemaNameMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation getModifySortableAttributeCompoundSchemaNameMutation() {
+      if (modifySortableAttributeCompoundSchemaNameMutationBuilder_ == null) {
+        if (mutationCase_ == 123) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 123) {
+          return modifySortableAttributeCompoundSchemaNameMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+     */
+    public Builder setModifySortableAttributeCompoundSchemaNameMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation value) {
+      if (modifySortableAttributeCompoundSchemaNameMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        modifySortableAttributeCompoundSchemaNameMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 123;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+     */
+    public Builder setModifySortableAttributeCompoundSchemaNameMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.Builder builderForValue) {
+      if (modifySortableAttributeCompoundSchemaNameMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        modifySortableAttributeCompoundSchemaNameMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 123;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+     */
+    public Builder mergeModifySortableAttributeCompoundSchemaNameMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation value) {
+      if (modifySortableAttributeCompoundSchemaNameMutationBuilder_ == null) {
+        if (mutationCase_ == 123 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 123) {
+          modifySortableAttributeCompoundSchemaNameMutationBuilder_.mergeFrom(value);
+        }
+        modifySortableAttributeCompoundSchemaNameMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 123;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+     */
+    public Builder clearModifySortableAttributeCompoundSchemaNameMutation() {
+      if (modifySortableAttributeCompoundSchemaNameMutationBuilder_ == null) {
+        if (mutationCase_ == 123) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 123) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        modifySortableAttributeCompoundSchemaNameMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.Builder getModifySortableAttributeCompoundSchemaNameMutationBuilder() {
+      return getModifySortableAttributeCompoundSchemaNameMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutationOrBuilder getModifySortableAttributeCompoundSchemaNameMutationOrBuilder() {
+      if ((mutationCase_ == 123) && (modifySortableAttributeCompoundSchemaNameMutationBuilder_ != null)) {
+        return modifySortableAttributeCompoundSchemaNameMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 123) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutationOrBuilder>
+        getModifySortableAttributeCompoundSchemaNameMutationFieldBuilder() {
+      if (modifySortableAttributeCompoundSchemaNameMutationBuilder_ == null) {
+        if (!(mutationCase_ == 123)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.getDefaultInstance();
+        }
+        modifySortableAttributeCompoundSchemaNameMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 123;
+      onChanged();;
+      return modifySortableAttributeCompoundSchemaNameMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutationOrBuilder> removeSortableAttributeCompoundSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+     * @return Whether the removeSortableAttributeCompoundSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasRemoveSortableAttributeCompoundSchemaMutation() {
+      return mutationCase_ == 124;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+     * @return The removeSortableAttributeCompoundSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation getRemoveSortableAttributeCompoundSchemaMutation() {
+      if (removeSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 124) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 124) {
+          return removeSortableAttributeCompoundSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+     */
+    public Builder setRemoveSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation value) {
+      if (removeSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        removeSortableAttributeCompoundSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 124;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+     */
+    public Builder setRemoveSortableAttributeCompoundSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.Builder builderForValue) {
+      if (removeSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        removeSortableAttributeCompoundSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 124;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+     */
+    public Builder mergeRemoveSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation value) {
+      if (removeSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 124 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 124) {
+          removeSortableAttributeCompoundSchemaMutationBuilder_.mergeFrom(value);
+        }
+        removeSortableAttributeCompoundSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 124;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+     */
+    public Builder clearRemoveSortableAttributeCompoundSchemaMutation() {
+      if (removeSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 124) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 124) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        removeSortableAttributeCompoundSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.Builder getRemoveSortableAttributeCompoundSchemaMutationBuilder() {
+      return getRemoveSortableAttributeCompoundSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutationOrBuilder getRemoveSortableAttributeCompoundSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 124) && (removeSortableAttributeCompoundSchemaMutationBuilder_ != null)) {
+        return removeSortableAttributeCompoundSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 124) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutationOrBuilder>
+        getRemoveSortableAttributeCompoundSchemaMutationFieldBuilder() {
+      if (removeSortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 124)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.getDefaultInstance();
+        }
+        removeSortableAttributeCompoundSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 124;
+      onChanged();;
+      return removeSortableAttributeCompoundSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder> setSortableAttributeCompoundIndexedMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+     * @return Whether the setSortableAttributeCompoundIndexedMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasSetSortableAttributeCompoundIndexedMutation() {
+      return mutationCase_ == 125;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+     * @return The setSortableAttributeCompoundIndexedMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation getSetSortableAttributeCompoundIndexedMutation() {
+      if (setSortableAttributeCompoundIndexedMutationBuilder_ == null) {
+        if (mutationCase_ == 125) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 125) {
+          return setSortableAttributeCompoundIndexedMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+     */
+    public Builder setSetSortableAttributeCompoundIndexedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation value) {
+      if (setSortableAttributeCompoundIndexedMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        setSortableAttributeCompoundIndexedMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 125;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+     */
+    public Builder setSetSortableAttributeCompoundIndexedMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.Builder builderForValue) {
+      if (setSortableAttributeCompoundIndexedMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        setSortableAttributeCompoundIndexedMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 125;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+     */
+    public Builder mergeSetSortableAttributeCompoundIndexedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation value) {
+      if (setSortableAttributeCompoundIndexedMutationBuilder_ == null) {
+        if (mutationCase_ == 125 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 125) {
+          setSortableAttributeCompoundIndexedMutationBuilder_.mergeFrom(value);
+        }
+        setSortableAttributeCompoundIndexedMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 125;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+     */
+    public Builder clearSetSortableAttributeCompoundIndexedMutation() {
+      if (setSortableAttributeCompoundIndexedMutationBuilder_ == null) {
+        if (mutationCase_ == 125) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 125) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        setSortableAttributeCompoundIndexedMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.Builder getSetSortableAttributeCompoundIndexedMutationBuilder() {
+      return getSetSortableAttributeCompoundIndexedMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder getSetSortableAttributeCompoundIndexedMutationOrBuilder() {
+      if ((mutationCase_ == 125) && (setSortableAttributeCompoundIndexedMutationBuilder_ != null)) {
+        return setSortableAttributeCompoundIndexedMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 125) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder>
+        getSetSortableAttributeCompoundIndexedMutationFieldBuilder() {
+      if (setSortableAttributeCompoundIndexedMutationBuilder_ == null) {
+        if (!(mutationCase_ == 125)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.getDefaultInstance();
+        }
+        setSortableAttributeCompoundIndexedMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 125;
+      onChanged();;
+      return setSortableAttributeCompoundIndexedMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

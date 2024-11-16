@@ -8,6 +8,7 @@ import "GrpcAttributeSchemaMutations.proto";
 import "GrpcAssociatedDataSchemaMutations.proto";
 import "GrpcEntitySchemaMutations.proto";
 import "GrpcReferenceSchemaMutations.proto";
+import "GrpcSortableAttributeCompoundSchemaMutations.proto";
 
 // Contains all possible entity schema mutations.
 message GrpcEntitySchemaMutation {
@@ -139,6 +140,25 @@ message GrpcEntitySchemaMutation {
     // `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
     // Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
     GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;
+    // Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+    // `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+    GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;
+
+    // Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+    // Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+    GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;
+    // Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+    // or `ReferenceSchema`.
+    GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;
+    // Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+    // `ReferenceSchema`.
+    GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;
+    // Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+    GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;
+    // Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+    GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;
+    // Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+    GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;
 
   }
 }

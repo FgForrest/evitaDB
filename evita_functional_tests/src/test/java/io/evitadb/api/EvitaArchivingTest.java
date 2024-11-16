@@ -754,7 +754,6 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(productsAfterArchiving);
 
 		// archive category entity
-		/* TODO JNO - tento test reflektovat i na klienta, ať si ověříme dobře dědičnost */
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
