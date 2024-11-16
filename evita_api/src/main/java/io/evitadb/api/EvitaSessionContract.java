@@ -753,7 +753,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	default int updateEntitySchema(@Nonnull EntitySchemaBuilder entitySchemaBuilder) throws SchemaAlteringException {
 		return entitySchemaBuilder.toMutation()
 			.map(this::updateEntitySchema)
-			.orElse(getEntitySchemaOrThrow(entitySchemaBuilder.getName()).version());
+			.orElseGet(() -> getEntitySchemaOrThrow(entitySchemaBuilder.getName()).version());
 	}
 
 	/**
@@ -768,7 +768,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	default SealedEntitySchema updateAndFetchEntitySchema(@Nonnull EntitySchemaBuilder entitySchemaBuilder) throws SchemaAlteringException {
 		return entitySchemaBuilder.toMutation()
 			.map(this::updateAndFetchEntitySchema)
-			.orElse(getEntitySchemaOrThrow(entitySchemaBuilder.getName()));
+			.orElseGet(() -> getEntitySchemaOrThrow(entitySchemaBuilder.getName()));
 	}
 
 	/**
