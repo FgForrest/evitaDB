@@ -41,7 +41,7 @@ public final class EvitaSessionServiceGrpc {
 
   private EvitaSessionServiceGrpc() {}
 
-  public static final String SERVICE_NAME = "io.evitadb.externalApi.grpc.generated.EvitaSessionService";
+  public static final java.lang.String SERVICE_NAME = "io.evitadb.externalApi.grpc.generated.EvitaSessionService";
 
   // Static method descriptors that strictly reflect the proto.
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest,
@@ -1059,14 +1059,14 @@ public final class EvitaSessionServiceGrpc {
    * be fetched by specifying a complex queries.
    * </pre>
    */
-  public static abstract class EvitaSessionServiceImplBase implements io.grpc.BindableService {
+  public interface AsyncService {
 
     /**
      * <pre>
      * Procedure that returns the current (the one on which the used session operates) catalog schema.
      * </pre>
      */
-    public void getCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest request,
+    default void getCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetCatalogSchemaMethod(), responseObserver);
     }
@@ -1076,7 +1076,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the current state of the catalog.
      * </pre>
      */
-    public void getCatalogState(com.google.protobuf.Empty request,
+    default void getCatalogState(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetCatalogStateMethod(), responseObserver);
     }
@@ -1086,7 +1086,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the version of the catalog at a specific moment in time.
      * </pre>
      */
-    public void getCatalogVersionAt(io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtRequest request,
+    default void getCatalogVersionAt(io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetCatalogVersionAtMethod(), responseObserver);
     }
@@ -1096,7 +1096,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns requested page of past mutations in reversed order that match the request criteria.
      * </pre>
      */
-    public void getMutationsHistoryPage(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request,
+    default void getMutationsHistoryPage(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetMutationsHistoryPageMethod(), responseObserver);
     }
@@ -1106,7 +1106,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns stream of all past mutations in reversed order that match the request criteria.
      * </pre>
      */
-    public void getMutationsHistory(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest request,
+    default void getMutationsHistory(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetMutationsHistoryMethod(), responseObserver);
     }
@@ -1116,7 +1116,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the schema of a specific entity type.
      * </pre>
      */
-    public void getEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest request,
+    default void getEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetEntitySchemaMethod(), responseObserver);
     }
@@ -1126,7 +1126,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the list of all entity types.
      * </pre>
      */
-    public void getAllEntityTypes(com.google.protobuf.Empty request,
+    default void getAllEntityTypes(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetAllEntityTypesMethod(), responseObserver);
     }
@@ -1136,7 +1136,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that changes the state of the catalog to ALIVE and closes the session.
      * </pre>
      */
-    public void goLiveAndClose(com.google.protobuf.Empty request,
+    default void goLiveAndClose(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGoLiveAndCloseMethod(), responseObserver);
     }
@@ -1146,7 +1146,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure used to backup an existing catalog.
      * </pre>
      */
-    public void backupCatalog(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request,
+    default void backupCatalog(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getBackupCatalogMethod(), responseObserver);
     }
@@ -1156,7 +1156,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that closes the session.
      * </pre>
      */
-    public void close(io.evitadb.externalApi.grpc.generated.GrpcCloseRequest request,
+    default void close(io.evitadb.externalApi.grpc.generated.GrpcCloseRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getCloseMethod(), responseObserver);
     }
@@ -1166,7 +1166,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that executes passed parametrised query and returns zero or one entity.
      * </pre>
      */
-    public void queryOne(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
+    default void queryOne(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getQueryOneMethod(), responseObserver);
     }
@@ -1176,7 +1176,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that executes passed parametrised query and returns a list of entities.
      * </pre>
      */
-    public void queryList(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
+    default void queryList(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getQueryListMethod(), responseObserver);
     }
@@ -1186,7 +1186,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that executes passed parametrised query and returns a data chunk with computed extra results.
      * </pre>
      */
-    public void query(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
+    default void query(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getQueryMethod(), responseObserver);
     }
@@ -1197,7 +1197,7 @@ public final class EvitaSessionServiceGrpc {
      * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
      * </pre>
      */
-    public void queryOneUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
+    default void queryOneUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getQueryOneUnsafeMethod(), responseObserver);
     }
@@ -1208,7 +1208,7 @@ public final class EvitaSessionServiceGrpc {
      * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
      * </pre>
      */
-    public void queryListUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
+    default void queryListUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getQueryListUnsafeMethod(), responseObserver);
     }
@@ -1219,7 +1219,7 @@ public final class EvitaSessionServiceGrpc {
      * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
      * </pre>
      */
-    public void queryUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
+    default void queryUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getQueryUnsafeMethod(), responseObserver);
     }
@@ -1229,7 +1229,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
      * </pre>
      */
-    public void getEntity(io.evitadb.externalApi.grpc.generated.GrpcEntityRequest request,
+    default void getEntity(io.evitadb.externalApi.grpc.generated.GrpcEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetEntityMethod(), responseObserver);
     }
@@ -1239,7 +1239,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that updates the catalog schema and return its updated version.
      * </pre>
      */
-    public void updateCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request,
+    default void updateCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getUpdateCatalogSchemaMethod(), responseObserver);
     }
@@ -1249,7 +1249,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that updates the catalog schema and returns it.
      * </pre>
      */
-    public void updateAndFetchCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request,
+    default void updateAndFetchCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getUpdateAndFetchCatalogSchemaMethod(), responseObserver);
     }
@@ -1259,7 +1259,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that defines the schema of a new entity type and return it.
      * </pre>
      */
-    public void defineEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest request,
+    default void defineEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getDefineEntitySchemaMethod(), responseObserver);
     }
@@ -1269,7 +1269,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that updates the schema of an existing entity type and return its updated version.
      * </pre>
      */
-    public void updateEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request,
+    default void updateEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getUpdateEntitySchemaMethod(), responseObserver);
     }
@@ -1279,7 +1279,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that updates the schema of an existing entity type and returns it.
      * </pre>
      */
-    public void updateAndFetchEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request,
+    default void updateAndFetchEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getUpdateAndFetchEntitySchemaMethod(), responseObserver);
     }
@@ -1289,7 +1289,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that deletes an entity collection.
      * </pre>
      */
-    public void deleteCollection(io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest request,
+    default void deleteCollection(io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getDeleteCollectionMethod(), responseObserver);
     }
@@ -1299,7 +1299,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that renames an entity collection.
      * </pre>
      */
-    public void renameCollection(io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest request,
+    default void renameCollection(io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRenameCollectionMethod(), responseObserver);
     }
@@ -1309,7 +1309,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that replaces an entity collection.
      * </pre>
      */
-    public void replaceCollection(io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest request,
+    default void replaceCollection(io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getReplaceCollectionMethod(), responseObserver);
     }
@@ -1319,7 +1319,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the size of an entity collection.
      * </pre>
      */
-    public void getEntityCollectionSize(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest request,
+    default void getEntityCollectionSize(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetEntityCollectionSizeMethod(), responseObserver);
     }
@@ -1329,7 +1329,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that upserts (inserts/updates) an entity and returns it with required richness.
      * </pre>
      */
-    public void upsertEntity(io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest request,
+    default void upsertEntity(io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getUpsertEntityMethod(), responseObserver);
     }
@@ -1339,7 +1339,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that deletes an entity and returns it with required richness.
      * </pre>
      */
-    public void deleteEntity(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request,
+    default void deleteEntity(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getDeleteEntityMethod(), responseObserver);
     }
@@ -1349,7 +1349,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that deletes an entity and its hierarchy and returns the root entity with required richness.
      * </pre>
      */
-    public void deleteEntityAndItsHierarchy(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request,
+    default void deleteEntityAndItsHierarchy(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getDeleteEntityAndItsHierarchyMethod(), responseObserver);
     }
@@ -1359,7 +1359,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that deletes all entities that match the sent query and returns their bodies.
      * </pre>
      */
-    public void deleteEntities(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest request,
+    default void deleteEntities(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getDeleteEntitiesMethod(), responseObserver);
     }
@@ -1369,235 +1369,14 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that opens a transaction.
      * </pre>
      */
-    public void getTransactionId(com.google.protobuf.Empty request,
+    default void getTransactionId(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetTransactionIdMethod(), responseObserver);
-    }
-
-    @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
-      return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())
-          .addMethod(
-            getGetCatalogSchemaMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse>(
-                  this, METHODID_GET_CATALOG_SCHEMA)))
-          .addMethod(
-            getGetCatalogStateMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                com.google.protobuf.Empty,
-                io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse>(
-                  this, METHODID_GET_CATALOG_STATE)))
-          .addMethod(
-            getGetCatalogVersionAtMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtResponse>(
-                  this, METHODID_GET_CATALOG_VERSION_AT)))
-          .addMethod(
-            getGetMutationsHistoryPageMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest,
-                io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse>(
-                  this, METHODID_GET_MUTATIONS_HISTORY_PAGE)))
-          .addMethod(
-            getGetMutationsHistoryMethod(),
-            io.grpc.stub.ServerCalls.asyncServerStreamingCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest,
-                io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse>(
-                  this, METHODID_GET_MUTATIONS_HISTORY)))
-          .addMethod(
-            getGetEntitySchemaMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse>(
-                  this, METHODID_GET_ENTITY_SCHEMA)))
-          .addMethod(
-            getGetAllEntityTypesMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                com.google.protobuf.Empty,
-                io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse>(
-                  this, METHODID_GET_ALL_ENTITY_TYPES)))
-          .addMethod(
-            getGoLiveAndCloseMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                com.google.protobuf.Empty,
-                io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse>(
-                  this, METHODID_GO_LIVE_AND_CLOSE)))
-          .addMethod(
-            getBackupCatalogMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>(
-                  this, METHODID_BACKUP_CATALOG)))
-          .addMethod(
-            getCloseMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcCloseRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcCloseResponse>(
-                  this, METHODID_CLOSE)))
-          .addMethod(
-            getQueryOneMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcQueryRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse>(
-                  this, METHODID_QUERY_ONE)))
-          .addMethod(
-            getQueryListMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcQueryRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse>(
-                  this, METHODID_QUERY_LIST)))
-          .addMethod(
-            getQueryMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcQueryRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcQueryResponse>(
-                  this, METHODID_QUERY)))
-          .addMethod(
-            getQueryOneUnsafeMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse>(
-                  this, METHODID_QUERY_ONE_UNSAFE)))
-          .addMethod(
-            getQueryListUnsafeMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse>(
-                  this, METHODID_QUERY_LIST_UNSAFE)))
-          .addMethod(
-            getQueryUnsafeMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcQueryResponse>(
-                  this, METHODID_QUERY_UNSAFE)))
-          .addMethod(
-            getGetEntityMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcEntityRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcEntityResponse>(
-                  this, METHODID_GET_ENTITY)))
-          .addMethod(
-            getUpdateCatalogSchemaMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse>(
-                  this, METHODID_UPDATE_CATALOG_SCHEMA)))
-          .addMethod(
-            getUpdateAndFetchCatalogSchemaMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse>(
-                  this, METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA)))
-          .addMethod(
-            getDefineEntitySchemaMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse>(
-                  this, METHODID_DEFINE_ENTITY_SCHEMA)))
-          .addMethod(
-            getUpdateEntitySchemaMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaResponse>(
-                  this, METHODID_UPDATE_ENTITY_SCHEMA)))
-          .addMethod(
-            getUpdateAndFetchEntitySchemaMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse>(
-                  this, METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA)))
-          .addMethod(
-            getDeleteCollectionMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse>(
-                  this, METHODID_DELETE_COLLECTION)))
-          .addMethod(
-            getRenameCollectionMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse>(
-                  this, METHODID_RENAME_COLLECTION)))
-          .addMethod(
-            getReplaceCollectionMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse>(
-                  this, METHODID_REPLACE_COLLECTION)))
-          .addMethod(
-            getGetEntityCollectionSizeMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse>(
-                  this, METHODID_GET_ENTITY_COLLECTION_SIZE)))
-          .addMethod(
-            getUpsertEntityMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse>(
-                  this, METHODID_UPSERT_ENTITY)))
-          .addMethod(
-            getDeleteEntityMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse>(
-                  this, METHODID_DELETE_ENTITY)))
-          .addMethod(
-            getDeleteEntityAndItsHierarchyMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse>(
-                  this, METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY)))
-          .addMethod(
-            getDeleteEntitiesMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse>(
-                  this, METHODID_DELETE_ENTITIES)))
-          .addMethod(
-            getGetTransactionIdMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                com.google.protobuf.Empty,
-                io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse>(
-                  this, METHODID_GET_TRANSACTION_ID)))
-          .build();
     }
   }
 
   /**
+   * Base class for the server implementation of the service EvitaSessionService.
    * <pre>
    * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
    * By specifying its UUID and the name of a catalog to which it corresponds to it's possible to execute methods that in
@@ -1607,7 +1386,27 @@ public final class EvitaSessionServiceGrpc {
    * be fetched by specifying a complex queries.
    * </pre>
    */
-  public static final class EvitaSessionServiceStub extends io.grpc.stub.AbstractAsyncStub<EvitaSessionServiceStub> {
+  public static abstract class EvitaSessionServiceImplBase
+      implements io.grpc.BindableService, AsyncService {
+
+    @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
+      return EvitaSessionServiceGrpc.bindService(this);
+    }
+  }
+
+  /**
+   * A stub to allow clients to do asynchronous rpc calls to service EvitaSessionService.
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
+   * By specifying its UUID and the name of a catalog to which it corresponds to it's possible to execute methods that in
+   * evitaDB's implementation a called on an instance of EvitaSessionContract.
+   * Main purpose of this service is to provide a way to manipulate with stored entity collections and their schemas. That
+   * includes their creating, updating and deleting. Same operations could be done with entities, which in addition could
+   * be fetched by specifying a complex queries.
+   * </pre>
+   */
+  public static final class EvitaSessionServiceStub
+      extends io.grpc.stub.AbstractAsyncStub<EvitaSessionServiceStub> {
     private EvitaSessionServiceStub(
         io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
       super(channel, callOptions);
@@ -1965,6 +1764,7 @@ public final class EvitaSessionServiceGrpc {
   }
 
   /**
+   * A stub to allow clients to do synchronous rpc calls to service EvitaSessionService.
    * <pre>
    * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
    * By specifying its UUID and the name of a catalog to which it corresponds to it's possible to execute methods that in
@@ -1974,7 +1774,8 @@ public final class EvitaSessionServiceGrpc {
    * be fetched by specifying a complex queries.
    * </pre>
    */
-  public static final class EvitaSessionServiceBlockingStub extends io.grpc.stub.AbstractBlockingStub<EvitaSessionServiceBlockingStub> {
+  public static final class EvitaSessionServiceBlockingStub
+      extends io.grpc.stub.AbstractBlockingStub<EvitaSessionServiceBlockingStub> {
     private EvitaSessionServiceBlockingStub(
         io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
       super(channel, callOptions);
@@ -2302,6 +2103,7 @@ public final class EvitaSessionServiceGrpc {
   }
 
   /**
+   * A stub to allow clients to do ListenableFuture-style rpc calls to service EvitaSessionService.
    * <pre>
    * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
    * By specifying its UUID and the name of a catalog to which it corresponds to it's possible to execute methods that in
@@ -2311,7 +2113,8 @@ public final class EvitaSessionServiceGrpc {
    * be fetched by specifying a complex queries.
    * </pre>
    */
-  public static final class EvitaSessionServiceFutureStub extends io.grpc.stub.AbstractFutureStub<EvitaSessionServiceFutureStub> {
+  public static final class EvitaSessionServiceFutureStub
+      extends io.grpc.stub.AbstractFutureStub<EvitaSessionServiceFutureStub> {
     private EvitaSessionServiceFutureStub(
         io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
       super(channel, callOptions);
@@ -2694,10 +2497,10 @@ public final class EvitaSessionServiceGrpc {
       io.grpc.stub.ServerCalls.ServerStreamingMethod<Req, Resp>,
       io.grpc.stub.ServerCalls.ClientStreamingMethod<Req, Resp>,
       io.grpc.stub.ServerCalls.BidiStreamingMethod<Req, Resp> {
-    private final EvitaSessionServiceImplBase serviceImpl;
+    private final AsyncService serviceImpl;
     private final int methodId;
 
-    MethodHandlers(EvitaSessionServiceImplBase serviceImpl, int methodId) {
+    MethodHandlers(AsyncService serviceImpl, int methodId) {
       this.serviceImpl = serviceImpl;
       this.methodId = methodId;
     }
@@ -2846,6 +2649,228 @@ public final class EvitaSessionServiceGrpc {
     }
   }
 
+  public static final io.grpc.ServerServiceDefinition bindService(AsyncService service) {
+    return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())
+        .addMethod(
+          getGetCatalogSchemaMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse>(
+                service, METHODID_GET_CATALOG_SCHEMA)))
+        .addMethod(
+          getGetCatalogStateMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              com.google.protobuf.Empty,
+              io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse>(
+                service, METHODID_GET_CATALOG_STATE)))
+        .addMethod(
+          getGetCatalogVersionAtMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtResponse>(
+                service, METHODID_GET_CATALOG_VERSION_AT)))
+        .addMethod(
+          getGetMutationsHistoryPageMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest,
+              io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse>(
+                service, METHODID_GET_MUTATIONS_HISTORY_PAGE)))
+        .addMethod(
+          getGetMutationsHistoryMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest,
+              io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse>(
+                service, METHODID_GET_MUTATIONS_HISTORY)))
+        .addMethod(
+          getGetEntitySchemaMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse>(
+                service, METHODID_GET_ENTITY_SCHEMA)))
+        .addMethod(
+          getGetAllEntityTypesMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              com.google.protobuf.Empty,
+              io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse>(
+                service, METHODID_GET_ALL_ENTITY_TYPES)))
+        .addMethod(
+          getGoLiveAndCloseMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              com.google.protobuf.Empty,
+              io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse>(
+                service, METHODID_GO_LIVE_AND_CLOSE)))
+        .addMethod(
+          getBackupCatalogMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>(
+                service, METHODID_BACKUP_CATALOG)))
+        .addMethod(
+          getCloseMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcCloseRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcCloseResponse>(
+                service, METHODID_CLOSE)))
+        .addMethod(
+          getQueryOneMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcQueryRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse>(
+                service, METHODID_QUERY_ONE)))
+        .addMethod(
+          getQueryListMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcQueryRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse>(
+                service, METHODID_QUERY_LIST)))
+        .addMethod(
+          getQueryMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcQueryRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcQueryResponse>(
+                service, METHODID_QUERY)))
+        .addMethod(
+          getQueryOneUnsafeMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse>(
+                service, METHODID_QUERY_ONE_UNSAFE)))
+        .addMethod(
+          getQueryListUnsafeMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse>(
+                service, METHODID_QUERY_LIST_UNSAFE)))
+        .addMethod(
+          getQueryUnsafeMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcQueryResponse>(
+                service, METHODID_QUERY_UNSAFE)))
+        .addMethod(
+          getGetEntityMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcEntityRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcEntityResponse>(
+                service, METHODID_GET_ENTITY)))
+        .addMethod(
+          getUpdateCatalogSchemaMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse>(
+                service, METHODID_UPDATE_CATALOG_SCHEMA)))
+        .addMethod(
+          getUpdateAndFetchCatalogSchemaMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse>(
+                service, METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA)))
+        .addMethod(
+          getDefineEntitySchemaMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse>(
+                service, METHODID_DEFINE_ENTITY_SCHEMA)))
+        .addMethod(
+          getUpdateEntitySchemaMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaResponse>(
+                service, METHODID_UPDATE_ENTITY_SCHEMA)))
+        .addMethod(
+          getUpdateAndFetchEntitySchemaMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse>(
+                service, METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA)))
+        .addMethod(
+          getDeleteCollectionMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse>(
+                service, METHODID_DELETE_COLLECTION)))
+        .addMethod(
+          getRenameCollectionMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse>(
+                service, METHODID_RENAME_COLLECTION)))
+        .addMethod(
+          getReplaceCollectionMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse>(
+                service, METHODID_REPLACE_COLLECTION)))
+        .addMethod(
+          getGetEntityCollectionSizeMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse>(
+                service, METHODID_GET_ENTITY_COLLECTION_SIZE)))
+        .addMethod(
+          getUpsertEntityMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse>(
+                service, METHODID_UPSERT_ENTITY)))
+        .addMethod(
+          getDeleteEntityMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse>(
+                service, METHODID_DELETE_ENTITY)))
+        .addMethod(
+          getDeleteEntityAndItsHierarchyMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse>(
+                service, METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY)))
+        .addMethod(
+          getDeleteEntitiesMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse>(
+                service, METHODID_DELETE_ENTITIES)))
+        .addMethod(
+          getGetTransactionIdMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              com.google.protobuf.Empty,
+              io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse>(
+                service, METHODID_GET_TRANSACTION_ID)))
+        .build();
+  }
+
   private static abstract class EvitaSessionServiceBaseDescriptorSupplier
       implements io.grpc.protobuf.ProtoFileDescriptorSupplier, io.grpc.protobuf.ProtoServiceDescriptorSupplier {
     EvitaSessionServiceBaseDescriptorSupplier() {}
@@ -2869,9 +2894,9 @@ public final class EvitaSessionServiceGrpc {
   private static final class EvitaSessionServiceMethodDescriptorSupplier
       extends EvitaSessionServiceBaseDescriptorSupplier
       implements io.grpc.protobuf.ProtoMethodDescriptorSupplier {
-    private final String methodName;
+    private final java.lang.String methodName;
 
-    EvitaSessionServiceMethodDescriptorSupplier(String methodName) {
+    EvitaSessionServiceMethodDescriptorSupplier(java.lang.String methodName) {
       this.methodName = methodName;
     }
 
