@@ -69,9 +69,9 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 				.anyMatch(it -> {
 					final AssociatedDataKey key = it.key();
 					final Serializable thisValue = it.value();
-					final Serializable otherValue = second.getAssociatedData(
-						key.associatedDataName(), key.localeOrThrowException()
-					);
+					final Serializable otherValue = key.locale() == null ?
+						second.getAssociatedDataArray(key.associatedDataName()) :
+						second.getAssociatedData(key.associatedDataName(), key.localeOrThrowException());
 					return QueryUtils.valueDiffers(thisValue, otherValue);
 				});
 		}

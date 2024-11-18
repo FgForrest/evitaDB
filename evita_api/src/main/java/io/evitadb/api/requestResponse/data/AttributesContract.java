@@ -71,8 +71,9 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 				.anyMatch(it -> {
 					final Serializable thisValue = it.value();
 					final AttributeKey key = it.key();
-					final AttributeValue other = second.getAttributeValue(key.attributeName(), key.localeOrThrowException())
-						.orElse(null);
+					final AttributeValue other = key.locale() == null ?
+						second.getAttributeValue(key.attributeName()).orElse(null) :
+						second.getAttributeValue(key.attributeName(), key.localeOrThrowException()).orElse(null);
 					if (other == null) {
 						return true;
 					} else {
