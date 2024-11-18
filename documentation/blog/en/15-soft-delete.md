@@ -43,8 +43,8 @@ Developers, however, can define custom indexing rules for archived entities, all
 based on the application's specific needs while keeping the ability to search for archived entities by a selected set of
 attributes or relationships.
 
-When retrieving entities, developers can use the [`scope(LIVE, ARCHIVED)`](/documentation/query/requirements/fetching#scope)
-require constraint to specify whether they want to include live entities, archived entities, or both in their queries.
+When retrieving entities, developers can use the [`scope(LIVE, ARCHIVED)`](https://evitadb.io/documentation/query/filtering/behavioral#scope)
+filtering constraint to specify whether they want to include live entities, archived entities, or both in their queries.
 This flexibility allows for precise control over the data retrieved, without adding complexity to the application code.
 The database handles the filtering internally, ensuring consistency and reducing the risk of errors.
 
@@ -76,14 +76,14 @@ ensures that all historical data, such as customer reviews or sales history, rem
 product.
 
 ## Simplifying Queries with Scope Constraints
-Using the `scope(LIVE, ARCHIVED)` require constraint in queries provides developers with powerful control over data
+Using the `scope(LIVE, ARCHIVED)` filtering constraint in queries provides developers with powerful control over data
 retrieval. For instance, an administrator interface may need to display both live and archived products with a single
 query for management purposes. By specifying both scopes in the query, the application retrieves all relevant entities
 without the need to issue two queries and combine the results in the application code.
 
 Developers still have the option to access live or archived entities separately by specifying only one scope in the
-query. When no require constraint is specified, the database defaults to the `LIVE` scope, ensuring that the application
-only retrieves active entities by default.
+query. When no scope filtering constraint is specified, the database defaults to the `LIVE` scope, ensuring that 
+the application only retrieves active entities by default.
 
 This approach also improves security and data integrity. Since the database manages the visibility of entities based on
 their scope, the risk of accidentally exposing archived or sensitive data is minimized. The application can trust that
