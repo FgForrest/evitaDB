@@ -67,6 +67,7 @@ class RegisteredConstraintProvider {
 		Not.class,
 		Or.class,
 		UserFilter.class,
+		EntityScope.class,
 		// entity
 		EntityPrimaryKeyInSet.class,
 		EntityLocaleEquals.class,
@@ -132,7 +133,6 @@ class RegisteredConstraintProvider {
 		Page.class,
 		Strip.class,
 		DataInLocales.class,
-		EntityScope.class,
 		QueryTelemetry.class,
 		// spacing,
 		Spacing.class,

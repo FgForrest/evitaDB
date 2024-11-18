@@ -97,13 +97,16 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(GetEntityEndpointHeaderDescriptor.LOCALE.name())));
 		}
 
-		final Scope[] requestedScopes = Optional.ofNullable((Scope[]) parameters.get(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
-			.orElse(Scope.DEFAULT_SCOPES);
+		final Scope[] requestedScopes = (Scope[]) parameters.get(GetEntityEndpointHeaderDescriptor.SCOPE.name());
+		if (requestedScopes != null) {
+			filterConstraints.add(scope(requestedScopes));
+		}
 
+		final Scope[] comparableScopes = Optional.ofNullable(requestedScopes).orElse(Scope.DEFAULT_SCOPES);
 		entitySchema.getAttributes()
 			.values()
 			.stream()
-			.filter(attribute -> Arrays.stream(requestedScopes).anyMatch(attribute::isUnique))
+			.filter(attribute -> Arrays.stream(comparableScopes).anyMatch(attribute::isUnique))
 			.map(attributeSchema -> attributeSchema.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
 			.forEach(name -> {
 				if (parameters.containsKey(name)) {
@@ -115,20 +118,15 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			return null;
 		}
 
-		return filterBy(
-			and(
-				filterConstraints.toArray(FilterConstraint[]::new)
-			)
-		);
+		return filterBy(filterConstraints.toArray(FilterConstraint[]::new));
 	}
 
 	/**
 	 * Creates filter by constraints from request parameters when requesting single unknown entity.
 	 */
-	@SuppressWarnings("unchecked")
 	@Nullable
-	public static <A extends Serializable & Comparable<A>> FilterBy buildFilterByForUnknownEntity(@Nonnull Map<String, Object> requestParameters,
-	                                                                                              @Nonnull CatalogSchemaContract catalogSchema) {
+	public static FilterBy buildFilterByForUnknownEntity(@Nonnull Map<String, Object> requestParameters,
+	                                                     @Nonnull CatalogSchemaContract catalogSchema) {
 		// extract parameters
 
 		final Map<String, Object> parameters = new HashMap<>(requestParameters);
@@ -138,13 +136,13 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			(QueryHeaderFilterArgumentsJoinType) parameters.remove(UnknownEntityEndpointHeaderDescriptor.FILTER_JOIN.name())
 		)
 			.orElse(QueryHeaderFilterArgumentsJoinType.AND);
-		final Scope[] requestedScopes = Optional.ofNullable((Scope[]) parameters.remove(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
-			.orElse(Scope.DEFAULT_SCOPES);
+		final Scope[] requestedScopes = (Scope[]) parameters.remove(UnknownEntityEndpointHeaderDescriptor.SCOPE.name());
+		final Scope[] comparableScopes = Optional.ofNullable(requestedScopes).orElse(Scope.DEFAULT_SCOPES);
 
-		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(requestedScopes, parameters, catalogSchema);
+		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(comparableScopes, parameters, catalogSchema);
 
 		if (locale == null &&
-			Arrays.stream(requestedScopes)
+			Arrays.stream(comparableScopes)
 			    .anyMatch(scope ->
 				    uniqueAttributes.keySet()
 					    .stream()
@@ -157,33 +155,47 @@ public class FilterByConstraintFromRequestQueryBuilder {
 
 		final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
-		Optional.ofNullable(locale).ifPresent(it -> filterConstraints.add(entityLocaleEquals(it)));
+		if (locale != null) {
+			filterConstraints.add(entityLocaleEquals(locale));
+		}
+		filterConstraints.add(buildAttributeFilterContainerForSingleEntity(uniqueAttributes, filterJoin));
 
+		if (requestedScopes != null) {
+			filterConstraints.add(scope(requestedScopes));
+		}
+
+		return filterBy(filterConstraints.toArray(FilterConstraint[]::new));
+	}
+
+	@Nonnull
+	private static <A extends Serializable & Comparable<A>> FilterConstraint buildAttributeFilterContainerForSingleEntity(
+		@Nonnull Map<GlobalAttributeSchemaContract, Object> uniqueAttributes,
+		@Nonnull QueryHeaderFilterArgumentsJoinType filterJoin
+	) {
+		final List<FilterConstraint> attributeConstraints = new LinkedList<>();
 		uniqueAttributes.forEach((attributeSchema, attributeValue) -> {
 			final String name = attributeSchema.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION);
-			filterConstraints.add(QueryConstraints.attributeEquals(name, (A) attributeValue));
+			//noinspection unchecked
+			attributeConstraints.add(QueryConstraints.attributeEquals(name, (A) attributeValue));
 		});
 
-		if (filterConstraints.isEmpty()) {
-			return null;
-		}
-
+		final FilterConstraint composition;
 		if (filterJoin == QueryHeaderFilterArgumentsJoinType.AND) {
-			return filterBy(and(filterConstraints.toArray(FilterConstraint[]::new)));
+			composition = and(attributeConstraints.toArray(FilterConstraint[]::new));
 		} else if (filterJoin == QueryHeaderFilterArgumentsJoinType.OR) {
-			return filterBy(or(filterConstraints.toArray(FilterConstraint[]::new)));
+			composition = or(attributeConstraints.toArray(FilterConstraint[]::new));
 		} else {
-			throw new RestInternalError("Unsupported filter join type `" + filterJoin + "`.");
+			throw new RestInternalError("Unsupported join type `" + filterJoin + "`.");
 		}
+		return composition;
 	}
 
 	/**
 	 * Creates filter by constraints from request parameters when requesting unknown entity list.
 	 */
-	@SuppressWarnings("unchecked")
 	@Nullable
-	public static <A extends Serializable & Comparable<A>> FilterBy buildFilterByForUnknownEntityList(@Nonnull Map<String, Object> requestParameters,
-	                                                                                                  @Nonnull CatalogSchemaContract catalogSchema) {
+	public static FilterBy buildFilterByForUnknownEntityList(@Nonnull Map<String, Object> requestParameters,
+	                                                         @Nonnull CatalogSchemaContract catalogSchema) {
 		// extract parameters
 
 		final Map<String, Object> parameters = new HashMap<>(requestParameters);
@@ -193,13 +205,13 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			(QueryHeaderFilterArgumentsJoinType) parameters.remove(ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN.name())
 		)
 			.orElse(QueryHeaderFilterArgumentsJoinType.AND);
-		final Scope[] requestedScopes = Optional.ofNullable((Scope[]) parameters.remove(GetEntityEndpointHeaderDescriptor.SCOPE.name()))
-			.orElse(Scope.DEFAULT_SCOPES);
+		final Scope[] requestedScopes = (Scope[]) parameters.remove(UnknownEntityEndpointHeaderDescriptor.SCOPE.name());
+		final Scope[] comparableScopes = Optional.ofNullable(requestedScopes).orElse(Scope.DEFAULT_SCOPES);
 
-		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(requestedScopes, parameters, catalogSchema);
+		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(comparableScopes, parameters, catalogSchema);
 
 		if (locale == null &&
-		    Arrays.stream(requestedScopes)
+		    Arrays.stream(comparableScopes)
 			    .anyMatch(scope ->
 				    uniqueAttributes.keySet()
 					    .stream()
@@ -212,28 +224,42 @@ public class FilterByConstraintFromRequestQueryBuilder {
 
 		final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
-		Optional.ofNullable(locale).ifPresent(it -> filterConstraints.add(entityLocaleEquals(it)));
+		if (locale != null) {
+			filterConstraints.add(entityLocaleEquals(locale));
+		}
+		filterConstraints.add(buildAttributeFilterContainerForEntityList(uniqueAttributes, filterJoin));
+		if (requestedScopes != null) {
+			filterConstraints.add(scope(requestedScopes));
+		}
 
+		return filterBy(filterConstraints.toArray(FilterConstraint[]::new));
+	}
+
+	@Nonnull
+	private static <A extends Serializable & Comparable<A>> FilterConstraint buildAttributeFilterContainerForEntityList(
+		@Nonnull Map<GlobalAttributeSchemaContract, Object> uniqueAttributes,
+		@Nonnull QueryHeaderFilterArgumentsJoinType filterJoin
+	) {
+		final List<FilterConstraint> attributeConstraints = new LinkedList<>();
 		uniqueAttributes.forEach((attributeSchema, attributeValue) -> {
 			final String name = attributeSchema.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION);
 			if(attributeValue instanceof Object[] array) {
-				filterConstraints.add(QueryConstraints.attributeInSet(name, convertObjectArrayToSpecificArray(attributeSchema.getType(), array)));
+				attributeConstraints.add(QueryConstraints.attributeInSet(name, convertObjectArrayToSpecificArray(attributeSchema.getType(), array)));
 			} else {
-				filterConstraints.add(QueryConstraints.attributeEquals(name, (A) attributeValue));
+				//noinspection unchecked
+				attributeConstraints.add(QueryConstraints.attributeEquals(name, (A) attributeValue));
 			}
 		});
 
-		if (filterConstraints.isEmpty()) {
-			return null;
-		}
-
+		final FilterConstraint composition;
 		if (filterJoin == QueryHeaderFilterArgumentsJoinType.AND) {
-			return filterBy(and(filterConstraints.toArray(FilterConstraint[]::new)));
+			composition = and(attributeConstraints.toArray(FilterConstraint[]::new));
 		} else if (filterJoin == QueryHeaderFilterArgumentsJoinType.OR) {
-			return filterBy(or(filterConstraints.toArray(FilterConstraint[]::new)));
+			composition = or(attributeConstraints.toArray(FilterConstraint[]::new));
 		} else {
-			throw new RestInternalError("Unsupported filter join type `" + filterJoin + "`.");
+			throw new RestInternalError("Unsupported join type `" + filterJoin + "`.");
 		}
+		return composition;
 	}
 
 	@Nonnull

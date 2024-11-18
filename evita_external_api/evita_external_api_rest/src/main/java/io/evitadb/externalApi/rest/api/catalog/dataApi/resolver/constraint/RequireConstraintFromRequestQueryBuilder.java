@@ -64,23 +64,15 @@ public class RequireConstraintFromRequestQueryBuilder {
 	 */
 	@Nullable
 	public static Require buildRequire(@Nonnull Map<String, Object> parameters) {
-		final List<RequireConstraint> requireConstraints = new LinkedList<>();
-
 		final EntityContentRequire[] contentRequires = getEntityContentRequires(parameters);
-		if(contentRequires.length > 0 || isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.BODY_FETCH)) {
-			requireConstraints.add(entityFetch(contentRequires));
-		}
 
-		// TODO LHO - nekompiluje pro přesunu scopes do filtru
-		/*final Scope[] scopes = (Scope[]) parameters.get(ScopeAwareEndpointHeaderDescriptor.SCOPE.name());
-		if (scopes != null) {
-			requireConstraints.add(scope(scopes));
-		}*/
-
-		if (requireConstraints.isEmpty()) {
+		if(contentRequires.length == 0 && !isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.BODY_FETCH)) {
 			return null;
 		}
-		return require(requireConstraints.toArray(RequireConstraint[]::new));
+
+		return require(
+			entityFetch(contentRequires)
+		);
 	}
 
 	@Nonnull

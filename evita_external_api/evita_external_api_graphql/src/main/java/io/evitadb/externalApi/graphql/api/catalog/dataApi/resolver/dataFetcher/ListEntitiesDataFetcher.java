@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
@@ -112,7 +111,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
 
     @Nonnull
     @Override
-    public DataFetcherResult<List<EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) {
+    public DataFetcherResult<List<EntityClassifier>> get(DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment);
         final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
@@ -188,11 +187,6 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             );
         }
 
-        // TODO LHO - nekompiluje pro přesunu scopes do filtru
-        /*if (arguments.scopes() != null) {
-            requireConstraints.add(scope(arguments.scopes()));
-        }*/
-
         return require(
             requireConstraints.toArray(RequireConstraint[]::new)
         );
@@ -240,25 +234,19 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
     private record Arguments(@Nullable Object filterBy,
                              @Nullable Object orderBy,
                              @Nullable Integer offset,
-                             @Nullable Integer limit,
-                             @Nullable Scope[] scopes) {
+                             @Nullable Integer limit) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
             final Object filterBy = environment.getArgument(ListEntitiesHeaderDescriptor.FILTER_BY.name());
             final Object orderBy = environment.getArgument(ListEntitiesHeaderDescriptor.ORDER_BY.name());
             final Integer offset = environment.getArgument(ListEntitiesHeaderDescriptor.OFFSET.name());
             final Integer limit = environment.getArgument(ListEntitiesHeaderDescriptor.LIMIT.name());
-	        //noinspection unchecked
-	        final Scope[] scopes = Optional.ofNullable((List<Scope>) environment.getArgument(ListEntitiesHeaderDescriptor.SCOPE.name()))
-                .map(it -> it.toArray(Scope[]::new))
-                .orElse(null);
 
             return new Arguments(
                 filterBy,
                 orderBy,
                 offset,
-                limit,
-                scopes
+                limit
             );
         }
     }

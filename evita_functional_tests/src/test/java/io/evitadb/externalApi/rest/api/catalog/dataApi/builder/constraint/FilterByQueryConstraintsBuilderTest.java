@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,9 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ScopeAwareEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterByConstraintFromRequestQueryBuilder;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
@@ -70,31 +72,37 @@ class FilterByQueryConstraintsBuilderTest {
 	@Test
 	void shouldBuildFilterByPrimaryKey() {
 		final FilterBy filterBy = FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(Collections.singletonMap(GetEntityEndpointHeaderDescriptor.PRICE_VALID_NOW.name(), Boolean.TRUE), entitySchema);
-		assertEquals("filterBy(and(priceValidInNow()))", filterBy.toString());
+		assertEquals("filterBy(priceValidInNow())", filterBy.toString());
 	}
 
 	@Test
 	void shouldBuildFilterByPriceCurrency() {
 		final FilterBy filterBy = FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(Collections.singletonMap(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), Currency.getInstance("CZK")), entitySchema);
-		assertEquals("filterBy(and(priceInCurrency('CZK')))", filterBy.toString());
+		assertEquals("filterBy(priceInCurrency('CZK'))", filterBy.toString());
 	}
 
 	@Test
 	void shouldBuildFilterByPriceList() {
 		final FilterBy filterBy = FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(Collections.singletonMap(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), new String[]{"cheapest"}), entitySchema);
-		assertEquals("filterBy(and(priceInPriceLists('cheapest')))", filterBy.toString());
+		assertEquals("filterBy(priceInPriceLists('cheapest'))", filterBy.toString());
 	}
 
 	@Test
 	void shouldBuildFilterByPriceValidIn() {
 		final FilterBy filterBy = FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(Collections.singletonMap(GetEntityEndpointHeaderDescriptor.PRICE_VALID_IN.name(), OffsetDateTime.of(2022, 10, 21, 10, 9, 1, 0, ZoneOffset.ofHours(2))), entitySchema);
-		assertEquals("filterBy(and(priceValidIn(2022-10-21T10:09:01+02:00)))", filterBy.toString());
+		assertEquals("filterBy(priceValidIn(2022-10-21T10:09:01+02:00))", filterBy.toString());
 	}
 
 	@Test
 	void shouldBuildFilterByCode() {
 		final FilterBy filterBy = FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(Collections.singletonMap("code", "someCode"), entitySchema);
-		assertEquals("filterBy(and(attributeEquals('code','someCode')))", filterBy.toString());
+		assertEquals("filterBy(attributeEquals('code','someCode'))", filterBy.toString());
+	}
+
+	@Test
+	void shouldBuildFilterToSearchInCustomScope() {
+		final FilterBy filterBy = FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(Collections.singletonMap(ScopeAwareEndpointHeaderDescriptor.SCOPE.name(), new Scope[] { Scope.ARCHIVED }), entitySchema);
+		assertEquals("filterBy(scope(ARCHIVED))", filterBy.toString());
 	}
 
 	@Test

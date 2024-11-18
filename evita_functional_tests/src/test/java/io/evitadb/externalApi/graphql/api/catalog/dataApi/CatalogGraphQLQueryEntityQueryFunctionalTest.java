@@ -291,10 +291,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                query {
 	                    queryProduct(
 	                        filterBy: {
-	                            entityPrimaryKeyInSet: [%d, %d]
+	                            entityPrimaryKeyInSet: [%d, %d],
+	                            scope: ARCHIVED
 	                        }
 	                    ) {
-	                        recordPage(scope: ARCHIVED) {
+	                        recordPage {
 	                            data {
 	                                primaryKey
 			                        scope
@@ -359,10 +360,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                query {
 	                    queryProduct(
 	                        filterBy: {
-	                            entityPrimaryKeyInSet: [%d, %d, %d, %d]
+	                            entityPrimaryKeyInSet: [%d, %d, %d, %d],
+	                            scope: [LIVE, ARCHIVED]
 	                        }
 	                    ) {
-	                        recordPage(scope: [LIVE, ARCHIVED]) {
+	                        recordPage {
 	                            data {
 	                                primaryKey
 			                        scope

@@ -192,7 +192,6 @@ public class FullResponseObjectBuilder {
 			.argument(RecordPageFieldHeaderDescriptor.SPACING
 				.to(argumentBuilderTransformer)
 				.type(spacingConstraint))
-			.argument(RecordPageFieldHeaderDescriptor.SCOPE.to(argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
@@ -223,7 +222,6 @@ public class FullResponseObjectBuilder {
 			.type(recordStripObject)
 			.argument(RecordStripFieldHeaderDescriptor.OFFSET.to(argumentBuilderTransformer))
 			.argument(RecordStripFieldHeaderDescriptor.LIMIT.to(argumentBuilderTransformer))
-			.argument(RecordStripFieldHeaderDescriptor.SCOPE.to(argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(

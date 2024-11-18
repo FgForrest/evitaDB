@@ -53,12 +53,6 @@ class RequireQueryConstraintsBuilderTest {
 	}
 
 	@Test
-	void shouldBuildRequireToSearchInCustomScope() {
-		final Require require = RequireConstraintFromRequestQueryBuilder.buildRequire(Collections.singletonMap(ScopeAwareEndpointHeaderDescriptor.SCOPE.name(), new Scope[] { Scope.ARCHIVED }));
-		assertEquals("require(scope(ARCHIVED))", require.toString());
-	}
-
-	@Test
 	void shouldBuildRequireToFetchEntityBody() {
 		final Require require = RequireConstraintFromRequestQueryBuilder.buildRequire(Collections.singletonMap(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE));
 		assertEquals("require(entityFetch())", require.toString());

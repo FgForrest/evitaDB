@@ -66,7 +66,6 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 		Page.class,
 		Spacing.class,
 		SpacingGap.class,
-		EntityScope.class,
 		PriceType.class,
 		Strip.class
 	);

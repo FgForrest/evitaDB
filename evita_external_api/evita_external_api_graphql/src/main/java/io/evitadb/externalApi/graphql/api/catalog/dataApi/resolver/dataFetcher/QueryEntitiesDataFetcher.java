@@ -99,7 +99,6 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
-	@Nonnull private final ScopeRequireResolver scopeRequireResolver;
 	@Nonnull private final PagingRequireResolver pagingRequireResolver;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 	@Nonnull private final AttributeHistogramResolver attributeHistogramResolver;
@@ -138,7 +137,6 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			catalogSchema,
 			new AtomicReference<>(filterConstraintResolver)
 		);
-		this.scopeRequireResolver = new ScopeRequireResolver();
 		this.pagingRequireResolver = new PagingRequireResolver(entitySchema, requireConstraintResolver);
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
@@ -167,7 +165,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 
     @Nonnull
     @Override
-    public DataFetcherResult<EvitaResponse<EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) {
+    public DataFetcherResult<EvitaResponse<EntityClassifier>> get(DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment);
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
@@ -250,9 +248,6 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			requireConstraints.add(strip(0, 0));
 		} else {
 			final SelectedField recordField = recordFields.get(0);
-
-			// build scope require
-			scopeRequireResolver.resolve(recordField).ifPresent(requireConstraints::add);
 
 			// build paging require
 			requireConstraints.add(pagingRequireResolver.resolve(recordField));

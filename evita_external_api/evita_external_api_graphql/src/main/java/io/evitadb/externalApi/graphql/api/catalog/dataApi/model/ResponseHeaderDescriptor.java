@@ -43,7 +43,7 @@ public interface ResponseHeaderDescriptor {
 	/**
 	 * Ancestor descriptor for implementations of data chunk fields
 	 */
-	interface DataChunkFieldHeaderDescriptor extends ScopeAwareFieldHeaderDescriptor { }
+	interface DataChunkFieldHeaderDescriptor { }
 
 	/**
 	 * Descriptor of header arguments of field {@link ResponseDescriptor#RECORD_PAGE}

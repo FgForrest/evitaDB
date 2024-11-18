@@ -187,11 +187,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"""
 	                {
 						"filterBy": {
-						    "entityPrimaryKeyInSet": [%d, %d]
-						},
-						"require": {
+						    "entityPrimaryKeyInSet": [%d, %d],
 						    "scope": ["ARCHIVED"]
-					    }
+						}
 					}
 					""",
 				archivedEntities.get(0).getPrimaryKey(),
@@ -246,11 +244,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"""
 	                {
 						"filterBy": {
-						    "entityPrimaryKeyInSet": [%d, %d, %d, %d]
-						},
-						"require": {
+						    "entityPrimaryKeyInSet": [%d, %d, %d, %d],
 						    "scope": ["LIVE", "ARCHIVED"]
-					    }
+						}
 					}
 					""",
 				liveEntities.get(0).getPrimaryKey(),

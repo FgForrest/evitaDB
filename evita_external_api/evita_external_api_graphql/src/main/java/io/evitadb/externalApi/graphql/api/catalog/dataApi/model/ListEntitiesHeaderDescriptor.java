@@ -34,7 +34,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface ListEntitiesHeaderDescriptor extends ScopeAwareFieldHeaderDescriptor {
+public interface ListEntitiesHeaderDescriptor {
 
 	PropertyDescriptor FILTER_BY = PropertyDescriptor.builder()
 		.name("filterBy")

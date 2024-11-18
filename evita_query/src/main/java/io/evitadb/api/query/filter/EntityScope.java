@@ -26,6 +26,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.Scope;
@@ -61,7 +62,8 @@ import java.util.EnumSet;
 @ConstraintDefinition(
 	name = "scope",
 	shortDescription = "Constraint can be used to control the scope of the entity search. It has single vararg argument that accepts one or more scopes where the entity should be searched",
-	userDocsLink = "/documentation/query/filtering/behavioral#scope"
+	userDocsLink = "/documentation/query/filtering/behavioral#scope",
+	supportedIn = ConstraintDomain.ENTITY
 )
 public class EntityScope extends AbstractFilterConstraintLeaf implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -7172389493449298316L;

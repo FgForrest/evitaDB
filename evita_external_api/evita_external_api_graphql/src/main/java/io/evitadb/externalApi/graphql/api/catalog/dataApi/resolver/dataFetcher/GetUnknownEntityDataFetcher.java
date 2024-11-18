@@ -30,7 +30,6 @@ import graphql.schema.SelectedField;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
-import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -43,7 +42,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryHeaderArgumentsJoinType;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UnknownEntityHeaderDescriptor;
@@ -142,13 +140,13 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
 
     @Nonnull
     @Override
-    public DataFetcherResult<SealedEntity> get(@Nonnull DataFetchingEnvironment environment) {
+    public DataFetcherResult<SealedEntity> get(DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment, catalogSchema);
         final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
         final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
             final FilterBy filterBy = buildFilterBy(arguments);
-            final Require require = buildInitialRequire(environment, arguments);
+            final Require require = buildInitialRequire(environment);
             return query(
                 filterBy,
                 require
@@ -184,47 +182,49 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
     }
 
     @Nonnull
-    private <A extends Serializable & Comparable<A>> FilterBy buildFilterBy(@Nonnull Arguments arguments) {
+    private static FilterBy buildFilterBy(@Nonnull Arguments arguments) {
         final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
+        if (arguments.locale() != null) {
+            filterConstraints.add(entityLocaleEquals(arguments.locale()));
+        }
+        filterConstraints.add(scope(arguments.scopes()));
+        filterConstraints.add(buildAttributeFilterContainer(arguments));
+
+        return filterBy(filterConstraints.toArray(FilterConstraint[]::new));
+    }
+
+    @Nonnull
+    private static <A extends Serializable & Comparable<A>> FilterConstraint buildAttributeFilterContainer(@Nonnull Arguments arguments) {
+        final List<FilterConstraint> attributeConstraints = new LinkedList<>();
         for (Map.Entry<GlobalAttributeSchemaContract, Object> attribute : arguments.globallyUniqueAttributes().entrySet()) {
             //noinspection unchecked
-            filterConstraints.add(attributeEquals(attribute.getKey().getName(), (A) attribute.getValue()));
+            attributeConstraints.add(attributeEquals(attribute.getKey().getName(), (A) attribute.getValue()));
         }
 
         final FilterConstraint composition;
         if (arguments.join() == QueryHeaderArgumentsJoinType.AND) {
-            composition = and(filterConstraints.toArray(FilterConstraint[]::new));
+            composition = and(attributeConstraints.toArray(FilterConstraint[]::new));
         } else if (arguments.join() == QueryHeaderArgumentsJoinType.OR) {
-            composition = or(filterConstraints.toArray(FilterConstraint[]::new));
+            composition = or(attributeConstraints.toArray(FilterConstraint[]::new));
         } else {
             throw new GraphQLInternalError("Unsupported join type `" + arguments.join() + "`.");
         }
-
-        return Optional.ofNullable(arguments.locale())
-            .map(locale -> filterBy(entityLocaleEquals(locale), composition))
-            .orElseGet(() -> filterBy(composition));
+        return composition;
     }
 
     @Nonnull
-    private Require buildInitialRequire(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
-        final List<RequireConstraint> requireConstraints = new LinkedList<>();
-
-        requireConstraints.add(
-            entityFetchRequireResolver.resolveEntityFetch(
+    private Require buildInitialRequire(@Nonnull DataFetchingEnvironment environment) {
+        final EntityFetch entityFetch = entityFetchRequireResolver.resolveEntityFetch(
                 SelectionSetAggregator.from(environment.getSelectionSet()),
                 null,
                 catalogSchema,
                 allPossibleLocales
             )
-                // we need to have at least a body, so we can enrich it later if needed
-                .orElse(entityFetch())
-        );
+            // we need to have at least a body, so we can enrich it later if needed
+            .orElse(entityFetch());
 
-        // TODO LHO - nekompiluje pro přesunu scopes do filtru
-        /*requireConstraints.add(scope(arguments.scopes()));*/
-
-        return require(requireConstraints.toArray(RequireConstraint[]::new));
+        return require(entityFetch);
     }
 
     @Nonnull
@@ -273,7 +273,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
             final Locale locale = (Locale) arguments.remove(UnknownEntityHeaderDescriptor.LOCALE.name());
             final QueryHeaderArgumentsJoinType join = (QueryHeaderArgumentsJoinType) arguments.remove(UnknownEntityHeaderDescriptor.JOIN.name());
             //noinspection unchecked
-            final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(GetEntityHeaderDescriptor.SCOPE.name()))
+            final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(UnknownEntityHeaderDescriptor.SCOPE.name()))
                 .map(it -> it.toArray(Scope[]::new))
                 .orElse(Scope.DEFAULT_SCOPES);
 

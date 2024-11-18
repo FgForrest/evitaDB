@@ -144,7 +144,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
 
     @Nonnull
     @Override
-    public DataFetcherResult<List<SealedEntity>> get(@Nonnull DataFetchingEnvironment environment) {
+    public DataFetcherResult<List<SealedEntity>> get(DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment, catalogSchema);
         final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
@@ -191,25 +191,37 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
     }
 
     @Nonnull
-    private <A extends Serializable & Comparable<A>> FilterBy buildFilterBy(@Nonnull Arguments arguments) {
+    private static FilterBy buildFilterBy(@Nonnull Arguments arguments) {
         final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
+        if (arguments.locale() != null) {
+            filterConstraints.add(entityLocaleEquals(arguments.locale()));
+        }
+        filterConstraints.add(scope(arguments.scopes()));
+        filterConstraints.add(buildAttributeFilterContainer(arguments));
+
+        return filterBy(filterConstraints.toArray(FilterConstraint[]::new));
+    }
+
+    @Nonnull
+    private static <A extends Serializable & Comparable<A>> FilterConstraint buildAttributeFilterContainer(@Nonnull Arguments arguments) {
+        final List<FilterConstraint> attributeConstraints = new LinkedList<>();
         for (Map.Entry<GlobalAttributeSchemaContract, List<Object>> attribute : arguments.globallyUniqueAttributes().entrySet()) {
             final GlobalAttributeSchemaContract attributeSchema = attribute.getKey();
             //noinspection unchecked,SuspiciousToArrayCall
             final A[] attributeValues = attribute.getValue().toArray(size -> (A[]) Array.newInstance(attributeSchema.getPlainType(), size));
-            filterConstraints.add(attributeInSet(attributeSchema.getName(), attributeValues));
+            attributeConstraints.add(attributeInSet(attributeSchema.getName(), attributeValues));
         }
 
-        Optional.ofNullable(arguments.locale()).ifPresent(locale -> filterConstraints.add(entityLocaleEquals(locale)));
-
+        final FilterConstraint composition;
         if (arguments.join() == QueryHeaderArgumentsJoinType.AND) {
-            return filterBy(and(filterConstraints.toArray(FilterConstraint[]::new)));
+            composition = and(attributeConstraints.toArray(FilterConstraint[]::new));
         } else if (arguments.join() == QueryHeaderArgumentsJoinType.OR) {
-            return filterBy(or(filterConstraints.toArray(FilterConstraint[]::new)));
+            composition = or(attributeConstraints.toArray(FilterConstraint[]::new));
         } else {
             throw new GraphQLInternalError("Unsupported join type `" + arguments.join() + "`.");
         }
+        return composition;
     }
 
     @Nonnull
@@ -231,9 +243,6 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
         if (arguments.limit() != null) {
             requireConstraints.add(strip(0, arguments.limit()));
         }
-
-        // TODO LHO - nekompiluje pro přesunu scopes do filtru
-        /*requireConstraints.add(scope(arguments.scopes()));*/
 
         return require(
             requireConstraints.toArray(RequireConstraint[]::new)

@@ -453,8 +453,6 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.argument(ListEntitiesHeaderDescriptor.OFFSET
 				.to(argumentBuilderTransformer))
 			.argument(ListEntitiesHeaderDescriptor.LIMIT
-				.to(argumentBuilderTransformer))
-			.argument(ListEntitiesHeaderDescriptor.SCOPE
 				.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(

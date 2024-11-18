@@ -24,11 +24,11 @@
 package io.evitadb.test.client.query.graphql;
 
 import io.evitadb.api.query.Query;
-import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.SegmentDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
@@ -64,7 +64,6 @@ public class RecordsConverter extends RequireConverter {
 	                    @Nullable EntityFetch entityFetch,
 	                    @Nullable Page page,
 	                    @Nullable Strip strip,
-	                    @Nullable EntityScope entityScope,
 	                    boolean hasExtraResults) {
 		if (page != null) {
 			requireBuilder.addObjectField(
@@ -72,7 +71,7 @@ public class RecordsConverter extends RequireConverter {
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
 						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
-				getRecordPageArguments(entityType, page, entityScope)
+				getRecordPageArguments(entityType, page)
 			);
 		} else if (strip != null) {
 			requireBuilder.addObjectField(
@@ -80,7 +79,7 @@ public class RecordsConverter extends RequireConverter {
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
 						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
-				getRecordStripArguments(strip, entityScope)
+				getRecordStripArguments(strip)
 			);
 		} else if (entityFetch != null || !hasExtraResults) {
 			requireBuilder.addObjectField(
@@ -88,13 +87,17 @@ public class RecordsConverter extends RequireConverter {
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
 						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
-				getRecordPageArguments(entityType, new Page(null, null), entityScope)
+				getRecordPageArguments(entityType, new Page(null, null))
 			);
 		}
 	}
 
 	@Nonnull
-	private ArgumentSupplier[] getRecordPageArguments(@Nonnull String entityType, @Nullable Page page, @Nullable EntityScope entityScope) {
+	private ArgumentSupplier[] getRecordPageArguments(@Nonnull String entityType, @Nullable Page page) {
+		if (page == null) {
+			return new ArgumentSupplier[0];
+		}
+
 		final ArrayList<ArgumentSupplier> argumentSuppliers = new ArrayList<>(4);
 		if (page.getPageNumber() != 1) {
 			argumentSuppliers.add(
@@ -116,16 +119,6 @@ public class RecordsConverter extends RequireConverter {
 				)
 			);
 		}
-		if (entityScope != null) {
-			argumentSuppliers.add(
-				(offset, multipleArguments) -> new Argument(
-					RecordPageFieldHeaderDescriptor.SCOPE,
-					offset,
-					multipleArguments,
-					entityScope.getScope()
-				)
-			);
-		}
 		if (page.getSpacing().isPresent()) {
 			argumentSuppliers.add(
 				(offset, multipleArguments) -> new Argument(
@@ -135,7 +128,7 @@ public class RecordsConverter extends RequireConverter {
 					convertRequireConstraint(
 						new SegmentDataLocator(new ManagedEntityTypePointer(entityType)),
 						page.getSpacing().get()
-					).orElse(null)
+					).orElseThrow(() -> new GenericEvitaInternalError("Spacing constraint is present but converted constraint is empty. This is weird!"))
 				)
 			);
 		};
@@ -143,7 +136,7 @@ public class RecordsConverter extends RequireConverter {
 	}
 
 	@Nonnull
-	private ArgumentSupplier[] getRecordStripArguments(@Nonnull Strip strip, @Nullable EntityScope entityScope) {
+	private static ArgumentSupplier[] getRecordStripArguments(@Nonnull Strip strip) {
 		final ArrayList<ArgumentSupplier> argumentSuppliers = new ArrayList<>(3);
 
 		if (strip.getOffset() != 0) {
@@ -163,16 +156,6 @@ public class RecordsConverter extends RequireConverter {
 					offset,
 					multipleArguments,
 					strip.getLimit()
-				)
-			);
-		}
-		if (entityScope != null) {
-			argumentSuppliers.add(
-				(offset, multipleArguments) -> new Argument(
-					RecordStripFieldHeaderDescriptor.SCOPE,
-					offset,
-					multipleArguments,
-					entityScope.getScope()
 				)
 			);
 		}

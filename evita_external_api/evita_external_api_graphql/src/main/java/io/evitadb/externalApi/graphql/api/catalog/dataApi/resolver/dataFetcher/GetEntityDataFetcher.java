@@ -165,11 +165,9 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
             filterConstraints.add(priceValidInNow());
         }
 
-		return filterBy(
-			and(
-				filterConstraints.toArray(FilterConstraint[]::new)
-			)
-		);
+		 filterConstraints.add(scope(arguments.scopes()));
+
+		return filterBy(filterConstraints.toArray(FilterConstraint[]::new));
 	}
 
     @Nonnull
@@ -184,8 +182,6 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 		    .ifPresent(requireConstraints::add);
 
 		requireConstraints.add(priceType(arguments.priceType()));
-		// TODO LHO - nekompiluje pro přesunu scopes do filtru
-		// requireConstraints.add(scope(arguments.scopes()));
 
 	    return require(requireConstraints.toArray(RequireConstraint[]::new));
     }

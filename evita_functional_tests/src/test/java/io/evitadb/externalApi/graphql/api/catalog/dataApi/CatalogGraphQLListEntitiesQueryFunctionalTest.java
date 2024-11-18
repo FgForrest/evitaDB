@@ -230,9 +230,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	                query {
 	                    listProduct(
 	                        filterBy: {
-	                            entityPrimaryKeyInSet: [%d, %d]
-	                        },
-	                        scope: ARCHIVED
+	                            entityPrimaryKeyInSet: [%d, %d],
+	                            scope: ARCHIVED
+	                        }
 	                    ) {
                             primaryKey
 	                        scope
@@ -295,9 +295,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	                query {
 	                    listProduct(
 	                        filterBy: {
-	                            entityPrimaryKeyInSet: [%d, %d, %d, %d]
-	                        },
-	                        scope: [LIVE, ARCHIVED]
+	                            entityPrimaryKeyInSet: [%d, %d, %d, %d],
+	                            scope: [LIVE, ARCHIVED]
+	                        }
 	                    ) {
                             primaryKey
 	                        scope
