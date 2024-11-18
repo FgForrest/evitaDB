@@ -63,7 +63,7 @@
 						</manifest>
 						<manifestEntries>
 							<Implementation-Title>${project.name}</Implementation-Title>
-							<Implementation-Version>${project.version}</Implementation-Version>
+							<Implementation-Version>${project.parent.version}</Implementation-Version>
 							<Implementation-Vendor>${project.organization.name}</Implementation-Vendor>
 						</manifestEntries>
 					</archive>

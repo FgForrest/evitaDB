@@ -35,8 +35,6 @@ module evita.java.driver.observability {
 	requires static jsr305;
 	requires static lombok;
 
-	requires io.grpc;
-
 	requires evita.api;
 	requires evita.java.driver;
 

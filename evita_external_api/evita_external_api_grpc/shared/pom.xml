@@ -76,8 +76,7 @@
 						</goals>
 						<configuration>
 							<pluginId>grpc-java</pluginId>
-							<pluginArtifact>io.grpc:protoc-gen-grpc-java:1.47.0:exe:${os.detected.classifier}
-							</pluginArtifact>
+							<pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
 							<outputDirectory>src/main/java</outputDirectory>
 							<clearOutputDirectory>false</clearOutputDirectory>
 						</configuration>
@@ -183,21 +182,11 @@ $1package io.evitadb.externalApi.grpc.generated;
 			<artifactId>grpc-services</artifactId>
 			<version>${grpc.version}</version>
 		</dependency>
-
 		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-			<version>${jackson.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.google.guava</groupId>
-			<artifactId>guava</artifactId>
-			<version>32.0.0-android</version>
-		</dependency>
-		<dependency>
-			<groupId>com.linecorp.armeria</groupId>
-			<artifactId>armeria</artifactId>
-			<version>${armeria.version}</version>
+			<groupId>io.netty</groupId>
+			<artifactId>netty-handler</artifactId>
+			<version>${netty.version}</version>
+			<scope>provided</scope>
 		</dependency>
 	</dependencies>
 </project>
