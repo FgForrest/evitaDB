@@ -934,7 +934,7 @@ public class OffsetIndex {
 	 * @return the living object share as a double value
 	 */
 	public double getActiveRecordShare(long fileSize) {
-		final double activeRecordShare = (double) getTotalActiveSize() / (double) fileSize;
+		final double activeRecordShare = fileSize == 0 ? 1.0d : (double) getTotalActiveSize() / (double) fileSize;
 		Assert.isPremiseValid(activeRecordShare >= 0, "Active record share must be non-negative!");
 		return activeRecordShare;
 	}
