@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -52,7 +53,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -61,7 +62,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -72,7 +73,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -82,7 +83,7 @@ class WrapperObjectKeyTest {
 				.hashCode(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -94,7 +95,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -103,7 +104,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.ORDER,
-				new EntityDataLocator("category"),
+				new EntityDataLocator(new ManagedEntityTypePointer("category")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -114,7 +115,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -124,7 +125,7 @@ class WrapperObjectKeyTest {
 				.hashCode(),
 			new WrapperObjectKey(
 				ConstraintType.ORDER,
-				new EntityDataLocator("category"),
+				new EntityDataLocator(new ManagedEntityTypePointer("category")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -141,7 +142,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -154,7 +155,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -170,7 +171,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)),
 				List.of(
@@ -183,7 +184,7 @@ class WrapperObjectKeyTest {
 				.hashCode(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)),
 				List.of(
@@ -199,7 +200,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(
 					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
@@ -208,7 +209,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(
 					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
@@ -220,7 +221,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(
 					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
@@ -230,7 +231,7 @@ class WrapperObjectKeyTest {
 				.hashCode(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(
 					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
@@ -243,7 +244,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(),
 				List.of(
@@ -252,7 +253,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(),
 				List.of(
@@ -264,7 +265,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(),
 				List.of(
@@ -274,7 +275,7 @@ class WrapperObjectKeyTest {
 				.hashCode(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(),
 				List.of(
@@ -287,7 +288,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", "category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -300,7 +301,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", "category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -316,7 +317,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", "category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -329,7 +330,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", "category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -349,7 +350,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -362,7 +363,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.ORDER,
-				new EntityDataLocator("category"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -378,7 +379,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -392,7 +393,7 @@ class WrapperObjectKeyTest {
 				.hashCode(),
 			new WrapperObjectKey(
 				ConstraintType.ORDER,
-				new EntityDataLocator("category"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -409,7 +410,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -418,7 +419,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(
 					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
@@ -430,7 +431,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -440,7 +441,7 @@ class WrapperObjectKeyTest {
 				.hashCode(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(
 					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
@@ -453,7 +454,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(
 					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
@@ -462,7 +463,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(),
 				List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT))
@@ -472,7 +473,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(
 					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
@@ -482,7 +483,7 @@ class WrapperObjectKeyTest {
 				.hashCode(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(),
 				List.of(),
 				List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT))
@@ -493,7 +494,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -506,7 +507,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", "category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -522,7 +523,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -535,7 +536,7 @@ class WrapperObjectKeyTest {
 			),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", "category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -554,7 +555,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -568,7 +569,7 @@ class WrapperObjectKeyTest {
 				.toHash(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -584,7 +585,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -594,7 +595,7 @@ class WrapperObjectKeyTest {
 				.toHash(),
 			new WrapperObjectKey(
 				ConstraintType.ORDER,
-				new EntityDataLocator("category"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -606,7 +607,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -620,7 +621,7 @@ class WrapperObjectKeyTest {
 				.toHash(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -637,7 +638,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("name", String.class, true, false)
 				),
@@ -651,7 +652,7 @@ class WrapperObjectKeyTest {
 				.toHash(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("name", String.class, true, false)
 				),
@@ -668,7 +669,7 @@ class WrapperObjectKeyTest {
 		assertEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("name", String.class, true, false)
 				),
@@ -682,7 +683,7 @@ class WrapperObjectKeyTest {
 				.toHash(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("name", String.class, true, false)
 				),
@@ -703,7 +704,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -717,7 +718,7 @@ class WrapperObjectKeyTest {
 				.toHash(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("name", String.class, true, false)
 				),
@@ -734,7 +735,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new EntityDataLocator("product"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -748,7 +749,7 @@ class WrapperObjectKeyTest {
 				.toHash(),
 			new WrapperObjectKey(
 				ConstraintType.ORDER,
-				new EntityDataLocator("category"),
+				new EntityDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -766,7 +767,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("name", String.class, true, false)
 				),
@@ -780,7 +781,7 @@ class WrapperObjectKeyTest {
 				.toHash(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", "category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
 				List.of(
 					new ValueParameterDescriptor("name", String.class, true, false)
 				),
@@ -797,7 +798,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product")),
 				List.of(
 					new ValueParameterDescriptor("name", String.class, true, false)
 				),
@@ -811,7 +812,7 @@ class WrapperObjectKeyTest {
 				.toHash(),
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", "category"),
+				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
 				List.of(
 					new ValueParameterDescriptor("name", String.class, true, false)
 				),

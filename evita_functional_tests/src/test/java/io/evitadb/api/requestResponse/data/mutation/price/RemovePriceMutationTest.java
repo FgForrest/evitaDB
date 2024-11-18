@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ class RemovePriceMutationTest extends AbstractMutationTest {
 		assertEquals(BigDecimal.ZERO, removedPrice.taxRate());
 		assertEquals(BigDecimal.TEN, removedPrice.priceWithTax());
 		assertEquals(DateTimeRange.since(theDay), removedPrice.validity());
-		assertTrue(removedPrice.sellable());
+		assertTrue(removedPrice.indexed());
 		assertTrue(removedPrice.dropped());
 	}
 

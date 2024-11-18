@@ -28,7 +28,7 @@ import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -59,12 +59,12 @@ class EvitaQLHeadConstraintVisitorTest {
 
     @Test
     void shouldNotParseCollectionConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection('product')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection(@col)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection('product','variant')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection(@col)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection('product','variant')"));
     }
 
 

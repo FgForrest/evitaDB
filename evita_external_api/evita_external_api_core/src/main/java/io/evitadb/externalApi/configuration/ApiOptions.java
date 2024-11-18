@@ -36,6 +36,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -43,7 +44,6 @@ import static java.util.Optional.ofNullable;
 /**
  * This DTO record encapsulates common settings shared among all the API endpoints.
  *
- * @param exposedOn                 the name of the host the APIs will be exposed on when evitaDB is running inside a container
  * @param accessLog                 defines whether the access logs will be enabled or not
  * @param endpoints                 contains specific configuration for all the API endpoints
  * @param certificate               defines the certificate settings that will be used to secure connections to the web servers providing APIs
@@ -53,19 +53,15 @@ import static java.util.Optional.ofNullable;
  *                                  grained approach, and small values will cause problems for requests with a long processing time.
  * @param requestTimeoutInMillis    The amount of time a connection can sit idle without processing a request, before it is closed by
  *                                  the server.
- * @param keepAlive                 If this is true then a Connection: keep-alive header will be added to responses, even when it is not strictly required by
- *                                  the specification.
  * @param maxEntitySizeInBytes      The default maximum size of a request entity. If entity body is larger than this limit then a
  *                                  java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
  *                                  length requests, when too much data has been read for chunked requests).
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ApiOptions(
-	@Nonnull String exposedOn,
 	@Nullable Integer workerGroupThreads,
 	int idleTimeoutInMillis,
 	int requestTimeoutInMillis,
-	boolean keepAlive,
 	long maxEntitySizeInBytes,
 	boolean accessLog,
 	@Nonnull CertificateSettings certificate,
@@ -74,7 +70,6 @@ public record ApiOptions(
 	public static final int DEFAULT_WORKER_GROUP_THREADS = Runtime.getRuntime().availableProcessors();
 	public static final int DEFAULT_IDLE_TIMEOUT = 20 * 1000;
 	public static final int DEFAULT_REQUEST_TIMEOUT = 1000;
-	public static final boolean DEFAULT_KEEP_ALIVE = true;
 	public static final long DEFAULT_MAX_ENTITY_SIZE = 2_097_152L;
 
 	/**
@@ -85,18 +80,15 @@ public record ApiOptions(
 	}
 
 	public ApiOptions(
-		@Nonnull String exposedOn,
 		@Nullable Integer workerGroupThreads,
 		int idleTimeoutInMillis, int requestTimeoutInMillis,
-		boolean keepAlive, long maxEntitySizeInBytes, boolean accessLog,
+		long maxEntitySizeInBytes, boolean accessLog,
 		@Nonnull CertificateSettings certificate,
 		@Nonnull Map<String, AbstractApiConfiguration> endpoints
 	) {
-		this.exposedOn = exposedOn;
 		this.workerGroupThreads = ofNullable(workerGroupThreads).orElse(DEFAULT_WORKER_GROUP_THREADS);
 		this.idleTimeoutInMillis = idleTimeoutInMillis <= 0 ? DEFAULT_IDLE_TIMEOUT : idleTimeoutInMillis;
 		this.requestTimeoutInMillis = requestTimeoutInMillis <= 0 ? DEFAULT_REQUEST_TIMEOUT : requestTimeoutInMillis;
-		this.keepAlive = keepAlive;
 		this.maxEntitySizeInBytes = maxEntitySizeInBytes <= 0 ? DEFAULT_MAX_ENTITY_SIZE : maxEntitySizeInBytes;
 		this.accessLog = accessLog;
 		this.certificate = certificate;
@@ -106,8 +98,8 @@ public record ApiOptions(
 
 	public ApiOptions() {
 		this(
-			null, DEFAULT_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT,
-			DEFAULT_KEEP_ALIVE, DEFAULT_MAX_ENTITY_SIZE, false,
+			DEFAULT_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT,
+			DEFAULT_MAX_ENTITY_SIZE, false,
 			new CertificateSettings(), new HashMap<>(8)
 		);
 	}
@@ -118,14 +110,14 @@ public record ApiOptions(
 	@SuppressWarnings("unchecked")
 	@Nullable
 	public <T extends AbstractApiConfiguration> T getEndpointConfiguration(@Nonnull String endpointCode) {
-		return (T) endpoints.get(endpointCode);
+		return (T) this.endpoints.get(endpointCode);
 	}
 
 	/**
 	 * Returns set {@link #workerGroupThreads} or returns a default value.
 	 */
 	public int workerGroupThreadsAsInt() {
-		return ofNullable(workerGroupThreads)
+		return ofNullable(this.workerGroupThreads)
 			// double the value of available processors (recommended by Netty configuration)
 			.orElse(DEFAULT_WORKER_GROUP_THREADS);
 	}
@@ -174,6 +166,22 @@ public record ApiOptions(
 	}
 
 	/**
+	 * Returns the enabled API endpoints.
+	 *
+	 * @return array of codes of the enabled API endpoints
+	 */
+	@Nonnull
+	public String[] getEnabledApiEndpoints() {
+		return endpoints()
+			.entrySet()
+			.stream()
+			.filter(entry -> entry.getValue() != null)
+			.filter(entry -> entry.getValue().isEnabled())
+			.map(Entry::getKey)
+			.toArray(String[]::new);
+	}
+
+	/**
 	 * Standard builder pattern implementation.
 	 */
 	@ToString
@@ -182,16 +190,14 @@ public record ApiOptions(
 		private final Map<String, AbstractApiConfiguration> enabledProviders;
 		private int idleTimeoutInMillis = DEFAULT_IDLE_TIMEOUT;
 		private int requestTimeoutInMillis = DEFAULT_REQUEST_TIMEOUT;
-		private boolean keepAlive = DEFAULT_KEEP_ALIVE;
 		private long maxEntitySizeInBytes = DEFAULT_MAX_ENTITY_SIZE;
 		private CertificateSettings certificate;
-		@Nullable private String exposedOn;
 		private int workerGroupThreads = DEFAULT_WORKER_GROUP_THREADS;
 		private boolean accessLog;
 
 		Builder() {
 			//noinspection unchecked
-			apiProviders = ExternalApiServer.gatherExternalApiProviders()
+			this.apiProviders = ExternalApiServer.gatherExternalApiProviders()
 				.stream()
 				.collect(
 					Collectors.toMap(
@@ -199,14 +205,8 @@ public record ApiOptions(
 						ExternalApiProviderRegistrar::getConfigurationClass
 					)
 				);
-			enabledProviders = CollectionUtils.createHashMap(apiProviders.size());
-			certificate = new CertificateSettings.Builder().build();
-		}
-
-		@Nonnull
-		public ApiOptions.Builder exposedOn(@Nonnull String exposedOn) {
-			this.exposedOn = exposedOn;
-			return this;
+			this.enabledProviders = CollectionUtils.createHashMap(this.apiProviders.size());
+			this.certificate = new CertificateSettings.Builder().build();
 		}
 
 		@Nonnull
@@ -224,12 +224,6 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions.Builder requestTimeoutInMillis(int requestTimeoutInMillis) {
 			this.requestTimeoutInMillis = requestTimeoutInMillis;
-			return this;
-		}
-
-		@Nonnull
-		public ApiOptions.Builder keepAlive(boolean keepAlive) {
-			this.keepAlive = keepAlive;
 			return this;
 		}
 
@@ -285,9 +279,9 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions build() {
 			return new ApiOptions(
-				exposedOn, workerGroupThreads,
-				idleTimeoutInMillis, requestTimeoutInMillis,
-				keepAlive, maxEntitySizeInBytes, accessLog, certificate, enabledProviders
+				this.workerGroupThreads,
+				this.idleTimeoutInMillis, this.requestTimeoutInMillis,
+				this.maxEntitySizeInBytes, this.accessLog, this.certificate, this.enabledProviders
 			);
 		}
 	}

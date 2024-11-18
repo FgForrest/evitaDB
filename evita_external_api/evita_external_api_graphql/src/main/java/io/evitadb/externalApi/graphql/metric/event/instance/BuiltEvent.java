@@ -35,7 +35,6 @@ import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * Event fired when GraphQL schema was successfully built.
@@ -49,65 +48,79 @@ import javax.annotation.Nullable;
 @Getter
 public class BuiltEvent extends AbstractGraphQLInstanceEvent {
 
-	@Label("Instance type")
-	@Name("instanceType")
+	/**
+	 * Type of used GQL instance.
+	 */
+	@Label("GraphQL instance type")
+	@Description("Domain of the GraphQL API used in connection with this event/metric: SYSTEM, SCHEMA, or DATA")
 	@ExportMetricLabel
 	@Nonnull
-	private String instanceType;
+	private final String graphQLInstanceType;
 
+	/**
+	 * Type of the build.
+	 */
 	@Label("Build type")
-	@Name("buildType")
+	@Description("Type of the instance build: NEW or REFRESH")
 	@ExportMetricLabel
 	@Nonnull
-	private String buildType;
+	private final String buildType;
 
+	/**
+	 * The catalog name the build event is associated with.
+	 */
 	@Label("Catalog")
-	@Name("catalogName")
+	@Description("The name of the catalog to which this event/metric is associated.")
 	@ExportMetricLabel
-	@Nullable
+	@Nonnull
 	private final String catalogName;
 
-	@Label("Duration of build of a single API")
+	@Label("API build duration")
+	@Description("Duration of build of a single API in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 2.5)
-	private long instanceBuildDuration;
+	private final long graphQLInstanceBuildDurationMilliseconds;
 
-	@Label("Duration of GraphQL schema build of a single API")
+	@Label("GraphQL schema build duration")
+	@Description("Duration of build of a single GraphQL API schema in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 2.5)
-	private long schemaBuildDuration;
+	private final long graphQLSchemaBuildDurationMilliseconds;
 
-	@Label("Number of lines in built GraphQL schema DSL")
+	@Label("Number of lines")
+	@Description("Number of lines generated in the built GraphQL schema DSL.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private long schemaDslLines;
+	private final long graphQLSchemaDslLines;
 
-	public BuiltEvent(@Nonnull GraphQLInstanceType instanceType,
-					  @Nonnull BuildType buildType,
-					  long instanceBuildDuration,
-	                  long schemaBuildDuration,
-	                  long schemaDslLines) {
+	public BuiltEvent(@Nonnull GraphQLInstanceType graphQLInstanceType,
+	                  @Nonnull BuildType buildType,
+	                  long graphQLInstanceBuildDurationMilliseconds,
+	                  long graphQLSchemaBuildDurationMilliseconds,
+	                  long graphQLSchemaDslLines) {
 		this(
 			null,
-			instanceType,
+			graphQLInstanceType,
 			buildType,
-			instanceBuildDuration,
-			schemaBuildDuration,
-			schemaDslLines
+			graphQLInstanceBuildDurationMilliseconds,
+			graphQLSchemaBuildDurationMilliseconds,
+			graphQLSchemaDslLines
 		);
 	}
 
-	public BuiltEvent(@Nonnull String catalogName,
-	                  @Nonnull GraphQLInstanceType instanceType,
-					  @Nonnull BuildType buildType,
-					  long instanceBuildDuration,
-	                  long schemaBuildDuration,
-	                  long schemaDslLines) {
+	public BuiltEvent(
+		@Nonnull String catalogName,
+		@Nonnull GraphQLInstanceType graphQLInstanceType,
+		@Nonnull BuildType buildType,
+		long graphQLInstanceBuildDurationMilliseconds,
+		long graphQLSchemaBuildDurationMilliseconds,
+		long graphQLSchemaDslLines
+	) {
 		this.catalogName = catalogName;
-		this.instanceType = instanceType.name();
+		this.graphQLInstanceType = graphQLInstanceType.name();
 		this.buildType = buildType.name();
-		this.instanceBuildDuration = instanceBuildDuration;
-		this.schemaBuildDuration = schemaBuildDuration;
-		this.schemaDslLines = schemaDslLines;
+		this.graphQLInstanceBuildDurationMilliseconds = graphQLInstanceBuildDurationMilliseconds;
+		this.graphQLSchemaBuildDurationMilliseconds = graphQLSchemaBuildDurationMilliseconds;
+		this.graphQLSchemaDslLines = graphQLSchemaDslLines;
 	}
 
 	/**

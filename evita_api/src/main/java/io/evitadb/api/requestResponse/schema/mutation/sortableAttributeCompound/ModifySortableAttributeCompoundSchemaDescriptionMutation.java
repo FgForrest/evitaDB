@@ -118,14 +118,9 @@ public class ModifySortableAttributeCompoundSchemaDescriptionMutation
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final SortableAttributeCompoundSchemaContract existingCompoundSchema = referenceSchema.getSortableAttributeCompound(name)
-			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The sortable attribute compound `" + name + "` is not defined in entity `" + entitySchema.getName() +
-					"` schema for reference with name `" + referenceSchema.getName() + "`!"
-			));
-
+		final SortableAttributeCompoundSchemaContract existingCompoundSchema = getReferenceSortableAttributeCompoundSchemaOrThrow(entitySchema, referenceSchema, name);
 		final SortableAttributeCompoundSchemaContract updatedAttributeSchema = mutate(entitySchema, null, existingCompoundSchema);
 		return replaceSortableAttributeCompoundIfDifferent(
 			referenceSchema, existingCompoundSchema, updatedAttributeSchema

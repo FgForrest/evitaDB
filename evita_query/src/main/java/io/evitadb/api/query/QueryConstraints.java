@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query;
 
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.*;
@@ -30,6 +31,7 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.StripList;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -433,7 +435,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-between">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeBetween attributeBetween(@Nullable String attributeName, @Nullable T from, @Nullable T to) {
+	static <T extends Serializable> AttributeBetween attributeBetween(@Nullable String attributeName, @Nullable T from, @Nullable T to) {
 		if (attributeName == null || (from == null && to == null)) {
 			return null;
 		} else {
@@ -581,7 +583,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeLessThan attributeLessThan(@Nullable String attributeName, @Nullable T attributeValue) {
+	static <T extends Serializable> AttributeLessThan attributeLessThan(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeLessThan(attributeName, attributeValue);
 	}
 
@@ -606,7 +608,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeLessThanEquals attributeLessThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
+	static <T extends Serializable> AttributeLessThanEquals attributeLessThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeLessThanEquals(attributeName, attributeValue);
 	}
 
@@ -630,7 +632,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeGreaterThan attributeGreaterThan(@Nullable String attributeName, @Nullable T attributeValue) {
+	static <T extends Serializable> AttributeGreaterThan attributeGreaterThan(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeGreaterThan(attributeName, attributeValue);
 	}
 
@@ -655,7 +657,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
+	static <T extends Serializable> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeGreaterThanEquals(attributeName, attributeValue);
 	}
 
@@ -1125,7 +1127,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static HierarchyHaving having(@Nullable FilterConstraint... includeChildTreeConstraints) {
-		if (ArrayUtils.isEmpty(includeChildTreeConstraints)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(includeChildTreeConstraints)) {
 			return null;
 		}
 		return new HierarchyHaving(includeChildTreeConstraints);
@@ -1220,7 +1222,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static HierarchyExcluding excluding(@Nullable FilterConstraint... excludeChildTreeConstraints) {
-		if (ArrayUtils.isEmpty(excludeChildTreeConstraints)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(excludeChildTreeConstraints)) {
 			return null;
 		}
 		return new HierarchyExcluding(excludeChildTreeConstraints);
@@ -1803,7 +1805,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static FacetHaving facetHaving(@Nullable String referenceName, @Nullable FilterConstraint... constraint) {
-		return referenceName == null || ArrayUtils.isEmpty(constraint) ? null : new FacetHaving(referenceName, constraint);
+		return referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(constraint) ? null : new FacetHaving(referenceName, constraint);
 	}
 
 	/**
@@ -1954,6 +1956,371 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
+	 * sort it by the order clauses defined within particular segment and extract specified number of entities from
+	 * the sorted output. The extracted entities are then excluded from the original result and the process is repeated
+	 * with the next segment until all segments are processed. If there are any entities left in the original result,
+	 * they are appended to the final result in the order or the primary key (ascending).
+	 *
+	 * Segments also allow to define a filtering constraint that selects only entities that are to be processed / ordered
+	 * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
+	 * result but rather their order limited to this segment).
+	 *
+	 * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
+	 * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
+	 * defined after this one, it will never be reached.
+	 *
+	 * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
+	 * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting
+	 * orders for different parts of the result set.
+	 *
+	 * Example of usage:
+	 *
+	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
+	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
+	 *    and only first 2 entities of those will be added to the final result
+	 * 3. the rest of the entities will be sorted by code and create date in ascending order
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segments(
+	 *       segment(
+	 *          orderBy(
+	 *             attributeNatural("orderedQuantity, DESC)
+	 *          ),
+	 *          limit(3)
+	 *       ),
+	 *       segment(
+	 *          entityHaving(
+	 *             attributeEquals("new", true)
+	 *          ),
+	 *          orderBy(
+	 *             random()
+	 *          ),
+	 *          limit(2)
+	 *       ),
+	 *       segment(
+	 *          orderBy(
+	 *             ascending("code"),
+	 *             ascending("create")
+	 *          )
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Segments segments(@Nullable Segment... constraints) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
+			return null;
+		}
+		return new Segments(constraints);
+	}
+
+	/**
+	 * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
+	 * sort it by the order clauses defined within particular segment and extract specified number of entities from
+	 * the sorted output. The extracted entities are then excluded from the original result and the process is repeated
+	 * with the next segment until all segments are processed. If there are any entities left in the original result,
+	 * they are appended to the final result in the order or the primary key (ascending).
+	 *
+	 * Segments also allow to define a filtering constraint that selects only entities that are to be processed / ordered
+	 * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
+	 * result but rather their order limited to this segment).
+	 *
+	 * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
+	 * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
+	 * defined after this one, it will never be reached.
+	 *
+	 * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
+	 * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting
+	 * orders for different parts of the result set.
+	 *
+	 * Example of usage:
+	 *
+	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
+	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
+	 *    and only first 2 entities of those will be added to the final result
+	 * 3. the rest of the entities will be sorted by code and create date in ascending order
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segments(
+	 *       segment(
+	 *          orderBy(
+	 *             attributeNatural("orderedQuantity, DESC)
+	 *          ),
+	 *          limit(3)
+	 *       ),
+	 *       segment(
+	 *          entityHaving(
+	 *             attributeEquals("new", true)
+	 *          ),
+	 *          orderBy(
+	 *             random()
+	 *          ),
+	 *          limit(2)
+	 *       ),
+	 *       segment(
+	 *          orderBy(
+	 *             ascending("code"),
+	 *             ascending("create")
+	 *          )
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Segment segment(@Nonnull OrderBy orderBy) {
+		if (orderBy == null) {
+			return null;
+		}
+		return new Segment(orderBy);
+	}
+
+	/**
+	 * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
+	 * sort it by the order clauses defined within particular segment and extract specified number of entities from
+	 * the sorted output. The extracted entities are then excluded from the original result and the process is repeated
+	 * with the next segment until all segments are processed. If there are any entities left in the original result,
+	 * they are appended to the final result in the order or the primary key (ascending).
+	 *
+	 * Segments also allow to define a filtering constraint that selects only entities that are to be processed / ordered
+	 * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
+	 * result but rather their order limited to this segment).
+	 *
+	 * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
+	 * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
+	 * defined after this one, it will never be reached.
+	 *
+	 * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
+	 * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting
+	 * orders for different parts of the result set.
+	 *
+	 * Example of usage:
+	 *
+	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
+	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
+	 *    and only first 2 entities of those will be added to the final result
+	 * 3. the rest of the entities will be sorted by code and create date in ascending order
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segments(
+	 *       segment(
+	 *          orderBy(
+	 *             attributeNatural("orderedQuantity, DESC)
+	 *          ),
+	 *          limit(3)
+	 *       ),
+	 *       segment(
+	 *          entityHaving(
+	 *             attributeEquals("new", true)
+	 *          ),
+	 *          orderBy(
+	 *             random()
+	 *          ),
+	 *          limit(2)
+	 *       ),
+	 *       segment(
+	 *          orderBy(
+	 *             ascending("code"),
+	 *             ascending("create")
+	 *          )
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Segment segment(
+		@Nonnull OrderBy orderBy,
+		@Nullable SegmentLimit limit
+	) {
+		if (orderBy == null) {
+			return null;
+		}
+		return new Segment(orderBy, limit);
+	}
+
+	/**
+	 * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
+	 * sort it by the order clauses defined within particular segment and extract specified number of entities from
+	 * the sorted output. The extracted entities are then excluded from the original result and the process is repeated
+	 * with the next segment until all segments are processed. If there are any entities left in the original result,
+	 * they are appended to the final result in the order or the primary key (ascending).
+	 *
+	 * Segments also allow to define a filtering constraint that selects only entities that are to be processed / ordered
+	 * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
+	 * result but rather their order limited to this segment).
+	 *
+	 * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
+	 * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
+	 * defined after this one, it will never be reached.
+	 *
+	 * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
+	 * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting
+	 * orders for different parts of the result set.
+	 *
+	 * Example of usage:
+	 *
+	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
+	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
+	 *    and only first 2 entities of those will be added to the final result
+	 * 3. the rest of the entities will be sorted by code and create date in ascending order
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segments(
+	 *       segment(
+	 *          orderBy(
+	 *             attributeNatural("orderedQuantity, DESC)
+	 *          ),
+	 *          limit(3)
+	 *       ),
+	 *       segment(
+	 *          entityHaving(
+	 *             attributeEquals("new", true)
+	 *          ),
+	 *          orderBy(
+	 *             random()
+	 *          ),
+	 *          limit(2)
+	 *       ),
+	 *       segment(
+	 *          orderBy(
+	 *             ascending("code"),
+	 *             ascending("create")
+	 *          )
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Segment segment(
+		@Nullable EntityHaving entityHaving,
+		@Nonnull OrderBy orderBy
+	) {
+		if (orderBy == null) {
+			return null;
+		}
+		return new Segment(entityHaving, orderBy);
+	}
+
+	/**
+	 * The `segments` allows to define multiple ordering styles in one query. Segments take the produced filtered result and
+	 * sort it by the order clauses defined within particular segment and extract specified number of entities from
+	 * the sorted output. The extracted entities are then excluded from the original result and the process is repeated
+	 * with the next segment until all segments are processed. If there are any entities left in the original result,
+	 * they are appended to the final result in the order or the primary key (ascending).
+	 *
+	 * Segments also allow to define a filtering constraint that selects only entities that are to be processed / ordered
+	 * by the particular segment (similar to sub-select in relational algebra except it doesn't affect the set of returned
+	 * result but rather their order limited to this segment).
+	 *
+	 * When segment doesn't define limit it means all entities matching the filter constraint are processed by the segment.
+	 * If no filter constraint is defined for the segment, all entities are processed - and if there is another segment
+	 * defined after this one, it will never be reached.
+	 *
+	 * Segments are not the same as multiple order clauses in the `orderBy` constraint - multiple order clauses define
+	 * primary, secondary, tertiary, etc. sorting order for the whole result set. Segments define multiple separate sorting
+	 * orders for different parts of the result set.
+	 *
+	 * Example of usage:
+	 *
+	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
+	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
+	 *    and only first 2 entities of those will be added to the final result
+	 * 3. the rest of the entities will be sorted by code and create date in ascending order
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segments(
+	 *       segment(
+	 *          orderBy(
+	 *             attributeNatural("orderedQuantity, DESC)
+	 *          ),
+	 *          limit(3)
+	 *       ),
+	 *       segment(
+	 *          entityHaving(
+	 *             attributeEquals("new", true)
+	 *          ),
+	 *          orderBy(
+	 *             random()
+	 *          ),
+	 *          limit(2)
+	 *       ),
+	 *       segment(
+	 *          orderBy(
+	 *             ascending("code"),
+	 *             ascending("create")
+	 *          )
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Segment segment(
+		@Nullable EntityHaving entityHaving,
+		@Nonnull OrderBy orderBy,
+		@Nullable SegmentLimit limit
+	) {
+		if (orderBy == null) {
+			return null;
+		}
+		return new Segment(entityHaving, orderBy, limit);
+	}
+
+	/**
+	 * The distance constraint can only be used within the {@link Segment} container and limits the number or entities
+	 * in particular segment.
+	 *
+	 * See the following figure - the limit constraint narrows the result set to only 3 entities:
+	 *
+	 * <pre>
+	 * orderBy(
+	 *    segment(
+	 *       orderBy(
+	 *          attributeNatural("orderedQuantity, DESC)
+	 *       ),
+	 *       limit(3)
+	 *    ),
+	 *    segment(
+	 *       orderBy(
+	 *          ascending("code"),
+	 *          ascending("create")
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment#limit">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static SegmentLimit limit(
+		@Nullable Integer limit
+	) {
+		if (limit == null) {
+			return null;
+		}
+		return new SegmentLimit(limit);
+	}
+
+	/**
 	 * The constraint allows to sort output entities by primary key values in the exact order.
 	 *
 	 * Example usage:
@@ -2032,7 +2399,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static EntityPrimaryKeyExact entityPrimaryKeyExact(@Nullable Integer... primaryKey) {
-		if (ArrayUtils.isEmpty(primaryKey)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(primaryKey)) {
 			return null;
 		}
 		return new EntityPrimaryKeyExact(primaryKey);
@@ -2097,7 +2464,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static AttributeSetExact attributeSetExact(@Nullable String attributeName, @Nullable Serializable... attributeValues) {
-		if (attributeName == null || attributeName.isBlank() || ArrayUtils.isEmpty(attributeValues)) {
+		if (attributeName == null || attributeName.isBlank() || ArrayUtils.isEmptyOrItsValuesNull(attributeValues)) {
 			return null;
 		}
 		return new AttributeSetExact(attributeName, attributeValues);
@@ -2452,6 +2819,68 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * The `priceDiscount' constraint allows you to sort items by the difference between their selling price and
+	 * the discounted price, which is calculated in the same way as the selling price but using a different set of price
+	 * lists. It requires the order direction, the array of price lists that define the discount price, and the price
+	 * constraints in the `filterBy` section of the query. The price variant (with or without tax) is determined by
+	 * the {@link PriceType} requirement of the query (price with tax is used by default).
+	 *
+	 * If the discount result is negative (i.e. the discounted price is greater than the selling price), it's considered to
+	 * be zero. Sorting in ascending order means that the products with no discount are returned first, and the products
+	 * with the largest discount are returned last. Descending order returns the product with the largest discount first.
+	 *
+	 * Please read the <a href="https://evitadb.io/documentation/deep-dive/price-for-sale-calculation">price for sale
+	 * calculation algorithm documentation</a> to understand how the price for sale is calculated.
+	 *
+	 * If no order type is defined, DESC is used by default because the most common use case is to return the items with
+	 * the largest discount first.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * priceDiscount("discount", "basic")
+	 * priceDiscount(DESC, "discount", "basic")
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-discount">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static PriceDiscount priceDiscount(@Nonnull String... inPriceLists) {
+		return new PriceDiscount(inPriceLists);
+	}
+
+	/**
+	 * The `priceDiscount' constraint allows you to sort items by the difference between their selling price and
+	 * the discounted price, which is calculated in the same way as the selling price but using a different set of price
+	 * lists. It requires the order direction, the array of price lists that define the discount price, and the price
+	 * constraints in the `filterBy` section of the query. The price variant (with or without tax) is determined by
+	 * the {@link PriceType} requirement of the query (price with tax is used by default).
+	 *
+	 * If the discount result is negative (i.e. the discounted price is greater than the selling price), it's considered to
+	 * be zero. Sorting in ascending order means that the products with no discount are returned first, and the products
+	 * with the largest discount are returned last. Descending order returns the product with the largest discount first.
+	 *
+	 * Please read the <a href="https://evitadb.io/documentation/deep-dive/price-for-sale-calculation">price for sale
+	 * calculation algorithm documentation</a> to understand how the price for sale is calculated.
+	 *
+	 * If no order type is defined, DESC is used by default because the most common use case is to return the items with
+	 * the largest discount first.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * priceDiscount("discount", "basic")
+	 * priceDiscount(DESC, "discount", "basic")
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-discount">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static PriceDiscount priceDiscount(@Nullable OrderDirection orderDirection, @Nonnull String... inPriceLists) {
+		return new PriceDiscount(orderDirection == null ? OrderDirection.DESC : orderDirection, inPriceLists);
+	}
+
+	/**
 	 * Random ordering is useful in situations where you want to present the end user with the unique entity listing every
 	 * time he/she accesses it. The constraint makes the order of the entities in the result random and does not take any
 	 * arguments.
@@ -2462,11 +2891,47 @@ public interface QueryConstraints {
 	 * random()
 	 * </pre>
 	 *
+	 * If you need to make output random, but always random in the same way (e.g. for testing purposes, or for consistent
+	 * output for a given user), you can use the `seed` constraint to provide a seed for the random number generator.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * randomWithSeed(42)
+	 * </pre>
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static Random random() {
-		return new Random();
+		return Random.INSTANCE;
+	}
+
+	/**
+	 * Random ordering is useful in situations where you want to present the end user with the unique entity listing every
+	 * time he/she accesses it. The constraint makes the order of the entities in the result random and does not take any
+	 * arguments.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * random()
+	 * </pre>
+	 *
+	 * If you need to make output random, but always random in the same way (e.g. for testing purposes, or for consistent
+	 * output for a given user), you can use the `seed` constraint to provide a seed for the random number generator.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * randomWithSeed(42)
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static Random randomWithSeed(long seed) {
+		return new Random(seed);
 	}
 
 	/*
@@ -2525,7 +2990,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable String... attributeName) {
-		if (ArrayUtils.isEmpty(attributeName)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(attributeName)) {
 			return null;
 		}
 		return new AttributeHistogram(requestedBucketCount, attributeName);
@@ -2557,7 +3022,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior, @Nullable String... attributeName) {
-		if (ArrayUtils.isEmpty(attributeName)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(attributeName)) {
 			return null;
 		}
 		return new AttributeHistogram(requestedBucketCount, behavior, attributeName);
@@ -2975,7 +3440,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(@Nullable HierarchyRequireConstraint... requirement) {
-		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(null, requirement);
+		return ArrayUtils.isEmptyOrItsValuesNull(requirement) ? null : new HierarchyOfSelf(null, requirement);
 	}
 
 	/**
@@ -3017,7 +3482,7 @@ public interface QueryConstraints {
 		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(orderBy, requirement);
+		return ArrayUtils.isEmptyOrItsValuesNull(requirement) ? null : new HierarchyOfSelf(orderBy, requirement);
 	}
 
 	/**
@@ -3157,7 +3622,7 @@ public interface QueryConstraints {
 		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return referenceName == null || ArrayUtils.isEmpty(requirement) ?
+		return referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(requirement) ?
 			null :
 			new HierarchyOfReference(
 				referenceName,
@@ -3211,7 +3676,7 @@ public interface QueryConstraints {
 		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return referenceName == null || ArrayUtils.isEmpty(requirement) ?
+		return referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(requirement) ?
 			null :
 			new HierarchyOfReference(
 				referenceName,
@@ -3358,10 +3823,10 @@ public interface QueryConstraints {
 		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		if (referenceName == null || ArrayUtils.isEmpty(referenceName)) {
+		if (referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(referenceName)) {
 			return null;
 		}
-		if (ArrayUtils.isEmpty(requirement)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirement)) {
 			return null;
 		}
 		return new HierarchyOfReference(
@@ -3416,10 +3881,10 @@ public interface QueryConstraints {
 		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		if (referenceName == null || ArrayUtils.isEmpty(referenceName)) {
+		if (referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(referenceName)) {
 			return null;
 		}
-		if (ArrayUtils.isEmpty(requirement)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirement)) {
 			return null;
 		}
 		return new HierarchyOfReference(
@@ -21768,7 +22233,7 @@ public interface QueryConstraints {
 		if (contentMode == null) {
 			return null;
 		}
-		if (ArrayUtils.isEmpty(priceLists)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(priceLists)) {
 			return new PriceContent(contentMode);
 		} else {
 			return new PriceContent(contentMode, priceLists);
@@ -21874,11 +22339,181 @@ public interface QueryConstraints {
 	 * page(1, 24)
 	 * </pre>
 	 *
+	 * Page also allows to insert artificial gaps instead of entities on particular pages. The gaps are defined by the
+	 * {@link Spacing} sub-constraints, which specify the number of entities that should be skipped on the page when the
+	 * `onPage` expression is evaluated to true.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * page(
+	 *    1, 20,
+	 *    spacing(
+	 *       gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+	 *       gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+	 *    )
+	 * )
+	 * </pre>
+	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static Page page(@Nullable Integer pageNumber, @Nullable Integer pageSize) {
 		return new Page(pageNumber, pageSize);
+	}
+
+	/**
+	 * The `page` requirement controls the number and slice of entities returned in the query response. If no page
+	 * requirement is used in the query, the default page 1 with the default page size 20 is used. If the requested page
+	 * exceeds the number of available pages, a result with the first page is returned. An empty result is only returned if
+	 * the query returns no result at all or the page size is set to zero. By automatically returning the first page result
+	 * when the requested page is exceeded, we try to avoid the need to issue a secondary request to fetch the data.
+	 *
+	 * The information about the actual returned page and data statistics can be found in the query response, which is
+	 * wrapped in a so-called data chunk object. In case of the page constraint, the {@link PaginatedList} is used as data
+	 * chunk object.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * page(1, 24)
+	 * </pre>
+	 *
+	 * Page also allows to insert artificial gaps instead of entities on particular pages. The gaps are defined by the
+	 * {@link Spacing} sub-constraints, which specify the number of entities that should be skipped on the page when the
+	 * `onPage` expression is evaluated to true.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * page(
+	 *    1, 20,
+	 *    spacing(
+	 *       gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+	 *       gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static Page page(@Nullable Integer pageNumber, @Nullable Integer pageSize, @Nullable Spacing spacing) {
+		return new Page(pageNumber, pageSize, spacing);
+	}
+
+	/**
+	 * The `spacing` allows to define multiple rules for inserting gaps instead of entities on particular pages. The gaps
+	 * are defined by the {@link SpacingGap} sub-constraints, which specify the number of entities that should be skipped
+	 * on the page when the `onPage` expression is evaluated to true.
+	 *
+	 * First gap space that satisfies the condition is used. If no gap space is satisfied, the page contains the number of
+	 * entities defined by the `page` requirement (as long as there is enough entities available in the result).
+	 *
+	 * Example of usage:
+	 *
+	 * 1. one ad block on each page, up to page 6
+	 * 2. an additional block of blog post teasers on the first three even pages
+	 *
+	 * <pre>
+	 * require(
+	 *    page(
+	 *       1, 20,
+	 *       spacing(
+	 *          gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+	 *          gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/user/en/query/expression-language.md">the separate page</a>.
+	 * In the context of this constraint, the expression can use only the `$pageNumber` variable, which represents
+	 * the currently examined page number.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Spacing spacing(@Nullable SpacingGap... gaps) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(gaps)) {
+			return null;
+		} else {
+			return new Spacing(gaps);
+		}
+	}
+
+	/**
+	 * The `gap` constraint can only be used within the {@link Spacing} container and defines a single rule that makes
+	 * the necessary gap on particular page when the `onPage` expression is evaluated to true. The gap is defined by the
+	 * `size` argument, which specifies the number of entities that should be skipped on the page.
+	 *
+	 * See following example:
+	 *
+	 * 1. one ad block on each page, up to page 6
+	 * 2. an additional block of blog post teasers on the first three even pages
+	 *
+	 * <pre>
+	 * require(
+	 *    page(
+	 *       1, 20,
+	 *       spacing(
+	 *          gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+	 *          gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/user/en/query/expression-language.md">the separate page</a>.
+	 * In the context of this constraint, the expression can use only the `$pageNumber` variable, which represents
+	 * the currently examined page number.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing-gap">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static SpacingGap gap(int size, @Nullable Expression expression) {
+		if (expression == null) {
+			return null;
+		} else {
+			return new SpacingGap(size, expression);
+		}
+	}
+
+	/**
+	 * The `gap` constraint can only be used within the {@link Spacing} container and defines a single rule that makes
+	 * the necessary gap on particular page when the `onPage` expression is evaluated to true. The gap is defined by the
+	 * `size` argument, which specifies the number of entities that should be skipped on the page.
+	 *
+	 * See following example:
+	 *
+	 * 1. one ad block on each page, up to page 6
+	 * 2. an additional block of blog post teasers on the first three even pages
+	 *
+	 * <pre>
+	 * require(
+	 *    page(
+	 *       1, 20,
+	 *       spacing(
+	 *          gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+	 *          gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+	 *       )
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * The grammar of the expression language is documented on the <a href="https://evitadb.io/documentation/user/en/query/expression-language.md">the separate page</a>.
+	 * In the context of this constraint, the expression can use only the `$pageNumber` variable, which represents
+	 * the currently examined page number.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing-gap">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static SpacingGap gap(int size, @Nullable String expression) {
+		if (expression == null) {
+			return null;
+		} else {
+			return new SpacingGap(size, ExpressionFactory.parse(expression));
+		}
 	}
 
 	/**
@@ -22075,7 +22710,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
-	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
+	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
 		return statisticsDepth == null ?
 			new FacetSummary(FacetStatisticsDepth.COUNTS, requirements) :
 			new FacetSummary(statisticsDepth, requirements);
@@ -22168,7 +22803,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable OrderBy facetOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
 	}
@@ -22261,7 +22896,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
 	}
@@ -22354,7 +22989,7 @@ public interface QueryConstraints {
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
 	}
@@ -22447,7 +23082,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy, requirements);
 	}
@@ -22540,7 +23175,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null, requirements);
 	}
@@ -22632,7 +23267,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, facetGroupFilterBy, null, null, requirements);
 	}
@@ -22724,7 +23359,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, null, orderBy, facetGroupOrderBy, requirements);
 	}
@@ -22815,7 +23450,7 @@ public interface QueryConstraints {
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, null, null, null, requirements);
 	}
@@ -22906,7 +23541,7 @@ public interface QueryConstraints {
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, null, orderBy, null, requirements);
 	}
@@ -22997,7 +23632,7 @@ public interface QueryConstraints {
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, facetGroupFilterBy, null, null, requirements);
 	}
@@ -23088,7 +23723,7 @@ public interface QueryConstraints {
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, null, null, facetGroupOrderBy, requirements);
 	}
@@ -23180,7 +23815,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, facetGroupFilterBy, orderBy, null, requirements);
 	}
@@ -23272,7 +23907,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, filterBy, null, null, facetGroupOrderBy, requirements);
 	}
@@ -23364,7 +23999,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
 	}
@@ -23458,12 +24093,12 @@ public interface QueryConstraints {
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;
 		}
-		if (ArrayUtils.isEmpty(requirements)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirements)) {
 			return new FacetSummary(
 				statisticsDepth,
 				facetFilterBy, facetGroupFilterBy,
@@ -23553,7 +24188,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable EntityRequire... requirements) {
+	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable EntityFetchRequire... requirements) {
 		return referenceName == null ? null : new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
 	}
 
@@ -23632,7 +24267,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
+	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
 		if (referenceName == null) {
 			return null;
 		}
@@ -23721,7 +24356,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable OrderBy facetOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
@@ -23808,7 +24443,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
@@ -23895,7 +24530,7 @@ public interface QueryConstraints {
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
@@ -23982,7 +24617,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy, requirements);
@@ -24069,7 +24704,7 @@ public interface QueryConstraints {
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null, requirements);
@@ -24155,7 +24790,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, null, requirements);
@@ -24241,7 +24876,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, facetGroupOrderBy, requirements);
@@ -24326,7 +24961,7 @@ public interface QueryConstraints {
 		@Nullable String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, null, requirements);
@@ -24411,7 +25046,7 @@ public interface QueryConstraints {
 		@Nullable String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, null, requirements);
@@ -24496,7 +25131,7 @@ public interface QueryConstraints {
 		@Nullable String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, null, requirements);
@@ -24581,7 +25216,7 @@ public interface QueryConstraints {
 		@Nullable String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, null, null, facetGroupOrderBy, requirements);
@@ -24667,7 +25302,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy orderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, null, requirements);
@@ -24753,7 +25388,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, facetGroupOrderBy, requirements);
@@ -24839,7 +25474,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
@@ -24927,7 +25562,7 @@ public interface QueryConstraints {
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityRequire... requirements
+		@Nullable EntityFetchRequire... requirements
 	) {
 		if (referenceName == null) {
 			return null;
@@ -24935,7 +25570,7 @@ public interface QueryConstraints {
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;
 		}
-		if (ArrayUtils.isEmpty(requirements)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirements)) {
 			return new FacetSummaryOfReference(
 				referenceName, statisticsDepth,
 				facetFilterBy, facetGroupFilterBy,
@@ -24973,7 +25608,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static Debug debug(@Nullable DebugMode... debugMode) {
-		return ArrayUtils.isEmpty(debugMode) ? null : new Debug(debugMode);
+		return ArrayUtils.isEmptyOrItsValuesNull(debugMode) ? null : new Debug(debugMode);
 	}
 
 	/**
@@ -25068,7 +25703,7 @@ public interface QueryConstraints {
 	 */
 	@Nonnull
 	static RequireConstraint[] entityFetchAllAnd(@Nullable RequireConstraint... combineWith) {
-		if (ArrayUtils.isEmpty(combineWith)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(combineWith)) {
 			return new RequireConstraint[]{entityFetchAll()};
 		} else {
 			return ArrayUtils.mergeArrays(
@@ -25095,7 +25730,7 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static EntityContentRequire[] entityFetchAllContentAnd(@Nullable EntityContentRequire... combineWith) {
-		if (ArrayUtils.isEmpty(combineWith)) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(combineWith)) {
 			return entityFetchAllContent();
 		} else {
 			return ArrayUtils.mergeArrays(

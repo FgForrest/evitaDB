@@ -38,16 +38,12 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
-import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
@@ -74,7 +70,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public non-sealed interface CatalogPersistenceService extends PersistenceService<CatalogIndexKey, CatalogIndex> {
+public non-sealed interface CatalogPersistenceService extends PersistenceService {
 	/**
 	 * This constant represents the current version of the storage protocol. The version is changed everytime
 	 * the storage protocol on disk changes and the data with the old protocol version cannot be read by the new
@@ -208,7 +204,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
-	void emitStartObservabilityEvents();
+	void emitObservabilityEvents();
 
 	/**
 	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
@@ -276,7 +272,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		int lastEntityCollectionPrimaryKey,
 		@Nullable TransactionMutation lastProcessedTransaction,
 		@Nonnull List<EntityCollectionHeader> entityHeaders,
-		@Nonnull DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreBuffer
+		@Nonnull DataStoreMemoryBuffer dataStoreBuffer
 	) throws InvalidStoragePathException, DirectoryNotEmptyException, UnexpectedIOException;
 
 	/**
@@ -305,7 +301,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		long catalogVersion,
 		@Nonnull HeaderInfoSupplier headerInfoSupplier,
 		@Nonnull EntityCollectionHeader entityCollectionHeader,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> dataStoreBuffer
+		@Nonnull DataStoreMemoryBuffer dataStoreBuffer
 	);
 
 	/**
@@ -372,7 +368,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		@Nonnull String catalogNameToBeReplaced,
 		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
 		@Nonnull CatalogSchema catalogSchema,
-		@Nonnull DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreMemoryBuffer
+		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
 	);
 
 	/**

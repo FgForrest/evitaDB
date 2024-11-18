@@ -120,7 +120,7 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 				final String output = cShell.evaluate(snippet, outputFormat, sourceVariable);
 				if (outputSnippet != null) {
 					final String expectedOutput = UserDocumentationTest.readFileOrThrowException(outputSnippet.path());
-					Assertions.assertEquals(expectedOutput, output);
+					Assertions.assertEquals(expectedOutput.trim(), output.trim());
 					System.out.println("Markdown snippet `" + relativePath + "` contents verified OK (C#). \uD83D\uDE0A");
 				}
 			} catch (RuntimeException e) {

@@ -143,9 +143,11 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		this.priceContentMode = evitaRequest.getRequiresEntityPrices();
 		this.currency = underlyingPredicate.currency;
 		this.validIn = underlyingPredicate.validIn;
-		this.priceLists = underlyingPredicate.priceLists;
-		this.additionalPriceLists = underlyingPredicate.additionalPriceLists;
-		this.priceListsAsSet = underlyingPredicate.priceListsAsSet;
+		this.priceLists = evitaRequest.getRequiresPriceLists();
+		this.additionalPriceLists = evitaRequest.getFetchesAdditionalPriceLists();
+		this.priceListsAsSet = CollectionUtils.createLinkedHashSet(this.priceLists.length + this.additionalPriceLists.length);
+		Collections.addAll(this.priceListsAsSet, this.priceLists);
+		Collections.addAll(this.priceListsAsSet, this.additionalPriceLists);
 		this.underlyingPredicate = underlyingPredicate;
 		this.contextAvailable = this.currency != null && !ArrayUtils.isEmpty(this.priceLists);
 		this.queryPriceMode = evitaRequest.getQueryPriceMode();

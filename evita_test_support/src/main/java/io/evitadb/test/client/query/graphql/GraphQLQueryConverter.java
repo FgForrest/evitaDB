@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
@@ -114,18 +115,18 @@ public class GraphQLQueryConverter {
 		final List<JsonConstraint> rootConstraints = new ArrayList<>(3);
 		if (query.getFilterBy() != null) {
 			rootConstraints.add(
-				filterConstraintToJsonConverter.convert(new EntityDataLocator(entityType), query.getFilterBy())
+				filterConstraintToJsonConverter.convert(new EntityDataLocator(new ManagedEntityTypePointer(entityType)), query.getFilterBy())
 					.orElseThrow(() -> new IllegalStateException("Root JSON filter constraint cannot be null if original query has filter constraint."))
 			);
 		}
 		if (query.getOrderBy() != null) {
 			rootConstraints.add(
-				orderConstraintToJsonConverter.convert(new GenericDataLocator(entityType), query.getOrderBy())
+				orderConstraintToJsonConverter.convert(new GenericDataLocator(new ManagedEntityTypePointer(entityType)), query.getOrderBy())
 					.orElseThrow(() -> new IllegalStateException("Root JSON order constraint cannot be null if original query has order constraint."))
 			);
 		}
 		if (query.getRequire() != null) {
-			requireConstraintToJsonConverter.convert(new GenericDataLocator(entityType), query.getRequire())
+			requireConstraintToJsonConverter.convert(new GenericDataLocator(new ManagedEntityTypePointer(entityType)), query.getRequire())
 				.filter(it -> !it.value().isEmpty())
 				.ifPresent(rootConstraints::add);
 		}

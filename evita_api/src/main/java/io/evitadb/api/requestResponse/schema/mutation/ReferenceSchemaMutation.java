@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -40,26 +39,12 @@ import javax.annotation.concurrent.ThreadSafe;
  */
 @Immutable
 @ThreadSafe
-public interface ReferenceSchemaMutation extends LocalEntitySchemaMutation {
+public interface ReferenceSchemaMutation extends LocalEntitySchemaMutation, ReferenceSchemaMutator {
 
 	/**
 	 * Returns the name of the reference the mutation is targeting.
 	 */
 	@Nonnull
 	String getName();
-
-	/**
-	 * Method applies the mutation operation on the reference schema in the input and returns modified version
-	 * as its return value. The create operation works with NULL input value and produces non-NULL result, the remove
-	 * operation produces the opposite. Modification operations always accept and produce non-NULL values.
-	 *
-	 * @param entitySchema owner entity schema that could be used in validations and error messages
-	 * @param referenceSchema current version of the schema as an input to mutate
-	 */
-	@Nullable
-	ReferenceSchemaContract mutate(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable ReferenceSchemaContract referenceSchema
-	);
 
 }

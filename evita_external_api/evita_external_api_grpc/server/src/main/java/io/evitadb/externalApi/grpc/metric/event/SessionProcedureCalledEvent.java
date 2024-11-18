@@ -51,7 +51,7 @@ public class SessionProcedureCalledEvent extends AbstractProcedureCalledEvent im
 	 * The name of the catalog the procedure call relates to (if any).
 	 */
 	@Label("Catalog")
-	@Name("catalogName")
+	@Description("The name of the catalog to which this event/metric is associated.")
 	private final String catalogName;
 
 	public SessionProcedureCalledEvent(

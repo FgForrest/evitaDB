@@ -29,7 +29,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.utils.Assert;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -108,23 +108,38 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 			.toArray(EntityContentRequire[]::new);
 	}
 
+	@Override
+	public <T extends EntityFetchRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
+		if (anotherRequirement instanceof EntityFetch anotherEntityFetch) {
+			return Arrays.stream(getRequirements())
+				.allMatch(requirement -> Arrays.stream(anotherEntityFetch.getRequirements()).anyMatch(requirement::isFullyContainedWithin));
+		}
+		return false;
+	}
+
 	@Nonnull
 	@Override
-	public <T extends EntityRequire> T combineWith(@Nullable T anotherRequirement) {
+	public <T extends EntityFetchRequire> T combineWith(@Nullable T anotherRequirement) {
 		if (anotherRequirement == null) {
 			//noinspection unchecked
 			return (T) this;
 		}
-		Assert.isTrue(anotherRequirement instanceof EntityFetch, "Only EntityFetch requirement can be combined with this one!");
 
-		final EntityContentRequire[] combinedContentRequirements = Stream.concat(
-				Arrays.stream(getRequirements()),
-				Arrays.stream(anotherRequirement.getRequirements())
-			)
-			.collect(new EntityContentRequireCombiningCollector());
+		if (anotherRequirement instanceof EntityFetch anotherEntityFetch) {
+			final EntityContentRequire[] combinedContentRequirements = Stream.concat(
+					Arrays.stream(getRequirements()),
+					Arrays.stream(anotherEntityFetch.getRequirements())
+				)
+				.collect(new EntityContentRequireCombiningCollector());
 
-		//noinspection unchecked
-		return (T) new EntityFetch(combinedContentRequirements);
+			//noinspection unchecked
+			return (T) new EntityFetch(combinedContentRequirements);
+		} else {
+			throw new GenericEvitaInternalError(
+				"Only entity fetch requirement can be combined with this one - but got: " + anotherRequirement.getClass(),
+				"Only entity fetch requirement can be combined with this one!"
+			);
+		}
 	}
 
 	@Nonnull

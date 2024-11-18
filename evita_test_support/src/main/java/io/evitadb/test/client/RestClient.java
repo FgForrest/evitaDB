@@ -24,16 +24,13 @@
 package io.evitadb.test.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import okhttp3.MediaType;
 import okhttp3.Request;
 import okhttp3.RequestBody;
-import okhttp3.Response;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.IOException;
 import java.util.Optional;
 
 /**
@@ -43,34 +40,20 @@ import java.util.Optional;
  */
 public class RestClient extends ApiClient {
 
-	public RestClient(@Nonnull String url, boolean validateSsl, boolean useConnectionPool) {
-		super(url, validateSsl, useConnectionPool);
+	public RestClient(@Nonnull String url, boolean validateSsl, boolean useConnectionPool, int numberOfRetries) {
+		super(url, validateSsl, useConnectionPool, numberOfRetries);
 	}
 
 	@Nullable
 	public Optional<JsonNode> call(@Nonnull String method, @Nonnull String resource, @Nullable String body) {
 		final Request request = createRequest(method, resource, body);
 
-		try (Response response = client.newCall(request).execute()) {
-			final int responseCode = response.code();
-			if (responseCode == 200) {
-				final JsonNode responseBody = readResponseBody(response.body());
+		return getResponseBodyString(request)
+			.map(it -> {
+				final JsonNode responseBody = readResponseBody(it);
 				validateResponseBody(responseBody);
-
-				return Optional.of(responseBody);
-			}
-			if (responseCode == 404) {
-				return Optional.empty();
-			}
-			if (responseCode >= 400 && responseCode <= 499) {
-				final String errorResponseString = response.body() != null ? response.body().string() : "no response body";
-				throw new GenericEvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode + " and response: \n" + errorResponseString);
-			}
-
-			throw new GenericEvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode);
-		} catch (IOException e) {
-			throw new GenericEvitaInternalError("Unexpected error.", e);
-		}
+				return responseBody;
+			});
 	}
 
 	@Nonnull

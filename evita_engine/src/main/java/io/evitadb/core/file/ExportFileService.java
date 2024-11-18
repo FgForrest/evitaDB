@@ -26,13 +26,14 @@ package io.evitadb.core.file;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.core.async.DelayedAsyncTask;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.UUIDUtil;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -49,14 +50,16 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -81,13 +84,9 @@ public class ExportFileService {
 	 */
 	private final StorageOptions storageOptions;
 	/**
-	 * Lock for the files list.
-	 */
-	private final ReentrantLock lock = new ReentrantLock();
-	/**
 	 * Cached list of files to fetch.
 	 */
-	private List<FileForFetch> files;
+	private final CopyOnWriteArrayList<FileForFetch> files;
 
 	/**
 	 * Parses metadata file and creates {@link FileForFetch} instance.
@@ -105,9 +104,53 @@ public class ExportFileService {
 		}
 	}
 
-	public ExportFileService(@Nonnull StorageOptions storageOptions) {
+	/**
+	 * Extracts a UUID from the provided file path.
+	 *
+	 * @param it the file path from which the UUID will be extracted
+	 * @return an Optional containing the UUID if extraction is successful, otherwise an empty Optional
+	 */
+	@Nonnull
+	private static Optional<UUID> getUuidFromPath(@Nonnull Path it) {
+		try {
+			return of(UUID.fromString(FileUtils.getFileNameWithoutExtension(it.toFile().getName())));
+		} catch (Exception ex) {
+			return empty();
+		}
+	}
+
+	public ExportFileService(
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull Scheduler scheduler
+	) {
 		this.storageOptions = storageOptions;
-		this.initFilesForFetch();
+		// init files for fetch
+		if (this.storageOptions.exportDirectory().toFile().exists()) {
+			try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
+				this.files = fileStream
+					.filter(it -> it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
+					.map(ExportFileService::toFileForFetch)
+					.flatMap(Optional::stream)
+					.sorted(Comparator.comparing(FileForFetch::created).reversed())
+					.collect(Collectors.toCollection(CopyOnWriteArrayList::new));
+			} catch (IOException e) {
+				throw new UnexpectedIOException(
+					"Failed to read the contents of the folder: " + e.getMessage(),
+					"Failed to read the contents of the folder.",
+					e
+				);
+			}
+		} else {
+			this.files = new CopyOnWriteArrayList<>();
+		}
+		// schedule automatic purging task
+		new DelayedAsyncTask(
+			null,
+			"Export file service purging task",
+			scheduler,
+			this::purgeFiles,
+			5, TimeUnit.MINUTES
+		).schedule();
 	}
 
 	/**
@@ -132,7 +175,7 @@ public class ExportFileService {
 			.toList();
 		return new PaginatedList<>(
 			page, pageSize,
-			filePage.size(),
+			filteredFiles.size(),
 			filePage
 		);
 	}
@@ -148,75 +191,6 @@ public class ExportFileService {
 		return this.files.stream()
 			.filter(it -> it.fileId().equals(fileId))
 			.findFirst();
-	}
-
-	/**
-	 * Method creates new file for fetch but doesn't create it - only metadata is created.
-	 *
-	 * @param fileName    name of the file
-	 * @param description optional description of the file
-	 * @param contentType MIME type of the file
-	 * @param origin      optional origin of the file
-	 * @return file for fetch
-	 */
-	@Nonnull
-	public FileForFetch createFile(
-		@Nonnull String fileName,
-		@Nullable String description,
-		@Nonnull String contentType,
-		@Nullable String origin
-	) {
-		final UUID fileId = UUIDUtil.randomUUID();
-		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
-		final Path finalFilePath = storageOptions.exportDirectory().resolve(finalFileName);
-		try {
-			if (!storageOptions.exportDirectory().toFile().exists()) {
-				Assert.isPremiseValid(
-					storageOptions.exportDirectory().toFile().mkdirs(),
-					() -> new UnexpectedIOException(
-						"Failed to create directory: " + storageOptions.exportDirectory(),
-						"Failed to create directory."
-					)
-				);
-			}
-			Assert.isPremiseValid(
-				finalFilePath.toFile().createNewFile(),
-				() -> new UnexpectedIOException(
-					"Failed to create file: " + finalFilePath,
-					"Failed to create file."
-				)
-			);
-			lock.lock();
-			try {
-				final FileForFetch fileForFetch = new FileForFetch(
-					fileId,
-					fileName,
-					description,
-					contentType,
-					Files.size(finalFilePath),
-					OffsetDateTime.now(),
-					origin == null ? null : Arrays.stream(origin.split(","))
-						.map(String::trim)
-						.toArray(String[]::new)
-				);
-				writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
-				this.files.add(0, fileForFetch);
-				return fileForFetch;
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Failed to write metadata file: " + e.getMessage(),
-					"Failed to write metadata file."
-				);
-			} finally {
-				lock.unlock();
-			}
-		} catch (IOException e) {
-			throw new UnexpectedIOException(
-				"Failed to store file: " + finalFilePath,
-				"Failed to store file.",
-				e
-			);
-		}
 	}
 
 	/**
@@ -262,7 +236,6 @@ public class ExportFileService {
 					finalFilePath,
 					fileForFetchCompletableFuture,
 					() -> {
-						lock.lock();
 						try {
 							final FileForFetch fileForFetch = new FileForFetch(
 								fileId,
@@ -283,8 +256,6 @@ public class ExportFileService {
 								"Failed to write metadata file: " + e.getMessage(),
 								"Failed to write metadata file."
 							);
-						} finally {
-							lock.unlock();
 						}
 					}
 				)
@@ -328,13 +299,12 @@ public class ExportFileService {
 	 * @throws UnexpectedIOException         if the file cannot be deleted
 	 */
 	public void deleteFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException {
-		lock.lock();
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
 			if (this.files.remove(file)) {
-				Files.delete(file.metadataPath(storageOptions.exportDirectory()));
-				Files.delete(file.path(storageOptions.exportDirectory()));
+				Files.deleteIfExists(file.metadataPath(storageOptions.exportDirectory()));
+				Files.deleteIfExists(file.path(storageOptions.exportDirectory()));
 			}
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
@@ -342,63 +312,132 @@ public class ExportFileService {
 				"Failed to delete the file.",
 				e
 			);
-		} finally {
-			lock.unlock();
 		}
 	}
 
 	/**
-	 * Returns input stream to read the file contents.
+	 * Creates a temporary file with the given file name in the export storage directory.
 	 *
-	 * @param file file to read
-	 * @return input stream to read the file contents
-	 * @throws IOException if the file cannot be read
+	 * @param fileName the name of the file to be created
+	 * @return the Path of the created temporary file
+	 * @throws RuntimeException if an I/O error occurs when creating the file
 	 */
 	@Nonnull
-	public InputStream createInputStream(@Nonnull FileForFetch file) throws IOException {
-		return new ExportFileInputStream(
-			file,
-			Files.newInputStream(file.path(storageOptions.exportDirectory()), StandardOpenOption.READ)
-		);
+	public Path createTempFile(@Nonnull String fileName) {
+		try {
+			return Files.createFile(
+				this.storageOptions.exportDirectory().resolve(fileName)
+			);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to create temporary file: " + e.getMessage(),
+				"Failed to create temporary the file.",
+				e
+			);
+		}
 	}
 
 	/**
-	 * Returns absolute path of the file in the export directory.
+	 * Returns path to an existing temporary file with the given file name in the export storage directory.
 	 *
-	 * @param file file to get the path for
-	 * @return absolute path of the file in the export directory
+	 * @param fileName the name of the file to be created
+	 * @return the Path of the created temporary file
+	 * @throws RuntimeException if an I/O error occurs when creating the file
 	 */
 	@Nonnull
-	public Path getFilePath(@Nonnull FileForFetch file) {
+	public Path getTempFile(@Nonnull String fileName) {
+		final Path tempFile = this.storageOptions.exportDirectory().resolve(fileName);
+		Assert.isTrue(
+			tempFile.toFile().exists(),
+			() -> new InvalidFileNameException(
+				"Temporary file does not exist: " + tempFile,
+				"Temporary file does not exist."
+			)
+		);
+		return tempFile;
+	}
+
+	/**
+	 * Retrieves the path of a given file within the specified export directory.
+	 *
+	 * @param file The file object for which the path is to be retrieved. This parameter must not be null.
+	 * @return The path of the specified file located in the export directory.
+	 */
+	@Nonnull
+	public Path getPathOf(@Nonnull FileForFetch file) {
 		return file.path(this.storageOptions.exportDirectory());
 	}
 
 	/**
-	 * Checks whether a file has still the same size on the disk and if not, it updates the metadata file and the file
-	 * contents in the memory.
+	 * Deletes files that are older than the specified expiration threshold.
 	 *
-	 * @param theFile file to check
-	 * @return updated file
+	 * This method first determines the threshold date by subtracting the configured
+	 * expiration period from the current date and time. It then calls another
+	 * method to perform the actual deletion of files older than this threshold.
+	 *
+	 * @return always zero so that the task is planned as usual
 	 */
-	@Nonnull
-	public FileForFetch updateFileData(@Nonnull FileForFetch theFile) {
-		this.lock.lock();
-		try {
-			final long actualSize = Files.size(theFile.path(this.storageOptions.exportDirectory()));
-			if (actualSize != theFile.totalSizeInBytes()) {
-				final FileForFetch updatedFile = theFile.withTotalSizeInBytes(actualSize);
-				writeFileMetadata(updatedFile, StandardOpenOption.TRUNCATE_EXISTING);
-				this.files = this.files.stream()
-					.map(it -> it.fileId().equals(theFile.fileId()) ? updatedFile : it)
-					.collect(Collectors.toList());
-				return updatedFile;
+	private long purgeFiles() {
+		// first go through the file list in memory and delete files that are older than the threshold
+		final OffsetDateTime thresholdDate = OffsetDateTime.now().minusSeconds(this.storageOptions.exportFileHistoryExpirationSeconds());
+		purgeFiles(thresholdDate);
+
+		return 0L;
+	}
+
+	/**
+	 * Purges old files from the storage based on the age and storage size limit.
+	 *
+	 * This method performs the following operations:
+	 * - Deletes files in memory that are older than the threshold defined by `exportFileHistoryExpirationSeconds`.
+	 * - Deletes files from the storage directory that do not have corresponding metadata and are older than the threshold.
+	 * - Ensures that the total size of files in the storage directory does not exceed the size limit defined by `exportDirectorySizeLimitBytes`.
+	 */
+	void purgeFiles(@Nonnull OffsetDateTime thresholdDate) {
+		final Set<UUID> knownFiles = new HashSet<>(this.files.size());
+		final List<FileForFetch> filesToDelete = this.files.stream()
+			.peek(it -> knownFiles.add(it.fileId()))
+			.filter(it -> it.created().isBefore(thresholdDate))
+			.toList();
+		filesToDelete.forEach(
+			it -> {
+				log.info("Purging file, because it has been created before {}: {}", thresholdDate, it);
+				deleteFile(it.fileId());
 			}
+		);
+
+		// then go through the directory files, that does not have metadata file and delete all that were created before the threshold
+		try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
+			fileStream
+				.filter(it -> !getUuidFromPath(it).map(knownFiles::contains).orElse(false))
+				.filter(it -> FileUtils.getFileLastModifiedTime(it).map(lastModifiedDate -> lastModifiedDate.isBefore(thresholdDate)).orElse(true))
+				.forEach(it -> {
+					log.info("Purging temporary file, because it has been last modified before {}: {}", thresholdDate, it);
+					FileUtils.deleteFileIfExists(it);
+				});
 		} catch (IOException e) {
-			log.error("Failed to read file size: {}", theFile.name(), e);
-		} finally {
-			this.lock.unlock();
+			log.error("Failed to list files in the directory: {}", this.storageOptions.exportDirectory(), e);
 		}
-		return theFile;
+
+		// then check the size of the directory and delete oldest files until the directory size is below the limit
+		final long directorySize = FileUtils.getDirectorySize(this.storageOptions.exportDirectory());
+		// delete oldest files until the directory size is below the limit
+		if (directorySize > this.storageOptions.exportDirectorySizeLimitBytes()) {
+			final List<FileForFetch> filesByCreationDate = this.files.stream()
+				.sorted(Comparator.comparing(FileForFetch::created))
+				.toList();
+			long savedSize = 0L;
+			for (FileForFetch it : filesByCreationDate) {
+				log.info("Purging oldest file, because the export directory grew too big: {}", it);
+				final long metadataFileSize = it.metadataPath(this.storageOptions.exportDirectory()).toFile().length();
+				deleteFile(it.fileId());
+				savedSize += it.totalSizeInBytes() + metadataFileSize;
+				// finish removing files if the directory size is below the limit
+				if (directorySize - savedSize <= this.storageOptions.exportDirectorySizeLimitBytes()) {
+					break;
+				}
+			}
+		}
 	}
 
 	/**
@@ -414,35 +453,6 @@ public class ExportFileService {
 			StandardCharsets.UTF_8,
 			options
 		);
-	}
-
-	/**
-	 * Method refreshes the list of files to fetch.
-	 */
-	private void initFilesForFetch() {
-		try {
-			lock.lock();
-			if (this.storageOptions.exportDirectory().toFile().exists()) {
-				try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
-					this.files = fileStream
-						.filter(it -> !it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
-						.map(ExportFileService::toFileForFetch)
-						.flatMap(Optional::stream)
-						.sorted(Comparator.comparing(FileForFetch::created).reversed())
-						.collect(Collectors.toCollection(ArrayList::new));
-				} catch (IOException e) {
-					throw new UnexpectedIOException(
-						"Failed to read the contents of the folder: " + e.getMessage(),
-						"Failed to read the contents of the folder.",
-						e
-					);
-				}
-			} else {
-				this.files = new ArrayList<>(16);
-			}
-		} finally {
-			lock.unlock();
-		}
 	}
 
 	/**
@@ -485,86 +495,6 @@ public class ExportFileService {
 			}
 		}
 
-	}
-
-	/**
-	 * Input stream that wraps the file input stream and provides the file ID. This input stream is used to distinguish
-	 * this input stream from other input streams that read data for example from the network.
-	 */
-	@RequiredArgsConstructor
-	public static class ExportFileInputStream extends InputStream {
-		@Getter private final FileForFetch file;
-		private final InputStream inputStream;
-
-		@Override
-		public int read() throws IOException {
-			return inputStream.read();
-		}
-
-		@Override
-		public int read(byte[] b) throws IOException {
-			return inputStream.read(b);
-		}
-
-		@Override
-		public int read(byte[] b, int off, int len) throws IOException {
-			return inputStream.read(b, off, len);
-		}
-
-		@Override
-		public byte[] readAllBytes() throws IOException {
-			return inputStream.readAllBytes();
-		}
-
-		@Override
-		public byte[] readNBytes(int len) throws IOException {
-			return inputStream.readNBytes(len);
-		}
-
-		@Override
-		public int readNBytes(byte[] b, int off, int len) throws IOException {
-			return inputStream.readNBytes(b, off, len);
-		}
-
-		@Override
-		public long skip(long n) throws IOException {
-			return inputStream.skip(n);
-		}
-
-		@Override
-		public void skipNBytes(long n) throws IOException {
-			inputStream.skipNBytes(n);
-		}
-
-		@Override
-		public int available() throws IOException {
-			return inputStream.available();
-		}
-
-		@Override
-		public void close() throws IOException {
-			inputStream.close();
-		}
-
-		@Override
-		public void mark(int readlimit) {
-			inputStream.mark(readlimit);
-		}
-
-		@Override
-		public void reset() throws IOException {
-			inputStream.reset();
-		}
-
-		@Override
-		public boolean markSupported() {
-			return inputStream.markSupported();
-		}
-
-		@Override
-		public long transferTo(OutputStream out) throws IOException {
-			return inputStream.transferTo(out);
-		}
 	}
 
 }

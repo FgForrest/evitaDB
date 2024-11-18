@@ -57,7 +57,7 @@ public class SetReferenceSchemaIndexedMutationTest {
 		assertNull(result.origin());
 		assertNotNull(result.current());
 		assertInstanceOf(SetReferenceSchemaIndexedMutation.class, result.current()[0]);
-		assertFalse(((SetReferenceSchemaIndexedMutation) result.current()[0]).isIndexed());
+		assertFalse(((SetReferenceSchemaIndexedMutation) result.current()[0]).getIndexed());
 	}
 
 	@Test

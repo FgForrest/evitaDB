@@ -104,7 +104,7 @@ class FacetSummaryOfReferenceTest {
 			() -> new FacetSummaryOfReference(
 				"parameter",
 				FacetStatisticsDepth.COUNTS,
-				new EntityRequire[] { entityFetch(attributeContent("code")), entityFetch() }
+				new EntityFetchRequire[] { entityFetch(attributeContent("code")), entityFetch() }
 			)
 		);
 
@@ -113,7 +113,7 @@ class FacetSummaryOfReferenceTest {
 			() -> new FacetSummaryOfReference(
 				"parameter",
 				FacetStatisticsDepth.COUNTS,
-				new EntityRequire[] { entityFetch(attributeContent("code")), entityGroupFetch(attributeContent("name")), entityFetch() }
+				new EntityFetchRequire[] { entityFetch(attributeContent("code")), entityGroupFetch(attributeContent("name")), entityFetch() }
 			)
 		);
 	}

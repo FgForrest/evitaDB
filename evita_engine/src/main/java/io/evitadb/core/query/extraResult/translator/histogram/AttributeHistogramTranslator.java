@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.histogram;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -54,7 +55,7 @@ import java.util.stream.Collectors;
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link AttributeHistogram} to {@link Histogram}.
  * The producer instance has all pointer necessary to compute result. All operations in this translator are relatively
- * cheap comparing to final result computation, that is deferred to {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)}
+ * cheap comparing to final result computation, that is deferred to {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)}
  * method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -85,7 +86,6 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			// if there was no producer ready, create new one
 			if (attributeHistogramProducer == null) {
 				attributeHistogramProducer = new AttributeHistogramProducer(
-					schema.getName(),
 					bucketCount,
 					behavior,
 					extraResultPlanner.getFilteringFormula()
@@ -103,7 +103,13 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 
 			// register computational lambda for producing attribute histogram
 			attributeHistogramProducer.addAttributeHistogramRequest(
-				attributeSchema, attributeIndexes, attributeFormulas.get(attributeName)
+				attributeSchema,
+				FilterIndex.getComparator(
+					new AttributeKey(attributeName, extraResultPlanner.getLocale()),
+					attributeSchema.getPlainType()
+				),
+				attributeIndexes,
+				attributeFormulas.get(attributeName)
 			);
 		}
 		return attributeHistogramProducer;

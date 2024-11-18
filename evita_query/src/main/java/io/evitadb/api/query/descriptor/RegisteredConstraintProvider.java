@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -118,8 +118,13 @@ class RegisteredConstraintProvider {
 		AttributeSetInFilter.class,
 		// price
 		PriceNatural.class,
+		PriceDiscount.class,
 		// reference
 		ReferenceProperty.class,
+		// segments
+		Segments.class,
+		Segment.class,
+		SegmentLimit.class,
 
 		// --- require constraints ---
 		// generic
@@ -128,6 +133,9 @@ class RegisteredConstraintProvider {
 		Strip.class,
 		DataInLocales.class,
 		QueryTelemetry.class,
+		// spacing,
+		Spacing.class,
+		SpacingGap.class,
 		// entity
 		EntityFetch.class,
 		EntityGroupFetch.class,

@@ -25,6 +25,7 @@ package io.evitadb.core.metric.event.cache;
 
 import io.evitadb.api.configuration.metric.MetricType;
 import io.evitadb.api.observability.annotation.ExportMetric;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -42,18 +43,22 @@ import lombok.Setter;
 abstract class AbstractCacheStatisticsRelatedEvent extends AbstractCacheEvent {
 
 	@Label("Cache hits count")
+	@Description("The number of cache hits - i.e., the number of times the cache was able to return a value without having to execute calculation.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	long cacheHits;
 
 	@Label("Cache misses count")
+	@Description("The number of cache misses - i.e., the number of times the cache was not able to return a value and had to execute calculation.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	long cacheMisses;
 
 	@Label("Cache enrichments count")
+	@Description("The number of cache enrichments - i.e., the number of times the cache needed to enrich the objects contents before returning a cached value.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	long cacheEnrichments;
 
 	@Label("Cache record initializations count")
+	@Description("The number of cache record initializations - i.e., how many adepts introduced to the cache were actually hit for the first time.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	long cacheInitializations;
 

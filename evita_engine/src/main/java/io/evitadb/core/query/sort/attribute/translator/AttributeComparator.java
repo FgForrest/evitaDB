@@ -23,17 +23,24 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
+import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
+import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -45,19 +52,30 @@ import static java.util.Optional.ofNullable;
 @SuppressWarnings("ComparatorNotSerializable")
 public class AttributeComparator implements EntityComparator {
 	@Nonnull private final Function<EntityContract, Comparable<?>> attributeValueFetcher;
+	@Nonnull private final Comparator<EntityContract> pkComparator;
 	@Nonnull private final Comparator<Comparable<?>> comparator;
 	private CompositeObjectArray<EntityContract> nonSortedEntities;
 
 	public AttributeComparator(
 		@Nonnull String attributeName,
+		@Nonnull Class<?> type,
 		@Nullable Locale locale,
 		@Nonnull AttributeExtractor attributeExtractor,
-		@Nonnull Comparator<Comparable<?>> comparator
-	) {
-		this.comparator = comparator;
+		@Nonnull OrderDirection orderDirection
+		) {
+		final ComparatorSource comparatorSource = new ComparatorSource(
+			type, orderDirection, OrderBehaviour.NULLS_LAST
+		);
+		final Optional<UnaryOperator<Object>> normalizerFor = createNormalizerFor(comparatorSource);
+		final UnaryOperator<Object> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		this.pkComparator = orderDirection == OrderDirection.ASC ?
+			Comparator.comparingInt(EntityContract::getPrimaryKey) :
+			Comparator.comparingInt(EntityContract::getPrimaryKey).reversed();
+		//noinspection unchecked
+		this.comparator = createComparatorFor(locale, comparatorSource);
 		this.attributeValueFetcher = locale == null ?
-			entityContract -> attributeExtractor.extract(entityContract, attributeName) :
-			entityContract -> attributeExtractor.extract(entityContract, attributeName, locale);
+			entityContract -> (Comparable<?>) normalizer.apply(attributeExtractor.extract(entityContract, attributeName)) :
+			entityContract -> (Comparable<?>) normalizer.apply(attributeExtractor.extract(entityContract, attributeName, locale));
 	}
 
 	@Nonnull
@@ -72,7 +90,12 @@ public class AttributeComparator implements EntityComparator {
 		final Comparable<?> attribute1 = attributeValueFetcher.apply(o1);
 		final Comparable<?> attribute2 = attributeValueFetcher.apply(o2);
 		if (attribute1 != null && attribute2 != null) {
-			return comparator.compare(attribute1, attribute2);
+			final int result = comparator.compare(attribute1, attribute2);
+			if (result == 0) {
+				return pkComparator.compare(o1, o2);
+			} else {
+				return result;
+			}
 		} else if (attribute1 == null && attribute2 != null) {
 			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
 				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));

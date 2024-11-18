@@ -29,7 +29,6 @@ import io.evitadb.test.extension.EvitaParameterResolver.DataSetInfo;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
-import io.evitadb.utils.NetworkUtils;
 import io.evitadb.utils.StringUtils;
 import org.apache.commons.io.FileUtils;
 import org.junit.platform.engine.TestExecutionResult;
@@ -116,7 +115,6 @@ public class CleaningTestExecutionListener implements TestExecutionListener, Evi
 			Assert.isTrue(STORAGE_PATH.toFile().mkdirs(), "Fail to create directory: " + STORAGE_PATH);
 		}
 		System.setProperty(DevelopmentConstants.TEST_RUN, "true");
-		NetworkUtils.DEFAULT_CLIENT_TIMEOUT = 30000;
 		this.testsStarted = System.nanoTime();
 	}
 

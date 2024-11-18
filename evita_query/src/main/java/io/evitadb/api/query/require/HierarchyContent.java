@@ -29,6 +29,8 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -76,7 +78,8 @@ import static java.util.Optional.of;
 	userDocsLink = "/documentation/query/requirements/fetching#hierarchy-content",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class HierarchyContent extends AbstractRequireConstraintContainer implements HierarchyConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire {
+public class HierarchyContent extends AbstractRequireConstraintContainer
+	implements HierarchyConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire {
 	@Serial private static final long serialVersionUID = -6406509157596655207L;
 
 	private HierarchyContent(@Nonnull RequireConstraint[] requirements) {
@@ -141,24 +144,56 @@ public class HierarchyContent extends AbstractRequireConstraintContainer impleme
 		return new HierarchyContent(children);
 	}
 
+	@Override
+	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
+		return anotherRequirement instanceof HierarchyContent;
+	}
+
+	@Override
+	public <T extends EntityContentRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
+		if (anotherRequirement instanceof HierarchyContent anotherHierarchyContent) {
+			if (getStopAt().isPresent() || anotherHierarchyContent.getStopAt().isPresent()) {
+				return false;
+			}
+			return getEntityFetch().isEmpty() ||
+				anotherHierarchyContent.getEntityFetch()
+					.map(anotherEntityFetch -> getEntityFetch().get().isFullyContainedWithin(anotherEntityFetch))
+					.orElse(false);
+		}
+		return false;
+	}
+
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
-		Assert.isTrue(anotherRequirement instanceof HierarchyContent, "Only HierarchyContent requirement can be combined with this one!");
-		return (T) new HierarchyContent(
-			Arrays.stream(
-				new RequireConstraint[]{
-					getStopAt().orElse(null),
-					getEntityFetch()
-						.map(it ->
-							((HierarchyContent) anotherRequirement).getEntityFetch()
-								.map(it::combineWith)
-								.orElse(it)
+		if (anotherRequirement instanceof HierarchyContent anotherHierarchyContent) {
+			final Optional<HierarchyStopAt> thisStopAt = getStopAt();
+			final Optional<HierarchyStopAt> thatStopAt = anotherHierarchyContent.getStopAt();
+			if (thisStopAt.isPresent() && thatStopAt.isPresent() && !thisStopAt.equals(thatStopAt)) {
+				throw new EvitaInvalidUsageException(
+					"Cannot combine multiple hierarchy content requirements with stop constraint: " + this + " and " + anotherRequirement,
+					"Cannot combine multiple hierarchy content requirements with stop constraint."
+				);
+			}
+			return (T) new HierarchyContent(
+				Arrays.stream(
+					new RequireConstraint[]{
+						thisStopAt.or(() -> thatStopAt).orElse(null),
+						EntityFetchRequire.combineRequirements(
+							getEntityFetch().orElse(null),
+							anotherHierarchyContent.getEntityFetch().orElse(null)
 						)
-						.orElse(null)
-				}).filter(Objects::nonNull).toArray(RequireConstraint[]::new)
-		);
+					})
+					.filter(Objects::nonNull)
+					.toArray(RequireConstraint[]::new)
+			);
+		} else {
+			throw new GenericEvitaInternalError(
+				"Only hierarchy requirement can be combined with this one - but got: " + anotherRequirement.getClass(),
+				"Only hierarchy requirement can be combined with this one!"
+			);
+		}
 	}
 
 	@Nonnull

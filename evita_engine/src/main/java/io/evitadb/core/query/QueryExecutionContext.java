@@ -67,6 +67,7 @@ import java.io.Closeable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -96,6 +97,14 @@ public class QueryExecutionContext implements Closeable {
 	 * along with its internal state for each query plan so that the random row, stays the same for all evaluations.
 	 */
 	private final byte[] frozenRandom;
+	/**
+	 * A function that converts a given {@link SealedEntity} into a specified type.
+	 * This BiFunction takes a {@link Class} object representing the desired type
+	 * and a {@link SealedEntity} object, and returns an object of the specified type.
+	 *
+	 * @see QueryExecutionContext#convertToRequestedType(Class, SealedEntity)
+	 */
+	private final BiFunction<Class<?>, SealedEntity, Object> converter;
 	/**
 	 * Contains list of prefetched entities if they were considered worthwhile to prefetch -
 	 * see {@link SelectionFormula} for more information.
@@ -459,6 +468,12 @@ public class QueryExecutionContext implements Closeable {
 	@Nonnull
 	public EntityCollection getEntityCollectionOrThrowException(@Nonnull String entityType, @Nonnull String fetchReferences) {
 		return this.queryContext.getEntityCollectionOrThrowException(entityType, fetchReferences);
+	}
+
+	@Nonnull
+	public <T> T convertToRequestedType(@Nonnull Class<T> expectedType, @Nonnull SealedEntity sealedEntity) {
+		//noinspection unchecked
+		return (T) converter.apply(expectedType, sealedEntity);
 	}
 
 	/*

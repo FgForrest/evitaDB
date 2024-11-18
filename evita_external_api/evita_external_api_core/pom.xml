@@ -31,7 +31,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>2024.10-SNAPSHOT</version>
+		<version>2024.12-SNAPSHOT</version>
 	</parent>
 
 	<dependencies>
@@ -63,16 +63,10 @@
 			<artifactId>bcprov-jdk18on</artifactId>
 			<version>${bouncyCastle.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcprov-ext-jdk18on</artifactId>
-			<version>${bouncyCastle.version}</version>
-		</dependency>
 
 		<dependency>
 			<groupId>com.linecorp.armeria</groupId>
 			<artifactId>armeria</artifactId>
-			<version>${armeria.version}</version>
 		</dependency>
 	</dependencies>
 </project>

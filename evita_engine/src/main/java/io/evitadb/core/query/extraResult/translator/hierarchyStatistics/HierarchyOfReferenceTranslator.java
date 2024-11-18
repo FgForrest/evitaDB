@@ -49,16 +49,13 @@ import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.util.List;
 import java.util.Optional;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyOfSelf} to
  * {@link HierarchyStatisticsProducer}. The producer instance has all pointer necessary to compute result.
  * All operations in this translator are relatively cheap comparing to final result computation, that is deferred to
- * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)} method.
+ * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -120,7 +117,7 @@ public class HierarchyOfReferenceTranslator
 					// we need to access EntityIndexType.REFERENCED_HIERARCHY_NODE of the queried type to access
 					// entity primary keys that are referencing the hierarchy entity
 					(nodeId, statisticsBase) ->
-						ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId), ReducedEntityIndex.class))
+						extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId), ReducedEntityIndex.class)
 							.map(hierarchyIndex -> {
 								final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
 									extraResultPlanner.getFilterByWithoutHierarchyFilter(referenceSchema) :

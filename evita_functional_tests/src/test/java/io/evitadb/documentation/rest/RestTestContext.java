@@ -45,7 +45,7 @@ public class RestTestContext implements TestContext {
 
 	public RestTestContext(@Nonnull Environment profile) {
 		this.restClient = profile == Environment.LOCALHOST ?
-			new RestClient("https://localhost:5555", false, false) :
-			new RestClient("https://demo.evitadb.io:5555", true, false);
+			new RestClient("https://localhost:5555", false, false, 2) :
+			new RestClient("https://demo.evitadb.io:5555", true, false, 2);
 	}
 }

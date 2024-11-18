@@ -30,7 +30,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2024.10-SNAPSHOT</version>
+		<version>2024.12-SNAPSHOT</version>
 	</parent>
 
 	<properties>
@@ -111,6 +111,11 @@
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_grpc_shared</artifactId>
 			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-junit-jupiter</artifactId>
+			<version>4.6.1</version>
 		</dependency>
 	</dependencies>
 

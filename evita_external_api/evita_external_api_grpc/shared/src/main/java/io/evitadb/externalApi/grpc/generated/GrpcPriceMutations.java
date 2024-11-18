@@ -68,7 +68,7 @@ public final class GrpcPriceMutations {
       "erRecordHandlingMutation\022e\n\030priceInnerRe" +
       "cordHandling\030\001 \001(\0162C.io.evitadb.external" +
       "Api.grpc.generated.GrpcPriceInnerRecordH" +
-      "andling\"\373\003\n\027GrpcUpsertPriceMutation\022\017\n\007p" +
+      "andling\"\220\004\n\027GrpcUpsertPriceMutation\022\017\n\007p" +
       "riceId\030\001 \001(\005\022\021\n\tpriceList\030\002 \001(\t\022E\n\010curre" +
       "ncy\030\003 \001(\01323.io.evitadb.externalApi.grpc." +
       "generated.GrpcCurrency\0222\n\rinnerRecordId\030" +
@@ -80,11 +80,12 @@ public final class GrpcPriceMutations {
       "ax\030\007 \001(\01325.io.evitadb.externalApi.grpc.g" +
       "enerated.GrpcBigDecimal\022J\n\010validity\030\010 \001(" +
       "\01328.io.evitadb.externalApi.grpc.generate" +
-      "d.GrpcDateTimeRange\022\020\n\010sellable\030\t \001(\010\"\204\001" +
-      "\n\027GrpcRemovePriceMutation\022\017\n\007priceId\030\001 \001" +
-      "(\005\022\021\n\tpriceList\030\002 \001(\t\022E\n\010currency\030\003 \001(\0132" +
-      "3.io.evitadb.externalApi.grpc.generated." +
-      "GrpcCurrencyB\014P\001\252\002\007EvitaDBb\006proto3"
+      "d.GrpcDateTimeRange\022\024\n\010sellable\030\t \001(\010B\002\030" +
+      "\001\022\017\n\007indexed\030\n \001(\010\"\204\001\n\027GrpcRemovePriceMu" +
+      "tation\022\017\n\007priceId\030\001 \001(\005\022\021\n\tpriceList\030\002 \001" +
+      "(\t\022E\n\010currency\030\003 \001(\01323.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcCurrencyB\014P\001\252\002\007" +
+      "EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -104,7 +105,7 @@ public final class GrpcPriceMutations {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcUpsertPriceMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcUpsertPriceMutation_descriptor,
-        new java.lang.String[] { "PriceId", "PriceList", "Currency", "InnerRecordId", "PriceWithoutTax", "TaxRate", "PriceWithTax", "Validity", "Sellable", });
+        new java.lang.String[] { "PriceId", "PriceList", "Currency", "InnerRecordId", "PriceWithoutTax", "TaxRate", "PriceWithTax", "Validity", "Sellable", "Indexed", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemovePriceMutation_descriptor =
       getDescriptor().getMessageTypes().get(2);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemovePriceMutation_fieldAccessorTable = new

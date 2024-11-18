@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.price.model.priceRecord;
 
+import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import lombok.Getter;
@@ -41,7 +42,8 @@ import java.util.Comparator;
 public record CumulatedVirtualPriceRecord(
 	@Getter int entityPrimaryKey,
 	@Getter int price,
-	@Getter QueryPriceMode priceMode
+	@Getter QueryPriceMode priceMode,
+	@Nonnull IntObjectMap<PriceRecordContract> innerRecordPrices
 ) implements PriceRecordContract {
 
 	@Serial private static final long serialVersionUID = -8702849059439375941L;
@@ -81,6 +83,11 @@ public record CumulatedVirtualPriceRecord(
 	}
 
 	@Override
+	public boolean relatesTo(@Nonnull PriceRecordContract anotherPriceRecord) {
+		return this.innerRecordPrices.keys().contains(anotherPriceRecord.innerRecordId());
+	}
+
+	@Override
 	public int compareTo(@Nonnull PriceRecordContract o) {
 		return FULL_COMPARATOR.compare(this, o);
 	}
@@ -99,6 +106,7 @@ public record CumulatedVirtualPriceRecord(
 			"entityPrimaryKey=" + entityPrimaryKey +
 			", price=" + price +
 			", priceMode=" + priceMode +
+			", innerRecordPrices=[" + innerRecordPrices + "]" +
 			'}';
 	}
 }

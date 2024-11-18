@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.price.priceIndex;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -99,13 +100,13 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
-		return new LazyEvaluatedEntityPriceRecords(priceIndex);
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
+		return new LazyEvaluatedEntityPriceRecords(this.priceIndex);
 	}
 
 	@Override
 	public String toString() {
-		return "DO WITH PRICE INDEX: " + priceIndex.getPriceIndexKey();
+		return "DO WITH PRICE INDEX: " + this.priceIndex.getPriceIndexKey();
 	}
 
 	@Nonnull

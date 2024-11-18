@@ -209,10 +209,9 @@ api:
   endpoints:
     observability:
       enabled: ${api.endpoints.observability.enabled:true}
-      host: ${api.endpoints.observability.host:localhost:5555}
-      exposedHost: ${api.endpoints.observability.exposedHost:null}
+      host: ${api.endpoints.observability.host:":5555"}
+      exposeOn: ${api.endpoints.observability.exposeOn:"localhost:5555"}
       tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
-      allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
       allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
 ```
 
@@ -433,10 +432,9 @@ will be sent over.
 ```yaml
 Observability:
   enabled: ${api.endpoints.observability.enabled:true}
-  host: ${api.endpoints.observability.host:localhost:5555}
-  exposedHost: ${api.endpoints.observability.exposedHost:null}
+  host: ${api.endpoints.observability.host:":5555"}
+  exposeOn: ${api.endpoints.observability.exposeOn:"localhost:5555"}
   tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
-  allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
   tracing:
     endpoint: ${api.endpoints.observability.tracing.endpoint:null}
     protocol: ${api.endpoints.observability.tracing.protocol:grpc}

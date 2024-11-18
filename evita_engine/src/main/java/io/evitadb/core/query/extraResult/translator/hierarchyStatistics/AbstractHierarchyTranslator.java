@@ -134,8 +134,8 @@ public abstract class AbstractHierarchyTranslator {
 		if (entityFetch == null) {
 			return (executionContext, entityPk) -> new EntityReference(hierarchicalEntityType, entityPk);
 		} else {
-			ofNullable(context.prefetchRequirementCollector())
-				.ifPresent(it -> it.addRequirementToPrefetch(entityFetch.getRequirements()));
+			ofNullable(context.fetchRequirementCollector())
+				.ifPresent(it -> it.addRequirementsToPrefetch(entityFetch.getRequirements()));
 			EntityFetchTranslator.verifyEntityFetchLocalizedAttributes(context.entitySchema(), entityFetch, extraResultPlanner);
 			return (executionContext, entityPk) -> executionContext.fetchEntity(hierarchicalEntityType, entityPk, entityFetch).orElse(null);
 		}
@@ -165,14 +165,13 @@ public abstract class AbstractHierarchyTranslator {
 			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
 				queryContext,
 				Collections.emptyList(),
-				TargetIndexes.EMPTY,
-				false
+				TargetIndexes.EMPTY
 			);
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			final Formula theFormula = queryContext.analyse(
-				theFilterByVisitor.executeInContext(
+				theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
 					indexType,
-					Collections.singletonList(entityIndex),
+					() -> Collections.singletonList(entityIndex),
 					null,
 					targetEntitySchema,
 					null,

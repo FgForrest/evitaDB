@@ -50,26 +50,32 @@ import java.time.OffsetDateTime;
 public class OffsetIndexFlushEvent extends AbstractDataFileEvent {
 
 	@Label("Number of active records")
+	@Description("The number of active (accessible) records in the OffsetIndex.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private int activeRecords;
 
 	@Label("Estimated memory size in Bytes")
+	@Description("The estimated size in Bytes of the OffsetIndex in memory.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long estimatedMemorySizeBytes;
 
 	@Label("Biggest record Bytes")
+	@Description("The size in Bytes of the biggest record in the OffsetIndex.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long maxRecordSize;
 
 	@Label("Disk size in Bytes")
+	@Description("The size in Bytes of the OffsetIndex on disk.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long diskSizeBytes;
 
 	@Label("Active part of disk size in Bytes")
+	@Description("The size in Bytes of the active part of the OffsetIndex on disk.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long activeDiskSizeBytes;
 
 	@Label("Oldest record kept in memory timestamp in seconds")
+	@Description("The timestamp in seconds of the oldest volatile record kept in memory. Volatile records are records that are not yet flushed to disk.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private long oldestRecordTimestampSeconds;
 

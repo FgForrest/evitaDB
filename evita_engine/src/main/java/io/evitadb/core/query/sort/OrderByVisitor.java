@@ -38,10 +38,10 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.LocaleProvider;
-import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.attribute.translator.AttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
@@ -49,11 +49,13 @@ import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslat
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetInFilterTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.ReferencePropertyTranslator;
+import io.evitadb.core.query.sort.price.translator.PriceDiscountTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceNaturalTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyInFilterTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator;
 import io.evitadb.core.query.sort.random.translator.RandomTranslator;
+import io.evitadb.core.query.sort.segment.SegmentsTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -96,11 +98,13 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		TRANSLATORS.put(ReferenceProperty.class, new ReferencePropertyTranslator());
 		TRANSLATORS.put(Random.class, new RandomTranslator());
 		TRANSLATORS.put(PriceNatural.class, new PriceNaturalTranslator());
+		TRANSLATORS.put(PriceDiscount.class, new PriceDiscountTranslator());
 		TRANSLATORS.put(EntityPrimaryKeyInFilter.class, new EntityPrimaryKeyInFilterTranslator());
 		TRANSLATORS.put(EntityPrimaryKeyNatural.class, new EntityPrimaryKeyNaturalTranslator());
 		TRANSLATORS.put(EntityPrimaryKeyExact.class, new EntityPrimaryKeyExactTranslator());
 		TRANSLATORS.put(AttributeSetInFilter.class, new AttributeSetInFilterTranslator());
 		TRANSLATORS.put(AttributeSetExact.class, new AttributeSetExactTranslator());
+		TRANSLATORS.put(Segments.class, new SegmentsTranslator());
 	}
 
 	/**
@@ -116,10 +120,9 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	@Getter @Nonnull
 	private final List<? extends TargetIndexes<?>> targetIndexes;
 	/**
-	 * Reference to the collector of requirements for entity prefetch phase.
+	 * Filter by visitor used for creating filtering formula.
 	 */
-	@Delegate
-	private final PrefetchRequirementCollector prefetchRequirementCollector;
+	@Getter private final FilterByVisitor filterByVisitor;
 	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
@@ -137,11 +140,11 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	public OrderByVisitor(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
-		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
+		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Formula filteringFormula
 	) {
 		this(
-			queryContext, targetIndexes, prefetchRequirementCollector, filteringFormula,
+			queryContext, targetIndexes, filterByVisitor, filteringFormula,
 			new AttributeSchemaAccessor(queryContext)
 		);
 	}
@@ -149,12 +152,12 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	public OrderByVisitor(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
-		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
+		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Formula filteringFormula,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor) {
 		this.queryContext = queryContext;
 		this.targetIndexes = targetIndexes;
-		this.prefetchRequirementCollector = prefetchRequirementCollector;
+		this.filterByVisitor = filterByVisitor;
 		this.filteringFormula = filteringFormula;
 		this.scope.push(
 			new ProcessingScope(
@@ -166,7 +169,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				null,
 				null,
 				attributeSchemaAccessor,
-				EntityAttributeExtractor.INSTANCE
+				EntityAttributeExtractor.INSTANCE,
+				this.sorters
 			)
 		);
 	}
@@ -176,27 +180,59 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 */
 	@Nonnull
 	public Sorter getSorter() {
-		if (sorters.isEmpty()) {
+		final ProcessingScope currentScope = this.scope.peek();
+		final Deque<Sorter> currentSorters = currentScope.sorters();
+		if (currentSorters.isEmpty()) {
 			return NoSorter.INSTANCE;
 		} else {
-			boolean canUseCache = !queryContext.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) &&
-				queryContext.isEntityTypeKnown();
+			boolean canUseCache = !this.queryContext.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) &&
+				this.queryContext.isEntityTypeKnown();
 
-			final CacheSupervisor cacheSupervisor = queryContext.getCacheSupervisor();
+			final CacheSupervisor cacheSupervisor = this.queryContext.getCacheSupervisor();
 			Sorter composedSorter = null;
-			final Iterator<Sorter> it = sorters.descendingIterator();
+			final Iterator<Sorter> it = currentSorters.descendingIterator();
 			while (it.hasNext()) {
 				final Sorter nextSorter = it.next();
 				final Sorter possiblyCachedSorter = canUseCache && nextSorter instanceof CacheableSorter cacheableSorter ?
 					cacheSupervisor.analyse(
-						queryContext.getEvitaSession(),
-						queryContext.getSchema().getName(),
+						this.queryContext.getEvitaSession(),
+						this.queryContext.getSchema().getName(),
 						cacheableSorter
 					) : nextSorter;
 				composedSorter = composedSorter == null ? possiblyCachedSorter : possiblyCachedSorter.andThen(composedSorter);
 			}
 
 			return composedSorter;
+		}
+	}
+
+	/**
+	 * Collects and isolates a new sorter within a new processing scope.
+	 * It temporarily pushes a new {@link ProcessingScope} onto the current scope stack,
+	 * assigns it the current context values, and subsequently pops it after the sorter is retrieved.
+	 *
+	 * @param lambda the lambda to execute within the isolated scope that creates and registers the sorter chain
+	 * @return the created {@link Sorter} from the ordering query source tree or default {@link NoSorter} instance
+	 */
+	@Nonnull
+	public final Sorter collectIsolatedSorter(@Nonnull Runnable lambda) {
+		try {
+			final ProcessingScope currentScope = this.scope.peek();
+			this.scope.push(
+				new ProcessingScope(
+					currentScope.entityIndex(),
+					currentScope.entityType(),
+					currentScope.referenceSchema(),
+					currentScope.locale(),
+					currentScope.attributeSchemaAccessor(),
+					currentScope.attributeEntityAccessor(),
+					new ArrayDeque<>(16)
+				)
+			);
+			lambda.run();
+			return getSorter();
+		} finally {
+			this.scope.pop();
 		}
 	}
 
@@ -219,7 +255,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					null,
 					locale,
 					attributeSchemaAccessor,
-					attributeSchemaEntityAccessor
+					attributeSchemaEntityAccessor,
+					this.scope.peek().sorters()
 				)
 			);
 			return lambda.get();
@@ -247,7 +284,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					referenceSchema,
 					locale,
 					attributeSchemaAccessor,
-					attributeSchemaEntityAccessor
+					attributeSchemaEntityAccessor,
+					this.scope.peek().sorters()
 				)
 			);
 			return lambda.get();
@@ -261,16 +299,17 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 */
 	@Nonnull
 	public ProcessingScope getProcessingScope() {
-		if (scope.isEmpty()) {
+		if (this.scope.isEmpty()) {
 			throw new GenericEvitaInternalError("Scope should never be empty");
 		} else {
-			return scope.peek();
+			return this.scope.peek();
 		}
 	}
 
 	/**
 	 * Returns index which is best suited for supplying {@link SortIndex}.
 	 */
+	@Nonnull
 	public EntityIndex[] getIndexesForSort() {
 		final ProcessingScope theScope = this.scope.peek();
 		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
@@ -283,7 +322,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	@Override
 	@Nonnull
 	public Locale getLocale() {
-		return ofNullable(getProcessingScope().locale()).orElseGet(queryContext::getLocale);
+		return ofNullable(getProcessingScope().locale()).orElseGet(this.queryContext::getLocale);
 	}
 
 	@Override
@@ -317,7 +356,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			throw new GenericEvitaInternalError("Should never happen");
 		}
 		// compose sorters one after another
-		currentSorters.forEach(this.sorters::add);
+		final Deque<Sorter> sortersQueue = this.scope.peek().sorters();
+		currentSorters.forEach(sortersQueue::add);
 	}
 
 	/**
@@ -331,6 +371,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * @param locale                  contains locale the context refers to
 	 * @param attributeSchemaAccessor consumer verifies prerequisites in attribute schema via {@link AttributeSchemaContract}
 	 * @param attributeEntityAccessor function provides access to the attribute content via {@link EntityContract}
+	 * @param sorters                 contains the stack of sorters that are being composed on particular level of the query
 	 */
 	public record ProcessingScope(
 		@Nonnull EntityIndex[] entityIndex,
@@ -338,7 +379,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-		@Nonnull AttributeExtractor attributeEntityAccessor
+		@Nonnull AttributeExtractor attributeEntityAccessor,
+		@Nonnull Deque<Sorter> sorters
 	) {
 
 		/**
@@ -346,7 +388,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		 */
 		@Nonnull
 		public AttributeSchemaContract getAttributeSchema(@Nonnull String theAttributeName, @Nonnull AttributeTrait... attributeTraits) {
-			return attributeSchemaAccessor.getAttributeSchema(theAttributeName, attributeTraits);
+			return this.attributeSchemaAccessor.getAttributeSchema(theAttributeName, attributeTraits);
 		}
 
 		/**
@@ -354,7 +396,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		 */
 		@Nonnull
 		public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(@Nonnull String theAttributeName) {
-			return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(theAttributeName);
+			return this.attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(theAttributeName);
 		}
 
 		/**
@@ -363,7 +405,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		 */
 		@Nonnull
 		public AttributeSchemaAccessor withReferenceSchemaAccessor(@Nonnull String referenceName) {
-			return attributeSchemaAccessor.withReferenceSchemaAccessor(referenceName);
+			return this.attributeSchemaAccessor.withReferenceSchemaAccessor(referenceName);
 		}
 
 	}

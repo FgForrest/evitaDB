@@ -27,6 +27,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.*;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -1177,7 +1178,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 			it -> {
 				final List<PriceContract> filteredPrices = it.getPrices()
 					.stream()
-					.filter(PriceContract::sellable)
+					.filter(PriceContract::indexed)
 					.filter(price -> Objects.equals(price.priceList(), PRICE_LIST_B2B))
 					.toList();
 				return filteredPrices.stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
@@ -1223,8 +1224,8 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	void shouldRetrieveMultipleEntitiesWithPricesInPriceListsByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
 			originalProducts,
-			it -> it.getPrices(CURRENCY_USD).stream().filter(PriceContract::sellable).map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
-				it.getPrices(CURRENCY_USD).stream().filter(PriceContract::sellable).map(PriceContract::priceList)
+			it -> it.getPrices(CURRENCY_USD).stream().filter(PriceContract::indexed).map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+				it.getPrices(CURRENCY_USD).stream().filter(PriceContract::indexed).map(PriceContract::priceList)
 					.noneMatch(pl ->
 						pl.equals(PRICE_LIST_REFERENCE) &&
 							pl.equals(PRICE_LIST_INTRODUCTION) &&
@@ -1278,7 +1279,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		final OffsetDateTime theMoment = OffsetDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
 			originalProducts,
-			it -> it.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::validity).anyMatch(validity -> validity == null || validity.isValidFor(theMoment))
+			it -> it.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::validity).anyMatch(validity -> validity == null || validity.isValidFor(theMoment))
 		);
 
 		evita.queryCatalog(
@@ -1948,12 +1949,12 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	void shouldLazyLoadFilteredPrices(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity product = originalProducts
 			.stream()
-			.filter(it -> it.getPrices().stream().filter(PriceContract::sellable).anyMatch(price -> price.validity() != null))
+			.filter(it -> it.getPrices().stream().filter(PriceContract::indexed).anyMatch(price -> price.validity() != null))
 			.findFirst()
 			.orElseThrow();
 		final PriceContract thePrice = product.getPrices()
 			.stream()
-			.filter(PriceContract::sellable)
+			.filter(PriceContract::indexed)
 			.filter(it -> it.validity() != null)
 			.findFirst()
 			.orElseThrow();
@@ -3954,7 +3955,8 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 									Entities.CATEGORY,
 									entityFetch(hierarchyContent())
 								)
-							)
+							),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
 						)
 					)
 				);

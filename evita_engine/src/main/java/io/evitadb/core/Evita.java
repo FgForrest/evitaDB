@@ -54,7 +54,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.async.ClientRunnableTask;
-import io.evitadb.core.async.ObservableExecutorService;
+import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.core.async.ObservableThreadExecutor;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.async.SessionKiller;
@@ -66,6 +66,7 @@ import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -164,12 +165,12 @@ public final class Evita implements EvitaContract {
 	 * Executor service that handles all requests to the Evita instance.
 	 */
 	@Getter
-	private final ObservableExecutorService requestExecutor;
+	private final ObservableExecutorServiceWithHardDeadline requestExecutor;
 	/**
 	 * Executor service that handles transaction handling, once transaction gets committed.
 	 */
 	@Getter
-	private final ObservableExecutorService transactionExecutor;
+	private final ObservableExecutorServiceWithHardDeadline transactionExecutor;
 	/**
 	 * Scheduler service for executing asynchronous service tasks.
 	 */
@@ -274,6 +275,12 @@ public final class Evita implements EvitaContract {
 			.filter(CatalogStructuralChangeObserverWithEvitaContractCallback.class::isInstance)
 			.map(CatalogStructuralChangeObserverWithEvitaContractCallback.class::cast)
 			.forEach(it -> it.onInit(this));
+
+		// repeatedly call the updateCatalogStatistics method every 10 minutes, so that metrics are updated
+		this.serviceExecutor.scheduleAtFixedRate(
+			this::updateCatalogStatistics,
+			10, 10, TimeUnit.MINUTES
+		);
 	}
 
 	/**
@@ -393,10 +400,7 @@ public final class Evita implements EvitaContract {
 
 	@Override
 	public void update(@Nonnull TopLevelCatalogSchemaMutation... catalogMutations) {
-		assertActive();
-		if (readOnly) {
-			throw new ReadOnlyException();
-		}
+		assertActiveAndWritable();
 		// TOBEDONE JNO #502 - we have to have a special WAL for the evitaDB server instance as well
 		for (CatalogSchemaMutation catalogMutation : catalogMutations) {
 			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
@@ -485,6 +489,9 @@ public final class Evita implements EvitaContract {
 				}
 			});
 			return result;
+		} catch (RuntimeException ex) {
+			createdSession.closeFuture().completeExceptionally(ex);
+			throw ex;
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
 		}
@@ -514,16 +521,10 @@ public final class Evita implements EvitaContract {
 		try {
 			final EvitaInternalSessionContract theSession = createdSession.session();
 			theSession.execute(updater);
-			// join the transaction future and return
-			final CompletableFuture<Long> result = new CompletableFuture<>();
-			createdSession.closeFuture().whenComplete((txId, ex) -> {
-				if (ex != null) {
-					result.completeExceptionally(ex);
-				} else {
-					result.complete(txId);
-				}
-			});
-			return result;
+			return createdSession.closeFuture();
+		} catch (Throwable ex) {
+			createdSession.closeFuture().completeExceptionally(ex);
+			return createdSession.closeFuture();
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
 		}
@@ -611,6 +612,7 @@ public final class Evita implements EvitaContract {
 	ServerTask<Void, Void> createLoadCatalogTask(@Nonnull String catalogName) {
 		return new ClientRunnableTask<>(
 			catalogName,
+			"LoadCatalogTask",
 			"Loading catalog " + catalogName + " from disk...",
 			null,
 			() -> {
@@ -862,6 +864,16 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Verifies this instance is still active and not in read-only mode.
+	 */
+	void assertActiveAndWritable() {
+		assertActive();
+		if (readOnly) {
+			throw new ReadOnlyException();
+		}
+	}
+
+	/**
 	 * Method will examine changes in `newCatalog` compared to `currentCatalog` and notify {@link #structuralChangeObservers}
 	 * in case there is any key structural change identified.
 	 */
@@ -907,7 +919,16 @@ public final class Evita implements EvitaContract {
 			sessionTraits.catalogName(),
 			theCatalogName -> new SessionRegistry(
 				this.tracingContext,
-				() -> (Catalog) this.catalogs.get(sessionTraits.catalogName()),
+				() -> {
+					final Catalog theCatalogToReturn = (Catalog) this.catalogs.get(sessionTraits.catalogName());
+					if (theCatalogToReturn == null) {
+						throw new GenericEvitaInternalError(
+							"Failed to find catalog `" + sessionTraits.catalogName() + "` in the catalog map. " +
+								"Existing catalogs: " + String.join(", ", this.catalogs.keySet())
+						);
+					}
+					return theCatalogToReturn;
+				},
 				this.sessionRegistryDataStore
 			)
 		);
@@ -936,15 +957,9 @@ public final class Evita implements EvitaContract {
 			)
 		);
 
-		final long catalogVersion = catalogContract.getVersion();
 		return new CreatedSession(
 			newSession,
-			newSession.getTransactionFinalizationFuture().orElseGet(() -> {
-				// complete immediately
-				final CompletableFuture<Long> result = new CompletableFuture<>();
-				result.complete(catalogVersion);
-				return result;
-			})
+			newSession.getFinalizationFuture()
 		);
 	}
 
@@ -976,7 +991,7 @@ public final class Evita implements EvitaContract {
 		// iterate over all catalogs and emit the event
 		for (CatalogContract catalog : this.catalogs.values()) {
 			if (catalog instanceof Catalog theCatalog) {
-				theCatalog.emitStartObservabilityEvents();
+				theCatalog.emitObservabilityEvents();
 			}
 		}
 	}

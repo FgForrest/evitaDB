@@ -88,6 +88,11 @@ private static final long serialVersionUID = 0L;
             filterable_ = input.readBool();
             break;
           }
+          case 24: {
+
+            inherited_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -186,6 +191,23 @@ private static final long serialVersionUID = 0L;
     return filterable_;
   }
 
+  public static final int INHERITED_FIELD_NUMBER = 3;
+  private boolean inherited_;
+  /**
+   * <pre>
+   * Set to true when the filterable property should be inherited from the original.
+   * This property makes sense only for inherited reference attributes on reflected reference. For all other cases it
+   * must be left as false. When set to TRUE the value of `filterable` field is ignored.
+   * </pre>
+   *
+   * <code>bool inherited = 3;</code>
+   * @return The inherited.
+   */
+  @java.lang.Override
+  public boolean getInherited() {
+    return inherited_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -206,6 +228,9 @@ private static final long serialVersionUID = 0L;
     if (filterable_ != false) {
       output.writeBool(2, filterable_);
     }
+    if (inherited_ != false) {
+      output.writeBool(3, inherited_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -221,6 +246,10 @@ private static final long serialVersionUID = 0L;
     if (filterable_ != false) {
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(2, filterable_);
+    }
+    if (inherited_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(3, inherited_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -241,6 +270,8 @@ private static final long serialVersionUID = 0L;
         .equals(other.getName())) return false;
     if (getFilterable()
         != other.getFilterable()) return false;
+    if (getInherited()
+        != other.getInherited()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -257,6 +288,9 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + FILTERABLE_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getFilterable());
+    hash = (37 * hash) + INHERITED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getInherited());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -399,6 +433,8 @@ private static final long serialVersionUID = 0L;
 
       filterable_ = false;
 
+      inherited_ = false;
+
       return this;
     }
 
@@ -427,6 +463,7 @@ private static final long serialVersionUID = 0L;
       io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation result = new io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation(this);
       result.name_ = name_;
       result.filterable_ = filterable_;
+      result.inherited_ = inherited_;
       onBuilt();
       return result;
     }
@@ -481,6 +518,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getFilterable() != false) {
         setFilterable(other.getFilterable());
+      }
+      if (other.getInherited() != false) {
+        setInherited(other.getInherited());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -661,6 +701,55 @@ private static final long serialVersionUID = 0L;
     public Builder clearFilterable() {
       
       filterable_ = false;
+      onChanged();
+      return this;
+    }
+
+    private boolean inherited_ ;
+    /**
+     * <pre>
+     * Set to true when the filterable property should be inherited from the original.
+     * This property makes sense only for inherited reference attributes on reflected reference. For all other cases it
+     * must be left as false. When set to TRUE the value of `filterable` field is ignored.
+     * </pre>
+     *
+     * <code>bool inherited = 3;</code>
+     * @return The inherited.
+     */
+    @java.lang.Override
+    public boolean getInherited() {
+      return inherited_;
+    }
+    /**
+     * <pre>
+     * Set to true when the filterable property should be inherited from the original.
+     * This property makes sense only for inherited reference attributes on reflected reference. For all other cases it
+     * must be left as false. When set to TRUE the value of `filterable` field is ignored.
+     * </pre>
+     *
+     * <code>bool inherited = 3;</code>
+     * @param value The inherited to set.
+     * @return This builder for chaining.
+     */
+    public Builder setInherited(boolean value) {
+
+      inherited_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Set to true when the filterable property should be inherited from the original.
+     * This property makes sense only for inherited reference attributes on reflected reference. For all other cases it
+     * must be left as false. When set to TRUE the value of `filterable` field is ignored.
+     * </pre>
+     *
+     * <code>bool inherited = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearInherited() {
+
+      inherited_ = false;
       onChanged();
       return this;
     }

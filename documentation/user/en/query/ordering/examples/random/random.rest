@@ -1,14 +1,14 @@
 POST /rest/evita/Product/query
 
 {
-  "orderBy": [
+  "orderBy" : [
     {
-      "random": true
+      "random" : true
     }
   ],
-  "require": {
-    "entityFetch": {
-      "attributeContent": [
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
         "code"
       ]
     }

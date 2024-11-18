@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -168,7 +168,7 @@ class GraphQLEntityUpsertMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), "10")
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), "11")
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false))
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.name(), map()
@@ -262,7 +262,7 @@ class GraphQLEntityUpsertMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), "10")
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), "11")
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false))
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false))
 				.e(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.name(), map()
 					.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)

@@ -538,7 +538,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 					.e(PriceDescriptor.TAX_RATE.name(), "21")
 					.e(PriceDescriptor.PRICE_WITH_TAX.name(), "1.21")
 					.e(PriceDescriptor.VALIDITY.name(), null)
-					.e(PriceDescriptor.SELLABLE.name(), false)
+					.e(PriceDescriptor.INDEXED.name(), false)
 					.build()
 			))
 			.build();
@@ -559,7 +559,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                                    priceWithoutTax: "1.0"
 	                                    taxRate: "21"
 	                                    priceWithTax: "1.21"
-	                                    sellable: false
+	                                    indexed: false
 	                                }
 	                            }
 	                        ]
@@ -575,7 +575,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 								taxRate
 								priceWithTax
 								validity
-								sellable
+								indexed
 	                        }
 	                    }
 	                }
@@ -603,7 +603,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 								taxRate
 								priceWithTax
 								validity
-								sellable
+								indexed
 	                        }
 	                    }
 	                }

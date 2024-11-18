@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,10 +81,10 @@ public interface UpsertPriceMutationDescriptor extends PriceMutationDescriptor {
 			""")
 		.type(nullable(DateTimeRange.class))
 		.build();
-	PropertyDescriptor SELLABLE = PropertyDescriptor.builder()
-		.name("sellable")
+	PropertyDescriptor INDEXED = PropertyDescriptor.builder()
+		.name("indexed")
 		.description("""
-			Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+			Controls whether price is subject to filtering / sorting logic, non-indexed prices will be fetched along with
 			entity but won't be considered when evaluating search query. These prices may be
 			used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
 			as "usual price") but are not considered as the "selling" price.
@@ -107,7 +107,7 @@ public interface UpsertPriceMutationDescriptor extends PriceMutationDescriptor {
 			TAX_RATE,
 			PRICE_WITH_TAX,
 			VALIDITY,
-			SELLABLE
+			INDEXED
 		))
 		.build();
 }

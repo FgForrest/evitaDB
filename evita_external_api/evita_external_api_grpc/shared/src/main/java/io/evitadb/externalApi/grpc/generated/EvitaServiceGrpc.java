@@ -40,6 +40,37 @@ public final class EvitaServiceGrpc {
   public static final String SERVICE_NAME = "io.evitadb.externalApi.grpc.generated.EvitaService";
 
   // Static method descriptors that strictly reflect the proto.
+  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> getIsReadyMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "IsReady",
+      requestType = com.google.protobuf.Empty.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcReadyResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> getIsReadyMethod() {
+    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> getIsReadyMethod;
+    if ((getIsReadyMethod = EvitaServiceGrpc.getIsReadyMethod) == null) {
+      synchronized (EvitaServiceGrpc.class) {
+        if ((getIsReadyMethod = EvitaServiceGrpc.getIsReadyMethod) == null) {
+          EvitaServiceGrpc.getIsReadyMethod = getIsReadyMethod =
+              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcReadyResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "IsReady"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  com.google.protobuf.Empty.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcReadyResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("IsReady"))
+              .build();
+        }
+      }
+    }
+    return getIsReadyMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest,
       io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> getCreateReadOnlySessionMethod;
 
@@ -435,6 +466,16 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to check readiness of the API
+     * </pre>
+     */
+    public void isReady(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getIsReadyMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to create read only sessions.
      * </pre>
      */
@@ -546,6 +587,13 @@ public final class EvitaServiceGrpc {
     @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
       return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())
           .addMethod(
+            getIsReadyMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                com.google.protobuf.Empty,
+                io.evitadb.externalApi.grpc.generated.GrpcReadyResponse>(
+                  this, METHODID_IS_READY)))
+          .addMethod(
             getCreateReadOnlySessionMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
@@ -642,6 +690,17 @@ public final class EvitaServiceGrpc {
     protected EvitaServiceStub build(
         io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
       return new EvitaServiceStub(channel, callOptions);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to check readiness of the API
+     * </pre>
+     */
+    public void isReady(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getIsReadyMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -786,6 +845,16 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to check readiness of the API
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReadyResponse isReady(com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getIsReadyMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to create read only sessions.
      * </pre>
      */
@@ -915,6 +984,17 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to check readiness of the API
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcReadyResponse> isReady(
+        com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getIsReadyMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to create read only sessions.
      * </pre>
      */
@@ -1035,17 +1115,18 @@ public final class EvitaServiceGrpc {
     }
   }
 
-  private static final int METHODID_CREATE_READ_ONLY_SESSION = 0;
-  private static final int METHODID_CREATE_READ_WRITE_SESSION = 1;
-  private static final int METHODID_CREATE_BINARY_READ_ONLY_SESSION = 2;
-  private static final int METHODID_CREATE_BINARY_READ_WRITE_SESSION = 3;
-  private static final int METHODID_TERMINATE_SESSION = 4;
-  private static final int METHODID_GET_CATALOG_NAMES = 5;
-  private static final int METHODID_DEFINE_CATALOG = 6;
-  private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 7;
-  private static final int METHODID_UPDATE = 8;
-  private static final int METHODID_RENAME_CATALOG = 9;
-  private static final int METHODID_REPLACE_CATALOG = 10;
+  private static final int METHODID_IS_READY = 0;
+  private static final int METHODID_CREATE_READ_ONLY_SESSION = 1;
+  private static final int METHODID_CREATE_READ_WRITE_SESSION = 2;
+  private static final int METHODID_CREATE_BINARY_READ_ONLY_SESSION = 3;
+  private static final int METHODID_CREATE_BINARY_READ_WRITE_SESSION = 4;
+  private static final int METHODID_TERMINATE_SESSION = 5;
+  private static final int METHODID_GET_CATALOG_NAMES = 6;
+  private static final int METHODID_DEFINE_CATALOG = 7;
+  private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 8;
+  private static final int METHODID_UPDATE = 9;
+  private static final int METHODID_RENAME_CATALOG = 10;
+  private static final int METHODID_REPLACE_CATALOG = 11;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1064,6 +1145,10 @@ public final class EvitaServiceGrpc {
     @java.lang.SuppressWarnings("unchecked")
     public void invoke(Req request, io.grpc.stub.StreamObserver<Resp> responseObserver) {
       switch (methodId) {
+        case METHODID_IS_READY:
+          serviceImpl.isReady((com.google.protobuf.Empty) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReadyResponse>) responseObserver);
+          break;
         case METHODID_CREATE_READ_ONLY_SESSION:
           serviceImpl.createReadOnlySession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>) responseObserver);
@@ -1169,6 +1254,7 @@ public final class EvitaServiceGrpc {
         if (result == null) {
           serviceDescriptor = result = io.grpc.ServiceDescriptor.newBuilder(SERVICE_NAME)
               .setSchemaDescriptor(new EvitaServiceFileDescriptorSupplier())
+              .addMethod(getIsReadyMethod())
               .addMethod(getCreateReadOnlySessionMethod())
               .addMethod(getCreateReadWriteSessionMethod())
               .addMethod(getCreateBinaryReadOnlySessionMethod())

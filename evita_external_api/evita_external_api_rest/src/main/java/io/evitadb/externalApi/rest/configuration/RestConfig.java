@@ -26,64 +26,46 @@ package io.evitadb.externalApi.rest.configuration;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
-import io.evitadb.externalApi.configuration.ApiWithOriginControl;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
-import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * REST API specific configuration.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class RestConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix, ApiWithOriginControl {
+public class RestConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix {
 	private static final String BASE_REST_PATH = "rest";
-	private static final Pattern ORIGIN_PATTERN = Pattern.compile("([a-z]+)://([\\w.]+)(:(\\d+))?");
 
 	/**
 	 * Controls the prefix REST API will react on.
 	 * Default value is `rest`.
 	 */
 	@Getter private final String prefix;
-	@Getter private final String[] allowedOrigins;
 
 	public RestConfig() {
 		super();
 		this.prefix = BASE_REST_PATH;
-		this.allowedOrigins = null;
 	}
 
 	public RestConfig(@Nonnull String host) {
 		super(true, host);
 		this.prefix = BASE_REST_PATH;
-		this.allowedOrigins = null;
 	}
 
 	@JsonCreator
 	public RestConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                  @Nonnull @JsonProperty("host") String host,
-	                  @Nullable @JsonProperty("exposedHost") String exposedHost,
+	                  @Nullable @JsonProperty("exposeOn") String exposeOn,
 	                  @Nullable @JsonProperty("tlsMode") String tlsMode,
-	                  @Nullable @JsonProperty("prefix") String prefix,
-	                  @Nullable @JsonProperty("allowedOrigins") String allowedOrigins) {
-		super(enabled, host, exposedHost, tlsMode);
+	                  @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
+	                  @Nullable @JsonProperty("prefix") String prefix
+	) {
+		super(enabled, host, exposeOn, tlsMode, keepAlive);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_REST_PATH);
-		if (allowedOrigins == null) {
-			this.allowedOrigins = null;
-		} else {
-			this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
-				.peek(origin -> {
-					final Matcher matcher = ORIGIN_PATTERN.matcher(origin);
-					Assert.isTrue(matcher.matches(), "Invalid origin definition: " + origin);
-				})
-				.toArray(String[]::new);
-		}
 	}
 }

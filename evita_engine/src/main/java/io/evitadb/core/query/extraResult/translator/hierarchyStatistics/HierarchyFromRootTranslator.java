@@ -36,7 +36,6 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -44,7 +43,7 @@ import java.util.Optional;
  * {@link RootStatisticsComputer} registered inside {@link HierarchyStatisticsProducer}. The computer instance has
  * all pointer necessary to compute result.
  * All operations in this translator are relatively cheap comparing to final result computation, that is deferred to
- * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)} method.
+ * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

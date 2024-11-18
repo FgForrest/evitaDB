@@ -23,10 +23,9 @@
 
 package io.evitadb.core.query.algebra.prefetch;
 
+import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
-import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -47,10 +46,8 @@ import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -73,7 +70,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	/**
 	 * Contains set of requirements collected from all {@link SelectionFormula} in the tree.
 	 */
-	protected final Map<Class<? extends EntityContentRequire>, EntityContentRequire> requirements = new HashMap<>();
+	protected final DefaultPrefetchRequirementCollector requirements = new DefaultPrefetchRequirementCollector();
 	/**
 	 * Indexes that were used when visitor was created.
 	 */
@@ -128,12 +125,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 * for its evaluation.
 	 */
 	public void addRequirement(@Nonnull EntityContentRequire... requirement) {
-		for (EntityContentRequire theRequirement : requirement) {
-			requirements.merge(
-				theRequirement.getClass(), theRequirement,
-				EntityContentRequire::combineWith
-			);
-		}
+		this.requirements.addRequirementsToPrefetch(requirement);
 	}
 
 	@Override
@@ -206,7 +198,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 			expectedComputationalCosts += selectionFormula.getDelegate().getEstimatedCost();
 		}
 		if (formula instanceof final RequirementsDefiner requirementsDefiner) {
-			final EntityRequire entityRequire = requirementsDefiner.getEntityRequire();
+			final EntityFetchRequire entityRequire = requirementsDefiner.getEntityRequire();
 			final EntityContentRequire[] requirements = entityRequire == null ? new EntityContentRequire[0] : entityRequire.getRequirements();
 			for (EntityContentRequire requirement : requirements) {
 				addRequirement(requirement);
@@ -229,10 +221,9 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	/**
 	 * Returns set of requirements to fetch entities with.
 	 */
+	@Nullable
 	protected EntityFetchRequire getRequirements() {
-		return new EntityFetch(
-			requirements.values().toArray(new EntityContentRequire[0])
-		);
+		return this.requirements.getEntityFetch();
 	}
 
 	/**
@@ -255,6 +246,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	/**
 	 * Returns entity primary keys to fetch.
 	 */
+	@Nonnull
 	private Bitmap getConjunctiveEntities() {
 		return estimatedBitmapCardinality <= BITMAP_SIZE_THRESHOLD ?
 			conjunctiveEntityIds.stream()

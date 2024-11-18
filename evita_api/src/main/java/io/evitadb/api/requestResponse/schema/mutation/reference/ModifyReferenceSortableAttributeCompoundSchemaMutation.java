@@ -30,8 +30,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
@@ -60,9 +60,9 @@ import java.util.Optional;
 public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends AbstractModifyReferenceDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -1439568976069672739L;
-	@Nonnull @Getter private final ReferenceSchemaMutation sortableAttributeCompoundSchemaMutation;
+	@Nonnull @Getter private final ReferenceSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation;
 
-	public ModifyReferenceSortableAttributeCompoundSchemaMutation(@Nonnull String name, @Nonnull ReferenceSchemaMutation sortableAttributeCompoundSchemaMutation) {
+	public ModifyReferenceSortableAttributeCompoundSchemaMutation(@Nonnull String name, @Nonnull ReferenceSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation) {
 		super(name);
 		Assert.isTrue(sortableAttributeCompoundSchemaMutation instanceof SortableAttributeCompoundSchemaMutation, "The mutation must implement SortableAttributeCompoundSchemaMutation interface!");
 		this.sortableAttributeCompoundSchemaMutation = sortableAttributeCompoundSchemaMutation;
@@ -86,7 +86,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends Abst
 					} else if (result.origin() == combinableSortableAttributeCompoundCombinationMutation) {
 						origin = theExistingMutation;
 					} else {
-						origin = new ModifyReferenceSortableAttributeCompoundSchemaMutation(name, (ReferenceSchemaMutation) result.origin());
+						origin = new ModifyReferenceSortableAttributeCompoundSchemaMutation(name, (ReferenceSortableAttributeCompoundSchemaMutation) result.origin());
 					}
 					final LocalEntitySchemaMutation[] current;
 					if (ArrayUtils.isEmpty(result.current())) {
@@ -97,7 +97,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends Abst
 								if (it == ((ModifyReferenceSortableAttributeCompoundSchemaMutation) existingMutation).getSortableAttributeCompoundSchemaMutation()) {
 									return existingMutation;
 								} else {
-									return new ModifyReferenceSortableAttributeCompoundSchemaMutation(name, (ReferenceSchemaMutation) it);
+									return new ModifyReferenceSortableAttributeCompoundSchemaMutation(name, (ReferenceSortableAttributeCompoundSchemaMutation) it);
 								}
 							})
 							.toArray(LocalEntitySchemaMutation[]::new);
@@ -114,7 +114,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends Abst
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		return sortableAttributeCompoundSchemaMutation.mutate(entitySchema, referenceSchema);
 	}
 

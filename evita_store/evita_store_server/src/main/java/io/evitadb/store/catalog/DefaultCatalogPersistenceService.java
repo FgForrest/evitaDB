@@ -49,7 +49,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.async.Scheduler;
-import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.file.ExportFileService;
@@ -67,9 +67,6 @@ import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.ObsoleteStorageProtocolException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
-import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
@@ -84,6 +81,7 @@ import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
@@ -268,6 +266,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * storage part persistence service for a given catalog version.
 	 */
 	private long[] catalogPersistenceServiceVersions;
+	/**
+	 * Contains information about cardinality of the warm-up version of the catalog - i.e. zero. This version is special
+	 * in the sense, it may be used repeatedly (version doesn't increment with catalog flushes) and because the array
+	 * {@link #catalogPersistenceServiceVersions} cannot contain multiple zeros, this counter is used to keep track of
+	 * the number of times the zero version was used.
+	 */
+	private int warmUpVersionCardinality;
 	/**
 	 * Contains the instance of {@link CatalogBootstrap} that contains the last bootstrap record that is currently used.
 	 */
@@ -537,13 +542,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @param catalogStoragePath            the path to the catalog storage directory
 	 * @param storagePartPersistenceService the storage part persistence service
 	 */
-	private static void verifyCatalogNameMatches(
+	private void verifyCatalogNameMatches(
 		@Nonnull CatalogContract catalogInstance,
 		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogStoragePartPersistenceService storagePartPersistenceService,
-		@Nonnull OnDifferentCatalogName onDifferentCatalogName
+		@Nonnull OnDifferentCatalogName onDifferentCatalogName,
+		@Nonnull CatalogBootstrap bootstrapUsed
 	) {
 		// verify that the catalog schema is the same as the one in the catalog directory
 		final CatalogHeader catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
@@ -591,6 +597,18 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			);
 			storagePartPersistenceService.putStoragePart(
 				catalogVersion, new CatalogSchemaStoragePart(updateCatalogSchema)
+			);
+
+			final PersistentStorageDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
+
+			writeCatalogBootstrap(
+				catalogVersion, catalogName,
+				new CatalogBootstrap(
+					catalogVersion,
+					bootstrapUsed.catalogFileIndex(),
+					OffsetDateTime.now(),
+					flushedDescriptor.fileLocation()
+				)
 			);
 		}
 	}
@@ -851,6 +869,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			)
 		);
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
+		this.warmUpVersionCardinality = 1;
 
 		if (lastCatalogBootstrap.fileLocation() == null) {
 			this.bootstrapUsed = recordBootstrap(catalogVersion, this.catalogName, 0, null);
@@ -934,12 +953,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogStoragePartPersistenceService
 		);
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
+		this.warmUpVersionCardinality = catalogVersion == 0 ? 1 : 0;
 
 		final File restoreFlagFile = catalogStoragePath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile();
 		verifyCatalogNameMatches(
 			catalogInstance, catalogVersion, catalogName, catalogStoragePath,
 			catalogStoragePartPersistenceService, restoreFlagFile.exists() ?
-				OnDifferentCatalogName.ADAPT : OnDifferentCatalogName.THROW_EXCEPTION
+				OnDifferentCatalogName.ADAPT : OnDifferentCatalogName.THROW_EXCEPTION,
+			this.bootstrapUsed
 		);
 		if (restoreFlagFile.exists()) {
 			Assert.isPremiseValid(
@@ -1003,6 +1024,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogStoragePartPersistenceService
 		);
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
+		this.warmUpVersionCardinality = catalogVersion == 0 ? 1 : 0;
 
 		final CatalogHeader catalogHeader = catalogStoragePartPersistenceService.getCatalogHeader(catalogVersion);
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
@@ -1034,7 +1056,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void emitStartObservabilityEvents() {
+	public void emitObservabilityEvents() {
 		// emit statistics event
 		final CatalogHeader catalogHeader = getCatalogHeader(this.bootstrapUsed.catalogVersion());
 		new CatalogStatisticsEvent(
@@ -1080,9 +1102,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				lookupIndex >= 0 && lookupIndex < this.catalogPersistenceServiceVersions.length,
 				() -> new GenericEvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
 			);
-			return this.catalogStoragePartPersistenceService.get(
+			final CatalogOffsetIndexStoragePartPersistenceService persistenceService = this.catalogStoragePartPersistenceService.get(
 				this.catalogPersistenceServiceVersions[lookupIndex]
 			);
+			Assert.isPremiseValid(
+				persistenceService != null,
+				() -> new GenericEvitaInternalError("Catalog persistence service not found for version " + catalogVersion + "!")
+			);
+			return persistenceService;
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError(
 				"Interrupted while trying to lock the catalog persistence service versions!",
@@ -1171,7 +1198,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		int lastEntityCollectionPrimaryKey,
 		@Nullable TransactionMutation lastProcessedTransaction,
 		@Nonnull List<EntityCollectionHeader> entityHeaders,
-		@Nonnull DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreMemoryBuffer
+		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
 	) {
 		// first we need to execute transition to alive state
 		if (catalogState == CatalogState.ALIVE && catalogVersion == 0L) {
@@ -1283,7 +1310,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		long catalogVersion,
 		@Nonnull HeaderInfoSupplier headerInfoSupplier,
 		@Nonnull EntityCollectionHeader entityCollectionHeader,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> dataStoreBuffer) {
+		@Nonnull DataStoreMemoryBuffer dataStoreBuffer
+	) {
 		final CollectionFileReference collectionFileReference =
 			new CollectionFileReference(
 				entityCollectionHeader.entityType(),
@@ -1318,7 +1346,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 						this.recordTypeRegistry
 					)
 				);
-				if (dataStoreBuffer instanceof WarmUpDataStoreMemoryBuffer<EntityIndexKey, EntityIndex> warmUpDataStoreMemoryBuffer) {
+				if (dataStoreBuffer instanceof WarmUpDataStoreMemoryBuffer warmUpDataStoreMemoryBuffer) {
 					warmUpDataStoreMemoryBuffer.setPersistenceService(newPersistenceService.getStoragePartPersistenceService());
 				}
 				this.obsoleteFileMaintainer.removeFileWhenNotUsed(
@@ -1424,7 +1452,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogNameToBeReplaced,
 		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
 		@Nonnull CatalogSchema catalogSchema,
-		@Nonnull DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreMemoryBuffer
+		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
 	) {
 		final Path newPath = pathForCatalog(catalogNameToBeReplaced, storageOptions.storageDirectoryOrDefault());
 		final boolean targetPathExists = newPath.toFile().exists();
@@ -1895,9 +1923,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges<CatalogIndexKey, CatalogIndex> dataStoreIndexChanges) {
+	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreChanges dataStoreChanges) {
 		// now store all the entity trapped updates
-		dataStoreIndexChanges.popTrappedUpdates()
+		dataStoreChanges.popTrappedUpdates()
 			.forEach(it -> getStoragePartPersistenceService(catalogVersion).putStoragePart(catalogVersion, it));
 	}
 
@@ -1969,7 +1997,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		long catalogVersion,
 		@Nonnull String newCatalogName,
 		int catalogFileIndex,
-		@Nullable DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreMemoryBuffer
+		@Nullable DataStoreMemoryBuffer dataStoreMemoryBuffer
 	) {
 		return recordBootstrap(catalogVersion, newCatalogName, catalogFileIndex, getNowEpochMillis(), dataStoreMemoryBuffer);
 	}
@@ -1990,7 +2018,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String newCatalogName,
 		int catalogFileIndex,
 		long timestamp,
-		@Nullable DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreMemoryBuffer
+		@Nullable DataStoreMemoryBuffer dataStoreMemoryBuffer
 	) {
 		final OffsetDateTime bootstrapWriteTime = Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()).toOffsetDateTime();
 		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
@@ -2041,11 +2069,23 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
 					oldestRecordTimestamp -> DefaultCatalogPersistenceService.reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
 				);
-				this.catalogStoragePartPersistenceService.put(
+				final CatalogOffsetIndexStoragePartPersistenceService previousService = this.catalogStoragePartPersistenceService.put(
 					catalogVersion,
 					newPersistenceService
 				);
-				this.catalogPersistenceServiceVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, this.catalogPersistenceServiceVersions);
+				if (previousService != null) {
+					previousService.close();
+					if (catalogVersion == 0) {
+						this.warmUpVersionCardinality++;
+					} else {
+						throw new GenericEvitaInternalError(
+							"Persistence storage instance is unexpectedly already registered!",
+							"Persistence storage instance for version `" + catalogVersion + "` is unexpectedly already registered!"
+						);
+					}
+				} else {
+					this.catalogPersistenceServiceVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, this.catalogPersistenceServiceVersions);
+				}
 
 				this.obsoleteFileMaintainer.removeFileWhenNotUsed(
 					catalogVersion,
@@ -2053,7 +2093,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					() -> removeCatalogPersistenceServiceForVersion(currentVersion)
 				);
 
-				if (dataStoreMemoryBuffer instanceof WarmUpDataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> warmUpDataStoreMemoryBuffer) {
+				if (dataStoreMemoryBuffer instanceof WarmUpDataStoreMemoryBuffer warmUpDataStoreMemoryBuffer) {
 					warmUpDataStoreMemoryBuffer.setPersistenceService(newPersistenceService);
 				}
 
@@ -2428,11 +2468,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				lookupIndex >= 0 && lookupIndex < this.catalogPersistenceServiceVersions.length,
 				() -> new GenericEvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
 			);
-			final long versionToRemove = this.catalogPersistenceServiceVersions[lookupIndex];
-			this.catalogPersistenceServiceVersions = ArrayUtils.removeLongFromArrayOnIndex(this.catalogPersistenceServiceVersions, lookupIndex);
-			// remove the service and release its resources
-			final CatalogOffsetIndexStoragePartPersistenceService storageService = this.catalogStoragePartPersistenceService.remove(versionToRemove);
-			storageService.close();
+			if (catalogVersion == 0 && this.warmUpVersionCardinality > 0) {
+				this.warmUpVersionCardinality--;
+			} else {
+				final long versionToRemove = this.catalogPersistenceServiceVersions[lookupIndex];
+				this.catalogPersistenceServiceVersions = ArrayUtils.removeLongFromArrayOnIndex(this.catalogPersistenceServiceVersions, lookupIndex);
+				// remove the service and release its resources
+				final CatalogOffsetIndexStoragePartPersistenceService storageService = this.catalogStoragePartPersistenceService.remove(versionToRemove);
+				storageService.close();
+			}
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError(
 				"Failed to lock the catalog persistence service for catalog `" + this.catalogName + "`!",

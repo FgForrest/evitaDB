@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,10 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
 
+import static io.evitadb.api.query.QueryConstraints.associatedDataContentAll;
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static org.junit.jupiter.api.Assertions.*;
@@ -70,6 +72,7 @@ class AttributeContentTest {
 		assertEquals(attributeContentAll().hashCode(), attributeContentAll().hashCode());
 		assertNotEquals(attributeContent("a", "e").hashCode(), attributeContent("a", "b").hashCode());
 		assertNotEquals(attributeContent("a", "e").hashCode(), attributeContent("a").hashCode());
+		assertNotEquals(attributeContent("a", "e").hashCode(), attributeContent("a", "b", "c").hashCode());
 	}
 
 	@Test
@@ -79,5 +82,57 @@ class AttributeContentTest {
 		assertEquals(attributeContent("A"), attributeContent("A").combineWith(attributeContent("A")));
 		assertEquals(attributeContent("A", "B"), attributeContent("A").combineWith(attributeContent("B")));
 	}
+
+	@Test
+    void shouldCombineWithAllAttribute() {
+	    final AttributeContent attributeContent = attributeContent("A");
+	    final AttributeContent combinedAttributeContent = attributeContent.combineWith(attributeContentAll());
+	    assertArrayEquals(new String[0], combinedAttributeContent.getAttributeNames());
+		assertTrue(combinedAttributeContent.isAllRequested());
+    }
+
+	@Test
+	void shouldCombineWithSpecificAttribute() {
+		final AttributeContent attributeContent1 = attributeContent("A");
+		final AttributeContent attributeContent2 = attributeContent("B");
+		final AttributeContent combinedAttributeContent = attributeContent1.combineWith(attributeContent2);
+		assertArrayEquals(new String[]{"A", "B"}, combinedAttributeContent.getAttributeNames());
+	}
+
+	@Test
+	void shouldCombineWithDuplicatedAttribute() {
+		final AttributeContent attributeContent1 = attributeContent("A");
+		final AttributeContent attributeContent2 = attributeContent("A");
+		final AttributeContent combinedAttributeContent = attributeContent1.combineWith(attributeContent2);
+		assertArrayEquals(new String[]{"A"}, combinedAttributeContent.getAttributeNames());
+	}
+
+	@Test
+	void shouldThrowOnIncompatibleConstraint() {
+		final AttributeContent attributeContent = attributeContent("A");
+		assertThrows(GenericEvitaInternalError.class, () -> attributeContent.combineWith(associatedDataContentAll()));
+	}
+
+	@Test
+	void shouldRecognizeFullContainForAllAttributes() {
+		final AttributeContent attributeContent1 = new AttributeContent();
+		final AttributeContent attributeContent2 = new AttributeContent("a", "b", "c");
+		assertFalse(attributeContent1.isFullyContainedWithin(attributeContent2));
+		assertTrue(attributeContent2.isFullyContainedWithin(attributeContent1));
+	}
+
+	@Test
+	void shouldRecognizeFullContainmentForSpecificAttributes() {
+		final AttributeContent attributeContent1 = new AttributeContent("a", "b");
+		final AttributeContent attributeContent2 = new AttributeContent("a", "b", "c");
+		assertTrue(attributeContent1.isFullyContainedWithin(attributeContent2));
+	}
+
+	@Test
+	void shouldNotRecognizeFullContainmentForMissingAttributes() {
+		final AttributeContent attributeContent1 = new AttributeContent("a", "b", "d");
+		final AttributeContent attributeContent2 = new AttributeContent("a", "b", "c");
+		assertFalse(attributeContent1.isFullyContainedWithin(attributeContent2));
+   }
 
 }

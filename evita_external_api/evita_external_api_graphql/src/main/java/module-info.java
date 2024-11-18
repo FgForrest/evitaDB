@@ -21,18 +21,15 @@
  *   limitations under the License.
  */
 
-import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
-
 /**
  * Module contains GraphQL API for evitaDB.
  */
 module evita.external.api.graphql {
 
-	uses CatalogPersistenceServiceFactory;
-	uses ExternalApiProviderRegistrar;
+	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+	uses io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 
-	provides ExternalApiProviderRegistrar with io.evitadb.externalApi.graphql.GraphQLProviderRegistrar;
+	provides io.evitadb.externalApi.http.ExternalApiProviderRegistrar with io.evitadb.externalApi.graphql.GraphQLProviderRegistrar;
 
 	opens io.evitadb.externalApi.graphql to com.graphqljava;
 	opens io.evitadb.externalApi.graphql.configuration to com.fasterxml.jackson.databind;

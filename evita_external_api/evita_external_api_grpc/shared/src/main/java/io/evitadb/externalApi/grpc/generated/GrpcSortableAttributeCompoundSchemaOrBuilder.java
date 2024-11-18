@@ -207,4 +207,14 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Contains true if the attribute was inherited from the original object via reflected reference relation
+   * </pre>
+   *
+   * <code>bool inherited = 6;</code>
+   * @return The inherited.
+   */
+  boolean getInherited();
 }

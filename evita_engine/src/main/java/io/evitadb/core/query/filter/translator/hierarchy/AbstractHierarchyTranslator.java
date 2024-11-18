@@ -30,7 +30,13 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.FormulaPostProcessor;
+import io.evitadb.core.query.algebra.attribute.AttributeFormula;
+import io.evitadb.core.query.algebra.hierarchy.HierarchyFormula;
+import io.evitadb.core.query.algebra.locale.LocaleFormula;
+import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
@@ -61,7 +67,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 */
 	@Nullable
 	protected static HierarchyFilteringPredicate createAndStoreHavingPredicate(
-		@Nullable Integer parentId,
+		@Nullable int[] parentId,
 		@Nonnull QueryPlanningContext queryContext,
 		@Nullable FilterBy havingFilter,
 		@Nullable FilterBy exclusionFilter,
@@ -145,6 +151,71 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 					.toArray(Formula[]::new)
 			);
 		}
+	}
+
+	/**
+	 * This class postprocess the created {@link Formula} filtering tree and removes the {@link LocaleFormula} in case
+	 * an {@link AttributeFormula} that uses the localized attribute index is indexed in the filtering conjunction tree.
+	 * This will remove necessity to process AND conjunction with rather large index with all localized entity primary
+	 * keys.
+	 */
+	protected static class HierarchyOptimizingPostProcessor extends FormulaCloner implements FormulaPostProcessor {
+		/**
+		 * Flag that signalizes {@link #visit(Formula)} happens in conjunctive scope.
+		 */
+		protected boolean conjunctiveScope = true;
+		/**
+		 * Reference to the original unchanged {@link Formula}.
+		 */
+		private Formula originalFormula;
+		/**
+		 * Flag that signalizes that formula targeting reduced index was found in conjunctive scope.
+		 */
+		private boolean formulaTargetingReducedIndex;
+
+		public HierarchyOptimizingPostProcessor() {
+			super(
+				(formulaCloner, formula) -> {
+					final HierarchyOptimizingPostProcessor clonerInstance = (HierarchyOptimizingPostProcessor) formulaCloner;
+					if (clonerInstance.originalFormula == null) {
+						clonerInstance.originalFormula = formula;
+					}
+					if (formula instanceof final AttributeFormula attributeFormula) {
+						clonerInstance.formulaTargetingReducedIndex = clonerInstance.formulaTargetingReducedIndex ||
+							(!attributeFormula.isTargetsGlobalAttribute() && clonerInstance.conjunctiveScope);
+					} else if (formula instanceof PriceWrappingFormula) {
+						clonerInstance.formulaTargetingReducedIndex = clonerInstance.formulaTargetingReducedIndex ||
+							clonerInstance.conjunctiveScope;
+					} else if (formula instanceof HierarchyFormula && clonerInstance.conjunctiveScope) {
+						// skip this formula
+						return null;
+					}
+					// include the formula
+					return formula;
+				}
+			);
+		}
+
+		@Override
+		public void visit(@Nonnull Formula formula) {
+			final boolean formerConjunctiveScope = this.conjunctiveScope;
+			try {
+				if (!FilterByVisitor.isConjunctiveFormula(formula.getClass())) {
+					this.conjunctiveScope = false;
+				}
+				super.visit(formula);
+			} finally {
+				this.conjunctiveScope = formerConjunctiveScope;
+			}
+		}
+
+		@Nonnull
+		@Override
+		public Formula getPostProcessedFormula() {
+			return this.formulaTargetingReducedIndex ?
+				getResultClone() : this.originalFormula;
+		}
+
 	}
 
 }

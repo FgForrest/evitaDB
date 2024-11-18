@@ -160,7 +160,10 @@ public class EntityDecorator implements SealedEntity {
 		int end
 	) {
 		if (referenceComparator != null) {
-			int nonSortedReferenceCount = 0;
+			if (referenceComparator instanceof ReferenceComparator.EntityPrimaryKeyAwareComparator epkAware) {
+				epkAware.setEntityPrimaryKey(entityPrimaryKey);
+			}
+			int nonSortedReferenceCount;
 			do {
 				if (referenceFilter == null) {
 					Arrays.sort(references, start, end, referenceComparator);
@@ -168,12 +171,12 @@ public class EntityDecorator implements SealedEntity {
 					final ReferenceDecorator[] filteredReferences = Arrays.stream(references, start, end)
 						.filter(it -> referenceFilter.test(entityPrimaryKey, it))
 						.toArray(ReferenceDecorator[]::new);
+					Arrays.sort(filteredReferences, referenceComparator);
 
 					for (int i = start; i < end; i++) {
 						final int filteredIndex = i - start;
 						references[i] = filteredReferences.length > filteredIndex ? filteredReferences[filteredIndex] : null;
 					}
-					Arrays.sort(references, start, end, referenceComparator);
 				}
 				nonSortedReferenceCount = referenceComparator.getNonSortedReferenceCount();
 				start = start + (end - nonSortedReferenceCount);
@@ -305,7 +308,7 @@ public class EntityDecorator implements SealedEntity {
 			entity.hierarchyPredicate,
 			entity.attributePredicate,
 			entity.associatedDataPredicate,
-			entity.referencePredicate,
+			entity.referencePredicate.createRicherCopyWith(referenceFetcher.getEnvelopingEntityRequest()),
 			entity.pricePredicate,
 			entity.alignedNow,
 			referenceFetcher

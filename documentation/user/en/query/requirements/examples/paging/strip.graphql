@@ -7,14 +7,6 @@
       data {
         primaryKey
       }
-      offset
-      limit
-      first
-      last
-      hasNext
-      hasPrevious
-      empty
-      totalRecordCount
     }
   }
 }

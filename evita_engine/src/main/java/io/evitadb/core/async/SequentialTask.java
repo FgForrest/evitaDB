@@ -26,18 +26,19 @@ package io.evitadb.core.async;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.utils.UUIDUtil;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
-import java.util.Objects;
+import java.util.EnumSet;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static java.util.Optional.ofNullable;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * This task ensures that all the steps are executed in a sequence. It is a thin wrapper around {@link Task} that
@@ -47,7 +48,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class SequentialTask<T> implements ServerTask<Void, T> {
-	private final String taskName;
+	@Getter private final String taskName;
 	private final AtomicReference<TaskStatus<Void, T>> status;
 	private final ServerTask<?, ?>[] steps;
 	private final AtomicReference<Task<?, ?>> currentStep;
@@ -64,11 +65,18 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 				OffsetDateTime.now(),
 				null,
 				null,
+				null,
 				0,
 				null,
 				null,
 				null,
-				null
+				null,
+				EnumSet.copyOf(
+					Stream.concat(
+						step1.getStatus().traits().stream(),
+						step2.getStatus().traits().stream()
+					).toList()
+				)
 			)
 		);
 		this.currentStep = new AtomicReference<>();
@@ -83,14 +91,28 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 		for (Task<?, ?> step : steps) {
 			overallProgress |= step.getStatus().progress();
 		}
-		final String newTaskName = this.taskName + ofNullable(this.currentStep.get()).map(it -> " [" + it.getStatus().taskName() + "]").orElse("");
 		final int newProgress = overallProgress / this.steps.length;
 		final TaskStatus<Void, T> currentStatus = this.status.get();
-		return currentStatus.state() != State.RUNNING ||
-			currentStatus.progress() == newProgress ||
-			!Objects.equals(currentStatus.taskName(), newTaskName) ?
+		return currentStatus.simplifiedState() != TaskSimplifiedState.RUNNING ||
+			currentStatus.progress() == newProgress ?
 				currentStatus :
 				this.status.updateAndGet(current -> current.updateProgress(newProgress));
+	}
+
+	/**
+	 * Transitions the task to the issued state.
+	 */
+	@Override
+	public void transitionToIssued() {
+		this.status.updateAndGet(TaskStatus::transitionToIssued);
+		for (ServerTask<?, ?> step : this.steps) {
+			step.transitionToIssued();
+		}
+	}
+
+	@Override
+	public boolean matches(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
+		return taskPredicate.test(this) || Stream.of(this.steps).anyMatch(taskPredicate);
 	}
 
 	@Nonnull
@@ -102,12 +124,12 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 	@Nullable
 	@Override
 	public T execute() {
-		if (this.status.get().state() == State.QUEUED) {
+		if (this.status.get().simplifiedState() == TaskSimplifiedState.QUEUED) {
 			try {
 				this.status.updateAndGet(TaskStatus::transitionToStarted);
 
 				for (ServerTask<?, ?> step : steps) {
-					if (step.getStatus().state() == State.QUEUED) {
+					if (step.getStatus().simplifiedState() == TaskSimplifiedState.QUEUED) {
 						this.currentStep.set(step);
 						step.execute();
 					}

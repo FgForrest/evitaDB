@@ -27,6 +27,7 @@ import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.core.metric.event.CatalogRelatedEvent;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import jdk.jfr.Category;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
@@ -38,7 +39,7 @@ import lombok.RequiredArgsConstructor;
 @EventGroup(
 	value = AbstractStorageEvent.PACKAGE_NAME,
 	name = "evitaDB - Storage",
-	description = "evitaDB events relating to data storage."
+	description = "evitaDB events related to data storage."
 )
 @Category({"evitaDB", "Storage"})
 @RequiredArgsConstructor
@@ -50,6 +51,7 @@ abstract class AbstractStorageEvent extends CustomMetricsExecutionEvent implemen
 	 */
 	@Label("Catalog")
 	@Name("catalogName")
+	@Description("The name of the catalog to which this event/metric is associated.")
 	final String catalogName;
 
 }

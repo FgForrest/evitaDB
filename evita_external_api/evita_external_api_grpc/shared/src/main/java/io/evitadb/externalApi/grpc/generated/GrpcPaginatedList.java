@@ -85,6 +85,11 @@ private static final long serialVersionUID = 0L;
             pageNumber_ = input.readInt32();
             break;
           }
+          case 24: {
+
+            lastPageNumber_ = input.readInt32();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -147,6 +152,21 @@ private static final long serialVersionUID = 0L;
     return pageNumber_;
   }
 
+  public static final int LASTPAGENUMBER_FIELD_NUMBER = 3;
+  private int lastPageNumber_;
+  /**
+   * <pre>
+   * The number of the last page.
+   * </pre>
+   *
+   * <code>int32 lastPageNumber = 3;</code>
+   * @return The lastPageNumber.
+   */
+  @java.lang.Override
+  public int getLastPageNumber() {
+    return lastPageNumber_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -167,6 +187,9 @@ private static final long serialVersionUID = 0L;
     if (pageNumber_ != 0) {
       output.writeInt32(2, pageNumber_);
     }
+    if (lastPageNumber_ != 0) {
+      output.writeInt32(3, lastPageNumber_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -183,6 +206,10 @@ private static final long serialVersionUID = 0L;
     if (pageNumber_ != 0) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(2, pageNumber_);
+    }
+    if (lastPageNumber_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(3, lastPageNumber_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -203,6 +230,8 @@ private static final long serialVersionUID = 0L;
         != other.getPageSize()) return false;
     if (getPageNumber()
         != other.getPageNumber()) return false;
+    if (getLastPageNumber()
+        != other.getLastPageNumber()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -218,6 +247,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getPageSize();
     hash = (37 * hash) + PAGENUMBER_FIELD_NUMBER;
     hash = (53 * hash) + getPageNumber();
+    hash = (37 * hash) + LASTPAGENUMBER_FIELD_NUMBER;
+    hash = (53 * hash) + getLastPageNumber();
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -359,6 +390,8 @@ private static final long serialVersionUID = 0L;
 
       pageNumber_ = 0;
 
+      lastPageNumber_ = 0;
+
       return this;
     }
 
@@ -387,6 +420,7 @@ private static final long serialVersionUID = 0L;
       io.evitadb.externalApi.grpc.generated.GrpcPaginatedList result = new io.evitadb.externalApi.grpc.generated.GrpcPaginatedList(this);
       result.pageSize_ = pageSize_;
       result.pageNumber_ = pageNumber_;
+      result.lastPageNumber_ = lastPageNumber_;
       onBuilt();
       return result;
     }
@@ -440,6 +474,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getPageNumber() != 0) {
         setPageNumber(other.getPageNumber());
+      }
+      if (other.getLastPageNumber() != 0) {
+        setLastPageNumber(other.getLastPageNumber());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -552,6 +589,49 @@ private static final long serialVersionUID = 0L;
     public Builder clearPageNumber() {
       
       pageNumber_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private int lastPageNumber_ ;
+    /**
+     * <pre>
+     * The number of the last page.
+     * </pre>
+     *
+     * <code>int32 lastPageNumber = 3;</code>
+     * @return The lastPageNumber.
+     */
+    @java.lang.Override
+    public int getLastPageNumber() {
+      return lastPageNumber_;
+    }
+    /**
+     * <pre>
+     * The number of the last page.
+     * </pre>
+     *
+     * <code>int32 lastPageNumber = 3;</code>
+     * @param value The lastPageNumber to set.
+     * @return This builder for chaining.
+     */
+    public Builder setLastPageNumber(int value) {
+
+      lastPageNumber_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The number of the last page.
+     * </pre>
+     *
+     * <code>int32 lastPageNumber = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearLastPageNumber() {
+
+      lastPageNumber_ = 0;
       onChanged();
       return this;
     }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,15 +27,8 @@ import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.GraphQLScalarType;
-import io.evitadb.dataType.BigDecimalNumberRange;
-import io.evitadb.dataType.ByteNumberRange;
-import io.evitadb.dataType.ComplexDataObject;
-import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.dataType.IntegerNumberRange;
-import io.evitadb.dataType.LongNumberRange;
-import io.evitadb.dataType.Predecessor;
-import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.*;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.dataType.GenericObject;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
@@ -96,8 +89,10 @@ public class DataTypesConverter {
         SCALAR_MAPPINGS.put(Currency.class, CURRENCY);
         SCALAR_MAPPINGS.put(UUID.class, UUID);
         SCALAR_MAPPINGS.put(Predecessor.class, PREDECESSOR);
+        SCALAR_MAPPINGS.put(ReferencedEntityPredecessor.class, REFERENCED_ENTITY_PREDECESSOR);
         SCALAR_MAPPINGS.put(Any.class, ANY);
         SCALAR_MAPPINGS.put(GenericObject.class, OBJECT);
+        SCALAR_MAPPINGS.put(Expression.class, EXPRESSION);
     }
 
     /**

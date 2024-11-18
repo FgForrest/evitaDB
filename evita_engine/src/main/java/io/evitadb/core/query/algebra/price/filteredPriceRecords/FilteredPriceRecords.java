@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.price.filteredPriceRecords;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -83,7 +84,8 @@ public interface FilteredPriceRecords extends Serializable {
 	@Nonnull
 	static FilteredPriceRecords createFromFormulas(
 		@Nonnull Formula parentFormula,
-		@Nullable Bitmap narrowToEntityIds
+		@Nullable Bitmap narrowToEntityIds,
+		@Nonnull QueryExecutionContext context
 	) {
 		// collect all FilteredPriceRecordAccessor that were involved in computing delegate result
 		final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.findAmongChildren(
@@ -92,7 +94,7 @@ public interface FilteredPriceRecords extends Serializable {
 
 		final List<FilteredPriceRecords> filteredPriceRecords = filteredPriceRecordAccessors
 			.stream()
-			.map(FilteredPriceRecordAccessor::getFilteredPriceRecords)
+			.map(it -> it.getFilteredPriceRecords(context))
 			.map(it -> it instanceof NonResolvedFilteredPriceRecords ? ((NonResolvedFilteredPriceRecords) it).toResolvedFilteredPriceRecords() : it)
 			.toList();
 
@@ -104,7 +106,7 @@ public interface FilteredPriceRecords extends Serializable {
 			return filteredPriceRecords.get(0);
 			// all price records are resolved
 		} else {
-			final Optional<LazyEvaluatedEntityPriceRecords> lazyEvaluatedEntityPriceRecords = getLazyEvaluatedEntityPriceRecords(filteredPriceRecordAccessors);
+			final Optional<LazyEvaluatedEntityPriceRecords> lazyEvaluatedEntityPriceRecords = getLazyEvaluatedEntityPriceRecords(filteredPriceRecordAccessors, context);
 			final Optional<ResolvedFilteredPriceRecords> resolvedFilteredPriceRecords;
 			if (narrowToEntityIds == null) {
 				// and no filtering is known (all contents combined should be returned)
@@ -133,10 +135,11 @@ public interface FilteredPriceRecords extends Serializable {
 
 	@Nonnull
 	private static Optional<LazyEvaluatedEntityPriceRecords> getLazyEvaluatedEntityPriceRecords(
-		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
+		@Nonnull QueryExecutionContext context
 	) {
-		final PriceListAndCurrencyPriceIndex[] priceIndexes = filteredPriceRecordAccessors.stream()
-			.map(FilteredPriceRecordAccessor::getFilteredPriceRecords)
+		final PriceListAndCurrencyPriceIndex<?, ?>[] priceIndexes = filteredPriceRecordAccessors.stream()
+			.map(it -> it.getFilteredPriceRecords(context))
 			.filter(LazyEvaluatedEntityPriceRecords.class::isInstance)
 			.map(LazyEvaluatedEntityPriceRecords.class::cast)
 			.flatMap(it -> Arrays.stream(it.getPriceIndexes()))
@@ -234,12 +237,13 @@ public interface FilteredPriceRecords extends Serializable {
 	@Nonnull
 	static FilteredPriceRecordsLookupResult collectFilteredPriceRecordsFromPriceRecordAccessors(
 		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
-		@Nonnull RoaringBitmap filterTo
+		@Nonnull RoaringBitmap filterTo,
+		@Nonnull QueryExecutionContext context
 	) {
 		final CompositeObjectArray<PriceRecordContract> collectedPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class, false);
 		final List<PriceRecordLookup> priceRecordIterators = filteredPriceRecordAccessors
 			.stream()
-			.map(it -> it.getFilteredPriceRecords().getPriceRecordsLookup())
+			.map(it -> it.getFilteredPriceRecords(context).getPriceRecordsLookup())
 			.toList();
 
 		final int[] buffer = SharedBufferPool.INSTANCE.obtain();

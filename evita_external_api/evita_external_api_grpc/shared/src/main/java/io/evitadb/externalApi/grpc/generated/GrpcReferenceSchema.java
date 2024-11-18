@@ -62,6 +62,8 @@ private static final long serialVersionUID = 0L;
     nameVariant_ = java.util.Collections.emptyList();
     entityTypeNameVariant_ = java.util.Collections.emptyList();
     groupTypeNameVariant_ = java.util.Collections.emptyList();
+    attributeInheritanceBehavior_ = 0;
+    attributeInheritanceFilter_ = com.google.protobuf.LazyStringArrayList.EMPTY;
   }
 
   @java.lang.Override
@@ -235,6 +237,54 @@ private static final long serialVersionUID = 0L;
             referencedGroupTypeManaged_ = input.readBool();
             break;
           }
+          case 146: {
+            com.google.protobuf.StringValue.Builder subBuilder = null;
+            if (reflectedReferenceName_ != null) {
+              subBuilder = reflectedReferenceName_.toBuilder();
+            }
+            reflectedReferenceName_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(reflectedReferenceName_);
+              reflectedReferenceName_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
+          case 152: {
+
+            descriptionInherited_ = input.readBool();
+            break;
+          }
+          case 160: {
+
+            deprecationNoticeInherited_ = input.readBool();
+            break;
+          }
+          case 168: {
+
+            cardinalityInherited_ = input.readBool();
+            break;
+          }
+          case 176: {
+
+            facetedInherited_ = input.readBool();
+            break;
+          }
+          case 184: {
+            int rawValue = input.readEnum();
+
+            attributeInheritanceBehavior_ = rawValue;
+            break;
+          }
+          case 194: {
+            java.lang.String s = input.readStringRequireUtf8();
+            if (!((mutable_bitField0_ & 0x00000020) != 0)) {
+              attributeInheritanceFilter_ = new com.google.protobuf.LazyStringArrayList();
+              mutable_bitField0_ |= 0x00000020;
+            }
+            attributeInheritanceFilter_.add(s);
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -258,6 +308,9 @@ private static final long serialVersionUID = 0L;
       }
       if (((mutable_bitField0_ & 0x00000010) != 0)) {
         groupTypeNameVariant_ = java.util.Collections.unmodifiableList(groupTypeNameVariant_);
+      }
+      if (((mutable_bitField0_ & 0x00000020) != 0)) {
+        attributeInheritanceFilter_ = attributeInheritanceFilter_.getUnmodifiableView();
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -1054,6 +1107,192 @@ private static final long serialVersionUID = 0L;
     return referencedGroupTypeManaged_;
   }
 
+  public static final int REFLECTEDREFERENCENAME_FIELD_NUMBER = 18;
+  private com.google.protobuf.StringValue reflectedReferenceName_;
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   * @return Whether the reflectedReferenceName field is set.
+   */
+  @java.lang.Override
+  public boolean hasReflectedReferenceName() {
+    return reflectedReferenceName_ != null;
+  }
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   * @return The reflectedReferenceName.
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getReflectedReferenceName() {
+    return reflectedReferenceName_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : reflectedReferenceName_;
+  }
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getReflectedReferenceNameOrBuilder() {
+    return getReflectedReferenceName();
+  }
+
+  public static final int DESCRIPTIONINHERITED_FIELD_NUMBER = 19;
+  private boolean descriptionInherited_;
+  /**
+   * <pre>
+   * Contains true if the description of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool descriptionInherited = 19;</code>
+   * @return The descriptionInherited.
+   */
+  @java.lang.Override
+  public boolean getDescriptionInherited() {
+    return descriptionInherited_;
+  }
+
+  public static final int DEPRECATIONNOTICEINHERITED_FIELD_NUMBER = 20;
+  private boolean deprecationNoticeInherited_;
+  /**
+   * <pre>
+   * Contains true if the deprecated flag of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool deprecationNoticeInherited = 20;</code>
+   * @return The deprecationNoticeInherited.
+   */
+  @java.lang.Override
+  public boolean getDeprecationNoticeInherited() {
+    return deprecationNoticeInherited_;
+  }
+
+  public static final int CARDINALITYINHERITED_FIELD_NUMBER = 21;
+  private boolean cardinalityInherited_;
+  /**
+   * <pre>
+   * Contains true if the cardinality of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool cardinalityInherited = 21;</code>
+   * @return The cardinalityInherited.
+   */
+  @java.lang.Override
+  public boolean getCardinalityInherited() {
+    return cardinalityInherited_;
+  }
+
+  public static final int FACETEDINHERITED_FIELD_NUMBER = 22;
+  private boolean facetedInherited_;
+  /**
+   * <pre>
+   * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool facetedInherited = 22;</code>
+   * @return The facetedInherited.
+   */
+  @java.lang.Override
+  public boolean getFacetedInherited() {
+    return facetedInherited_;
+  }
+
+  public static final int ATTRIBUTEINHERITANCEBEHAVIOR_FIELD_NUMBER = 23;
+  private int attributeInheritanceBehavior_;
+  /**
+   * <pre>
+   * Contains true if the attributes of the reflected reference are inherited from the target reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
+   * @return The enum numeric value on the wire for attributeInheritanceBehavior.
+   */
+  @java.lang.Override public int getAttributeInheritanceBehaviorValue() {
+    return attributeInheritanceBehavior_;
+  }
+  /**
+   * <pre>
+   * Contains true if the attributes of the reflected reference are inherited from the target reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
+   * @return The attributeInheritanceBehavior.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior getAttributeInheritanceBehavior() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior result = io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.valueOf(attributeInheritanceBehavior_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.UNRECOGNIZED : result;
+  }
+
+  public static final int ATTRIBUTEINHERITANCEFILTER_FIELD_NUMBER = 24;
+  private com.google.protobuf.LazyStringList attributeInheritanceFilter_;
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @return A list containing the attributeInheritanceFilter.
+   */
+  public com.google.protobuf.ProtocolStringList
+      getAttributeInheritanceFilterList() {
+    return attributeInheritanceFilter_;
+  }
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @return The count of attributeInheritanceFilter.
+   */
+  public int getAttributeInheritanceFilterCount() {
+    return attributeInheritanceFilter_.size();
+  }
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @param index The index of the element to return.
+   * @return The attributeInheritanceFilter at the given index.
+   */
+  public java.lang.String getAttributeInheritanceFilter(int index) {
+    return attributeInheritanceFilter_.get(index);
+  }
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @param index The index of the value to return.
+   * @return The bytes of the attributeInheritanceFilter at the given index.
+   */
+  public com.google.protobuf.ByteString
+      getAttributeInheritanceFilterBytes(int index) {
+    return attributeInheritanceFilter_.getByteString(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1124,6 +1363,27 @@ private static final long serialVersionUID = 0L;
     }
     if (referencedGroupTypeManaged_ != false) {
       output.writeBool(17, referencedGroupTypeManaged_);
+    }
+    if (reflectedReferenceName_ != null) {
+      output.writeMessage(18, getReflectedReferenceName());
+    }
+    if (descriptionInherited_ != false) {
+      output.writeBool(19, descriptionInherited_);
+    }
+    if (deprecationNoticeInherited_ != false) {
+      output.writeBool(20, deprecationNoticeInherited_);
+    }
+    if (cardinalityInherited_ != false) {
+      output.writeBool(21, cardinalityInherited_);
+    }
+    if (facetedInherited_ != false) {
+      output.writeBool(22, facetedInherited_);
+    }
+    if (attributeInheritanceBehavior_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.getNumber()) {
+      output.writeEnum(23, attributeInheritanceBehavior_);
+    }
+    for (int i = 0; i < attributeInheritanceFilter_.size(); i++) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 24, attributeInheritanceFilter_.getRaw(i));
     }
     unknownFields.writeTo(output);
   }
@@ -1212,6 +1472,38 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(17, referencedGroupTypeManaged_);
     }
+    if (reflectedReferenceName_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(18, getReflectedReferenceName());
+    }
+    if (descriptionInherited_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(19, descriptionInherited_);
+    }
+    if (deprecationNoticeInherited_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(20, deprecationNoticeInherited_);
+    }
+    if (cardinalityInherited_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(21, cardinalityInherited_);
+    }
+    if (facetedInherited_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(22, facetedInherited_);
+    }
+    if (attributeInheritanceBehavior_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(23, attributeInheritanceBehavior_);
+    }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < attributeInheritanceFilter_.size(); i++) {
+        dataSize += computeStringSizeNoTag(attributeInheritanceFilter_.getRaw(i));
+      }
+      size += dataSize;
+      size += 2 * getAttributeInheritanceFilterList().size();
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1269,6 +1561,22 @@ private static final long serialVersionUID = 0L;
         != other.getReferencedEntityTypeManaged()) return false;
     if (getReferencedGroupTypeManaged()
         != other.getReferencedGroupTypeManaged()) return false;
+    if (hasReflectedReferenceName() != other.hasReflectedReferenceName()) return false;
+    if (hasReflectedReferenceName()) {
+      if (!getReflectedReferenceName()
+          .equals(other.getReflectedReferenceName())) return false;
+    }
+    if (getDescriptionInherited()
+        != other.getDescriptionInherited()) return false;
+    if (getDeprecationNoticeInherited()
+        != other.getDeprecationNoticeInherited()) return false;
+    if (getCardinalityInherited()
+        != other.getCardinalityInherited()) return false;
+    if (getFacetedInherited()
+        != other.getFacetedInherited()) return false;
+    if (attributeInheritanceBehavior_ != other.attributeInheritanceBehavior_) return false;
+    if (!getAttributeInheritanceFilterList()
+        .equals(other.getAttributeInheritanceFilterList())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -1336,6 +1644,28 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + REFERENCEDGROUPTYPEMANAGED_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getReferencedGroupTypeManaged());
+    if (hasReflectedReferenceName()) {
+      hash = (37 * hash) + REFLECTEDREFERENCENAME_FIELD_NUMBER;
+      hash = (53 * hash) + getReflectedReferenceName().hashCode();
+    }
+    hash = (37 * hash) + DESCRIPTIONINHERITED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getDescriptionInherited());
+    hash = (37 * hash) + DEPRECATIONNOTICEINHERITED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getDeprecationNoticeInherited());
+    hash = (37 * hash) + CARDINALITYINHERITED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getCardinalityInherited());
+    hash = (37 * hash) + FACETEDINHERITED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getFacetedInherited());
+    hash = (37 * hash) + ATTRIBUTEINHERITANCEBEHAVIOR_FIELD_NUMBER;
+    hash = (53 * hash) + attributeInheritanceBehavior_;
+    if (getAttributeInheritanceFilterCount() > 0) {
+      hash = (37 * hash) + ATTRIBUTEINHERITANCEFILTER_FIELD_NUMBER;
+      hash = (53 * hash) + getAttributeInheritanceFilterList().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1571,6 +1901,24 @@ private static final long serialVersionUID = 0L;
 
       referencedGroupTypeManaged_ = false;
 
+      if (reflectedReferenceNameBuilder_ == null) {
+        reflectedReferenceName_ = null;
+      } else {
+        reflectedReferenceName_ = null;
+        reflectedReferenceNameBuilder_ = null;
+      }
+      descriptionInherited_ = false;
+
+      deprecationNoticeInherited_ = false;
+
+      cardinalityInherited_ = false;
+
+      facetedInherited_ = false;
+
+      attributeInheritanceBehavior_ = 0;
+
+      attributeInheritanceFilter_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      bitField0_ = (bitField0_ & ~0x00000020);
       return this;
     }
 
@@ -1653,6 +2001,21 @@ private static final long serialVersionUID = 0L;
       }
       result.referencedEntityTypeManaged_ = referencedEntityTypeManaged_;
       result.referencedGroupTypeManaged_ = referencedGroupTypeManaged_;
+      if (reflectedReferenceNameBuilder_ == null) {
+        result.reflectedReferenceName_ = reflectedReferenceName_;
+      } else {
+        result.reflectedReferenceName_ = reflectedReferenceNameBuilder_.build();
+      }
+      result.descriptionInherited_ = descriptionInherited_;
+      result.deprecationNoticeInherited_ = deprecationNoticeInherited_;
+      result.cardinalityInherited_ = cardinalityInherited_;
+      result.facetedInherited_ = facetedInherited_;
+      result.attributeInheritanceBehavior_ = attributeInheritanceBehavior_;
+      if (((bitField0_ & 0x00000020) != 0)) {
+        attributeInheritanceFilter_ = attributeInheritanceFilter_.getUnmodifiableView();
+        bitField0_ = (bitField0_ & ~0x00000020);
+      }
+      result.attributeInheritanceFilter_ = attributeInheritanceFilter_;
       onBuilt();
       return result;
     }
@@ -1820,6 +2183,34 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getReferencedGroupTypeManaged() != false) {
         setReferencedGroupTypeManaged(other.getReferencedGroupTypeManaged());
+      }
+      if (other.hasReflectedReferenceName()) {
+        mergeReflectedReferenceName(other.getReflectedReferenceName());
+      }
+      if (other.getDescriptionInherited() != false) {
+        setDescriptionInherited(other.getDescriptionInherited());
+      }
+      if (other.getDeprecationNoticeInherited() != false) {
+        setDeprecationNoticeInherited(other.getDeprecationNoticeInherited());
+      }
+      if (other.getCardinalityInherited() != false) {
+        setCardinalityInherited(other.getCardinalityInherited());
+      }
+      if (other.getFacetedInherited() != false) {
+        setFacetedInherited(other.getFacetedInherited());
+      }
+      if (other.attributeInheritanceBehavior_ != 0) {
+        setAttributeInheritanceBehaviorValue(other.getAttributeInheritanceBehaviorValue());
+      }
+      if (!other.attributeInheritanceFilter_.isEmpty()) {
+        if (attributeInheritanceFilter_.isEmpty()) {
+          attributeInheritanceFilter_ = other.attributeInheritanceFilter_;
+          bitField0_ = (bitField0_ & ~0x00000020);
+        } else {
+          ensureAttributeInheritanceFilterIsMutable();
+          attributeInheritanceFilter_.addAll(other.attributeInheritanceFilter_);
+        }
+        onChanged();
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -4250,6 +4641,580 @@ private static final long serialVersionUID = 0L;
     public Builder clearReferencedGroupTypeManaged() {
       
       referencedGroupTypeManaged_ = false;
+      onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.StringValue reflectedReferenceName_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> reflectedReferenceNameBuilder_;
+    /**
+     * <pre>
+     * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+     * of such name and this reference must target the entity where the reflected reference is defined, and the target
+     * entity must be managed on both sides of the relation.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+     * @return Whether the reflectedReferenceName field is set.
+     */
+    public boolean hasReflectedReferenceName() {
+      return reflectedReferenceNameBuilder_ != null || reflectedReferenceName_ != null;
+    }
+    /**
+     * <pre>
+     * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+     * of such name and this reference must target the entity where the reflected reference is defined, and the target
+     * entity must be managed on both sides of the relation.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+     * @return The reflectedReferenceName.
+     */
+    public com.google.protobuf.StringValue getReflectedReferenceName() {
+      if (reflectedReferenceNameBuilder_ == null) {
+        return reflectedReferenceName_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : reflectedReferenceName_;
+      } else {
+        return reflectedReferenceNameBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+     * of such name and this reference must target the entity where the reflected reference is defined, and the target
+     * entity must be managed on both sides of the relation.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+     */
+    public Builder setReflectedReferenceName(com.google.protobuf.StringValue value) {
+      if (reflectedReferenceNameBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        reflectedReferenceName_ = value;
+        onChanged();
+      } else {
+        reflectedReferenceNameBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+     * of such name and this reference must target the entity where the reflected reference is defined, and the target
+     * entity must be managed on both sides of the relation.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+     */
+    public Builder setReflectedReferenceName(
+        com.google.protobuf.StringValue.Builder builderForValue) {
+      if (reflectedReferenceNameBuilder_ == null) {
+        reflectedReferenceName_ = builderForValue.build();
+        onChanged();
+      } else {
+        reflectedReferenceNameBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+     * of such name and this reference must target the entity where the reflected reference is defined, and the target
+     * entity must be managed on both sides of the relation.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+     */
+    public Builder mergeReflectedReferenceName(com.google.protobuf.StringValue value) {
+      if (reflectedReferenceNameBuilder_ == null) {
+        if (reflectedReferenceName_ != null) {
+          reflectedReferenceName_ =
+            com.google.protobuf.StringValue.newBuilder(reflectedReferenceName_).mergeFrom(value).buildPartial();
+        } else {
+          reflectedReferenceName_ = value;
+        }
+        onChanged();
+      } else {
+        reflectedReferenceNameBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+     * of such name and this reference must target the entity where the reflected reference is defined, and the target
+     * entity must be managed on both sides of the relation.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+     */
+    public Builder clearReflectedReferenceName() {
+      if (reflectedReferenceNameBuilder_ == null) {
+        reflectedReferenceName_ = null;
+        onChanged();
+      } else {
+        reflectedReferenceName_ = null;
+        reflectedReferenceNameBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+     * of such name and this reference must target the entity where the reflected reference is defined, and the target
+     * entity must be managed on both sides of the relation.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+     */
+    public com.google.protobuf.StringValue.Builder getReflectedReferenceNameBuilder() {
+
+      onChanged();
+      return getReflectedReferenceNameFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+     * of such name and this reference must target the entity where the reflected reference is defined, and the target
+     * entity must be managed on both sides of the relation.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getReflectedReferenceNameOrBuilder() {
+      if (reflectedReferenceNameBuilder_ != null) {
+        return reflectedReferenceNameBuilder_.getMessageOrBuilder();
+      } else {
+        return reflectedReferenceName_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : reflectedReferenceName_;
+      }
+    }
+    /**
+     * <pre>
+     * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+     * of such name and this reference must target the entity where the reflected reference is defined, and the target
+     * entity must be managed on both sides of the relation.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        getReflectedReferenceNameFieldBuilder() {
+      if (reflectedReferenceNameBuilder_ == null) {
+        reflectedReferenceNameBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
+                getReflectedReferenceName(),
+                getParentForChildren(),
+                isClean());
+        reflectedReferenceName_ = null;
+      }
+      return reflectedReferenceNameBuilder_;
+    }
+
+    private boolean descriptionInherited_ ;
+    /**
+     * <pre>
+     * Contains true if the description of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool descriptionInherited = 19;</code>
+     * @return The descriptionInherited.
+     */
+    @java.lang.Override
+    public boolean getDescriptionInherited() {
+      return descriptionInherited_;
+    }
+    /**
+     * <pre>
+     * Contains true if the description of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool descriptionInherited = 19;</code>
+     * @param value The descriptionInherited to set.
+     * @return This builder for chaining.
+     */
+    public Builder setDescriptionInherited(boolean value) {
+
+      descriptionInherited_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains true if the description of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool descriptionInherited = 19;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearDescriptionInherited() {
+
+      descriptionInherited_ = false;
+      onChanged();
+      return this;
+    }
+
+    private boolean deprecationNoticeInherited_ ;
+    /**
+     * <pre>
+     * Contains true if the deprecated flag of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool deprecationNoticeInherited = 20;</code>
+     * @return The deprecationNoticeInherited.
+     */
+    @java.lang.Override
+    public boolean getDeprecationNoticeInherited() {
+      return deprecationNoticeInherited_;
+    }
+    /**
+     * <pre>
+     * Contains true if the deprecated flag of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool deprecationNoticeInherited = 20;</code>
+     * @param value The deprecationNoticeInherited to set.
+     * @return This builder for chaining.
+     */
+    public Builder setDeprecationNoticeInherited(boolean value) {
+
+      deprecationNoticeInherited_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains true if the deprecated flag of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool deprecationNoticeInherited = 20;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearDeprecationNoticeInherited() {
+
+      deprecationNoticeInherited_ = false;
+      onChanged();
+      return this;
+    }
+
+    private boolean cardinalityInherited_ ;
+    /**
+     * <pre>
+     * Contains true if the cardinality of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool cardinalityInherited = 21;</code>
+     * @return The cardinalityInherited.
+     */
+    @java.lang.Override
+    public boolean getCardinalityInherited() {
+      return cardinalityInherited_;
+    }
+    /**
+     * <pre>
+     * Contains true if the cardinality of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool cardinalityInherited = 21;</code>
+     * @param value The cardinalityInherited to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCardinalityInherited(boolean value) {
+
+      cardinalityInherited_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains true if the cardinality of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool cardinalityInherited = 21;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCardinalityInherited() {
+
+      cardinalityInherited_ = false;
+      onChanged();
+      return this;
+    }
+
+    private boolean facetedInherited_ ;
+    /**
+     * <pre>
+     * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool facetedInherited = 22;</code>
+     * @return The facetedInherited.
+     */
+    @java.lang.Override
+    public boolean getFacetedInherited() {
+      return facetedInherited_;
+    }
+    /**
+     * <pre>
+     * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool facetedInherited = 22;</code>
+     * @param value The facetedInherited to set.
+     * @return This builder for chaining.
+     */
+    public Builder setFacetedInherited(boolean value) {
+
+      facetedInherited_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
+     * </pre>
+     *
+     * <code>bool facetedInherited = 22;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearFacetedInherited() {
+
+      facetedInherited_ = false;
+      onChanged();
+      return this;
+    }
+
+    private int attributeInheritanceBehavior_ = 0;
+    /**
+     * <pre>
+     * Contains true if the attributes of the reflected reference are inherited from the target reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
+     * @return The enum numeric value on the wire for attributeInheritanceBehavior.
+     */
+    @java.lang.Override public int getAttributeInheritanceBehaviorValue() {
+      return attributeInheritanceBehavior_;
+    }
+    /**
+     * <pre>
+     * Contains true if the attributes of the reflected reference are inherited from the target reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
+     * @param value The enum numeric value on the wire for attributeInheritanceBehavior to set.
+     * @return This builder for chaining.
+     */
+    public Builder setAttributeInheritanceBehaviorValue(int value) {
+
+      attributeInheritanceBehavior_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains true if the attributes of the reflected reference are inherited from the target reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
+     * @return The attributeInheritanceBehavior.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior getAttributeInheritanceBehavior() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior result = io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.valueOf(attributeInheritanceBehavior_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * Contains true if the attributes of the reflected reference are inherited from the target reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
+     * @param value The attributeInheritanceBehavior to set.
+     * @return This builder for chaining.
+     */
+    public Builder setAttributeInheritanceBehavior(io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+
+      attributeInheritanceBehavior_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains true if the attributes of the reflected reference are inherited from the target reference.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearAttributeInheritanceBehavior() {
+
+      attributeInheritanceBehavior_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.LazyStringList attributeInheritanceFilter_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    private void ensureAttributeInheritanceFilterIsMutable() {
+      if (!((bitField0_ & 0x00000020) != 0)) {
+        attributeInheritanceFilter_ = new com.google.protobuf.LazyStringArrayList(attributeInheritanceFilter_);
+        bitField0_ |= 0x00000020;
+       }
+    }
+    /**
+     * <pre>
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
+     * </pre>
+     *
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
+     * @return A list containing the attributeInheritanceFilter.
+     */
+    public com.google.protobuf.ProtocolStringList
+        getAttributeInheritanceFilterList() {
+      return attributeInheritanceFilter_.getUnmodifiableView();
+    }
+    /**
+     * <pre>
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
+     * </pre>
+     *
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
+     * @return The count of attributeInheritanceFilter.
+     */
+    public int getAttributeInheritanceFilterCount() {
+      return attributeInheritanceFilter_.size();
+    }
+    /**
+     * <pre>
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
+     * </pre>
+     *
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
+     * @param index The index of the element to return.
+     * @return The attributeInheritanceFilter at the given index.
+     */
+    public java.lang.String getAttributeInheritanceFilter(int index) {
+      return attributeInheritanceFilter_.get(index);
+    }
+    /**
+     * <pre>
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
+     * </pre>
+     *
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
+     * @param index The index of the value to return.
+     * @return The bytes of the attributeInheritanceFilter at the given index.
+     */
+    public com.google.protobuf.ByteString
+        getAttributeInheritanceFilterBytes(int index) {
+      return attributeInheritanceFilter_.getByteString(index);
+    }
+    /**
+     * <pre>
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
+     * </pre>
+     *
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
+     * @param index The index to set the value at.
+     * @param value The attributeInheritanceFilter to set.
+     * @return This builder for chaining.
+     */
+    public Builder setAttributeInheritanceFilter(
+        int index, java.lang.String value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  ensureAttributeInheritanceFilterIsMutable();
+      attributeInheritanceFilter_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
+     * </pre>
+     *
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
+     * @param value The attributeInheritanceFilter to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAttributeInheritanceFilter(
+        java.lang.String value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  ensureAttributeInheritanceFilterIsMutable();
+      attributeInheritanceFilter_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
+     * </pre>
+     *
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
+     * @param values The attributeInheritanceFilter to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllAttributeInheritanceFilter(
+        java.lang.Iterable<java.lang.String> values) {
+      ensureAttributeInheritanceFilterIsMutable();
+      com.google.protobuf.AbstractMessageLite.Builder.addAll(
+          values, attributeInheritanceFilter_);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
+     * </pre>
+     *
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearAttributeInheritanceFilter() {
+      attributeInheritanceFilter_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      bitField0_ = (bitField0_ & ~0x00000020);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The array of attribute names that are inherited / excluded from inheritance based on the value of
+     * attributeInheritanceBehavior property.
+     * </pre>
+     *
+     * <code>repeated string attributeInheritanceFilter = 24;</code>
+     * @param value The bytes of the attributeInheritanceFilter to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAttributeInheritanceFilterBytes(
+        com.google.protobuf.ByteString value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
+      ensureAttributeInheritanceFilterIsMutable();
+      attributeInheritanceFilter_.add(value);
       onChanged();
       return this;
     }

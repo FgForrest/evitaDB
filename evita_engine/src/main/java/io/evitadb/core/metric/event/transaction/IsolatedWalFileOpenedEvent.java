@@ -36,7 +36,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".IsolatedWalFileOpened")
-@Description("Event that is fired when new file is opened for isolated WAL storage.")
+@Description("Event fired when a new file is opened for isolated WAL storage.")
 @Label("Isolated WAL file opened")
 @ExportInvocationMetric(label = "Opened files for isolated WAL storage.")
 public class IsolatedWalFileOpenedEvent extends AbstractTransactionEvent {

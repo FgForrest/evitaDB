@@ -1,0 +1,13 @@
+api:
+  keepAlive: false
+  endpoints:
+    graphQL:
+      tlsEnabled: false
+    rest:
+      tlsEnabled: false
+    gRPC:
+      tlsEnabled: false
+    lab:
+      tlsEnabled: false
+    observability:
+      tlsEnabled: true

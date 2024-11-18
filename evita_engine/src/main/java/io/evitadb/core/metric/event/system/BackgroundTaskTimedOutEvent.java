@@ -38,15 +38,27 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractSystemCatalogEvent.PACKAGE_NAME + ".BackgroundTaskTimedOut")
-@Description("Event that is fired when a background task was timed out and was canceled.")
+@Name(AbstractSystemEvent.PACKAGE_NAME + ".BackgroundTaskTimedOut")
+@Description("Event that is raised when a background task has timed out and has been canceled.")
 @Label("Background task timed out")
 @Getter
 public class BackgroundTaskTimedOutEvent extends AbstractSystemEvent {
+
+	/**
+	 * Number of timed out tasks.
+	 */
+	@Label("Timed out tasks")
+	@Description("Number of timed out and canceled tasks.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private final int timedOutTasks;
+
+	/**
+	 * The name of the background task.
+	 */
+	@Label("Task name")
+	@Description("Name of the background task.")
 	@ExportMetricLabel
-	private final String taskName;
+	final String taskName;
 
 	public BackgroundTaskTimedOutEvent(@Nonnull String taskName, int timedOutTasks) {
 		this.taskName = taskName;

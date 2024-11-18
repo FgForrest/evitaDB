@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.filter.translator.entity.alternative;
 
-import io.evitadb.api.query.require.EntityRequire;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.response.ServerEntityDecorator;
@@ -45,27 +45,37 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
  */
 @RequiredArgsConstructor
 public class LocaleEntityToBitmapFilter implements EntityToBitmapFilter {
+	/**
+	 * The locale to be used for filtering entities.
+	 */
 	private final Locale locale;
+	/**
+	 * The memoized result of the filter.
+	 */
+	private Bitmap memoizedResult;
 
 	@Nonnull
 	@Override
 	public Bitmap filter(@Nonnull QueryExecutionContext context) {
-		final List<ServerEntityDecorator> entities = context.getPrefetchedEntities();
-		if (entities == null) {
-			return EmptyBitmap.INSTANCE;
-		} else {
-			return new BaseBitmap(
-				entities.stream()
-					.filter(it -> it.getLocales().contains(locale))
-					.mapToInt(context::translateEntity)
-					.toArray()
-			);
+		if (this.memoizedResult == null) {
+			final List<ServerEntityDecorator> entities = context.getPrefetchedEntities();
+			if (entities == null) {
+				this.memoizedResult = EmptyBitmap.INSTANCE;
+			} else {
+				this.memoizedResult = new BaseBitmap(
+					entities.stream()
+						.filter(it -> it.getLocales().contains(locale))
+						.mapToInt(context::translateEntity)
+						.toArray()
+				);
+			}
 		}
+		return this.memoizedResult;
 	}
 
 	@Nonnull
 	@Override
-	public EntityRequire getEntityRequire() {
+	public EntityFetchRequire getEntityRequire() {
 		return entityFetch();
 	}
 }

@@ -235,6 +235,8 @@ public interface EntityCollectionContract {
 
 	/**
 	 * Alters existing schema applying passed schema mutation.
+	 * Note that the schema update might have updated also instances of other schemas (for example due to reflected
+	 * reference schemas).
 	 *
 	 * @return new updated schema
 	 * @throws SchemaAlteringException signalizing that the schema alteration has failed and was not applied

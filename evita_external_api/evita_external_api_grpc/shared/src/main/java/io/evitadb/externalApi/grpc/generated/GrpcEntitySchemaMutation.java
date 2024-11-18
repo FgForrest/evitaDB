@@ -691,6 +691,34 @@ private static final long serialVersionUID = 0L;
             mutationCase_ = 90;
             break;
           }
+          case 730: {
+            io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder subBuilder = null;
+            if (mutationCase_ == 91) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 91;
+            break;
+          }
+          case 738: {
+            io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder subBuilder = null;
+            if (mutationCase_ == 92) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 92;
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -772,6 +800,8 @@ private static final long serialVersionUID = 0L;
     REMOVEREFERENCESCHEMAMUTATION(88),
     SETREFERENCESCHEMAFACETEDMUTATION(89),
     SETREFERENCESCHEMAINDEXEDMUTATION(90),
+    CREATEREFLECTEDREFERENCESCHEMAMUTATION(91),
+    MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION(92),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -833,6 +863,8 @@ private static final long serialVersionUID = 0L;
         case 88: return REMOVEREFERENCESCHEMAMUTATION;
         case 89: return SETREFERENCESCHEMAFACETEDMUTATION;
         case 90: return SETREFERENCESCHEMAINDEXEDMUTATION;
+        case 91: return CREATEREFLECTEDREFERENCESCHEMAMUTATION;
+        case 92: return MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -2824,6 +2856,101 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.getDefaultInstance();
   }
 
+  public static final int CREATEREFLECTEDREFERENCESCHEMAMUTATION_FIELD_NUMBER = 91;
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+   * @return Whether the createReflectedReferenceSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasCreateReflectedReferenceSchemaMutation() {
+    return mutationCase_ == 91;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+   * @return The createReflectedReferenceSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation getCreateReflectedReferenceSchemaMutation() {
+    if (mutationCase_ == 91) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutationOrBuilder getCreateReflectedReferenceSchemaMutationOrBuilder() {
+    if (mutationCase_ == 91) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+  }
+
+  public static final int MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION_FIELD_NUMBER = 92;
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+   * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+   * @return Whether the modifyReflectedReferenceAttributeInheritanceSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasModifyReflectedReferenceAttributeInheritanceSchemaMutation() {
+    return mutationCase_ == 92;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+   * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+   * @return The modifyReflectedReferenceAttributeInheritanceSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation getModifyReflectedReferenceAttributeInheritanceSchemaMutation() {
+    if (mutationCase_ == 92) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+   * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+   * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder getModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder() {
+    if (mutationCase_ == 92) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -2969,6 +3096,12 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 90) {
       output.writeMessage(90, (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_);
+    }
+    if (mutationCase_ == 91) {
+      output.writeMessage(91, (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 92) {
+      output.writeMessage(92, (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_);
     }
     unknownFields.writeTo(output);
   }
@@ -3154,6 +3287,14 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 90) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(90, (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation) mutation_);
+    }
+    if (mutationCase_ == 91) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(91, (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 92) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(92, (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -3348,6 +3489,14 @@ private static final long serialVersionUID = 0L;
         if (!getSetReferenceSchemaIndexedMutation()
             .equals(other.getSetReferenceSchemaIndexedMutation())) return false;
         break;
+      case 91:
+        if (!getCreateReflectedReferenceSchemaMutation()
+            .equals(other.getCreateReflectedReferenceSchemaMutation())) return false;
+        break;
+      case 92:
+        if (!getModifyReflectedReferenceAttributeInheritanceSchemaMutation()
+            .equals(other.getModifyReflectedReferenceAttributeInheritanceSchemaMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -3538,6 +3687,14 @@ private static final long serialVersionUID = 0L;
       case 90:
         hash = (37 * hash) + SETREFERENCESCHEMAINDEXEDMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getSetReferenceSchemaIndexedMutation().hashCode();
+        break;
+      case 91:
+        hash = (37 * hash) + CREATEREFLECTEDREFERENCESCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getCreateReflectedReferenceSchemaMutation().hashCode();
+        break;
+      case 92:
+        hash = (37 * hash) + MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getModifyReflectedReferenceAttributeInheritanceSchemaMutation().hashCode();
         break;
       case 0:
       default:
@@ -4015,6 +4172,20 @@ private static final long serialVersionUID = 0L;
           result.mutation_ = setReferenceSchemaIndexedMutationBuilder_.build();
         }
       }
+      if (mutationCase_ == 91) {
+        if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = createReflectedReferenceSchemaMutationBuilder_.build();
+        }
+      }
+      if (mutationCase_ == 92) {
+        if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.build();
+        }
+      }
       result.mutationCase_ = mutationCase_;
       onBuilt();
       return result;
@@ -4239,6 +4410,14 @@ private static final long serialVersionUID = 0L;
         }
         case SETREFERENCESCHEMAINDEXEDMUTATION: {
           mergeSetReferenceSchemaIndexedMutation(other.getSetReferenceSchemaIndexedMutation());
+          break;
+        }
+        case CREATEREFLECTEDREFERENCESCHEMAMUTATION: {
+          mergeCreateReflectedReferenceSchemaMutation(other.getCreateReflectedReferenceSchemaMutation());
+          break;
+        }
+        case MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION: {
+          mergeModifyReflectedReferenceAttributeInheritanceSchemaMutation(other.getModifyReflectedReferenceAttributeInheritanceSchemaMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -12327,6 +12506,387 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 90;
       onChanged();;
       return setReferenceSchemaIndexedMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutationOrBuilder> createReflectedReferenceSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     * @return Whether the createReflectedReferenceSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasCreateReflectedReferenceSchemaMutation() {
+      return mutationCase_ == 91;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     * @return The createReflectedReferenceSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation getCreateReflectedReferenceSchemaMutation() {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 91) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 91) {
+          return createReflectedReferenceSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    public Builder setCreateReflectedReferenceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation value) {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        createReflectedReferenceSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 91;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    public Builder setCreateReflectedReferenceSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder builderForValue) {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        createReflectedReferenceSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 91;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    public Builder mergeCreateReflectedReferenceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation value) {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 91 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 91) {
+          createReflectedReferenceSchemaMutationBuilder_.mergeFrom(value);
+        }
+        createReflectedReferenceSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 91;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    public Builder clearCreateReflectedReferenceSchemaMutation() {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 91) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 91) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        createReflectedReferenceSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder getCreateReflectedReferenceSchemaMutationBuilder() {
+      return getCreateReflectedReferenceSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutationOrBuilder getCreateReflectedReferenceSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 91) && (createReflectedReferenceSchemaMutationBuilder_ != null)) {
+        return createReflectedReferenceSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 91) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
+     * Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation createReflectedReferenceSchemaMutation = 91;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutationOrBuilder>
+        getCreateReflectedReferenceSchemaMutationFieldBuilder() {
+      if (createReflectedReferenceSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 91)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.getDefaultInstance();
+        }
+        createReflectedReferenceSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 91;
+      onChanged();;
+      return createReflectedReferenceSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder> modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     * @return Whether the modifyReflectedReferenceAttributeInheritanceSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasModifyReflectedReferenceAttributeInheritanceSchemaMutation() {
+      return mutationCase_ == 92;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     * @return The modifyReflectedReferenceAttributeInheritanceSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation getModifyReflectedReferenceAttributeInheritanceSchemaMutation() {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 92) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 92) {
+          return modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    public Builder setModifyReflectedReferenceAttributeInheritanceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation value) {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 92;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    public Builder setModifyReflectedReferenceAttributeInheritanceSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder builderForValue) {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 92;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    public Builder mergeModifyReflectedReferenceAttributeInheritanceSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation value) {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 92 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 92) {
+          modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.mergeFrom(value);
+        }
+        modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 92;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    public Builder clearModifyReflectedReferenceAttributeInheritanceSchemaMutation() {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 92) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 92) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder getModifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder() {
+      return getModifyReflectedReferenceAttributeInheritanceSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder getModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 92) && (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ != null)) {
+        return modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 92) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInherited` and
+     * `ReflectedReferenceSchema.attributesExcludedFromInheritance` in `ReferenceSchema`.
+     * Mutation can be used for altering also the existing `ReferenceSchemaContract` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder>
+        getModifyReflectedReferenceAttributeInheritanceSchemaMutationFieldBuilder() {
+      if (modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 92)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.getDefaultInstance();
+        }
+        modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 92;
+      onChanged();;
+      return modifyReflectedReferenceAttributeInheritanceSchemaMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

@@ -268,6 +268,12 @@ private static final long serialVersionUID = 0L;
             queryParam_ = rawValue;
             break;
           }
+          case 186: {
+            java.lang.String s = input.readStringRequireUtf8();
+            queryParamCase_ = 23;
+            queryParam_ = s;
+            break;
+          }
           case 810: {
             io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder subBuilder = null;
             if (queryParamCase_ == 101) {
@@ -621,6 +627,7 @@ private static final long serialVersionUID = 0L;
     STATISTICSTYPE(20),
     HISTOGRAMBEHAVIOR(21),
     MANAGEDREFERENCESBEHAVIOUR(22),
+    EXPRESSIONVALUE(23),
     STRINGARRAYVALUE(101),
     INTEGERARRAYVALUE(102),
     LONGARRAYVALUE(103),
@@ -681,6 +688,7 @@ private static final long serialVersionUID = 0L;
         case 20: return STATISTICSTYPE;
         case 21: return HISTOGRAMBEHAVIOR;
         case 22: return MANAGEDREFERENCESBEHAVIOUR;
+        case 23: return EXPRESSIONVALUE;
         case 101: return STRINGARRAYVALUE;
         case 102: return INTEGERARRAYVALUE;
         case 103: return LONGARRAYVALUE;
@@ -1650,6 +1658,70 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.ANY;
+  }
+
+  public static final int EXPRESSIONVALUE_FIELD_NUMBER = 23;
+  /**
+   * <pre>
+   * The expression
+   * </pre>
+   *
+   * <code>string expressionValue = 23;</code>
+   * @return Whether the expressionValue field is set.
+   */
+  public boolean hasExpressionValue() {
+    return queryParamCase_ == 23;
+  }
+  /**
+   * <pre>
+   * The expression
+   * </pre>
+   *
+   * <code>string expressionValue = 23;</code>
+   * @return The expressionValue.
+   */
+  public java.lang.String getExpressionValue() {
+    java.lang.Object ref = "";
+    if (queryParamCase_ == 23) {
+      ref = queryParam_;
+    }
+    if (ref instanceof java.lang.String) {
+      return (java.lang.String) ref;
+    } else {
+      com.google.protobuf.ByteString bs =
+          (com.google.protobuf.ByteString) ref;
+      java.lang.String s = bs.toStringUtf8();
+      if (queryParamCase_ == 23) {
+        queryParam_ = s;
+      }
+      return s;
+    }
+  }
+  /**
+   * <pre>
+   * The expression
+   * </pre>
+   *
+   * <code>string expressionValue = 23;</code>
+   * @return The bytes for expressionValue.
+   */
+  public com.google.protobuf.ByteString
+      getExpressionValueBytes() {
+    java.lang.Object ref = "";
+    if (queryParamCase_ == 23) {
+      ref = queryParam_;
+    }
+    if (ref instanceof java.lang.String) {
+      com.google.protobuf.ByteString b =
+          com.google.protobuf.ByteString.copyFromUtf8(
+              (java.lang.String) ref);
+      if (queryParamCase_ == 23) {
+        queryParam_ = b;
+      }
+      return b;
+    } else {
+      return (com.google.protobuf.ByteString) ref;
+    }
   }
 
   public static final int STRINGARRAYVALUE_FIELD_NUMBER = 101;
@@ -2626,6 +2698,9 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 22) {
       output.writeEnum(22, ((java.lang.Integer) queryParam_));
     }
+    if (queryParamCase_ == 23) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 23, queryParam_);
+    }
     if (queryParamCase_ == 101) {
       output.writeMessage(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_);
     }
@@ -2787,6 +2862,9 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 22) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(22, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 23) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(23, queryParam_);
     }
     if (queryParamCase_ == 101) {
       size += com.google.protobuf.CodedOutputStream
@@ -2977,6 +3055,10 @@ private static final long serialVersionUID = 0L;
         if (getManagedReferencesBehaviourValue()
             != other.getManagedReferencesBehaviourValue()) return false;
         break;
+      case 23:
+        if (!getExpressionValue()
+            .equals(other.getExpressionValue())) return false;
+        break;
       case 101:
         if (!getStringArrayValue()
             .equals(other.getStringArrayValue())) return false;
@@ -3165,6 +3247,10 @@ private static final long serialVersionUID = 0L;
       case 22:
         hash = (37 * hash) + MANAGEDREFERENCESBEHAVIOUR_FIELD_NUMBER;
         hash = (53 * hash) + getManagedReferencesBehaviourValue();
+        break;
+      case 23:
+        hash = (37 * hash) + EXPRESSIONVALUE_FIELD_NUMBER;
+        hash = (53 * hash) + getExpressionValue().hashCode();
         break;
       case 101:
         hash = (37 * hash) + STRINGARRAYVALUE_FIELD_NUMBER;
@@ -3516,6 +3602,9 @@ private static final long serialVersionUID = 0L;
       if (queryParamCase_ == 22) {
         result.queryParam_ = queryParam_;
       }
+      if (queryParamCase_ == 23) {
+        result.queryParam_ = queryParam_;
+      }
       if (queryParamCase_ == 101) {
         if (stringArrayValueBuilder_ == null) {
           result.queryParam_ = queryParam_;
@@ -3801,6 +3890,12 @@ private static final long serialVersionUID = 0L;
         }
         case MANAGEDREFERENCESBEHAVIOUR: {
           setManagedReferencesBehaviourValue(other.getManagedReferencesBehaviourValue());
+          break;
+        }
+        case EXPRESSIONVALUE: {
+          queryParamCase_ = 23;
+          queryParam_ = other.queryParam_;
+          onChanged();
           break;
         }
         case STRINGARRAYVALUE: {
@@ -6590,6 +6685,127 @@ private static final long serialVersionUID = 0L;
         queryParam_ = null;
         onChanged();
       }
+      return this;
+    }
+
+    /**
+     * <pre>
+     * The expression
+     * </pre>
+     *
+     * <code>string expressionValue = 23;</code>
+     * @return Whether the expressionValue field is set.
+     */
+    @java.lang.Override
+    public boolean hasExpressionValue() {
+      return queryParamCase_ == 23;
+    }
+    /**
+     * <pre>
+     * The expression
+     * </pre>
+     *
+     * <code>string expressionValue = 23;</code>
+     * @return The expressionValue.
+     */
+    @java.lang.Override
+    public java.lang.String getExpressionValue() {
+      java.lang.Object ref = "";
+      if (queryParamCase_ == 23) {
+        ref = queryParam_;
+      }
+      if (!(ref instanceof java.lang.String)) {
+        com.google.protobuf.ByteString bs =
+            (com.google.protobuf.ByteString) ref;
+        java.lang.String s = bs.toStringUtf8();
+        if (queryParamCase_ == 23) {
+          queryParam_ = s;
+        }
+        return s;
+      } else {
+        return (java.lang.String) ref;
+      }
+    }
+    /**
+     * <pre>
+     * The expression
+     * </pre>
+     *
+     * <code>string expressionValue = 23;</code>
+     * @return The bytes for expressionValue.
+     */
+    @java.lang.Override
+    public com.google.protobuf.ByteString
+        getExpressionValueBytes() {
+      java.lang.Object ref = "";
+      if (queryParamCase_ == 23) {
+        ref = queryParam_;
+      }
+      if (ref instanceof String) {
+        com.google.protobuf.ByteString b =
+            com.google.protobuf.ByteString.copyFromUtf8(
+                (java.lang.String) ref);
+        if (queryParamCase_ == 23) {
+          queryParam_ = b;
+        }
+        return b;
+      } else {
+        return (com.google.protobuf.ByteString) ref;
+      }
+    }
+    /**
+     * <pre>
+     * The expression
+     * </pre>
+     *
+     * <code>string expressionValue = 23;</code>
+     * @param value The expressionValue to set.
+     * @return This builder for chaining.
+     */
+    public Builder setExpressionValue(
+        java.lang.String value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  queryParamCase_ = 23;
+      queryParam_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The expression
+     * </pre>
+     *
+     * <code>string expressionValue = 23;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearExpressionValue() {
+      if (queryParamCase_ == 23) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The expression
+     * </pre>
+     *
+     * <code>string expressionValue = 23;</code>
+     * @param value The bytes for expressionValue to set.
+     * @return This builder for chaining.
+     */
+    public Builder setExpressionValueBytes(
+        com.google.protobuf.ByteString value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
+      queryParamCase_ = 23;
+      queryParam_ = value;
+      onChanged();
       return this;
     }
 

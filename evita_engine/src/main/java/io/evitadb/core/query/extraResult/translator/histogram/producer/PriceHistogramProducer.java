@@ -45,7 +45,6 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -92,7 +91,7 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 
 	@Nullable
 	@Override
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context, @Nonnull List<T> entities) {
+	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
 		// contains flag whether there was at least one formula with price predicate that filtered out some entity pks
 		final AtomicBoolean filteredRecordsFound = new AtomicBoolean();
 		final AtomicReference<Predicate<BigDecimal>> requestedPricePredicate = new AtomicReference<>();
@@ -107,6 +106,7 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 			filteredRecordsFound.get() ? formulaWithFilteredOutResults : null,
 			filteredPriceRecordAccessors, priceRecordsLookupResult
 		);
+		computer.initialize(context);
 		final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();
 		if (optimalHistogram == CacheableHistogramContract.EMPTY) {
 			return null;

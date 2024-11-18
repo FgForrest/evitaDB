@@ -22,16 +22,26 @@
 #   limitations under the License.
 #
 
+## JMX REMOTE
+#-Dcom.sun.management.jmxremote \
+#-Dcom.sun.management.jmxremote.port=7091 \
+#-Dcom.sun.management.jmxremote.authenticate=false \
+#-Dcom.sun.management.jmxremote.ssl=false \
+
 java \
         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8005 \
+        --add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
         -javaagent:target/evita-server.jar \
         -jar "target/evita-server.jar" \
-        "configDir=../config/" \
+        "configDir=../conf/" \
         "logback.configurationFile=./logback.xml" \
         "storage.storageDirectory=../data " \
+        "api.exposedOn=localhost" \
         "api.accessLog=true" \
         "cache.enabled=false" \
-        "api.endpoints.graphQL.tlsMode=FORCE_NO_TLS" \
-        "api.endpoints.rest.tlsMode=FORCE_NO_TLS" \
-        "api.endpoints.lab.tlsMode=FORCE_NO_TLS" \
-        "api.endpoints.gRPC.exposeDocsService=true"
+        "api.endpoints.graphQL.tlsMode=RELAXED" \
+        "api.endpoints.rest.tlsMode=RELAXED" \
+        "api.endpoints.lab.tlsMode=RELAXED" \
+        "api.endpoints.gRPC.tlsMode=RELAXED" \
+        "api.endpoints.gRPC.exposeDocsService=true" \
+        "api.endpoints.gRPC.mTLS.enabled=false"

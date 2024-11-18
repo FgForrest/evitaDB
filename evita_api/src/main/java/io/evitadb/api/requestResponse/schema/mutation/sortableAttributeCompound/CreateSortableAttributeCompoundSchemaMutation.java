@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -50,6 +51,7 @@ import java.io.Serial;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -74,6 +76,18 @@ public class CreateSortableAttributeCompoundSchemaMutation
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final AttributeElement[] attributeElements;
+
+	@Nullable
+	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
+		@Nonnull SortableAttributeCompoundSchemaContract createdVersion,
+		@Nonnull SortableAttributeCompoundSchemaContract existingVersion,
+		@Nonnull Function<SortableAttributeCompoundSchemaContract, T> propertyRetriever,
+		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
+	) {
+		final T newValue = propertyRetriever.apply(createdVersion);
+		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
+			null : mutationCreator.apply(newValue);
+	}
 
 	public CreateSortableAttributeCompoundSchemaMutation(
 		@Nonnull String name,
@@ -107,7 +121,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 				attributeElements
 			)
 		) {
-			final SortableAttributeCompoundSchemaContract createdVersion = mutate(currentEntitySchema, null, null);
+			final SortableAttributeCompoundSchemaContract createdVersion = mutate(currentEntitySchema, null, (SortableAttributeCompoundSchemaContract) null);
 			final SortableAttributeCompoundSchemaContract existingVersion = currentEntitySchema.getSortableAttributeCompound(name).orElseThrow();
 			return new MutationCombinationResult<>(
 				null,
@@ -148,7 +162,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final SortableAttributeCompoundSchemaContract newCompoundSchema = mutate(entitySchema, null, null);
+		final SortableAttributeCompoundSchemaContract newCompoundSchema = mutate(entitySchema, null, (SortableAttributeCompoundSchemaContract) null);
 		final SortableAttributeCompoundSchemaContract existingCompoundSchema = entitySchema.getSortableAttributeCompound(name).orElse(null);
 		if (existingCompoundSchema == null) {
 			return EntitySchema._internalBuild(
@@ -192,37 +206,53 @@ public class CreateSortableAttributeCompoundSchemaMutation
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final SortableAttributeCompoundSchemaContract newCompoundSchema = mutate(entitySchema, referenceSchema, null);
-		final SortableAttributeCompoundSchemaContract existingCompoundSchema = referenceSchema.getSortableAttributeCompound(name).orElse(null);
-		if (existingCompoundSchema == null) {
-			return ReferenceSchema._internalBuild(
-				referenceSchema.getName(),
-				referenceSchema.getNameVariants(),
-				referenceSchema.getDescription(),
-				referenceSchema.getDeprecationNotice(),
-				referenceSchema.getReferencedEntityType(),
-				referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-				referenceSchema.isReferencedEntityTypeManaged(),
-				referenceSchema.getCardinality(),
-				referenceSchema.getReferencedGroupType(),
-				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isIndexed(),
-				referenceSchema.isFaceted(),
-				referenceSchema.getAttributes(),
-				Stream.concat(
-					referenceSchema.getSortableAttributeCompounds().values().stream(),
-					Stream.of(newCompoundSchema)
-				).collect(
-					Collectors.toMap(
-						SortableAttributeCompoundSchemaContract::getName,
-						Function.identity()
+		final SortableAttributeCompoundSchemaContract newCompoundSchema = mutate(entitySchema, referenceSchema, (SortableAttributeCompoundSchemaContract) null);
+		final Optional<SortableAttributeCompoundSchemaContract> existingCompoundSchema = getReferenceSortableAttributeCompoundSchema(referenceSchema, name);
+		if (existingCompoundSchema.isEmpty()) {
+			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+				return reflectedReferenceSchema
+					.withDeclaredSortableAttributeCompounds(
+						Stream.concat(
+								reflectedReferenceSchema.getDeclaredSortableAttributeCompounds().values().stream(),
+								Stream.of(newCompoundSchema)
+							)
+							.collect(
+								Collectors.toMap(
+									SortableAttributeCompoundSchemaContract::getName,
+									Function.identity()
+								)
+							)
+					);
+			} else {
+				return ReferenceSchema._internalBuild(
+					referenceSchema.getName(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.isIndexed(),
+					referenceSchema.isFaceted(),
+					referenceSchema.getAttributes(),
+					Stream.concat(
+						referenceSchema.getSortableAttributeCompounds().values().stream(),
+						Stream.of(newCompoundSchema)
+					).collect(
+						Collectors.toMap(
+							SortableAttributeCompoundSchemaContract::getName,
+							Function.identity()
+						)
 					)
-				)
-			);
-		} else if (existingCompoundSchema.equals(newCompoundSchema)) {
+				);
+			}
+		} else if (existingCompoundSchema.get().equals(newCompoundSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
 			return referenceSchema;
 		} else {
@@ -249,18 +279,6 @@ public class CreateSortableAttributeCompoundSchemaMutation
 			", description='" + description + '\'' +
 			", deprecationNotice='" + deprecationNotice + '\'' +
 			", attributeElements=" + Arrays.stream(attributeElements).map(AttributeElement::toString).collect(Collectors.joining(", "));
-	}
-
-	@Nullable
-	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
-		@Nonnull SortableAttributeCompoundSchemaContract createdVersion,
-		@Nonnull SortableAttributeCompoundSchemaContract existingVersion,
-		@Nonnull Function<SortableAttributeCompoundSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
 	}
 
 }

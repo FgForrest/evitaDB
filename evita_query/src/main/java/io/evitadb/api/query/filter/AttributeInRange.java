@@ -95,7 +95,7 @@ import java.util.Optional;
 		arraysSupported = true
 	)
 )
-public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint, ConstraintWithSuffix {
+public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf implements ConstraintWithSuffix, FilterConstraint {
 	private static final String SUFFIX_NOW = "now";
 	@Serial private static final long serialVersionUID = -6018832750772234247L;
 
@@ -104,7 +104,7 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 	}
 
 	@Creator
-	private <T extends Serializable & Comparable<?>> AttributeInRange(
+	private <T extends Serializable> AttributeInRange(
 		@Nonnull @Classifier String attributeName,
 		@Nonnull @Value(requiresPlainType = true) T value
 	) {

@@ -39,7 +39,7 @@ public class ArtificialTestRunner {
 	public static void main(String[] args) throws Exception {
 		Options opt = new OptionsBuilder()
 			.include("io.evitadb.performance.externalApi.*")
-			.threads(12)
+			.threads(6)
 			.forks(1)
 			.warmupTime(TimeValue.seconds(60))
 			.measurementTime(TimeValue.seconds(60))

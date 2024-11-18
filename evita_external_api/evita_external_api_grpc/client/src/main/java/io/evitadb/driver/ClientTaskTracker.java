@@ -26,7 +26,7 @@ package io.evitadb.driver;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -114,7 +114,12 @@ public class ClientTaskTracker implements Closeable {
 	@Nonnull
 	public <S, T> ClientTask<S, T> createTask(@Nonnull TaskStatus<S, T> taskStatus) {
 		assertActive();
-		if (taskStatus.state() == State.QUEUED || taskStatus.state() == State.RUNNING) {
+		final TaskSimplifiedState taskState = taskStatus.simplifiedState();
+		if (
+			taskState == TaskSimplifiedState.WAITING_FOR_PRECONDITION ||
+			taskState == TaskSimplifiedState.QUEUED ||
+			taskState == TaskSimplifiedState.RUNNING
+		) {
 			// we need to add the task to the queue and track its status - unless it's already GCed
 			final ClientTask<S, T> taskToTrack = new ClientTask<>(
 				taskStatus,
@@ -215,7 +220,7 @@ public class ClientTaskTracker implements Closeable {
 	 */
 	private void purgeFinishedTasks() {
 		// go through the entire queue, but only once
-		final int bufferSize = 512;
+		final int bufferSize = Math.min(this.tasks.size(), 512);
 		final ArrayList<WeakReference<ClientTask<?, ?>>> buffer = new ArrayList<>(bufferSize);
 		final int queueSize = this.tasks.size();
 		for (int i = 0; i < queueSize; ) {

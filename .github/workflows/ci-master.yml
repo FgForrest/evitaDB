@@ -10,8 +10,8 @@ on:
       - evita*/**/pom.xml
       - jacoco/**/pom.xml
       - evita*/**/dist/**.*
-      - docker/**.*
-      - .github/**.*
+      - docker/**
+      - .github/**
 
 concurrency:
   group: ${{ github.ref_name }}   # for the same branch
@@ -121,14 +121,14 @@ jobs:
         asset_content_type: application/gzip
 
     - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-latest.yml` to deploy to DockerHub
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       if: success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload evitaDB version.txt      # upload `version.txt` for `docker-latest.yml` to deploy to DockerHub
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       if: success()
       with:
         name: version.txt

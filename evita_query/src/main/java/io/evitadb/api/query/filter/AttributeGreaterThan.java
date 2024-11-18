@@ -60,10 +60,10 @@ import java.io.Serializable;
 	name = "greaterThan",
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute is greater than the passed value.",
 	userDocsLink = "/documentation/query/filtering/comparable#attribute-greater-than",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
+	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE},
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
-public class AttributeGreaterThan extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+public class AttributeGreaterThan extends AbstractAttributeFilterComparisonConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = -4468753216715311483L;
 
 	private AttributeGreaterThan(Serializable... arguments) {
@@ -71,8 +71,10 @@ public class AttributeGreaterThan extends AbstractAttributeFilterConstraintLeaf 
 	}
 
 	@Creator
-	public <T extends Serializable & Comparable<?>> AttributeGreaterThan(@Nonnull @Classifier String attributeName,
-	                                                                     @Nonnull @Value(requiresPlainType = true) T attributeValue) {
+	public <T extends Serializable> AttributeGreaterThan(
+		@Nonnull @Classifier String attributeName,
+		@Nonnull @Value(requiresPlainType = true) T attributeValue
+	) {
 		super(attributeName, attributeValue);
 	}
 
@@ -80,7 +82,7 @@ public class AttributeGreaterThan extends AbstractAttributeFilterConstraintLeaf 
 	 * Returns value that must be more than attribute value.
 	 */
 	@Nonnull
-	public <T extends Serializable & Comparable<?>> T getAttributeValue() {
+	public <T extends Serializable> T getAttributeValue() {
 		//noinspection unchecked
 		return (T) getArguments()[1];
 	}

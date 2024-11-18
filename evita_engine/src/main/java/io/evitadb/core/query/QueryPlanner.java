@@ -26,6 +26,8 @@ package io.evitadb.core.query;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap;
+import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
@@ -45,6 +47,7 @@ import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
 import io.evitadb.core.query.policy.CacheEnforcingPolicy;
 import io.evitadb.core.query.policy.PrefetchFavouringNoCachePolicy;
+import io.evitadb.core.query.slice.ExpressionBasedSlicer;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
@@ -138,12 +141,14 @@ public class QueryPlanner {
 				// create sorter and computers for all plans
 				createSorter(context, targetIndexes, queryPlanBuilders);
 				createExtraResultProducers(context, queryPlanBuilders);
+				createSlicer(context, queryPlanBuilders);
 				// and verify consistent results
 				verifyConsistentResultsInAllPlans(context, targetIndexes, queryPlanBuilders, preferredPlan);
 			} else {
 				// create sorter and computers only for preferred plan
 				final List<QueryPlanBuilder> preferredPlanBuilderCollection = Collections.singletonList(preferredPlan);
 				createSorter(context, targetIndexes, preferredPlanBuilderCollection);
+				createSlicer(context, queryPlanBuilders);
 				createExtraResultProducers(context, preferredPlanBuilderCollection);
 			}
 
@@ -170,9 +175,10 @@ public class QueryPlanner {
 	 */
 	@Nonnull
 	public static QueryPlan planNestedQuery(
-		@Nonnull QueryPlanningContext context
+		@Nonnull QueryPlanningContext context,
+		@Nonnull Supplier<String> nestedQueryDescription
 	) {
-		context.pushStep(QueryPhase.PLANNING_NESTED_QUERY);
+		context.pushStep(QueryPhase.PLANNING_NESTED_QUERY, nestedQueryDescription);
 		try {
 			// determine the indexes that should be used for filtering
 			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
@@ -226,10 +232,7 @@ public class QueryPlanner {
 			final IndexSelectionVisitor indexSelectionVisitor = new IndexSelectionVisitor(queryContext);
 			ofNullable(queryContext.getFilterBy()).ifPresent(indexSelectionVisitor::visit);
 			//noinspection rawtypes,unchecked
-			return new IndexSelectionResult<>(
-				(List) indexSelectionVisitor.getTargetIndexes(),
-				indexSelectionVisitor.isTargetIndexQueriedByOtherConstraints()
-			);
+			return new IndexSelectionResult<>((List) indexSelectionVisitor.getTargetIndexes());
 		} finally {
 			queryContext.popStep();
 		}
@@ -256,8 +259,7 @@ public class QueryPlanner {
 					final FilterByVisitor filterByVisitor = new FilterByVisitor(
 						queryContext,
 						indexSelectionResult.targetIndexes(),
-						targetIndex,
-						indexSelectionResult.targetIndexQueriedByOtherConstraints()
+						targetIndex
 					);
 
 					final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(targetIndex);
@@ -266,7 +268,7 @@ public class QueryPlanner {
 					adeptFormula = queryContext.analyse(filterByVisitor.getFormula());
 
 					final QueryPlanBuilder queryPlanBuilder = new QueryPlanBuilder(
-						queryContext, adeptFormula, filterByVisitor.getSuperSetFormula(), targetIndex, prefetchFormulaVisitor
+						queryContext, adeptFormula, filterByVisitor, targetIndex, prefetchFormulaVisitor
 					);
 					if (result.isEmpty() || adeptFormula.getEstimatedCost() < result.get(0).getEstimatedCost()) {
 						result.addFirst(queryPlanBuilder);
@@ -317,7 +319,7 @@ public class QueryPlanner {
 					// create and add copy for the formula with cached variant result
 					it -> {
 						final QueryPlanBuilder alternativeBuilder = new QueryPlanBuilder(
-							queryContext, it, sourcePlan.getSuperSetFormula(),
+							queryContext, it, sourcePlan.getFilterByVisitor(),
 							sourcePlan.getTargetIndexes(),
 							sourcePlan.getPrefetchFormulaVisitor()
 						);
@@ -352,7 +354,9 @@ public class QueryPlanner {
 				}
 				try {
 					final OrderByVisitor orderByVisitor = new OrderByVisitor(
-						queryContext, targetIndexes, builder, builder.getFilterFormula()
+						queryContext, targetIndexes,
+						builder.getFilterByVisitor(),
+						builder.getFilterFormula()
 					);
 					ofNullable(queryContext.getOrderBy()).ifPresent(orderByVisitor::visit);
 					final Sorter sorter = orderByVisitor.getSorter();
@@ -365,6 +369,31 @@ public class QueryPlanner {
 			}
 		} finally {
 			queryContext.popStep();
+		}
+	}
+
+	/**
+	 * Configures a slicer for each QueryPlanBuilder if the result form of the EvitaRequest is a paginated list
+	 * and any conditional gaps are specified. Slicer is used to accurately calculate the offset of the record on
+	 * particular page and its size based on the gap rules definition.
+	 *
+	 * @param queryContext  The context of the current query, containing the EvitaRequest.
+	 * @param builders      A list of QueryPlanBuilder instances to configure the slicer.
+	 */
+	private static void createSlicer(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull List<QueryPlanBuilder> builders
+	) {
+		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
+		final ResultForm resultForm = evitaRequest.getResultForm();
+		if (resultForm == ResultForm.PAGINATED_LIST) {
+			final ConditionalGap[] conditionalGaps = evitaRequest.getConditionalGaps();
+			if (!ArrayUtils.isEmpty(conditionalGaps)) {
+				final ExpressionBasedSlicer slicer = new ExpressionBasedSlicer(conditionalGaps);
+				for (QueryPlanBuilder builder : builders) {
+					builder.setSlicer(slicer);
+				}
+			}
 		}
 	}
 
@@ -410,9 +439,8 @@ public class QueryPlanner {
 						final ExtraResultPlanningVisitor extraResultPlanner = new ExtraResultPlanningVisitor(
 							queryContext,
 							builder.getTargetIndexes(),
-							builder,
 							builder.getFilterFormula(),
-							builder.getSuperSetFormula(),
+							builder.getFilterByVisitor(),
 							builder.getSorter()
 						);
 						extraResultPlanner.visit(queryContext.getRequire());

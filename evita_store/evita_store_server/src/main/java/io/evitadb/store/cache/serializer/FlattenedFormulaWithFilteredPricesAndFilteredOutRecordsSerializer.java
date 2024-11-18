@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer e
 		writeBitmapIds(output, object.getTransactionalDataIds());
 		writeIntegerBitmap(output, object.compute());
 		writePriceEvaluationContext(kryo, output, object.getPriceEvaluationContext());
-		writeFilteredPriceRecords(kryo, output, object.getFilteredPriceRecords());
+		writeFilteredPriceRecords(kryo, output, object.getFilteredPriceRecordsOrThrowException());
 		writeIntegerBitmap(output, object.getRecordsFilteredOutByPredicate());
 	}
 

@@ -58,6 +58,14 @@ public interface ResponseHeaderDescriptor {
 				""")
 			.type(nullable(Integer.class))
 			.build();
+		PropertyDescriptor SPACING = PropertyDescriptor.builder()
+			.name("spacing")
+			.description("""
+				Allows to insert artificial gaps instead of entities on particular pages. The gaps are defined by the
+				spacing sub-constraints, which specify the number of entities that should be skipped on the page when the
+				`onPage` expression is evaluated to true.
+				""")
+			.build();
 	}
 
 	/**

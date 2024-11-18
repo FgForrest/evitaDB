@@ -202,6 +202,11 @@ private static final long serialVersionUID = 0L;
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcNameVariant.parser(), extensionRegistry));
             break;
           }
+          case 128: {
+
+            inherited_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -683,6 +688,21 @@ private static final long serialVersionUID = 0L;
     return nameVariant_.get(index);
   }
 
+  public static final int INHERITED_FIELD_NUMBER = 16;
+  private boolean inherited_;
+  /**
+   * <pre>
+   * Contains true if the attribute was inherited from the original object via reflected reference relation
+   * </pre>
+   *
+   * <code>bool inherited = 16;</code>
+   * @return The inherited.
+   */
+  @java.lang.Override
+  public boolean getInherited() {
+    return inherited_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -741,6 +761,9 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < nameVariant_.size(); i++) {
       output.writeMessage(15, nameVariant_.get(i));
+    }
+    if (inherited_ != false) {
+      output.writeBool(16, inherited_);
     }
     unknownFields.writeTo(output);
   }
@@ -810,6 +833,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(15, nameVariant_.get(i));
     }
+    if (inherited_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(16, inherited_);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -860,6 +887,8 @@ private static final long serialVersionUID = 0L;
         != other.getIndexedDecimalPlaces()) return false;
     if (!getNameVariantList()
         .equals(other.getNameVariantList())) return false;
+    if (getInherited()
+        != other.getInherited()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -914,6 +943,9 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + NAMEVARIANT_FIELD_NUMBER;
       hash = (53 * hash) + getNameVariantList().hashCode();
     }
+    hash = (37 * hash) + INHERITED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getInherited());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1110,6 +1142,8 @@ private static final long serialVersionUID = 0L;
       } else {
         nameVariantBuilder_.clear();
       }
+      inherited_ = false;
+
       return this;
     }
 
@@ -1172,6 +1206,7 @@ private static final long serialVersionUID = 0L;
       } else {
         result.nameVariant_ = nameVariantBuilder_.build();
       }
+      result.inherited_ = inherited_;
       onBuilt();
       return result;
     }
@@ -1288,6 +1323,9 @@ private static final long serialVersionUID = 0L;
             nameVariantBuilder_.addAllMessages(other.nameVariant_);
           }
         }
+      }
+      if (other.getInherited() != false) {
+        setInherited(other.getInherited());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -2827,6 +2865,49 @@ private static final long serialVersionUID = 0L;
         nameVariant_ = null;
       }
       return nameVariantBuilder_;
+    }
+
+    private boolean inherited_ ;
+    /**
+     * <pre>
+     * Contains true if the attribute was inherited from the original object via reflected reference relation
+     * </pre>
+     *
+     * <code>bool inherited = 16;</code>
+     * @return The inherited.
+     */
+    @java.lang.Override
+    public boolean getInherited() {
+      return inherited_;
+    }
+    /**
+     * <pre>
+     * Contains true if the attribute was inherited from the original object via reflected reference relation
+     * </pre>
+     *
+     * <code>bool inherited = 16;</code>
+     * @param value The inherited to set.
+     * @return This builder for chaining.
+     */
+    public Builder setInherited(boolean value) {
+
+      inherited_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains true if the attribute was inherited from the original object via reflected reference relation
+     * </pre>
+     *
+     * <code>bool inherited = 16;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearInherited() {
+
+      inherited_ = false;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

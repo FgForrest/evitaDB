@@ -57,6 +57,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -93,11 +94,11 @@ public class EvitaDataTypesConverter {
 	/**
 	 * Representation of minimal supported timestamp by gRPC. More info at <a href="https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto">official google docs</a>.
 	 */
-	private static final Instant GRPC_MIN_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MIN, 1, 1).toEpochSecond(LocalTime.of(0, 0, 0), ZoneOffset.UTC));
+	public static final Instant GRPC_MIN_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MIN, 1, 1).toEpochSecond(LocalTime.of(0, 0, 0), ZoneOffset.UTC));
 	/**
 	 * Representation of maximal supported timestamp by gRPC. More info at <a href="https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto">official google docs</a>.
 	 */
-	private static final Instant GRPC_MAX_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MAX, 12, 31).toEpochSecond(LocalTime.of(23, 59, 59), ZoneOffset.UTC));
+	public static final Instant GRPC_MAX_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MAX, 12, 31).toEpochSecond(LocalTime.of(23, 59, 59), ZoneOffset.UTC));
 
 	/**
 	 * Converts the given {@link GrpcEvitaValue} to a {@link Serializable} value.
@@ -131,6 +132,7 @@ public class EvitaDataTypesConverter {
 			case LOCALE -> (T) toLocale(value.getLocaleValue());
 			case CURRENCY -> (T) toCurrency(value.getCurrencyValue());
 			case PREDECESSOR -> (T) toPredecessor(value.getPredecessorValue());
+			case REFERENCED_ENTITY_PREDECESSOR -> (T) toReferencedEntityPredecessor(value.getPredecessorValue());
 			case UUID -> (T) toUuid(value.getUuidValue());
 
 			case STRING_ARRAY -> (T) toStringArray(value.getStringArrayValue());
@@ -253,6 +255,8 @@ public class EvitaDataTypesConverter {
 		} else if (value instanceof UUID uuidValue) {
 			builder.setUuidValue(toGrpcUuid(uuidValue));
 		} else if (value instanceof Predecessor predecessorValue) {
+			builder.setPredecessorValue(toGrpcPredecessor(predecessorValue));
+		} else if (value instanceof ReferencedEntityPredecessor predecessorValue) {
 			builder.setPredecessorValue(toGrpcPredecessor(predecessorValue));
 		} else if (value instanceof byte[] byteArrayValues) {
 			builder.setIntegerArrayValue(toGrpcByteArray(byteArrayValues));
@@ -387,6 +391,7 @@ public class EvitaDataTypesConverter {
 			case CURRENCY -> Currency.class;
 			case UUID -> UUID.class;
 			case PREDECESSOR -> Predecessor.class;
+			case REFERENCED_ENTITY_PREDECESSOR -> ReferencedEntityPredecessor.class;
 			case STRING_ARRAY -> String[].class;
 			case BYTE_ARRAY -> Byte[].class;
 			case SHORT_ARRAY -> Short[].class;
@@ -490,6 +495,8 @@ public class EvitaDataTypesConverter {
 			return GrpcEvitaDataType.UUID;
 		} else if (dataType.equals(Predecessor.class)) {
 			return GrpcEvitaDataType.PREDECESSOR;
+		} else if (dataType.equals(ReferencedEntityPredecessor.class)) {
+			return GrpcEvitaDataType.REFERENCED_ENTITY_PREDECESSOR;
 		} else if (dataType.equals(String[].class)) {
 			return GrpcEvitaDataType.STRING_ARRAY;
 		} else if (dataType.equals(Character[].class)) {
@@ -672,6 +679,18 @@ public class EvitaDataTypesConverter {
 	public static Predecessor toPredecessor(@Nonnull GrpcPredecessor predecessor) {
 		return predecessor.getHead() ? Predecessor.HEAD :
 			(predecessor.hasPredecessorId() ? new Predecessor(predecessor.getPredecessorId().getValue()) : null);
+	}
+
+	/**
+	 * This method is used to convert a {@link GrpcPredecessor} to {@link ReferencedEntityPredecessor}.
+	 *
+	 * @param predecessor value to be converted
+	 * @return {@link ReferencedEntityPredecessor} instance
+	 */
+	@Nonnull
+	public static ReferencedEntityPredecessor toReferencedEntityPredecessor(@Nonnull GrpcPredecessor predecessor) {
+		return predecessor.getHead() ? ReferencedEntityPredecessor.HEAD :
+			(predecessor.hasPredecessorId() ? new ReferencedEntityPredecessor(predecessor.getPredecessorId().getValue()) : null);
 	}
 
 	/**
@@ -1377,7 +1396,26 @@ public class EvitaDataTypesConverter {
 				.build();
 		} else {
 			return GrpcPredecessor.newBuilder()
-				.setPredecessorId(Int32Value.of(predecessor.predecessorId()))
+				.setPredecessorId(Int32Value.of(predecessor.predecessorPk()))
+				.build();
+		}
+	}
+
+	/**
+	 * This method is used to convert a {@link ReferencedEntityPredecessor} to {@link GrpcPredecessor}.
+	 *
+	 * @param predecessor value to be converted
+	 * @return {@link GrpcPredecessor} value
+	 */
+	@Nonnull
+	public static GrpcPredecessor toGrpcPredecessor(@Nonnull ReferencedEntityPredecessor predecessor) {
+		if (predecessor.isHead()) {
+			return GrpcPredecessor.newBuilder()
+				.setHead(true)
+				.build();
+		} else {
+			return GrpcPredecessor.newBuilder()
+				.setPredecessorId(Int32Value.of(predecessor.predecessorPk()))
 				.build();
 		}
 	}
@@ -1394,7 +1432,8 @@ public class EvitaDataTypesConverter {
 			.setTaskType(taskStatus.taskType())
 			.setTaskName(taskStatus.taskName())
 			.setTaskId(toGrpcUuid(taskStatus.taskId()))
-			.setIssued(toGrpcOffsetDateTime(taskStatus.issued()))
+			.setCreated(toGrpcOffsetDateTime(taskStatus.created()))
+			.setSimplifiedState(EvitaEnumConverter.toGrpcSimplifiedStatus(taskStatus.simplifiedState()))
 			.setProgress(taskStatus.progress());
 		ofNullable(taskStatus.catalogName())
 			.ifPresent(
@@ -1404,6 +1443,8 @@ public class EvitaDataTypesConverter {
 						.build()
 				)
 			);
+		ofNullable(taskStatus.issued())
+			.ifPresent(issued -> builder.setIssued(toGrpcOffsetDateTime(issued)));
 		ofNullable(taskStatus.started())
 			.ifPresent(started -> builder.setStarted(toGrpcOffsetDateTime(started)));
 		ofNullable(taskStatus.finished())
@@ -1428,6 +1469,10 @@ public class EvitaDataTypesConverter {
 						.build()
 				)
 			);
+		taskStatus.traits()
+			.stream()
+			.map(EvitaEnumConverter::toGrpcTaskTrait)
+			.forEach(builder::addTrait);
 		return builder.build();
 	}
 
@@ -1444,7 +1489,8 @@ public class EvitaDataTypesConverter {
 			taskStatus.getTaskName(),
 			toUuid(taskStatus.getTaskId()),
 			taskStatus.hasCatalogName() ? taskStatus.getCatalogName().getValue() : null,
-			toOffsetDateTime(taskStatus.getIssued()),
+			toOffsetDateTime(taskStatus.getCreated()),
+			taskStatus.hasIssued() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getIssued()) : null,
 			taskStatus.hasStarted() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getStarted()) : null,
 			taskStatus.hasFinished() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getFinished()) : null,
 			taskStatus.getProgress(),
@@ -1453,7 +1499,13 @@ public class EvitaDataTypesConverter {
 				EvitaDataTypesConverter.toFileForFetch(taskStatus.getFile()) :
 				taskStatus.hasText() ? taskStatus.getText().getValue() : null,
 			taskStatus.hasException() ? taskStatus.getException().getValue() : null,
-			null
+			null,
+			EnumSet.copyOf(
+				taskStatus.getTraitList()
+					.stream()
+					.map(EvitaEnumConverter::toTaskTrait)
+					.toList()
+			)
 		);
 	}
 
@@ -1503,11 +1555,10 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static GrpcCatalogStatistics toGrpcCatalogStatistics(@Nonnull CatalogStatistics catalogStatistics) {
-		return GrpcCatalogStatistics.newBuilder()
+		final GrpcCatalogStatistics.Builder builder = GrpcCatalogStatistics.newBuilder()
 			.setCatalogName(catalogStatistics.catalogName())
 			.setCorrupted(catalogStatistics.corrupted())
 			.setCatalogVersion(catalogStatistics.catalogVersion())
-			.setCatalogState(EvitaEnumConverter.toGrpcCatalogState(catalogStatistics.catalogState()))
 			.setTotalRecords(catalogStatistics.totalRecords())
 			.setIndexCount(catalogStatistics.indexCount())
 			.setSizeOnDiskInBytes(catalogStatistics.sizeOnDiskInBytes())
@@ -1515,7 +1566,13 @@ public class EvitaDataTypesConverter {
 				Arrays.stream(catalogStatistics.entityCollectionStatistics())
 					.map(EvitaDataTypesConverter::toGrpcEntityCollectionStatistics)
 					.collect(Collectors.toList())
-			)
+			);
+		if (catalogStatistics.catalogState() != null) {
+			builder.setCatalogState(EvitaEnumConverter.toGrpcCatalogState(catalogStatistics.catalogState()));
+		} else {
+			builder.setCatalogState(GrpcCatalogState.UNKNOWN_CATALOG_STATE);
+		}
+		return builder
 			.build();
 	}
 

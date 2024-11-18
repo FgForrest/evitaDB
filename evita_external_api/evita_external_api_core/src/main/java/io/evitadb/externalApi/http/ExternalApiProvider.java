@@ -29,6 +29,8 @@ import io.evitadb.externalApi.utils.path.PathHandlingService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * Descriptor of single external API provider. External API provider is system that is responsible for serving
@@ -57,6 +59,16 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	 */
 	@Nonnull
 	HttpServiceDefinition[] getHttpServiceDefinitions();
+
+	/**
+	 * Returns map of key endpoints and their absolute URLs that could be published to the user via.
+	 * console or administration GUI
+	 * @return index of symbolic name of the endpoint and the absolute URL as a value
+	 */
+	@Nonnull
+	default Map<String, String[]> getKeyEndPoints() {
+		return Collections.emptyMap();
+	}
 
 	/**
 	 * Called automatically when entire server is done initializing but not started yet.
@@ -92,16 +104,28 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	 *
 	 * @param path sub-path of the API
 	 * @param service HTTP service that is responsible for processing all requests addressed to path
+	 * @param pathHandlingMode mode of path handling (see {@link PathHandlingMode})
+	 * @param defaultService true, if the root path should be redirected to this service
 	 */
 	record HttpServiceDefinition(
 		@Nullable String path,
 		@Nonnull HttpService service,
-		@Nonnull PathHandlingMode pathHandlingMode
+		@Nonnull PathHandlingMode pathHandlingMode,
+		boolean defaultService
 	) {
 
 		public HttpServiceDefinition(@Nonnull HttpService service, @Nonnull PathHandlingMode routing) {
-			this("", service, routing);
+			this("", service, routing, false);
 		}
+
+		public HttpServiceDefinition(@Nonnull HttpService service, @Nonnull PathHandlingMode routing, boolean defaultService) {
+			this("", service, routing, defaultService);
+		}
+
+		public HttpServiceDefinition(@Nullable String path, @Nonnull HttpService service, @Nonnull PathHandlingMode pathHandlingMode) {
+			this(path, service, pathHandlingMode, false);
+		}
+
 	}
 
 	enum PathHandlingMode {

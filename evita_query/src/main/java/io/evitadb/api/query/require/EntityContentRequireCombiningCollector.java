@@ -23,9 +23,6 @@
 
 package io.evitadb.api.query.require;
 
-import io.evitadb.exception.GenericEvitaInternalError;
-
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
@@ -33,47 +30,40 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 
-import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
-
 /**
  * Implementation of {@link Collector} that is able to combine correctly lists of {@link EntityContentRequire} into
  * single list.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-class EntityContentRequireCombiningCollector implements Collector<EntityContentRequire, Map<Class<? extends EntityContentRequire>, EntityContentRequire>, EntityContentRequire[]> {
+class EntityContentRequireCombiningCollector implements Collector<EntityContentRequire, FetchRequirementCollector, EntityContentRequire[]> {
 
 	@Override
-	public Supplier<Map<Class<? extends EntityContentRequire>, EntityContentRequire>> supplier() {
-		return () -> createLinkedHashMap(10);
+	public Supplier<FetchRequirementCollector> supplier() {
+		return DefaultPrefetchRequirementCollector::new;
 	}
 
 	@Override
-	public BiConsumer<Map<Class<? extends EntityContentRequire>, EntityContentRequire>, EntityContentRequire> accumulator() {
-		return (entityContentRequireIndex, entityContentRequire) -> entityContentRequireIndex.merge(
-			entityContentRequire.getClass(),
-			entityContentRequire,
-			EntityContentRequire::combineWith
-		);
+	public BiConsumer<FetchRequirementCollector, EntityContentRequire> accumulator() {
+		return FetchRequirementCollector::addRequirementsToPrefetch;
 	}
 
 	@Override
-	public BinaryOperator<Map<Class<? extends EntityContentRequire>, EntityContentRequire>> combiner() {
-		return (entityContentRequireIndex, entityContentRequireIndex2) -> {
-			throw new GenericEvitaInternalError("Cannot combine multiple content require indexes.");
+	public BinaryOperator<FetchRequirementCollector> combiner() {
+		return (collector1, collector2) -> {
+			collector1.addRequirementsToPrefetch(collector2.getRequirementsToPrefetch());
+			return collector1;
 		};
 	}
 
 	@Override
-	public Function<Map<Class<? extends EntityContentRequire>, EntityContentRequire>, EntityContentRequire[]> finisher() {
-		return entityContentRequireIndex -> entityContentRequireIndex.values()
-			.stream()
-			.map(EntityContentRequire.class::cast)
-			.toArray(EntityContentRequire[]::new);
+	public Function<FetchRequirementCollector, EntityContentRequire[]> finisher() {
+		return FetchRequirementCollector::getRequirementsToPrefetch;
 	}
 
 	@Override
 	public Set<Characteristics> characteristics() {
 		return Set.of();
 	}
+
 }

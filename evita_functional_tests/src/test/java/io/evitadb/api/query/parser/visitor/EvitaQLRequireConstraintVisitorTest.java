@@ -29,7 +29,7 @@ import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
@@ -76,9 +76,9 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseRequireContainerConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("require"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("require('a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("require(attributeEquals('a',1))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("require"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("require('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("require(attributeEquals('a',1))"));
 	}
 
 	@Test
@@ -97,15 +97,45 @@ class EvitaQLRequireConstraintVisitorTest {
 	}
 
 	@Test
+	void shouldParsePageConstraintWithSpacing() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("page(10,20,spacing(gap(1,'true')))");
+		assertEquals(page(10, 20, spacing(gap(1, "true"))), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("page (  10 ,20 , spacing ( gap ( 1 , 'true' ) ) )");
+		assertEquals(page(10, 20, spacing(gap(1, "true"))), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraint("page(?,?,spacing(gap(?,?)))", 10, 20, 1, "true");
+		assertEquals(page(10, 20, spacing(gap(1, "true"))), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraint(
+			"page(@page,@size,spacing(gap(@gapSize,@expression)))",
+			Map.of("page", 10, "size", 20, "gapSize", 1, "expression", "true")
+		);
+		assertEquals(page(10, 20, spacing(gap(1, "true"))), constraint4);
+	}
+
+	@Test
 	void shouldNotParsePageConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("page(10,20)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("page(?,?)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("page(@page,@size)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("page"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("page()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("page(1)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("page('a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("page(1,'a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("page(10,20)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("page(?,?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("page(@page,@size)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("page"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("page()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("page(1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("page('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("page(1,'a')"));
+	}
+
+	@Test
+	void shouldNotParseSpacing() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("spacing(gap(10,20))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("spacing(gap(?,?))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("spacing(gap(@page,@size))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("spacing"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("gap"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("spacing(page(1, 12))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("spacing(gap(1))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("spacing(gap('a', 1))"));
 	}
 
 	@Test
@@ -125,14 +155,14 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseStripConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("strip(10,20)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("strip(?,?)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("strip(@off,@size)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("strip"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("strip()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("strip(1)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("strip('a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("strip(1,'a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("strip(10,20)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("strip(?,?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("strip(@off,@size)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("strip"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("strip()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("strip(1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("strip('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("strip(1,'a')"));
 	}
 
 	@Test
@@ -152,8 +182,8 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseEntityFetchConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("entityFetch"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("entityFetch('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("entityFetch"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("entityFetch('a')"));
 	}
 
 	@Test
@@ -173,8 +203,8 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseEntityGroupFetchConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("entityGroupFetch"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("entityGroupFetch('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("entityGroupFetch"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("entityGroupFetch('a')"));
 	}
 
 	@Test
@@ -215,11 +245,11 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseAttributeContentConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContentAll"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContentAll('a',1)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContent('a',1)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContent()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContent('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("attributeContentAll"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("attributeContentAll('a',1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("attributeContent('a',1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("attributeContent()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("attributeContent('a')"));
 	}
 
 	@Test
@@ -278,15 +308,15 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParsePriceContentConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceContent(ALL)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceContent(?)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceContent(@mode)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceContent('a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceContent(ALL, 'a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceContent"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceContent()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceContent(AA)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceContent(ALL,1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceContent(ALL)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceContent(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceContent(@mode)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceContent('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceContent(ALL, 'a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceContent"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceContent()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceContent(AA)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceContent(ALL,1)"));
 	}
 
 	@Test
@@ -300,8 +330,8 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParsePriceContentAllConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceContentAll"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceContentAll('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceContentAll"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceContentAll('a')"));
 	}
 
 	@Test
@@ -342,11 +372,11 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseAssociatedDataContentConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("associatedDataContent"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("associatedDataContent(1)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("associatedDataContent('a',1)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("associatedDataContent()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("associatedDataContent('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("associatedDataContent"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("associatedDataContent(1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("associatedDataContent('a',1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("associatedDataContent()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("associatedDataContent('a')"));
 	}
 
 	@Test
@@ -1239,17 +1269,17 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseReferenceContentConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(attributeContentAll(),'a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent('a',filterBy(entityPrimaryKeyInSet(1)),filterBy(entityPrimaryKeyInSet(1)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(attributeContentAll(),filterBy(entityPrimaryKeyInSet(1)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(attributeNatural('a',ASC))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent('a', 'b', filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll()))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll()))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(filterBy(entityPrimaryKeyInSet(1)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent('a', attributeContentAll())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(entityFetch(),entityFetch())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(entityGroupFetch(),entityFetch)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceContent"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceContent(attributeContentAll(),'a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceContent('a',filterBy(entityPrimaryKeyInSet(1)),filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceContent(attributeContentAll(),filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceContent(attributeNatural('a',ASC))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceContent('a', 'b', filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll()))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceContent(filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll()))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceContent(filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceContent('a', attributeContentAll())"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceContent(entityFetch(),entityFetch())"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("referenceContent(entityGroupFetch(),entityFetch)"));
 	}
 
 	@Test
@@ -1317,10 +1347,10 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyContentConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("hierarchyContent"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("hierarchyContent(stopAt(distance(1)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyContent(attributeContent('code'))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyContent(entityFetch(attributeContent('code')), stopAt(distance(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("hierarchyContent"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("hierarchyContent(stopAt(distance(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyContent(attributeContent('code'))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyContent(entityFetch(attributeContent('code')), stopAt(distance(1)))"));
 	}
 
 	@Test
@@ -1340,14 +1370,14 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParsePriceTypeConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceType(WITH_TAX)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceType(?)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceType(@mode)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceType"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceType()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceType('a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceType(WITH_TAX,WITH_TAX)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceType(TAX)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceType(WITH_TAX)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceType(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceType(@mode)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceType"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceType()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceType('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceType(WITH_TAX,WITH_TAX)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceType(TAX)"));
 	}
 
 	@Test
@@ -1358,7 +1388,7 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseDataInLocalesAllConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("dataInLocalesAll('cs')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("dataInLocalesAll('cs')"));
 	}
 
 	@Test
@@ -1393,12 +1423,12 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseDataInLocalesConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("dataInLocales()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("dataInLocales('cs')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("dataInLocales(?)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("dataInLocales(@mode)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("dataInLocales"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("dataInLocales('cs',2)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("dataInLocales()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("dataInLocales('cs')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("dataInLocales(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("dataInLocales(@mode)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("dataInLocales"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("dataInLocales('cs',2)"));
 	}
 
 	@Test
@@ -1579,15 +1609,15 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseFacetSummaryConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetSummary(COUNTS)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetSummary(?)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetSummary(@mode)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummary"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummary('a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummary(NONE)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummary(COUNTS,IMPACT)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummary(COUNTS,attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummary(attributeContent())"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetSummary(COUNTS)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetSummary(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetSummary(@mode)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary(NONE)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary(COUNTS,IMPACT)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary(COUNTS,attributeContent())"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummary(attributeContent())"));
 	}
 
 	@Test
@@ -1769,16 +1799,16 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseFacetSummaryOfReferenceConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetSummaryOfReference(COUNTS)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetSummaryOfReference(?)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetSummaryOfReference(@mode)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetSummaryOfReference('parameter')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',NONE)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,IMPACT)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',attributeContent())"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetSummaryOfReference(COUNTS)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetSummaryOfReference(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetSummaryOfReference(@mode)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetSummaryOfReference('parameter')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',NONE)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,IMPACT)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,attributeContent())"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',COUNTS,attributeContent())"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetSummaryOfReference('parameter',attributeContent())"));
 	}
 
 	@Test
@@ -1825,13 +1855,13 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseFacetGroupsConjunctionConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(1)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(?)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction('a','b','c')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(?)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction('a','b','c')"));
 	}
 
 	@Test
@@ -1878,13 +1908,13 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseFacetGroupsDisjunctionConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(1)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(?)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction('a','b','c')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(?)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a','b','c')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
 	}
 
 	@Test
@@ -1931,13 +1961,13 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseFacetGroupsNegationConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(1)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(?)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation('a','b','c')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(?)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a','b','c')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
 	}
 
 	@Test
@@ -2011,18 +2041,18 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseAttributeHistogramConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(20,'a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(?,'a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(@buckets,'a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(20,WHATEVER,'a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(20,OPTIMIZED,WHATEVER,'a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram(1)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram('a',1)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram('a','b')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram(20,OPTIMIZED,WHATEVER,'a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram(20,'a',OPTIMIZED)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("attributeHistogram(20,'a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("attributeHistogram(?,'a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("attributeHistogram(@buckets,'a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("attributeHistogram(20,WHATEVER,'a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("attributeHistogram(20,OPTIMIZED,WHATEVER,'a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("attributeHistogram"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("attributeHistogram()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("attributeHistogram(1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("attributeHistogram('a',1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("attributeHistogram('a','b')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("attributeHistogram(20,OPTIMIZED,WHATEVER,'a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("attributeHistogram(20,'a',OPTIMIZED)"));
 	}
 
 	@Test
@@ -2054,14 +2084,14 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParsePriceHistogramConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(20)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(?)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(@buckets)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(10,WHATEVER)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(10,STANDARD,WHATEVER)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceHistogram"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceHistogram('a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceHistogram(10,STANDARD,WHATEVER)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceHistogram(20)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceHistogram(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceHistogram(@buckets)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceHistogram(10,WHATEVER)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("priceHistogram(10,STANDARD,WHATEVER)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceHistogram"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceHistogram('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceHistogram(10,STANDARD,WHATEVER)"));
 	}
 
 	@Test
@@ -2078,9 +2108,9 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyDistanceConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("distance"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("distance('str')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("distance(1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("distance"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("distance('str')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("distance(1)"));
 	}
 
 	@Test
@@ -2097,9 +2127,9 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyLevelConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("level"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("level('str')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("level(1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("level"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("level('str')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("level(1)"));
 	}
 
 	@Test
@@ -2122,10 +2152,10 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyNodeConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("node"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("node(1)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("node(entityPrimaryKeyInSet(1))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("node(filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("node"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("node(1)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("node(entityPrimaryKeyInSet(1))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("node(filterBy(entityPrimaryKeyInSet(1)))"));
 	}
 
 	@Test
@@ -2160,10 +2190,10 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyStopAtConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("stopAt"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("stopAt(stopAt(distance(1)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("stopAt(level(1),distance(1))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("stopAt(level(1))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("stopAt"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("stopAt(stopAt(distance(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("stopAt(level(1),distance(1))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("stopAt(level(1))"));
 	}
 
 	@Test
@@ -2237,10 +2267,10 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyStatisticsConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("statistics"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("statistics('CHILDREN_COUNT')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("statistics(COMPLETE_FILTER,COMPLETE_FILTER)"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("statistics(CHILDREN_COUNT)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("statistics"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("statistics('CHILDREN_COUNT')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("statistics(COMPLETE_FILTER,COMPLETE_FILTER)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("statistics(CHILDREN_COUNT)"));
 	}
 
 	@Test
@@ -2284,12 +2314,12 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyFromRootConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("fromRoot"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("fromRoot(statistics(COMPLETE_FILTER))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("fromRoot(entityFetch(attributeContent('code')))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("fromRoot('megaMenu', statistics(COMPLETE_FILTER), entityFetch(attributeContent('code')))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("fromRoot('megaMenu')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("fromRoot('megaMenu', statistics(COMPLETE_FILTER))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("fromRoot"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("fromRoot(statistics(COMPLETE_FILTER))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("fromRoot(entityFetch(attributeContent('code')))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("fromRoot('megaMenu', statistics(COMPLETE_FILTER), entityFetch(attributeContent('code')))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("fromRoot('megaMenu')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("fromRoot('megaMenu', statistics(COMPLETE_FILTER))"));
 	}
 
 	@Test
@@ -2381,13 +2411,13 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyFromNodeConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("fromNode"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("fromNode(node(filterBy(entityPrimaryKeyInSet(1))), statistics(COMPLETE_FILTER))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("fromNode(node(filterBy(entityPrimaryKeyInSet(1))), entityFetch(attributeContent('code')))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("fromNode('megaMenu', node(filterBy(entityPrimaryKeyInSet(1))), statistics(COMPLETE_FILTER), entityFetch(attributeContent('code')))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("fromNode('megaMenu', entityFetch(attributeContent('code')), node(filterBy(entityPrimaryKeyInSet(1))), statistics(COMPLETE_FILTER))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("fromNode('megaMenu', entityFetch(attributeContent('code')), statistics(COMPLETE_FILTER))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("fromNode('megaMenu', node(filterBy(entityPrimaryKeyInSet(1))), entityFetch(attributeContent('code')), statistics(COMPLETE_FILTER))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("fromNode"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("fromNode(node(filterBy(entityPrimaryKeyInSet(1))), statistics(COMPLETE_FILTER))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("fromNode(node(filterBy(entityPrimaryKeyInSet(1))), entityFetch(attributeContent('code')))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("fromNode('megaMenu', node(filterBy(entityPrimaryKeyInSet(1))), statistics(COMPLETE_FILTER), entityFetch(attributeContent('code')))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("fromNode('megaMenu', entityFetch(attributeContent('code')), node(filterBy(entityPrimaryKeyInSet(1))), statistics(COMPLETE_FILTER))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("fromNode('megaMenu', entityFetch(attributeContent('code')), statistics(COMPLETE_FILTER))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("fromNode('megaMenu', node(filterBy(entityPrimaryKeyInSet(1))), entityFetch(attributeContent('code')), statistics(COMPLETE_FILTER))"));
 	}
 
 	@Test
@@ -2434,12 +2464,12 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyChildrenConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("children"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("children(statistics(COMPLETE_FILTER))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("children(entityFetch(attributeContent('code')))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("children('megaMenu', statistics(COMPLETE_FILTER), entityFetch(attributeContent('code')))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("children('megaMenu', statistics(COMPLETE_FILTER))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("children('megaMenu')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("children"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("children(statistics(COMPLETE_FILTER))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("children(entityFetch(attributeContent('code')))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("children('megaMenu', statistics(COMPLETE_FILTER), entityFetch(attributeContent('code')))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("children('megaMenu', statistics(COMPLETE_FILTER))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("children('megaMenu')"));
 	}
 
 	@Test
@@ -2519,10 +2549,10 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchySiblingsConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("siblings"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("siblings('megaMenu', statistics(COMPLETE_FILTER), entityFetch(attributeContent('code')))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("siblings('megaMenu', statistics(COMPLETE_FILTER))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("siblings('megaMenu')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("siblings"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("siblings('megaMenu', statistics(COMPLETE_FILTER), entityFetch(attributeContent('code')))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("siblings('megaMenu', statistics(COMPLETE_FILTER))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("siblings('megaMenu')"));
 	}
 
 	@Test
@@ -2651,13 +2681,13 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyParentsConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("parents"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("parents(statistics(COMPLETE_FILTER))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("parents(entityFetch(attributeContent('code')))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("parents('megaMenu', statistics(COMPLETE_FILTER), entityFetch(attributeContent('code')))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("parents('megaMenu', siblings(), entityFetch(attributeContent('code')))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("parents('megaMenu')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("parents('megaMenu', statistics(COMPLETE_FILTER))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("parents"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("parents(statistics(COMPLETE_FILTER))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("parents(entityFetch(attributeContent('code')))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("parents('megaMenu', statistics(COMPLETE_FILTER), entityFetch(attributeContent('code')))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("parents('megaMenu', siblings(), entityFetch(attributeContent('code')))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("parents('megaMenu')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("parents('megaMenu', statistics(COMPLETE_FILTER))"));
 	}
 
 	@Test
@@ -2730,13 +2760,13 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyOfSelfConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf('a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf(attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf(orderBy(random()))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf(fromRoot('megaMenu'), orderBy(attributeNatural('code')))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("hierarchyOfSelf(fromRoot('megaMenu'))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf(attributeContent())"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf(orderBy(random()))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf(fromRoot('megaMenu'), orderBy(attributeNatural('code')))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("hierarchyOfSelf(fromRoot('megaMenu'))"));
 	}
 
 	@Test
@@ -2903,11 +2933,11 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseHierarchyOfReferenceConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("hierarchyOfReference"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfReference(attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfReference('a',attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfReference('a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfReference('a', LEAVE_EMPTY)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("hierarchyOfReference"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyOfReference(attributeContent())"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyOfReference('a',attributeContent())"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyOfReference('a')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("hierarchyOfReference('a', LEAVE_EMPTY)"));
 	}
 
 	@Test
@@ -2921,8 +2951,8 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseQueryTelemetryConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("queryTelemetry"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("queryTelemetry('a','b')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("queryTelemetry"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("queryTelemetry('a','b')"));
 	}
 
 

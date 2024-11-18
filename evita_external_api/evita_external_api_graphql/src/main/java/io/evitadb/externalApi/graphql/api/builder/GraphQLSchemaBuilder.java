@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,9 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
@@ -146,7 +148,9 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		registerScalarValue(scalarBuilder, UUID.class);
 		registerScalarValue(scalarBuilder, UUID[].class);
 		registerScalarValue(scalarBuilder, Predecessor.class);
+		registerScalarValue(scalarBuilder, ReferencedEntityPredecessor.class);
 		registerScalarValue(scalarBuilder, ComplexDataObject.class);
+		registerScalarValue(scalarBuilder, ExpressionNode.class);
 
 		return scalarBuilder.build();
 	}

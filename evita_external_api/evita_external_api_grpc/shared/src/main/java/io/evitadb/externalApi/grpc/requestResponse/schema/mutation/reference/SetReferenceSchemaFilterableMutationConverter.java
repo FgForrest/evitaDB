@@ -25,11 +25,14 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation;
+import io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Converts between {@link SetReferenceSchemaIndexedMutation} and {@link GrpcSetReferenceSchemaFilterableMutation} in both directions.
@@ -44,15 +47,19 @@ public class SetReferenceSchemaFilterableMutationConverter implements SchemaMuta
 	public SetReferenceSchemaIndexedMutation convert(@Nonnull GrpcSetReferenceSchemaFilterableMutation mutation) {
 		return new SetReferenceSchemaIndexedMutation(
 			mutation.getName(),
-			mutation.getFilterable()
+			mutation.getInherited() ? null : mutation.getFilterable()
 		);
 	}
 
 	@Nonnull
 	public GrpcSetReferenceSchemaFilterableMutation convert(@Nonnull SetReferenceSchemaIndexedMutation mutation) {
-		return GrpcSetReferenceSchemaFilterableMutation.newBuilder()
-			.setName(mutation.getName())
-			.setFilterable(mutation.isIndexed())
-			.build();
+		final Builder builder = GrpcSetReferenceSchemaFilterableMutation.newBuilder()
+			.setName(mutation.getName());
+		ofNullable(mutation.getIndexed())
+			.ifPresentOrElse(
+				builder::setFilterable,
+				() -> builder.setInherited(true)
+			);
+		return builder.build();
 	}
 }

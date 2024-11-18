@@ -274,7 +274,9 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 			return Optional.empty();
 		}
 
-		final String bodyContentType = executionContext.httpRequest().headers().contentType().toString();
+		final String bodyContentType = Optional.ofNullable(executionContext.httpRequest().headers().contentType())
+			.map(MediaType::toString)
+			.orElse(null);
 		Assert.isTrue(
 			bodyContentType != null &&
 				getSupportedRequestContentTypes().stream().anyMatch(bodyContentType::startsWith),

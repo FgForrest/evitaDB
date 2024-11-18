@@ -128,12 +128,15 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			});
 
 		this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
-		this.orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+		this.orderConstraintResolver = new OrderConstraintResolver(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintResolver)
+		);
 		this.requireConstraintResolver = new RequireConstraintResolver(
 			catalogSchema,
 			new AtomicReference<>(filterConstraintResolver)
 		);
-		this.pagingRequireResolver = new PagingRequireResolver();
+		this.pagingRequireResolver = new PagingRequireResolver(entitySchema, requireConstraintResolver);
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
 			filterConstraintResolver,

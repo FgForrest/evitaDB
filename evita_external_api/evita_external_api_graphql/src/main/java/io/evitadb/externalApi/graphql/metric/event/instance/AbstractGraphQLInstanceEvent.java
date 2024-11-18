@@ -37,12 +37,12 @@ import lombok.RequiredArgsConstructor;
 @EventGroup(
 	value = AbstractGraphQLInstanceEvent.PACKAGE_NAME,
 	name = "evitaDB - GraphQL API",
-	description = "evitaDB events relating to GraphQL API."
+	description = "evitaDB events related to GraphQL API."
 )
 @Category({"evitaDB", "API", "GraphQL", "Instance", "Schema"})
 @RequiredArgsConstructor
 @Getter
 public class AbstractGraphQLInstanceEvent extends CustomMetricsExecutionEvent {
-
 	protected static final String PACKAGE_NAME = "io.evitadb.externalApi.graphql.instance";
+
 }

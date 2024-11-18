@@ -57,7 +57,7 @@ public class SetReferenceSchemaFacetedMutationTest {
 		assertNull(result.origin());
 		assertNotNull(result.current());
 		assertInstanceOf(SetReferenceSchemaFacetedMutation.class, result.current()[0]);
-		assertFalse(((SetReferenceSchemaFacetedMutation) result.current()[0]).isFaceted());
+		assertFalse(((SetReferenceSchemaFacetedMutation) result.current()[0]).getFaceted());
 	}
 
 	@Test

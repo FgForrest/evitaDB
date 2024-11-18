@@ -44,15 +44,19 @@ import java.time.OffsetDateTime;
 @Label("Catalog flushed")
 @Getter
 public class CatalogStatisticsEvent extends AbstractStorageEvent {
+
 	@Label("Entity collection count")
+	@Description("The number of active entity collections (entity types) in the catalog.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int entityCollections;
 
 	@Label("Total occupied disk space in Bytes")
+	@Description("The total amount of disk space used by the catalog in Bytes.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long occupiedDiskSpaceBytes;
 
 	@Label("Timestamp of the oldest catalog version available in seconds")
+	@Description("The age of the oldest available catalog version, in seconds. This value determines the furthest back in time the catalog can go.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long oldestCatalogVersionTimestampSeconds;
 

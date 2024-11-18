@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -88,8 +89,8 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 				)
 			),
 			resolver.resolve(
-				new HierarchyDataLocator(Entities.PRODUCT),
-				new HierarchyDataLocator(Entities.PRODUCT),
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"stopAt",
 				map()
 					.e("node", map()
@@ -112,7 +113,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 			),
 			resolver.resolve(
 				null,
-				new GenericDataLocator(Entities.PRODUCT),
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"require",
 				map()
 					.e("entityFetch", map()
@@ -133,7 +134,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 			),
 			resolver.resolve(
 				null,
-				new GenericDataLocator(Entities.PRODUCT),
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"require",
 				map()
 					.e("entityFetch", map()

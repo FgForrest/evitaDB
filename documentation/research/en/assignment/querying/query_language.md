@@ -870,7 +870,7 @@ price list argument. In other words, if the entity has two prices - one from the
 `basic` price list fetched along with it.
 </Note>
 
-The non-sellable prices are not taken into account in the search - if the entity **only** has non-sellable
+The non-indexed prices are not taken into account in the search - if the entity **only** has non-indexed
 prices, it will never be returned when the [priceInPriceLists](#price-in-price-lists) constraint or any other price
 constraint is used in the query. Non-sellable prices behave as if they don't exist. These non-sellable prices still
 remain accessible for reading on the fetched entity, in case the product is found by a sellable price satisfying the filter.

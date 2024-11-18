@@ -24,32 +24,39 @@
 package io.evitadb.externalApi.observability.task;
 
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.async.ClientInfiniteCallableTask;
 import io.evitadb.core.file.ExportFileService;
-import io.evitadb.externalApi.observability.exception.JfRException;
+import io.evitadb.core.file.ExportFileService.ExportFileHandle;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry;
 import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.EvitaEventGroup;
-import io.evitadb.externalApi.observability.metric.EvitaJfrEventRegistry.JdkEventGroup;
 import io.evitadb.externalApi.observability.task.JfrRecorderTask.RecordingSettings;
+import io.evitadb.utils.StringUtils;
 import jdk.jfr.EventType;
 import jdk.jfr.FlightRecorder;
 import jdk.jfr.Recording;
-import jdk.jfr.RecordingState;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static java.util.Optional.ofNullable;
 
@@ -67,7 +74,11 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 	/**
 	 * Target file where the JFR recording will be stored.
 	 */
-	private final FileForFetch targetFile;
+	private final Path targetFile;
+	/**
+	 * Flag indicating that the recording has finished.
+	 */
+	private final CountDownLatch finalizationLatch = new CountDownLatch(1);
 	/**
 	 * Export file service that manages the target file.
 	 */
@@ -80,16 +91,15 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 		@Nonnull ExportFileService exportFileService
 	) {
 		super(
+			JfrRecorderTask.class.getSimpleName(),
 			"JFR recording",
 			new RecordingSettings(allowedEvents, maxSizeInBytes, maxAgeInSeconds),
-			(task) -> ((JfrRecorderTask) task).start()
+			(task) -> ((JfrRecorderTask) task).start(),
+			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED, TaskTrait.NEEDS_TO_BE_STOPPED
 		);
 		this.recording = new Recording();
-		this.targetFile = exportFileService.createFile(
-			"jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + ".jfr",
-			"JFR recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + " with events: " + Arrays.toString(allowedEvents) + ".",
-			"application/octet-stream",
-			this.getClass().getSimpleName()
+		this.targetFile = exportFileService.createTempFile(
+			"jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + ".jfr"
 		);
 		this.exportFileService = exportFileService;
 	}
@@ -102,57 +112,91 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 
 	/**
 	 * Starts the JFR recording.
-	 * @return File where the recording will be stored.
 	 */
-	@Nonnull
+	@Nullable
 	private FileForFetch start() {
 		try {
 			this.recording.setToDisk(true);
-			this.recording.setDestination(this.exportFileService.getFilePath(this.targetFile).toAbsolutePath());
+			this.recording.setDestination(this.targetFile);
 			final RecordingSettings settings = getStatus().settings();
 			ofNullable(settings.maxSizeInBytes()).ifPresent(this.recording::setMaxSize);
 			ofNullable(settings.maxAgeInSeconds()).map(Duration::ofSeconds).ifPresent(this.recording::setMaxAge);
 			final Set<String> allowedEvents = new HashSet<>(Arrays.asList(settings.allowedEvents()));
 
 			// first disable all JDK events, that are not wanted
-			disableUnwantedJdkEvents(allowedEvents);
+			enableJdkEvents(allowedEvents);
 
 			// then register all custom event groups
 			enableEvitaEvents(allowedEvents);
 
 			this.recording.start();
-			return this.targetFile;
+
+			try {
+				this.finalizationLatch.await();
+
+				this.recording.stop();
+				this.updateTaskNameAndTraits("JFR recording stopped (compressing output)");
+
+				final String fileName = "jfr_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+				final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
+					fileName + ".zip",
+					"JFR recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + " with events: " + Arrays.toString(settings.allowedEvents()) + ".",
+					"application/zip",
+					this.getClass().getSimpleName()
+				);
+
+				try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
+					zipOutputStream.putNextEntry(new ZipEntry(fileName + ".jfr"));
+					// copy contents of the JFR recording to the zip file
+					Files.copy(this.targetFile, zipOutputStream);
+
+					log.info("JFR recording export completed.");
+					return exportFileHandle.fileForFetchFuture().getNow(null);
+				} catch (IOException e) {
+					throw new UnexpectedIOException(
+						"Failed to compress and store JFR recording: `" + this.targetFile + "`!",
+						"Failed to compress and store JFR recording!",
+						e
+					);
+				} finally {
+					try {
+						Files.deleteIfExists(this.targetFile);
+					} catch (IOException e) {
+						log.error(
+							"Failed to delete temporary JFR recording file: `" + this.targetFile + "`!",
+							e
+						);
+					}
+				}
+			} catch (InterruptedException e) {
+				this.recording.stop();
+				throw new GenericEvitaInternalError("JFR recording task finished abnormally (interrupt).", e);
+			}
+
 		} catch (IOException e) {
-			throw new RuntimeException(e);
+			throw new GenericEvitaInternalError("JFR recording task finished abnormally (I/O exception).", e);
 		}
 	}
 
-	@Nonnull
 	@Override
-	protected FileForFetch stopInternal() {
-		if (this.recording.getState() != RecordingState.RUNNING) {
-			throw new JfRException("Recording is not running.");
-		}
-		this.recording.stop();
-		return this.exportFileService.updateFileData(this.targetFile);
+	protected void stopInternal() {
+		this.finalizationLatch.countDown();
 	}
 
 	/**
 	 * Disables all JDK events that are not in the allowed set.
 	 * @param allowedEvents set of allowed events
 	 */
-	private void disableUnwantedJdkEvents(@Nonnull Set<String> allowedEvents) {
-		final Set<String> disabledJdkEvents = EvitaJfrEventRegistry.getJdkEventGroups()
+	private void enableJdkEvents(@Nonnull Set<String> allowedEvents) {
+		final Set<String> unrolledAllowedEvents = EvitaJfrEventRegistry.getJdkEventGroups()
 			.entrySet()
 			.stream()
-			.filter(entry -> !allowedEvents.contains(entry.getKey()))
-			.map(Entry::getValue)
-			.map(JdkEventGroup::events)
-			.flatMap(Arrays::stream)
+			.filter(entry -> allowedEvents.contains(entry.getKey()))
+			.flatMap(entry -> Arrays.stream(entry.getValue().events()))
 			.collect(Collectors.toSet());
 		for (EventType eventType : FlightRecorder.getFlightRecorder().getEventTypes()) {
-			if (disabledJdkEvents.contains(eventType.getName())) {
-				this.recording.disable(eventType.getName());
+			if (unrolledAllowedEvents.contains(eventType.getName())) {
+				this.recording.enable(eventType.getName());
 			}
 		}
 	}
@@ -183,6 +227,14 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 		@Nullable Long maxSizeInBytes,
 		@Nullable Long maxAgeInSeconds
 	) {
+
+		@Override
+		public String toString() {
+			return "AllowedEvents: " + Arrays.toString(allowedEvents) +
+				(maxSizeInBytes == null ? "" : ", maxSize: " + StringUtils.formatByteSize(maxSizeInBytes)) +
+				(maxAgeInSeconds == null ? "" : ", maxAge: " + StringUtils.formatDuration(Duration.ofSeconds(maxAgeInSeconds)));
+		}
+
 	}
 
 }

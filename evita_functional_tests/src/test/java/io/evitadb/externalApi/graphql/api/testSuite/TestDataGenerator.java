@@ -26,7 +26,6 @@ package io.evitadb.externalApi.graphql.api.testSuite;
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -107,16 +106,9 @@ public class TestDataGenerator {
 				.withAttribute(ATTRIBUTE_RELATIVE_URL, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale().nullable())
 				.updateVia(session);
 
-			final DataGenerator dataGenerator = new DataGenerator(faker -> {
-				final int rndPIRH = faker.random().nextInt(10);
-				if (rndPIRH < 6) {
-					return PriceInnerRecordHandling.NONE;
-				} else if (rndPIRH < 8) {
-					return PriceInnerRecordHandling.LOWEST_PRICE;
-				} else {
-					return PriceInnerRecordHandling.SUM;
-				}
-			});
+			final DataGenerator dataGenerator = new DataGenerator.Builder()
+				.withPriceInnerRecordHandlingGenerator(ALL_PRICE_INNER_RECORD_HANDLING_GENERATOR)
+				.build();
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
 				final int entityCount = session.getEntityCollectionSize(entityType);
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
@@ -244,7 +236,7 @@ public class TestDataGenerator {
 								)
 								.withReferenceTo(
 									REFERENCE_OBSOLETE_BRAND,
-									Entities.BRAND,
+									"obsoleteBrand",
 									Cardinality.ZERO_OR_ONE,
 									whichIs -> whichIs
 										.deprecated("This is deprecated.")
@@ -258,7 +250,7 @@ public class TestDataGenerator {
 								)
 								.withReferenceTo(
 									REFERENCE_STORE_WITH_GROUP,
-									Entities.STORE,
+									"externalStore",
 									Cardinality.ZERO_OR_MORE,
 									whichIs -> whichIs.faceted().withGroupType(ENTITY_STORE_GROUP)
 								)

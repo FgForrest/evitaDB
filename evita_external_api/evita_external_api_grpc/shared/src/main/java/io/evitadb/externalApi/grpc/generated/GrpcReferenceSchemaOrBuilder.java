@@ -543,4 +543,141 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * @return The referencedGroupTypeManaged.
    */
   boolean getReferencedGroupTypeManaged();
+
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   * @return Whether the reflectedReferenceName field is set.
+   */
+  boolean hasReflectedReferenceName();
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   * @return The reflectedReferenceName.
+   */
+  com.google.protobuf.StringValue getReflectedReferenceName();
+  /**
+   * <pre>
+   * Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+   * of such name and this reference must target the entity where the reflected reference is defined, and the target
+   * entity must be managed on both sides of the relation.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getReflectedReferenceNameOrBuilder();
+
+  /**
+   * <pre>
+   * Contains true if the description of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool descriptionInherited = 19;</code>
+   * @return The descriptionInherited.
+   */
+  boolean getDescriptionInherited();
+
+  /**
+   * <pre>
+   * Contains true if the deprecated flag of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool deprecationNoticeInherited = 20;</code>
+   * @return The deprecationNoticeInherited.
+   */
+  boolean getDeprecationNoticeInherited();
+
+  /**
+   * <pre>
+   * Contains true if the cardinality of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool cardinalityInherited = 21;</code>
+   * @return The cardinalityInherited.
+   */
+  boolean getCardinalityInherited();
+
+  /**
+   * <pre>
+   * Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
+   * </pre>
+   *
+   * <code>bool facetedInherited = 22;</code>
+   * @return The facetedInherited.
+   */
+  boolean getFacetedInherited();
+
+  /**
+   * <pre>
+   * Contains true if the attributes of the reflected reference are inherited from the target reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
+   * @return The enum numeric value on the wire for attributeInheritanceBehavior.
+   */
+  int getAttributeInheritanceBehaviorValue();
+  /**
+   * <pre>
+   * Contains true if the attributes of the reflected reference are inherited from the target reference.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;</code>
+   * @return The attributeInheritanceBehavior.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcAttributeInheritanceBehavior getAttributeInheritanceBehavior();
+
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @return A list containing the attributeInheritanceFilter.
+   */
+  java.util.List<java.lang.String>
+      getAttributeInheritanceFilterList();
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @return The count of attributeInheritanceFilter.
+   */
+  int getAttributeInheritanceFilterCount();
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @param index The index of the element to return.
+   * @return The attributeInheritanceFilter at the given index.
+   */
+  java.lang.String getAttributeInheritanceFilter(int index);
+  /**
+   * <pre>
+   * The array of attribute names that are inherited / excluded from inheritance based on the value of
+   * attributeInheritanceBehavior property.
+   * </pre>
+   *
+   * <code>repeated string attributeInheritanceFilter = 24;</code>
+   * @param index The index of the value to return.
+   * @return The bytes of the attributeInheritanceFilter at the given index.
+   */
+  com.google.protobuf.ByteString
+      getAttributeInheritanceFilterBytes(int index);
 }

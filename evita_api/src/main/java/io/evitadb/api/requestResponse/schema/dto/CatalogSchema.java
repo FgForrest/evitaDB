@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -182,6 +182,28 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	}
 
 	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of CatalogSchema from
+	 * different package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
+	public static CatalogSchema _internalBuildWithUpdatedEntitySchemaAccessor(
+		@Nonnull CatalogSchemaContract baseSchema,
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
+		return new CatalogSchema(
+			baseSchema.version(),
+			baseSchema.getName(),
+			baseSchema.getNameVariants(),
+			baseSchema.getDescription(),
+			baseSchema.getCatalogEvolutionMode(),
+			baseSchema.getAttributes(),
+			entitySchemaAccessor
+		);
+	}
+
+	/**
 	 * Method converts the "unknown" contract implementation and converts it to the "known" {@link GlobalAttributeSchema}
 	 * so that the catalog schema can access the internal API of it.
 	 */
@@ -299,4 +321,5 @@ public final class CatalogSchema implements CatalogSchemaContract {
 			entitySchema.validate(this);
 		}
 	}
+
 }

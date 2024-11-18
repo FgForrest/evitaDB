@@ -184,8 +184,18 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
+		/**
+		 * Renamed to {@link #timeout(long, TimeUnit)}
+		 * @deprecated Use {@link #timeout(long, TimeUnit)} instead.
+		 */
+		@Deprecated
 		@Nonnull
 		public EvitaClientConfiguration.Builder timeoutUnit(long timeout, @Nonnull TimeUnit unit) {
+			return timeout(timeout, unit);
+		}
+
+		@Nonnull
+		public EvitaClientConfiguration.Builder timeout(long timeout, @Nonnull TimeUnit unit) {
 			this.timeout = timeout;
 			this.timeoutUnit = unit;
 			return this;
@@ -257,7 +267,7 @@ public record EvitaClientConfiguration(
 				trustStorePassword,
 				reflectionCachingBehaviour,
 				timeout,
-				TimeUnit.SECONDS,
+				timeoutUnit,
 				openTelemetryInstance,
 				trackedTaskLimit
 			);

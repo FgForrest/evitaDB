@@ -62,15 +62,13 @@ in the set. To access the dataset on your hardware, you need to:
    ```
 4. start the evitaDB server
    ```shell
-   docker run --name evitadb -i --net=host \
-          -e "EVITA_ARGS=api.exposedOn=localhost" \
+   docker run --name evitadb -i --net=host \          
           -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
 
    # there is open issue https://github.com/docker/roadmap/issues/238 for Windows / Mac OS
    # and you need to open ports manually and propagate host IP address to the container
-   docker run --name evitadb -i -p 5555:5555 \
-          -e "EVITA_ARGS=api.exposedOn=localhost" \
+   docker run --name evitadb -i -p 5555:5555 \        
           -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
    ```
@@ -85,7 +83,7 @@ When this procedure is completed you should see the similar output in the consol
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2024.8.4 (keep calm and report bugs 😉)
+beta build 2024.10.0 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 19:45:37.088 INFO  i.e.s.c.DefaultCatalogPersistenceService - Catalog `evita` is being loaded and  it contains:
@@ -138,13 +136,13 @@ Open your Java IDE and add the following dependency to your project:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2024.8.4</version>
+    <version>2024.10.0</version>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_java_driver:2024.8.4'
+implementation 'io.evitadb:evita_java_driver:2024.10.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>

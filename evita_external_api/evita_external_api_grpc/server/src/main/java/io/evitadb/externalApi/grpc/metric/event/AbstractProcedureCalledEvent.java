@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.metric.event;
 
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.grpc.MethodDescriptor.MethodType;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import lombok.Getter;
 
@@ -38,21 +39,25 @@ import javax.annotation.Nonnull;
 @Getter
 public abstract class AbstractProcedureCalledEvent extends AbstractGrpcApiEvent {
 
-	@Label("Name of the service that was called")
+	@Label("Service name")
+	@Description("Name of the gRPC service that was called (the name of the Java class).")
 	@ExportMetricLabel
 	final String serviceName;
 
-	@Label("Name of the procedure that was called")
+	@Label("Procedure name")
+	@Description("Name of the gRPC procedure that was called (the method name).")
 	@ExportMetricLabel
 	final String procedureName;
 
-	@Label("Initiator of the call (client or server)")
+	@Label("Initiator of the call")
+	@Description("Initiator of the gRPC call (either client or server).")
 	@ExportMetricLabel
 	String initiator;
 
-	@Label("State of the response (OK, ERROR, CANCELED)")
+	@Label("gRPC response status")
+	@Description("State of the gRPC response (OK, ERROR, CANCELED).")
 	@ExportMetricLabel
-	String responseState;
+	String grpcResponseStatus;
 
 	/**
 	 * Private field for recognizing the type of the gRPC method.
@@ -67,7 +72,7 @@ public abstract class AbstractProcedureCalledEvent extends AbstractGrpcApiEvent 
 		this.serviceName = serviceName;
 		this.procedureName = procedureName;
 		this.methodType = methodType;
-		this.responseState = ResponseState.OK.name();
+		this.grpcResponseStatus = ResponseState.OK.name();
 		this.begin();
 	}
 
@@ -105,10 +110,10 @@ public abstract class AbstractProcedureCalledEvent extends AbstractGrpcApiEvent 
 
 	/**
 	 * Set the response state.
-	 * @param responseState the response state
+	 * @param grpcResponseStatus the response state
 	 */
-	public void setResponseState(@Nonnull ResponseState responseState) {
-		this.responseState = responseState.name();
+	public void setGrpcResponseStatus(@Nonnull ResponseState grpcResponseStatus) {
+		this.grpcResponseStatus = grpcResponseStatus.name();
 	}
 
 	/**

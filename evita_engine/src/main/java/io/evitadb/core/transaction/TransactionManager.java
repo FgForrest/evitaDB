@@ -27,6 +27,7 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTimedOutException;
+import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -45,8 +46,8 @@ import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.Trun
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
-import io.evitadb.core.transaction.stage.mutation.VerifiedEntityRemoveMutation;
-import io.evitadb.core.transaction.stage.mutation.VerifiedEntityUpsertMutation;
+import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
+import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
@@ -57,6 +58,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.UUID;
@@ -856,10 +858,20 @@ public class TransactionManager {
 					log.debug("Processing mutation: {}", mutation);
 					atomicMutationCount++;
 					if (mutation instanceof EntityUpsertMutation entityUpsertMutation) {
-						lastFinalizedCatalog.applyMutation(new VerifiedEntityUpsertMutation(entityUpsertMutation));
+						lastFinalizedCatalog.applyMutation(
+							new ServerEntityUpsertMutation(
+								entityUpsertMutation,
+								EnumSet.allOf(ImplicitMutationBehavior.class),
+								false, false
+							)
+						);
 						localMutationCount += entityUpsertMutation.getLocalMutations().size();
 					} else if (mutation instanceof EntityRemoveMutation entityRemoveMutation) {
-						lastFinalizedCatalog.applyMutation(new VerifiedEntityRemoveMutation(entityRemoveMutation));
+						lastFinalizedCatalog.applyMutation(
+							new ServerEntityRemoveMutation(
+								entityRemoveMutation, false, false
+							)
+						);
 						localMutationCount += entityRemoveMutation.getLocalMutations().size();
 					} else {
 						lastFinalizedCatalog.applyMutation(mutation);

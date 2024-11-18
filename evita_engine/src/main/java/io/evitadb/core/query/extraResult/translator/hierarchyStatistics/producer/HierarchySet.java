@@ -103,6 +103,8 @@ public class HierarchySet {
 					it -> it.entity().getPrimaryKey()
 				)
 			);
+		} else if (result.isEmpty()) {
+			return Collections.emptyList();
 		} else {
 			return Collections.singletonList(
 				levelInfoToSort[0]

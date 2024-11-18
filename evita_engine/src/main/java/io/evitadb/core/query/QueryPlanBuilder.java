@@ -24,13 +24,17 @@
 package io.evitadb.core.query;
 
 import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFactory;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.slice.DefaultSlicer;
+import io.evitadb.core.query.slice.Slicer;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import lombok.Getter;
@@ -50,7 +54,7 @@ import static java.util.Optional.ofNullable;
  * be used for filtering/sorting instead of accessing the indexes.
  */
 @RequiredArgsConstructor
-public class QueryPlanBuilder implements PrefetchRequirementCollector {
+public class QueryPlanBuilder implements FetchRequirementCollector {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
@@ -61,9 +65,9 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	@Nonnull
 	@Getter private final Formula filterFormula;
 	/**
-	 * Superset of all possible results without any filtering.
+	 * Reference to {@link FilterByVisitor} used for creating filterFormula.
 	 */
-	@Getter private final Formula superSetFormula;
+	@Getter private final FilterByVisitor filterByVisitor;
 	/**
 	 * Indexes that were used for creating {@link #filterFormula}.
 	 */
@@ -81,6 +85,13 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	@Nullable
 	@Getter private Sorter sorter;
 	/**
+	 * The `slicer` variable represents an instance of the Slicer interface used to determine the offset and limit
+	 * for paginating query results. By default, it is set to the `DefaultSlicer` instance. The slicer can be customized
+	 * to apply different pagination strategies by invoking the {@link #setSlicer} method.
+	 */
+	@Nullable
+	@Getter private Slicer slicer = DefaultSlicer.INSTANCE;
+	/**
 	 * Collection of {@link ExtraResultProducer} that compute additional results requested in response.
 	 */
 	@Nonnull
@@ -94,47 +105,21 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 		return new QueryPlan(
 			queryContext,
 			"None", EmptyFormula.INSTANCE, PrefetchFactory.NO_OP,
-			NoSorter.INSTANCE, Collections.emptyList()
+			NoSorter.INSTANCE,
+			DefaultSlicer.INSTANCE,
+			Collections.emptyList()
 		);
 	}
 
-	public QueryPlanBuilder(
-		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull Formula filterFormula,
-		@Nonnull Formula superSetFormula,
-		@Nonnull TargetIndexes<?> targetIndexes,
-		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
-		@Nonnull Sorter replacedSorter
-	) {
-		this.queryContext = queryContext;
-		this.filterFormula = filterFormula;
-		this.superSetFormula = superSetFormula;
-		this.targetIndexes = targetIndexes;
-		this.prefetchFormulaVisitor = prefetchFormulaVisitor;
-		this.sorter = replacedSorter;
-	}
-
-	public QueryPlanBuilder(
-		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull Formula filterFormula,
-		@Nonnull Formula superSetFormula,
-		@Nonnull TargetIndexes<?> targetIndexes,
-		@Nonnull PrefetchFormulaVisitor prefetchFormulaVisitor,
-		@Nonnull Sorter replacedSorter,
-		@Nonnull Collection<ExtraResultProducer> extraResultProducers
-	) {
-		this.queryContext = queryContext;
-		this.filterFormula = filterFormula;
-		this.superSetFormula = superSetFormula;
-		this.targetIndexes = targetIndexes;
-		this.prefetchFormulaVisitor = prefetchFormulaVisitor;
-		this.sorter = replacedSorter;
-		this.extraResultProducers = extraResultProducers;
-	}
-
 	@Override
-	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
-		prefetchFormulaVisitor.addRequirement(require);
+	public void addRequirementsToPrefetch(@Nonnull EntityContentRequire... require) {
+		this.queryContext.addRequirementToPrefetch(require);
+	}
+
+	@Nonnull
+	@Override
+	public EntityContentRequire[] getRequirementsToPrefetch() {
+		return this.queryContext.getRequirementsToPrefetch();
 	}
 
 	/**
@@ -164,9 +149,20 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 
 	/**
 	 * Method accepts a sorter that should be used for sorting the filtered results.
+	 *
+	 * @param sorter the sorter implementation that defines the sorting logic to be applied to the query results
 	 */
 	public void appendSorter(@Nonnull Sorter sorter) {
 		this.sorter = sorter;
+	}
+
+	/**
+	 * Sets the slicer that will be used to determine the offset and limit for query results.
+	 *
+	 * @param slicer the slicer responsible for calculating offset and limit
+	 */
+	public void setSlicer(@Nonnull Slicer slicer) {
+		this.slicer = slicer;
 	}
 
 	/**
@@ -181,12 +177,20 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	 */
 	@Nonnull
 	public QueryPlan build() {
-		ofNullable(queryContext.getQueryFinishedEvent())
+		ofNullable(this.queryContext.getQueryFinishedEvent())
 			.ifPresent(FinishedEvent::startExecuting);
+		// propagate all collected requirements to the prefetch formula visitor
+		this.prefetchFormulaVisitor.addRequirement(
+			this.queryContext.getRequirementsToPrefetch()
+		);
 		return new QueryPlan(
-			queryContext,
-			targetIndexes.getIndexDescription(), filterFormula, prefetchFormulaVisitor,
-			sorter, extraResultProducers
+			this.queryContext,
+			this.targetIndexes.getIndexDescription(),
+			this.filterFormula,
+			this.prefetchFormulaVisitor,
+			this.sorter,
+			this.slicer,
+			this.extraResultProducers
 		);
 	}
 }

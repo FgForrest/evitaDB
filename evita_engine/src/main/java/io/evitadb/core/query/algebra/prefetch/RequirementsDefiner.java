@@ -25,7 +25,6 @@ package io.evitadb.core.query.algebra.prefetch;
 
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.store.model.StoragePart;
@@ -46,6 +45,6 @@ public interface RequirementsDefiner {
 	 * {@link SealedEntity} instances.
 	 */
 	@Nullable
-	EntityRequire getEntityRequire();
+	EntityFetchRequire getEntityRequire();
 
 }

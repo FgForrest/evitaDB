@@ -164,6 +164,37 @@ public final class EvitaManagementServiceGrpc {
     return getRestoreCatalogMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> getRestoreCatalogUnaryMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "RestoreCatalogUnary",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> getRestoreCatalogUnaryMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> getRestoreCatalogUnaryMethod;
+    if ((getRestoreCatalogUnaryMethod = EvitaManagementServiceGrpc.getRestoreCatalogUnaryMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getRestoreCatalogUnaryMethod = EvitaManagementServiceGrpc.getRestoreCatalogUnaryMethod) == null) {
+          EvitaManagementServiceGrpc.getRestoreCatalogUnaryMethod = getRestoreCatalogUnaryMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RestoreCatalogUnary"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("RestoreCatalogUnary"))
+              .build();
+        }
+      }
+    }
+    return getRestoreCatalogUnaryMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest,
       io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogFromServerFileMethod;
 
@@ -443,6 +474,37 @@ public final class EvitaManagementServiceGrpc {
     return getDeleteFileMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> getListReservedKeywordsMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "ListReservedKeywords",
+      requestType = com.google.protobuf.Empty.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> getListReservedKeywordsMethod() {
+    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> getListReservedKeywordsMethod;
+    if ((getListReservedKeywordsMethod = EvitaManagementServiceGrpc.getListReservedKeywordsMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getListReservedKeywordsMethod = EvitaManagementServiceGrpc.getListReservedKeywordsMethod) == null) {
+          EvitaManagementServiceGrpc.getListReservedKeywordsMethod = getListReservedKeywordsMethod =
+              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ListReservedKeywords"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  com.google.protobuf.Empty.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("ListReservedKeywords"))
+              .build();
+        }
+      }
+    }
+    return getListReservedKeywordsMethod;
+  }
+
   /**
    * Creates a new async stub that supports all call types for the service
    */
@@ -537,6 +599,16 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to restore a catalog from backup (unary version for gRPC/web).
+     * </pre>
+     */
+    public void restoreCatalogUnary(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRestoreCatalogUnaryMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to restore a catalog from backup.
      * </pre>
      */
@@ -625,6 +697,16 @@ public final class EvitaManagementServiceGrpc {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getDeleteFileMethod(), responseObserver);
     }
 
+    /**
+     * <pre>
+     * List reserved keywords
+     * </pre>
+     */
+    public void listReservedKeywords(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getListReservedKeywordsMethod(), responseObserver);
+    }
+
     @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
       return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())
           .addMethod(
@@ -655,6 +737,13 @@ public final class EvitaManagementServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest,
                 io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>(
                   this, METHODID_RESTORE_CATALOG)))
+          .addMethod(
+            getRestoreCatalogUnaryMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse>(
+                  this, METHODID_RESTORE_CATALOG_UNARY)))
           .addMethod(
             getRestoreCatalogFromServerFileMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -718,6 +807,13 @@ public final class EvitaManagementServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest,
                 io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse>(
                   this, METHODID_DELETE_FILE)))
+          .addMethod(
+            getListReservedKeywordsMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                com.google.protobuf.Empty,
+                io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse>(
+                  this, METHODID_LIST_RESERVED_KEYWORDS)))
           .build();
     }
   }
@@ -782,6 +878,17 @@ public final class EvitaManagementServiceGrpc {
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> responseObserver) {
       return io.grpc.stub.ClientCalls.asyncClientStreamingCall(
           getChannel().newCall(getRestoreCatalogMethod(), getCallOptions()), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to restore a catalog from backup (unary version for gRPC/web).
+     * </pre>
+     */
+    public void restoreCatalogUnary(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getRestoreCatalogUnaryMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -882,6 +989,17 @@ public final class EvitaManagementServiceGrpc {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getDeleteFileMethod(), getCallOptions()), request, responseObserver);
     }
+
+    /**
+     * <pre>
+     * List reserved keywords
+     * </pre>
+     */
+    public void listReservedKeywords(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getListReservedKeywordsMethod(), getCallOptions()), request, responseObserver);
+    }
   }
 
   /**
@@ -930,6 +1048,16 @@ public final class EvitaManagementServiceGrpc {
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse getCatalogStatistics(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getGetCatalogStatisticsMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to restore a catalog from backup (unary version for gRPC/web).
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse restoreCatalogUnary(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getRestoreCatalogUnaryMethod(), getCallOptions(), request);
     }
 
     /**
@@ -1022,6 +1150,16 @@ public final class EvitaManagementServiceGrpc {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getDeleteFileMethod(), getCallOptions(), request);
     }
+
+    /**
+     * <pre>
+     * List reserved keywords
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse listReservedKeywords(com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getListReservedKeywordsMethod(), getCallOptions(), request);
+    }
   }
 
   /**
@@ -1073,6 +1211,17 @@ public final class EvitaManagementServiceGrpc {
         com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getGetCatalogStatisticsMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to restore a catalog from backup (unary version for gRPC/web).
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> restoreCatalogUnary(
+        io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getRestoreCatalogUnaryMethod(), getCallOptions()), request);
     }
 
     /**
@@ -1162,21 +1311,34 @@ public final class EvitaManagementServiceGrpc {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getDeleteFileMethod(), getCallOptions()), request);
     }
+
+    /**
+     * <pre>
+     * List reserved keywords
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse> listReservedKeywords(
+        com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getListReservedKeywordsMethod(), getCallOptions()), request);
+    }
   }
 
   private static final int METHODID_SERVER_STATUS = 0;
   private static final int METHODID_GET_CONFIGURATION = 1;
   private static final int METHODID_GET_CATALOG_STATISTICS = 2;
-  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 3;
-  private static final int METHODID_LIST_TASK_STATUSES = 4;
-  private static final int METHODID_GET_TASK_STATUS = 5;
-  private static final int METHODID_GET_TASK_STATUSES = 6;
-  private static final int METHODID_CANCEL_TASK = 7;
-  private static final int METHODID_LIST_FILES_TO_FETCH = 8;
-  private static final int METHODID_GET_FILE_TO_FETCH = 9;
-  private static final int METHODID_FETCH_FILE = 10;
-  private static final int METHODID_DELETE_FILE = 11;
-  private static final int METHODID_RESTORE_CATALOG = 12;
+  private static final int METHODID_RESTORE_CATALOG_UNARY = 3;
+  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 4;
+  private static final int METHODID_LIST_TASK_STATUSES = 5;
+  private static final int METHODID_GET_TASK_STATUS = 6;
+  private static final int METHODID_GET_TASK_STATUSES = 7;
+  private static final int METHODID_CANCEL_TASK = 8;
+  private static final int METHODID_LIST_FILES_TO_FETCH = 9;
+  private static final int METHODID_GET_FILE_TO_FETCH = 10;
+  private static final int METHODID_FETCH_FILE = 11;
+  private static final int METHODID_DELETE_FILE = 12;
+  private static final int METHODID_LIST_RESERVED_KEYWORDS = 13;
+  private static final int METHODID_RESTORE_CATALOG = 14;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1206,6 +1368,10 @@ public final class EvitaManagementServiceGrpc {
         case METHODID_GET_CATALOG_STATISTICS:
           serviceImpl.getCatalogStatistics((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse>) responseObserver);
+          break;
+        case METHODID_RESTORE_CATALOG_UNARY:
+          serviceImpl.restoreCatalogUnary((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse>) responseObserver);
           break;
         case METHODID_RESTORE_CATALOG_FROM_SERVER_FILE:
           serviceImpl.restoreCatalogFromServerFile((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest) request,
@@ -1242,6 +1408,10 @@ public final class EvitaManagementServiceGrpc {
         case METHODID_DELETE_FILE:
           serviceImpl.deleteFile((io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse>) responseObserver);
+          break;
+        case METHODID_LIST_RESERVED_KEYWORDS:
+          serviceImpl.listReservedKeywords((com.google.protobuf.Empty) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse>) responseObserver);
           break;
         default:
           throw new AssertionError();
@@ -1311,6 +1481,7 @@ public final class EvitaManagementServiceGrpc {
               .addMethod(getGetConfigurationMethod())
               .addMethod(getGetCatalogStatisticsMethod())
               .addMethod(getRestoreCatalogMethod())
+              .addMethod(getRestoreCatalogUnaryMethod())
               .addMethod(getRestoreCatalogFromServerFileMethod())
               .addMethod(getListTaskStatusesMethod())
               .addMethod(getGetTaskStatusMethod())
@@ -1320,6 +1491,7 @@ public final class EvitaManagementServiceGrpc {
               .addMethod(getGetFileToFetchMethod())
               .addMethod(getFetchFileMethod())
               .addMethod(getDeleteFileMethod())
+              .addMethod(getListReservedKeywordsMethod())
               .build();
         }
       }

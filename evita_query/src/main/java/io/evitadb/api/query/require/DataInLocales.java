@@ -30,16 +30,18 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * This `dataInLocales` query is require query that accepts zero or more {@link Locale} arguments. When this
@@ -79,8 +81,9 @@ import java.util.stream.Stream;
 public class DataInLocales extends AbstractRequireConstraintLeaf
 	implements GenericConstraint<RequireConstraint>, EntityContentRequire, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = 4716406488516855299L;
-
 	private static final String SUFFIX_ALL = "all";
+	private LinkedHashSet<Locale> localesAsSet;
+	private Locale[] locales;
 
 	private DataInLocales(Serializable... arguments) {
 		super(arguments);
@@ -96,25 +99,9 @@ public class DataInLocales extends AbstractRequireConstraintLeaf
 		super(locales);
 	}
 
-	@Nonnull
-	@SuppressWarnings("unchecked")
 	@Override
-	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
-		Assert.isTrue(anotherRequirement instanceof DataInLocales, "Only DataInLanguage requirement can be combined with this one!");
-		if (isAllRequested()) {
-			return (T) this;
-		} else if (((DataInLocales) anotherRequirement).isAllRequested()) {
-			return anotherRequirement;
-		} else {
-			return (T) new DataInLocales(
-				Stream.concat(
-						Arrays.stream(getArguments()).map(Locale.class::cast),
-						Arrays.stream(anotherRequirement.getArguments()).map(Locale.class::cast)
-					)
-					.distinct()
-					.toArray(Locale[]::new)
-			);
-		}
+	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
+		return anotherRequirement instanceof DataInLocales;
 	}
 
 	/**
@@ -122,7 +109,60 @@ public class DataInLocales extends AbstractRequireConstraintLeaf
 	 * available localized data are expected to be returned.
 	 */
 	public Locale[] getLocales() {
-		return Arrays.stream(getArguments()).map(Locale.class::cast).toArray(Locale[]::new);
+		if (this.locales == null) {
+			this.locales = getLocalesAsSet().toArray(Locale[]::new);
+		}
+		return this.locales;
+	}
+
+	/**
+	 * Returns zero or more locales that should be used for retrieving localized data as set. Is empty set is returned
+	 * all available localized data are expected to be returned.
+	 */
+	@Nonnull
+	public Set<Locale> getLocalesAsSet() {
+		if (this.localesAsSet == null) {
+			this.localesAsSet = Arrays.stream(getArguments())
+				.map(Locale.class::cast)
+				.collect(Collectors.toCollection(LinkedHashSet::new));
+		}
+		return this.localesAsSet;
+	}
+
+	@Override
+	public <T extends EntityContentRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
+		if (anotherRequirement instanceof DataInLocales anotherDataInLocales) {
+			if (anotherDataInLocales.isAllRequested()) {
+				return true;
+			} else if (!isAllRequested()) {
+				return anotherDataInLocales.getLocalesAsSet().containsAll(getLocalesAsSet());
+			}
+		}
+		return false;
+	}
+
+	@Nonnull
+	@SuppressWarnings("unchecked")
+	@Override
+	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
+		if (anotherRequirement instanceof DataInLocales anotherDataInLocales) {
+			if (isAllRequested()) {
+				return (T) this;
+			} else if (anotherDataInLocales.isAllRequested()) {
+				return anotherRequirement;
+			} else {
+				final Set<Locale> localesAsSet = new LinkedHashSet<>(getLocalesAsSet());
+				localesAsSet.addAll(anotherDataInLocales.getLocalesAsSet());
+				return (T) new DataInLocales(
+					localesAsSet.toArray(Locale[]::new)
+				);
+			}
+		} else {
+			throw new GenericEvitaInternalError(
+				"Only data in locales requirement can be combined with this one - but got: " + anotherRequirement.getClass(),
+				"Only data in locales requirement can be combined with this one!"
+			);
+		}
 	}
 
 	/**

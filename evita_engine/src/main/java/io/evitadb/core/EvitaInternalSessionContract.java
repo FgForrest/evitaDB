@@ -144,13 +144,19 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 	void execute(@Nonnull Consumer<EvitaSessionContract> logic) throws TransactionException;
 
 	/**
-	 * Retrieves the CompletableFuture representing the finalization of the transaction that conforms to
-	 * requested {@link CommitBehavior} bound to the current transaction.
+	 * Returns true if there is active method invocation in place. When method is running, it is not possible to
+	 * kill session due to inactivity.
 	 *
-	 * @return An Optional that contains a CompletableFuture of type Long if the transaction finalization
-	 *         is in progress, or an empty Optional if no transaction is currently in progress (session is read-only
-	 *         for exmple).
+	 * @return true if there is active method invocation in place
+	 */
+	boolean methodIsRunning();
+
+	/**
+	 * Retrieves a CompletableFuture that represents the finalization status of a session. If the catalog is in
+	 * transactional mode, the future will respect the requested {@link CommitBehavior} bound to the current transaction.
+	 *
+	 * @return completable future returning new catalog version introduced by this session
 	 */
 	@Nonnull
-	Optional<CompletableFuture<Long>> getTransactionFinalizationFuture();
+	CompletableFuture<Long> getFinalizationFuture();
 }

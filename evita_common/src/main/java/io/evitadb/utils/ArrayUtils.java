@@ -65,6 +65,16 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Returns true if array is either null or has no items in it, or all the items are null.
+	 *
+	 * @param array to check
+	 * @return true if empty
+	 */
+	public static boolean isEmptyOrItsValuesNull(@Nullable Object[] array) {
+		return array == null || array.length == 0 || Arrays.stream(array).allMatch(Objects::isNull);
+	}
+
+	/**
 	 * Returns true if array is either null or has no items in it
 	 *
 	 * @param array to check

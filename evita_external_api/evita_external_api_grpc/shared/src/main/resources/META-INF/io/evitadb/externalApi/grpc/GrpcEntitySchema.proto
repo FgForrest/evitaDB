@@ -198,6 +198,8 @@ message GrpcAttributeSchema {
   int32 indexedDecimalPlaces = 14;
   // Contains attribute name converted to different naming conventions.
   repeated GrpcNameVariant nameVariant = 15;
+  // Contains true if the attribute was inherited from the original object via reflected reference relation
+  bool inherited = 16;
 }
 
 // This is the definition object for associated data that is stored along with
@@ -320,6 +322,23 @@ message GrpcReferenceSchema {
   bool referencedEntityTypeManaged = 16;
   // Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
   bool referencedGroupTypeManaged = 17;
+  // Name of the reflected reference of the target referencedEntityType(). The referenced entity must contain reference
+  // of such name and this reference must target the entity where the reflected reference is defined, and the target
+  // entity must be managed on both sides of the relation.
+  google.protobuf.StringValue reflectedReferenceName = 18;
+  // Contains true if the description of the reflected reference is inherited from the target reference.
+  bool descriptionInherited = 19;
+  // Contains true if the deprecated flag of the reflected reference is inherited from the target reference.
+  bool deprecationNoticeInherited = 20;
+  // Contains true if the cardinality of the reflected reference is inherited from the target reference.
+  bool cardinalityInherited = 21;
+  // Contains true if the faceted property settings of the reflected reference is inherited from the target reference.
+  bool facetedInherited = 22;
+  // Contains true if the attributes of the reflected reference are inherited from the target reference.
+  GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 23;
+  // The array of attribute names that are inherited / excluded from inheritance based on the value of
+  // attributeInheritanceBehavior property.
+  repeated string attributeInheritanceFilter = 24;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB
@@ -343,6 +362,8 @@ message GrpcSortableAttributeCompoundSchema {
   repeated GrpcAttributeElement attributeElements = 4;
   // Contains attribute compound name converted to different naming conventions.
   repeated GrpcNameVariant nameVariant = 5;
+  // Contains true if the attribute was inherited from the original object via reflected reference relation
+  bool inherited = 6;
 }
 
 // Attribute element is a part of the sortable compound. It defines the attribute name, the direction of the

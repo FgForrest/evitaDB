@@ -118,6 +118,7 @@ public class QuerySerializationTest {
 		assertSerializationRound(attributeNatural("a", OrderDirection.DESC));
 		assertSerializationRound(referenceProperty("d", attributeNatural("a", OrderDirection.ASC)));
 		assertSerializationRound(random());
+		assertSerializationRound(randomWithSeed(42));
 		assertSerializationRound(priceNatural(OrderDirection.ASC));
 		assertSerializationRound(entityPrimaryKeyInFilter());
 		assertSerializationRound(entityPrimaryKeyNatural(OrderDirection.DESC));

@@ -38,15 +38,17 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".OffsetIndexNonFlushed")
-@Description("Event that is fired when non flushed record count changes in offset index.")
+@Description("Event fired when the number of unflushed records in the offset index changes.")
 @Label("OffsetIndex non-flushed records")
 @Getter
 public class OffsetIndexNonFlushedEvent extends AbstractDataFileEvent {
 	@Label("Number of records pending flush")
+	@Description("Number of volatile records pending flush in the OffsetIndex.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int records;
 
 	@Label("Size of records pending flush in Bytes")
+	@Description("Size of records pending flush in Bytes in the OffsetIndex.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long recordSizeBytes;
 

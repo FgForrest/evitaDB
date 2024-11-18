@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -108,6 +108,7 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(OrderBy.class, new OrderBySerializer(), index++);
 		kryo.register(OrderGroupBy.class, new io.evitadb.store.query.serializer.OrderGroupBy.OrderGroupBySerializer(), index++);
 		kryo.register(PriceNatural.class, new PriceNaturalSerializer(), index++);
+		kryo.register(PriceDiscount.class, new PriceDiscountSerializer(), index++);
 		kryo.register(Random.class, new RandomSerializer(), index++);
 		kryo.register(ReferenceProperty.class, new ReferencePropertySerializer(), index++);
 
@@ -146,6 +147,10 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(AttributeContent.class, new AttributeContentSerializer(), index++);
 		kryo.register(QueryTelemetry.class, new QueryTelemetrySerializer(), index++);
 		kryo.register(Debug.class, new DebugSerializer(), index++);
+
+		kryo.register(Segments.class, new SegmentsSerializer(), index++);
+		kryo.register(Segment.class, new SegmentSerializer(), index++);
+		kryo.register(SegmentLimit.class, new SegmentLimitSerializer(), index++);
 
 		Assert.isPremiseValid(index < 1100, "Index count overflow.");
 	}

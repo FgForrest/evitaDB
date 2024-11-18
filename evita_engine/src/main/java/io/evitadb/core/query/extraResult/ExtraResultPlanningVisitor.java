@@ -46,7 +46,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.AttributeSchemaAccessor;
-import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
@@ -74,6 +73,7 @@ import io.evitadb.core.query.extraResult.translator.reference.EntityGroupFetchTr
 import io.evitadb.core.query.extraResult.translator.reference.HierarchyContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.PriceContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceContentTranslator;
+import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.DeferredSorter;
 import io.evitadb.core.query.sort.NestedContextSorter;
@@ -147,19 +147,14 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Getter private final TargetIndexes<?> indexSetToUse;
 	/**
-	 * Reference to the collector of requirements for entity prefetch phase.
-	 */
-	@Getter @Delegate
-	private final PrefetchRequirementCollector prefetchRequirementCollector;
-	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
 	 */
 	@Getter private final Formula filteringFormula;
 	/**
-	 * Contains superset formula that contains superset of all possible results without any filtering.
+	 * Reference to {@link FilterByVisitor} used for creating filterFormula.
 	 */
-	@Getter private final Formula superSetFormula;
+	@Getter private final FilterByVisitor filterByVisitor;
 	/**
 	 * Contains prepared sorter implementation that takes output of the {@link #filteringFormula} and sorts the entity
 	 * primary keys according to {@link OrderConstraint} in {@link EvitaRequest}.
@@ -206,18 +201,25 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	public ExtraResultPlanningVisitor(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull TargetIndexes<?> indexSetToUse,
-		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
-		@Nonnull Formula superSetFormula,
+		@Nonnull FilterByVisitor filterByVisitor,
 		@Nullable Sorter sorter
 	) {
 		this.queryContext = queryContext;
 		this.indexSetToUse = indexSetToUse;
-		this.prefetchRequirementCollector = prefetchRequirementCollector;
 		this.filteringFormula = filteringFormula;
-		this.superSetFormula = superSetFormula;
+		this.filterByVisitor = filterByVisitor;
 		this.sorter = sorter;
 		this.attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
+	}
+
+	/**
+	 * Returns superset of all possible results without any filtering.
+	 * @return formula that represents the superset of all possible results.
+	 */
+	@Nonnull
+	public Formula getSuperSetFormula() {
+		return this.filterByVisitor.getSuperSetFormula();
 	}
 
 	/**
@@ -252,7 +254,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				FormulaCloner.clone(
 				filteringFormula,
 				formula -> formula instanceof UserFilterFormula ? null : formula
-			)).orElse(this.superSetFormula);
+			)).orElseGet(this::getSuperSetFormula);
 		}
 		return filteringFormulaWithoutUserFilter;
 	}
@@ -403,8 +405,8 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				final OrderByVisitor orderByVisitor = new OrderByVisitor(
 					nestedQueryContext,
 					Collections.emptyList(),
-					prefetchRequirementCollector,
-					filteringFormula
+					this.filterByVisitor,
+					this.filteringFormula
 				);
 				// now analyze the filter by in a nested context with exchanged primary entity index
 				sorter = orderByVisitor.executeInContext(

@@ -73,7 +73,7 @@ import java.util.Arrays;
 	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE},
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
-public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = 500395477991778874L;
 
 	private AttributeInSet(Serializable... arguments) {

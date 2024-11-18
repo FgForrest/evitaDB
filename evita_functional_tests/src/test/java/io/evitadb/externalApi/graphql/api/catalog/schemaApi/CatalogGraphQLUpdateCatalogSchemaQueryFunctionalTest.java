@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -320,7 +320,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 					) {
 						version
 					}
-				}	
+				}
 				""",
 				NEW_COLLECTION_NAME
 			)
@@ -432,7 +432,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 					) {
 						version
 					}
-				}	
+				}
 				""",
 				NEW_COLLECTION_NAME,
 				NEW_COLLECTION_NAME
@@ -444,7 +444,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				UPDATE_CATALOG_SCHEMA_PATH,
 				equalTo(
 					map()
-						.e(VersionedDescriptor.VERSION.name(), initialCatalogSchemaVersion + 1)
+						.e(VersionedDescriptor.VERSION.name(), initialCatalogSchemaVersion + 2)
 						.build()
 				)
 			);
@@ -538,7 +538,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			);
 
 		// remove new collection
-		removeCollection(tester, NEW_COLLECTION_NAME, initialCatalogSchemaVersion + 2);
+		removeCollection(tester, NEW_COLLECTION_NAME, initialCatalogSchemaVersion + 3);
 	}
 
 	@Test

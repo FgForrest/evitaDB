@@ -26,11 +26,14 @@ package io.evitadb.core.file;
 import com.google.common.collect.Lists;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,6 +43,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -56,16 +60,32 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class ExportFileServiceTest implements EvitaTestSupport {
 	private static final String SUBDIR_NAME = "exportFileServiceTest";
-	private final StorageOptions storageOptions = StorageOptions.builder(
-			StorageOptions.temporary()
-		)
+	private final StorageOptions storageOptions = StorageOptions.builder(StorageOptions.temporary())
 		.exportDirectory(getPathInTargetDirectory(SUBDIR_NAME))
+		.exportDirectorySizeLimitBytes(1000)
+		.exportFileHistoryExpirationSeconds(60)
 		.build();
-	private final ExportFileService exportFileService = new ExportFileService(storageOptions);
+	private ExportFileService exportFileService;
+
+	/**
+	 * Method returns number files in target directory.
+	 *
+	 * @param path path to the catalog directory
+	 * @return number of files
+	 * @throws IOException when the directory cannot be read
+	 */
+	private static int numberOfFiles(@Nonnull Path path) throws IOException {
+		try (final Stream<Path> list = Files.list(path)) {
+			return list
+				.mapToInt(it -> 1)
+				.sum();
+		}
+	}
 
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(SUBDIR_NAME);
+		this.exportFileService = new ExportFileService(storageOptions, Mockito.mock(Scheduler.class));
 	}
 
 	@Test
@@ -81,7 +101,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		assertEquals("With description ...", fileForFetch.description());
 		assertEquals("text/plain", fileForFetch.contentType());
 		assertEquals(15, fileForFetch.totalSizeInBytes());
-		assertArrayEquals(new String[] {"A", "B"}, fileForFetch.origin());
+		assertArrayEquals(new String[]{"A", "B"}, fileForFetch.origin());
 
 		// verify the file content
 		assertEquals("testFileContent", Files.readString(fileForFetch.path(storageOptions.exportDirectory()), StandardCharsets.UTF_8));
@@ -102,16 +122,17 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			);
 		}
 
+		final PaginatedList<FileForFetch> fileForFetches = this.exportFileService.listFilesToFetch(1, 5, null);
 		assertArrayEquals(
-			new String[] {
+			new String[]{
 				"testFile27.txt", "testFile26.txt", "testFile25.txt", "testFile24.txt", "testFile23.txt"
 			},
-			this.exportFileService.listFilesToFetch(1, 5, null)
-				.getData().stream().map(FileForFetch::name).toArray(String[]::new)
+			fileForFetches.getData().stream().map(FileForFetch::name).toArray(String[]::new)
 		);
+		assertEquals(28, fileForFetches.getTotalRecordCount());
 
 		assertArrayEquals(
-			new String[] {
+			new String[]{
 				"testFile2.txt", "testFile1.txt", "testFile0.txt"
 			},
 			this.exportFileService.listFilesToFetch(6, 5, null)
@@ -166,6 +187,41 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		}
 	}
 
+	@Test
+	void shouldPurgeFiles() throws IOException {
+		// Initialize some test files
+		for (int i = 0; i < 10; i++) {
+			writeFile(UUIDUtil.randomUUID() + ".txt", null);
+		}
+		for (int i = 0; i < 5; i++) {
+			final Path tempFile = this.exportFileService.createTempFile(UUIDUtil.randomUUID() + ".txt");
+			Files.writeString(tempFile, "testFileContent", StandardCharsets.UTF_8);
+		}
+
+		// Check files before purging
+		int numOfFilesBeforePurge = numberOfFiles(storageOptions.exportDirectory());
+		int totalFilesBeforePurge = this.exportFileService.listFilesToFetch(1, 20, null).getTotalRecordCount();
+		assertEquals(10, totalFilesBeforePurge);
+		assertEquals(numOfFilesBeforePurge, totalFilesBeforePurge * 2 + 5);
+
+		// Purge the files
+		this.exportFileService.purgeFiles(OffsetDateTime.now().minusMinutes(2));
+
+		// Check files after purging
+		int numOfFilesAfterPurge = numberOfFiles(storageOptions.exportDirectory());
+		int totalFilesAfterPurge = this.exportFileService.listFilesToFetch(1, 20, null).getTotalRecordCount();
+		assertEquals(5, totalFilesAfterPurge);
+		assertEquals(numOfFilesAfterPurge, totalFilesAfterPurge * 2 + 5);
+
+		this.exportFileService.purgeFiles(OffsetDateTime.now());
+
+		// Check files after purging
+		int numOfFilesAfterPurge2 = numberOfFiles(storageOptions.exportDirectory());
+		int totalFilesAfterPurge2 = this.exportFileService.listFilesToFetch(1, 20, null).getTotalRecordCount();
+		assertEquals(0, totalFilesAfterPurge2);
+		assertEquals(numOfFilesAfterPurge2, totalFilesAfterPurge2 * 2);
+	}
+
 	@Nullable
 	private FileForFetch writeFile(@Nonnull String fileName, @Nonnull String withOrigin) throws IOException {
 		final ExportFileHandle exportFileHandle = exportFileService.storeFile(
@@ -178,21 +234,6 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			outputStream.write("testFileContent".getBytes());
 		}
 		return exportFileHandle.fileForFetchFuture().getNow(null);
-	}
-
-	/**
-	 * Method returns number files in target directory.
-	 *
-	 * @param path path to the catalog directory
-	 * @return number of files
-	 * @throws IOException when the directory cannot be read
-	 */
-	private static int numberOfFiles(@Nonnull Path path) throws IOException {
-		try (final Stream<Path> list = Files.list(path)) {
-			return list
-				.mapToInt(it -> 1)
-				.sum();
-		}
 	}
 
 }

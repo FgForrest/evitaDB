@@ -67,7 +67,7 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	/**
 	 * See {@link AssociatedDataValue#key()}.
 	 */
-	private final EntityAssociatedDataKey associatedDataKey;
+	@Getter private final EntityAssociatedDataKey associatedDataKey;
 	/**
 	 * Contains information about size of this container in bytes.
 	 */

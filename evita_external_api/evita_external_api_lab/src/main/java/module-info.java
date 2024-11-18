@@ -29,8 +29,6 @@ module evita.external.api.lab {
 	uses ExternalApiProviderRegistrar;
 
 	opens io.evitadb.externalApi.lab.configuration to com.fasterxml.jackson.databind;
-	opens io.evitadb.externalApi.lab.api.resolver.serializer to com.fasterxml.jackson.databind;
-	opens io.evitadb.externalApi.lab.api.dto to com.fasterxml.jackson.databind;
 	opens io.evitadb.externalApi.lab.gui.dto to com.fasterxml.jackson.databind;
 
 	provides ExternalApiProviderRegistrar with LabProviderRegistrar;
@@ -47,6 +45,9 @@ module evita.external.api.lab {
 	requires evita.external.api.core;
 	requires evita.external.api.graphql;
 	requires evita.external.api.rest;
+	requires evita.external.api.system;
+	requires evita.external.api.grpc;
+	requires evita.external.api.observability;
 	requires io.swagger.v3.oas.models;
 	requires evita.api;
 	requires evita.query;

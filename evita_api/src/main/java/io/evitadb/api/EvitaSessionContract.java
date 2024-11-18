@@ -298,10 +298,35 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Returns schema definition for entity of specified type or throws a standardized exception.
+	 *
+	 * @deprecated use {@link #getEntitySchemaOrThrowException(String)}
 	 */
 	@Nonnull
-	SealedEntitySchema getEntitySchemaOrThrow(@Nonnull String entityType)
+	@Deprecated
+	default SealedEntitySchema getEntitySchemaOrThrow(@Nonnull String entityType)
+		throws CollectionNotFoundException {
+		return getEntitySchemaOrThrowException(entityType);
+	}
+
+	/**
+	 * Returns schema definition for entity of specified type or throws a standardized exception.
+	 */
+	@Nonnull
+	SealedEntitySchema getEntitySchemaOrThrowException(@Nonnull String entityType)
 		throws CollectionNotFoundException;
+
+	/**
+	 * Returns schema definition for entity of specified type or throws a standardized exception.
+	 *
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 * @deprecated use {@link #getEntitySchemaOrThrowException(Class)}
+	 */
+	@Deprecated
+	@Nonnull
+	default SealedEntitySchema getEntitySchemaOrThrow(@Nonnull Class<?> modelClass)
+		throws CollectionNotFoundException, EntityClassInvalidException {
+		return getEntitySchemaOrThrowException(modelClass);
+	}
 
 	/**
 	 * Returns schema definition for entity of specified type or throws a standardized exception.
@@ -309,7 +334,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
-	SealedEntitySchema getEntitySchemaOrThrow(@Nonnull Class<?> modelClass)
+	SealedEntitySchema getEntitySchemaOrThrowException(@Nonnull Class<?> modelClass)
 		throws CollectionNotFoundException, EntityClassInvalidException;
 
 	/**
@@ -1113,5 +1138,4 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Nonnull
 	ProxyFactory getProxyFactory();
-
 }

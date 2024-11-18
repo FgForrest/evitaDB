@@ -31,7 +31,7 @@ import jdk.jfr.Name;
  * Event that is fired when a transaction is started.
  */
 @Name(AbstractCacheEvent.PACKAGE_NAME + ".CacheStatisticsUpdated")
-@Description("Event that is fired in regular intervals to update cache statistics.")
+@Description("Event that is fired periodically to update cache statistics.")
 @Label("Cache statistics updated")
 public class CacheStatisticsUpdatedEvent extends AbstractCacheStatisticsRelatedEvent {
 

@@ -466,9 +466,6 @@ class EvitaSessionServiceFunctionalTest {
 		params.add(convertQueryParam(CURRENCY_CZK));
 		params.add(convertQueryParam(PRICE_LIST_VIP));
 		params.add(convertQueryParam(PRICE_LIST_BASIC));
-		params.add(convertQueryParam(Entities.STORE));
-		params.add(convertQueryParam(1));
-		params.add(convertQueryParam(2));
 		params.add(convertQueryParam(Entities.BRAND));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(2));
@@ -486,8 +483,7 @@ class EvitaSessionServiceFunctionalTest {
 						entityLocaleEquals(?),
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
-						userFilter(
-							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
+						userFilter(						
 							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
@@ -598,22 +594,22 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of entities with filtered and sorted references")
-	void shouldReturnDataChunkOfEntitiesWithFilteredAndSortedReferences(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores, GrpcClientBuilder clientBuilder) {
+	void shouldReturnDataChunkOfEntitiesWithFilteredAndSortedReferences(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalParameters, GrpcClientBuilder clientBuilder) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
 		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
 
-		final Map<Integer, SealedEntity> storesIndexedByPk = originalStores.stream()
+		final Map<Integer, SealedEntity> storesIndexedByPk = originalParameters.stream()
 			.collect(Collectors.toMap(
 				EntityContract::getPrimaryKey,
 				Function.identity()
 			));
 
-		final Map<Integer, Set<String>> productsWithLotsOfStores = originalProducts.stream()
-			.filter(it -> it.getReferences(Entities.STORE).size() > 4 && it.getLocales().contains(CZECH_LOCALE))
+		final Map<Integer, Set<String>> productsWithLotsOfParameters = originalProducts.stream()
+			.filter(it -> it.getReferences(Entities.PARAMETER).size() > 4 && it.getLocales().contains(CZECH_LOCALE))
 			.collect(
 				Collectors.toMap(
 					EntityContract::getPrimaryKey,
-					it -> it.getReferences(Entities.STORE)
+					it -> it.getReferences(Entities.PARAMETER)
 						.stream()
 						.map(ref -> ref.getReferenceKey().primaryKey())
 						.map(storesIndexedByPk::get)
@@ -624,7 +620,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		final AtomicBoolean atLeastFirst = new AtomicBoolean();
 		final Random rnd = new Random(5);
-		final String[] randomStores = productsWithLotsOfStores
+		final String[] randomParameters = productsWithLotsOfParameters
 			.values()
 			.stream()
 			.flatMap(Collection::stream)
@@ -634,13 +630,13 @@ class EvitaSessionServiceFunctionalTest {
 
 		final List<GrpcQueryParam> params = new ArrayList<>(17);
 		params.add(convertQueryParam(Entities.PRODUCT));
-		params.add(convertQueryParam(productsWithLotsOfStores.keySet().toArray(Integer[]::new)));
+		params.add(convertQueryParam(productsWithLotsOfParameters.keySet().toArray(Integer[]::new)));
 		params.add(convertQueryParam(CZECH_LOCALE));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(Integer.MAX_VALUE));
-		params.add(convertQueryParam(Entities.STORE));
+		params.add(convertQueryParam(Entities.PARAMETER));
 		params.add(convertQueryParam(ATTRIBUTE_CODE));
-		params.add(convertQueryParam(randomStores));
+		params.add(convertQueryParam(randomParameters));
 		params.add(convertQueryParam(ATTRIBUTE_NAME));
 		params.add(convertQueryParam(OrderDirection.DESC));
 
@@ -720,9 +716,6 @@ class EvitaSessionServiceFunctionalTest {
 		positionalParams.add(convertQueryParam(CURRENCY_CZK));
 		positionalParams.add(convertQueryParam(PRICE_LIST_VIP));
 		positionalParams.add(convertQueryParam(PRICE_LIST_BASIC));
-		positionalParams.add(convertQueryParam(Entities.STORE));
-		positionalParams.add(convertQueryParam(1));
-		positionalParams.add(convertQueryParam(2));
 		positionalParams.add(convertQueryParam(Entities.BRAND));
 		positionalParams.add(convertQueryParam(1));
 		positionalParams.add(convertQueryParam(2));
@@ -750,8 +743,7 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
-							facetHaving(?, entityPrimaryKeyInSet(?, ?))
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),						
 						)
 					)
 				),
@@ -827,9 +819,6 @@ class EvitaSessionServiceFunctionalTest {
 		positionalParams.add(convertQueryParam(CURRENCY_CZK));
 		positionalParams.add(convertQueryParam(PRICE_LIST_VIP));
 		positionalParams.add(convertQueryParam(PRICE_LIST_BASIC));
-		positionalParams.add(convertQueryParam(Entities.STORE));
-		positionalParams.add(convertQueryParam(1));
-		positionalParams.add(convertQueryParam(2));
 		positionalParams.add(convertQueryParam(Entities.BRAND));
 		positionalParams.add(convertQueryParam(1));
 		positionalParams.add(convertQueryParam(2));
@@ -853,7 +842,6 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
 							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
@@ -868,7 +856,7 @@ class EvitaSessionServiceFunctionalTest {
 						attributeContentAll(),
 						associatedDataContentAll(),
 						priceContentRespectingFilter(),
-						referenceContent(?, ?)			
+						referenceContent(?, ?)
 					),				
 					facetSummary(?),
 					priceType(?)
@@ -947,7 +935,6 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(@currency),
 						priceInPriceLists(@priceListVip, @priceListBasic),
 						userFilter(
-							facetHaving(@entitiesStore, entityPrimaryKeyInSet(@facetId1, @facetId2)),
 							facetHaving(@entitiesBrand, entityPrimaryKeyInSet(@facetId1, @facetId2))
 						)
 					)
@@ -1017,9 +1004,6 @@ class EvitaSessionServiceFunctionalTest {
 		params.add(convertQueryParam(CURRENCY_CZK));
 		params.add(convertQueryParam(PRICE_LIST_VIP));
 		params.add(convertQueryParam(PRICE_LIST_BASIC));
-		params.add(convertQueryParam(Entities.STORE));
-		params.add(convertQueryParam(1));
-		params.add(convertQueryParam(2));
 		params.add(convertQueryParam(Entities.BRAND));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(2));
@@ -1038,7 +1022,6 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
 							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
@@ -1098,9 +1081,6 @@ class EvitaSessionServiceFunctionalTest {
 		params.add(convertQueryParam(CURRENCY_CZK));
 		params.add(convertQueryParam(PRICE_LIST_VIP));
 		params.add(convertQueryParam(PRICE_LIST_BASIC));
-		params.add(convertQueryParam(Entities.STORE));
-		params.add(convertQueryParam(1));
-		params.add(convertQueryParam(2));
 		params.add(convertQueryParam(Entities.BRAND));
 		params.add(convertQueryParam(1));
 		params.add(convertQueryParam(2));
@@ -1127,7 +1107,6 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
 							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
@@ -1968,10 +1947,8 @@ class EvitaSessionServiceFunctionalTest {
 		final GrpcCurrency insertCurrency = EvitaDataTypesConverter.toGrpcCurrency(CURRENCY_CZK);
 		final int insertPriceId = 1000000;
 
-		final PriceContract toRemove = existingEntity.getPrices().stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable price not found!"));
-		final String removedPriceList = toRemove.priceList();
-		final GrpcCurrency removedCurrency = EvitaDataTypesConverter.toGrpcCurrency(toRemove.currency());
-		final int removedPriceId = toRemove.priceId();
+		final PriceContract priceToRemove = existingEntity.getPrices().stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable price not found!"));
+		final GrpcCurrency removedPriceCurrency = EvitaDataTypesConverter.toGrpcCurrency(priceToRemove.currency());
 
 		final PriceContract toUpdate = existingEntity.getPrices().stream().skip(existingEntity.getPrices().size() - 1).findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable price not found!"));
 		final String updatedPriceList = toUpdate.priceList();
@@ -2009,7 +1986,7 @@ class EvitaSessionServiceFunctionalTest {
 														.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(100)))
 														.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(10.55)))
 														.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(110.55)))
-														.setSellable(true)
+														.setIndexed(true)
 														.build()
 												)
 												.build()
@@ -2024,7 +2001,7 @@ class EvitaSessionServiceFunctionalTest {
 														.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(10)))
 														.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(50)))
 														.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(15)))
-														.setSellable(false)
+														.setIndexed(false)
 														.build()
 												)
 												.build()
@@ -2039,7 +2016,7 @@ class EvitaSessionServiceFunctionalTest {
 														.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(10)))
 														.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(50)))
 														.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(BigDecimal.valueOf(15)))
-														.setSellable(false)
+														.setIndexed(false)
 														.build()
 												)
 												.build()
@@ -2048,9 +2025,9 @@ class EvitaSessionServiceFunctionalTest {
 											GrpcLocalMutation.newBuilder()
 												.setRemovePriceMutation(
 													GrpcRemovePriceMutation.newBuilder()
-														.setPriceId(removedPriceId)
-														.setPriceList(removedPriceList)
-														.setCurrency(removedCurrency)
+														.setPriceId(priceToRemove.priceId())
+														.setPriceList(priceToRemove.priceList())
+														.setCurrency(removedPriceCurrency)
 														.build()
 												)
 												.build()
@@ -2081,22 +2058,25 @@ class EvitaSessionServiceFunctionalTest {
 		final Map<String, List<GrpcPrice>> originalEntityPricesByPriceList = originalEntity.getEntity().getPricesList().stream().collect(Collectors.groupingBy(GrpcPrice::getPriceList));
 		final Map<String, List<GrpcPrice>> upsertedEntityPricesByPriceList = upsertEntityResponse.get().getEntity().getPricesList().stream().collect(Collectors.groupingBy(GrpcPrice::getPriceList));
 
-		assertTrue(originalEntityPricesByPriceList.get(removedPriceList).stream().anyMatch(p -> p.getPriceId() == removedPriceId));
-		assertFalse(upsertedEntityPricesByPriceList.get(removedPriceList).stream().anyMatch(p -> p.getPriceId() == removedPriceId));
+		assertTrue(originalEntityPricesByPriceList.get(priceToRemove.priceList()).stream().anyMatch(p -> p.getPriceId() == priceToRemove.priceId() && p.getCurrency().equals(removedPriceCurrency)));
+		assertFalse(upsertedEntityPricesByPriceList.get(priceToRemove.priceList()).stream().anyMatch(p -> p.getPriceId() == priceToRemove.priceId() && p.getCurrency().equals(removedPriceCurrency)));
 
 		assertNotNull(originalEntityPricesByPriceList.get(insertNewPriceIntoExistingPriceList));
-		assertTrue(upsertedEntityPricesByPriceList.get(insertNewPriceIntoExistingPriceList).stream().anyMatch(p -> p.getPriceId() == insertPriceId));
+		assertTrue(upsertedEntityPricesByPriceList.get(insertNewPriceIntoExistingPriceList).stream().anyMatch(p -> p.getPriceId() == insertPriceId && p.getCurrency().equals(insertCurrency)));
 
 		assertFalse(originalEntityPricesByPriceList.containsKey(insertNewPriceIntoNonExistingPriceList));
 		assertTrue(upsertedEntityPricesByPriceList.containsKey(insertNewPriceIntoNonExistingPriceList));
 
-		final Optional<GrpcPrice> preUpdatePrice = originalEntityPricesByPriceList.get(updatedPriceList).stream().filter(p -> p.getPriceId() == updatedPriceId).findFirst();
-		final Optional<GrpcPrice> postUpdatePrice = upsertedEntityPricesByPriceList.get(updatedPriceList).stream().filter(p -> p.getPriceId() == updatedPriceId).findFirst();
+		final Optional<GrpcPrice> preUpdatePrice = originalEntityPricesByPriceList.get(updatedPriceList).stream().filter(p -> p.getPriceId() == updatedPriceId && p.getCurrency().equals(updatedCurrency)).findFirst();
+		final Optional<GrpcPrice> postUpdatePrice = upsertedEntityPricesByPriceList.get(updatedPriceList).stream().filter(p -> p.getPriceId() == updatedPriceId && p.getCurrency().equals(updatedCurrency)).findFirst();
 
 		assertTrue(preUpdatePrice.isPresent());
 		assertTrue(postUpdatePrice.isPresent());
 
-		assertNotEquals(EvitaDataTypesConverter.toBigDecimal(preUpdatePrice.get().getPriceWithoutTax()), EvitaDataTypesConverter.toBigDecimal(postUpdatePrice.get().getPriceWithoutTax()));
+		assertNotEquals(
+			EvitaDataTypesConverter.toBigDecimal(preUpdatePrice.get().getPriceWithoutTax()),
+			EvitaDataTypesConverter.toBigDecimal(postUpdatePrice.get().getPriceWithoutTax())
+		);
 	}
 
 	@Test
@@ -2351,7 +2331,7 @@ class EvitaSessionServiceFunctionalTest {
 		assertEquals(referenceGroupPrimaryKey, referenceParameterAfterInsert.getGroupReferencedEntityReference().getPrimaryKey());
 		assertEquals(referenceGroupEntityType, referenceParameterAfterInsert.getGroupReferencedEntityReference().getEntityType());
 
-		final int removeReferenceId = 3;
+		final int removeReferenceId = 6;
 		final SealedEntity existingEntity = entities.stream().filter(entity ->
 				entity.getReferences().stream().filter(reference ->
 					reference.getReferenceName().equals(referenceEntityType) &&

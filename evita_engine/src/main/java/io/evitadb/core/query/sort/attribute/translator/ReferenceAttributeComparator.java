@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,16 +24,23 @@
 package io.evitadb.core.query.sort.attribute.translator;
 
 import com.carrotsearch.hppc.IntHashSet;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
+import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
+import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -52,22 +59,30 @@ public class ReferenceAttributeComparator implements ReferenceComparator {
 
 	public ReferenceAttributeComparator(
 		@Nonnull String attributeName,
+		@Nonnull Class<?> type,
 		@Nullable Locale locale,
-		@Nonnull Comparator<Comparable<?>> comparator
+		@Nonnull OrderDirection orderDirection
 	) {
-		this(attributeName, locale, comparator, null);
+		this(attributeName, type, locale, orderDirection, null);
 	}
 
 	public ReferenceAttributeComparator(
 		@Nonnull String attributeName,
+		@Nonnull Class<?> type,
 		@Nullable Locale locale,
-		@Nonnull Comparator<Comparable<?>> comparator,
+		@Nonnull OrderDirection orderDirection,
 		@Nullable ReferenceComparator nextComparator
 	) {
-		this.comparator = comparator;
+		final ComparatorSource comparatorSource = new ComparatorSource(
+			type, orderDirection, OrderBehaviour.NULLS_LAST
+		);
+		final Optional<UnaryOperator<Comparable<?>>> normalizerFor = createNormalizerFor(comparatorSource);
+		final UnaryOperator<Comparable<?>> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		//noinspection unchecked
+		this.comparator = createComparatorFor(locale, comparatorSource);
 		this.attributeValueFetcher = locale == null ?
-			referenceContract -> referenceContract.getAttribute(attributeName) :
-			referenceContract -> referenceContract.getAttribute(attributeName, locale);
+			referenceContract -> normalizer.apply(referenceContract.getAttribute(attributeName)) :
+			referenceContract -> normalizer.apply(referenceContract.getAttribute(attributeName, locale));
 		this.nextComparator = nextComparator;
 	}
 

@@ -40,6 +40,7 @@ import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.metric.event.transaction.*;
+import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.SessionProcedureCalledEvent;
 import io.evitadb.utils.ArrayUtils;
@@ -121,6 +122,9 @@ public class EvitaJfrEventRegistry {
 		//cache
 		AnteroomRecordStatisticsUpdatedEvent.class,
 		AnteroomWastedEvent.class,
+
+		// api
+		ReadinessEvent.class,
 
 		// api - gRPC
 		EvitaProcedureCalledEvent.class,
@@ -458,6 +462,19 @@ public class EvitaJfrEventRegistry {
 					"jdk.Flush",
 					"jdk.SafepointCleanup",
 					"jdk.SafepointCleanupTask"
+				}
+			)
+		);
+		// Events related to method profiling
+		JDK_EVENT_GROUPS.put(
+			"MethodProfiling",
+			new JdkEventGroup(
+				"MethodProfiling",
+				"JDK - Method profiling",
+				"Events related to performance profiling.",
+				new String[]{
+					"jdk.ExecutionSample",
+					"jdk.MethodProfiling"
 				}
 			)
 		);

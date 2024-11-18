@@ -24,12 +24,18 @@
 package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
+import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
@@ -45,7 +51,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 
@@ -90,17 +95,19 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * @param lambda   lambda function to be executed
 	 * @param executor executor service to be used as a carrier for a lambda function
 	 */
-	private static void executeWithClientContext(
+	public static void executeWithClientContext(
 		@Nonnull Runnable lambda,
-		@Nonnull ExecutorService executor,
+		@Nonnull ObservableExecutorServiceWithHardDeadline executor,
 		@Nonnull StreamObserver<?> responseObserver
 	) {
+		// Retrieve the deadline from the context
+		final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
-		ExternalApiTracingContextProvider.getContext()
-			.executeWithinBlock(
-				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
-				metadata,
-				() -> executor.execute(
+		final String methodName = GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata);
+		final Runnable theMethod =
+			() -> executor.execute(
+				executor.createTask(
+					methodName,
 					() -> {
 						try {
 							lambda.run();
@@ -108,13 +115,34 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 							// Delegate exception handling to GlobalExceptionHandlerInterceptor
 							GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
 						}
-					}
+					},
+					requestTimeoutMillis
 				)
+			);
+
+		ExternalApiTracingContextProvider.getContext()
+			.executeWithinBlock(
+				methodName,
+				metadata,
+				theMethod
 			);
 	}
 
 	public EvitaService(@Nonnull Evita evita) {
 		this.evita = evita;
+	}
+
+	/**
+	 * Method is used to check readiness of the gRPC API.
+	 *
+	 * @param request          empty message
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void isReady(Empty request, StreamObserver<GrpcReadyResponse> responseObserver) {
+		new ReadinessEvent(GrpcProvider.CODE, Prospective.SERVER).finish(Result.READY);
+		responseObserver.onNext(GrpcReadyResponse.newBuilder().setReady(true).build());
+		responseObserver.onCompleted();
 	}
 
 	/**
@@ -224,7 +252,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				responseObserver.onCompleted();
 			},
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 	/**
@@ -302,7 +331,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				responseObserver.onCompleted();
 			},
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 	/**
@@ -332,7 +362,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				responseObserver.onCompleted();
 			},
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 }

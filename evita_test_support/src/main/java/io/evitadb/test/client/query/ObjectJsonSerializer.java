@@ -34,6 +34,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.data.ComplexDataObjectToJsonConverter;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
@@ -96,6 +97,7 @@ public class ObjectJsonSerializer {
 		if (value instanceof LocalDateTime localDateTime) return serialize(localDateTime);
 		if (value instanceof LocalDate dateTime) return serialize(dateTime);
 		if (value instanceof LocalTime localTime) return serialize(localTime);
+		if (value instanceof Expression expression) return serialize(expression);
 		if (value instanceof ComplexDataObject complexDataObject) return serialize(complexDataObject);
 		if (value instanceof Range<?> range) return serialize(range);
 		if (value instanceof Predecessor predecessor) return jsonNodeFactory.numberNode(serialize(predecessor));
@@ -182,6 +184,10 @@ public class ObjectJsonSerializer {
 		return jsonNodeFactory.textNode(DateTimeFormatter.ISO_LOCAL_TIME.format(localTime));
 	}
 
+	private JsonNode serialize(@Nonnull Expression expression) {
+		return jsonNodeFactory.textNode(expression.toString());
+	}
+
 	private JsonNode serialize(@Nonnull Enum<?> e) {
 		return jsonNodeFactory.textNode(e.name());
 	}
@@ -200,7 +206,7 @@ public class ObjectJsonSerializer {
 	}
 
 	private int serialize(@Nonnull Predecessor predecessor) {
-		return predecessor.predecessorId();
+		return predecessor.predecessorPk();
 	}
 
 	private JsonNode serialize(@Nonnull PriceContract price) {
@@ -209,7 +215,7 @@ public class ObjectJsonSerializer {
 		priceNode.putIfAbsent(PriceDescriptor.PRICE_LIST.name(),serializeObject(price.priceList()));
 		priceNode.putIfAbsent(PriceDescriptor.CURRENCY.name(),serializeObject(price.currency()));
 		priceNode.putIfAbsent(PriceDescriptor.INNER_RECORD_ID.name(),price.innerRecordId() != null?serializeObject(price.innerRecordId()):null);
-		priceNode.putIfAbsent(PriceDescriptor.SELLABLE.name(),serializeObject(price.sellable()));
+		priceNode.putIfAbsent(PriceDescriptor.INDEXED.name(),serializeObject(price.indexed()));
 		priceNode.putIfAbsent(PriceDescriptor.PRICE_WITHOUT_TAX.name(), serializeObject(price.priceWithoutTax()));
 		priceNode.putIfAbsent(PriceDescriptor.PRICE_WITH_TAX.name(),serializeObject(price.priceWithTax()));
 		priceNode.putIfAbsent(PriceDescriptor.TAX_RATE.name(),serializeObject(price.taxRate()));

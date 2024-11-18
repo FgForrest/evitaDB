@@ -57,14 +57,18 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.Proxy;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -124,16 +128,22 @@ final class SessionRegistry {
 	 * All changes are rolled back.
 	 */
 	public void closeAllActiveSessions() {
+		final List<CompletableFuture<Long>> futures = new LinkedList<>();
 		for (EvitaSessionTuple sessionTuple : activeSessions.values()) {
 			final EvitaSession activeSession = sessionTuple.plainSession();
 			if (activeSession.isActive()) {
 				if (activeSession.isTransactionOpen()) {
 					activeSession.setRollbackOnly();
 				}
-				activeSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE);
+				futures.add(activeSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE));
 				log.info("There is still active session {} - terminating.", activeSession.getId());
 			}
 		}
+		// wait for all futures to complete
+		CompletableFuture
+			.allOf(futures.toArray(new CompletableFuture[0]))
+			.join();
+		// check that all sessions were closed
 		Assert.isPremiseValid(
 			activeSessionsCounter.get() == 0,
 			"Some of the sessions didn't decrement the session counter!"
@@ -202,9 +212,16 @@ final class SessionRegistry {
 			if (finalizationResult.lastReader()) {
 				// notify listeners that the catalog version is no longer used
 				final Catalog theCatalog = this.catalog.get();
-				theCatalog.catalogVersionBeyondTheHorizon(
-					finalizationResult.minimalActiveCatalogVersion()
-				);
+				if (theCatalog != null) {
+					theCatalog.catalogVersionBeyondTheHorizon(
+						finalizationResult.minimalActiveCatalogVersion()
+					);
+				} else {
+					log.error(
+						"Catalog is not available for the session finalization.",
+						new GenericEvitaInternalError("Catalog is not available for the session finalization.")
+					);
+				}
 			}
 
 			// emit event
@@ -243,9 +260,22 @@ final class SessionRegistry {
 	 * supports JDK proxies out-of-the-box so this shouldn't be a problem in the future.
 	 */
 	private static class EvitaSessionProxy implements InvocationHandler {
+		private final static Method IS_METHOD_RUNNING;
+		private final static Method INACTIVITY_IN_SECONDS;
 		private final EvitaSession evitaSession;
 		private final TracingContext tracingContext;
 		@Getter private final ClosedEvent sessionClosedEvent;
+		private final AtomicInteger insideInvocation = new AtomicInteger(0);
+		private final AtomicLong lastCall = new AtomicLong(System.currentTimeMillis());
+
+		static {
+			try {
+				IS_METHOD_RUNNING = EvitaInternalSessionContract.class.getMethod("methodIsRunning");
+				INACTIVITY_IN_SECONDS = EvitaInternalSessionContract.class.getMethod("getInactivityDurationInSeconds");
+			} catch (NoSuchMethodException ex) {
+				throw new GenericEvitaInternalError("Method not found.", ex);
+			}
+		}
 
 		/**
 		 * Handles arguments printing.
@@ -295,6 +325,10 @@ final class SessionRegistry {
 					.finish((OffsetDateTime) args[0], (int) args[1])
 					.commit();
 				return null;
+			} else if (method.equals(INACTIVITY_IN_SECONDS)) {
+				return (System.currentTimeMillis() - this.lastCall.get()) / 1000;
+			} else if (method.equals(IS_METHOD_RUNNING)) {
+				return this.insideInvocation.get() > 0;
 			} else {
 				try {
 					this.evitaSession.increaseNestLevel();
@@ -304,6 +338,8 @@ final class SessionRegistry {
 						() -> {
 							final Supplier<Object> invocation = () -> {
 								try {
+									this.insideInvocation.incrementAndGet();
+									this.lastCall.set(System.currentTimeMillis());
 									return method.invoke(evitaSession, args);
 								} catch (InvocationTargetException ex) {
 									// handle the error
@@ -353,6 +389,9 @@ final class SessionRegistry {
 										"Unexpected system error occurred.",
 										ex
 									);
+								} finally {
+									this.insideInvocation.decrementAndGet();
+									this.lastCall.set(System.currentTimeMillis());
 								}
 							};
 							if (method.isAnnotationPresent(RepresentsQuery.class)) {

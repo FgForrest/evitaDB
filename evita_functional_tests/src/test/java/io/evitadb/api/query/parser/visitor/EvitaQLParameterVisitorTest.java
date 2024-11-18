@@ -26,7 +26,7 @@ package io.evitadb.api.query.parser.visitor;
 import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -51,7 +51,7 @@ class EvitaQLParameterVisitorTest {
 
 	@Test
 	void shouldNotParsePositionalParameter() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parsePositionalParameter("?"));
+		assertThrows(EvitaSyntaxException.class, () -> parsePositionalParameter("?"));
 	}
 
 	@Test
@@ -62,7 +62,7 @@ class EvitaQLParameterVisitorTest {
 
 	@Test
 	void shouldNotParseNamedParameter() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseNamedParameter("@param", Map.of()));
+		assertThrows(EvitaSyntaxException.class, () -> parseNamedParameter("@param", Map.of()));
 	}
 
 

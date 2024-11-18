@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceS
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.experimental.Delegate;
 
@@ -160,7 +161,7 @@ public final class SortableAttributeCompoundSchemaBuilder
 	public Collection<ReferenceSchemaMutation> toReferenceMutation(@Nonnull String referenceName) {
 		return this.mutations
 			.stream()
-			.map(it -> new ModifyReferenceSortableAttributeCompoundSchemaMutation(referenceName, (ReferenceSchemaMutation) it))
+			.map(it -> new ModifyReferenceSortableAttributeCompoundSchemaMutation(referenceName, (ReferenceSortableAttributeCompoundSchemaMutation) it))
 			.collect(Collectors.toList());
 	}
 

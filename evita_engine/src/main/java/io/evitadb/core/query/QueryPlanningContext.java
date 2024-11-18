@@ -31,11 +31,15 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
 import io.evitadb.api.query.require.FacetGroupsDisjunction;
 import io.evitadb.api.query.require.FacetGroupsNegation;
+import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
@@ -47,8 +51,10 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.EvitaSession;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
@@ -97,13 +103,18 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class QueryPlanningContext implements LocaleProvider {
+public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyResolver {
 	private static final EntityIndexKey GLOBAL_INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL);
 
 	/**
 	 * Contains reference to the parent context of this one. The reference is not NULL only for sub-queries.
 	 */
 	@Nullable private final QueryPlanningContext parentContext;
+	/**
+	 * Reference to the collector of requirements for entity prefetch phase.
+	 */
+	@Nonnull @Getter
+	private final FetchRequirementCollector fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
 	/**
 	 * Contains reference to the policy that controls the interaction with cache and drives the query planning strategy.
 	 */
@@ -129,7 +140,7 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Contains reference to the enveloping {@link EvitaSessionContract} within which the {@link #evitaRequest} is executed.
 	 */
 	@Getter
-	@Nonnull private final EvitaSessionContract evitaSession;
+	@Nonnull private final EvitaSession evitaSession;
 	/**
 	 * Contains input in {@link EvitaRequest}.
 	 */
@@ -176,9 +187,9 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	private Map<EntityReferenceContract<EntityReference>, Integer> entityReferencePkReverseIndex;
 	/**
-	 * Cached version of {@link EntitySchemaContract} for {@link #entityType}.
+	 * Cached version of {@link EntitySchema} for {@link #entityType}.
 	 */
-	private EntitySchemaContract entitySchema;
+	private EntitySchema entitySchema;
 	/**
 	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
 	 * that should be included/excluded from traversal.
@@ -263,7 +274,8 @@ public class QueryPlanningContext implements LocaleProvider {
 			.map(EntityCollection::getSchema)
 			.map(EntitySchemaContract::getName)
 			.orElse(null);
-		this.evitaSession = evitaSession;
+		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
+		this.evitaSession = (EvitaSession) evitaSession;
 		this.evitaRequest = evitaRequest;
 		if (parentQueryContext == null) {
 			// when debug mode is enabled we need to enforce the main plan to be non-cached
@@ -285,19 +297,34 @@ public class QueryPlanningContext implements LocaleProvider {
 	}
 
 	/**
+	 * Delegates method to {@link FetchRequirementCollector#addRequirementsToPrefetch(EntityContentRequire...)}.
+	 *
+	 * @param require the requirement to prefetch
+	 */
+	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
+		this.fetchRequirementCollector.addRequirementsToPrefetch(require);
+	}
+
+	/**
+	 * Delegates method to {@link FetchRequirementCollector#getRequirementsToPrefetch()}.
+	 *
+	 * @return an array of {@link EntityContentRequire} representing the requirements to prefetch
+	 */
+	@Nonnull
+	public EntityContentRequire[] getRequirementsToPrefetch() {
+		return this.fetchRequirementCollector.getRequirementsToPrefetch();
+	}
+
+	/**
 	 * Returns true if the input {@link #evitaRequest} contains specification of the entity collection.
 	 */
 	public boolean isEntityTypeKnown() {
 		return entityType != null;
 	}
 
-	/**
-	 * Returns true if the prefetch is possible.
-	 *
-	 * @return true if the prefetch is possible
-	 */
+	@Override
 	public boolean isPrefetchPossible() {
-		return prefetchPossible && planningPolicy.getPrefetchPolicy() == PrefetchPolicy.ALLOW;
+		return this.prefetchPossible && this.planningPolicy.getPrefetchPolicy() == PrefetchPolicy.ALLOW;
 	}
 
 	/**
@@ -316,8 +343,8 @@ public class QueryPlanningContext implements LocaleProvider {
 	/**
 	 * Returns {@link EntityIndex} of external entity type by its key and entity type.
 	 */
-	@Nullable
-	public <T extends EntityIndex> T getIndex(@Nonnull String entityType, @Nonnull EntityIndexKey entityIndexKey, @Nonnull Class<T> indexType) {
+	@Nonnull
+	public <T extends EntityIndex> Optional<T> getIndex(@Nonnull String entityType, @Nonnull EntityIndexKey entityIndexKey, @Nonnull Class<T> indexType) {
 		final EntityIndex entityIndex = getEntityCollectionOrThrowException(entityType, "access entity index")
 			.getIndexByKeyIfExists(entityIndexKey);
 		Assert.isPremiseValid(
@@ -325,7 +352,7 @@ public class QueryPlanningContext implements LocaleProvider {
 			() -> "Expected index of type " + indexType + " but got " + entityIndex.getClass() + "!"
 		);
 		//noinspection unchecked
-		return (T) entityIndex;
+		return ofNullable((T) entityIndex);
 	}
 
 	/**
@@ -425,7 +452,7 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Shorthand for {@link EvitaRequest#getQuery()} and {@link Query#getFilterBy()}.
 	 */
 	@Nullable
-	public FilterConstraint getFilterBy() {
+	public FilterBy getFilterBy() {
 		return evitaRequest.getQuery().getFilterBy();
 	}
 
@@ -474,9 +501,9 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Returns entity schema.
 	 */
 	@Nonnull
-	public EntitySchemaContract getSchema() {
+	public EntitySchema getSchema() {
 		if (this.entitySchema == null) {
-			this.entitySchema = getEntityCollectionOrThrowException(entityType, "access entity schema").getSchema();
+			this.entitySchema = getEntityCollectionOrThrowException(entityType, "access entity schema").getInternalSchema();
 		}
 		return this.entitySchema;
 	}
@@ -520,7 +547,7 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	@Nonnull
 	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType) {
-		return ofNullable(getIndex(entityType, GLOBAL_INDEX_KEY, GlobalEntityIndex.class));
+		return getIndex(entityType, GLOBAL_INDEX_KEY, GlobalEntityIndex.class);
 	}
 
 	/**
@@ -582,6 +609,17 @@ public class QueryPlanningContext implements LocaleProvider {
 	}
 
 	/**
+	 * Method returns appropriate {@link EntityCollection} for the {@link #evitaRequest} or throws comprehensible
+	 * exception. In order exception to be comprehensible you need to provide sensible `reason` for accessing
+	 * the collection in the input parameter.
+	 */
+	@Nonnull
+	public EntityCollection getEntityCollectionOrThrowException(@Nullable String entityType, @Nonnull Supplier<String> reasonSupplier) {
+		return getEntityCollection(entityType)
+			.orElseThrow(() -> new EntityCollectionRequiredException(reasonSupplier.get()));
+	}
+
+	/**
 	 * Method creates new {@link EvitaRequest} for particular `entityType` that takes all passed `requiredConstraints`
 	 * into the account. Fabricated request is expected to be used only for passing the scope to
 	 * {@link EntityCollection#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  or
@@ -613,9 +651,9 @@ public class QueryPlanningContext implements LocaleProvider {
 		@Nonnull Supplier<Formula> formulaSupplier,
 		long... additionalCacheKeys
 	) {
-		if (parentContext == null) {
-			if (internalCache == null) {
-				internalCache = new HashMap<>();
+		if (this.parentContext == null) {
+			if (this.internalCache == null) {
+				this.internalCache = new HashMap<>();
 			}
 			final InternalCacheKey cacheKey = new InternalCacheKey(
 				LongStream.concat(
@@ -624,17 +662,17 @@ public class QueryPlanningContext implements LocaleProvider {
 				).toArray(),
 				constraint
 			);
-			final Formula cachedResult = internalCache.get(cacheKey);
+			final Formula cachedResult = this.internalCache.get(cacheKey);
 			if (cachedResult == null) {
 				final Formula computedResult = formulaSupplier.get();
 				computedResult.initialize(this.internalExecutionContext);
-				internalCache.put(cacheKey, computedResult);
+				this.internalCache.put(cacheKey, computedResult);
 				return computedResult;
 			} else {
 				return cachedResult;
 			}
 		} else {
-			return parentContext.computeOnlyOnce(
+			return this.parentContext.computeOnlyOnce(
 				entityIndexes, constraint, formulaSupplier, additionalCacheKeys
 			);
 		}
@@ -738,7 +776,10 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Sets resolved hierarchy having/exclusion predicate to be shared among filter and requirement phase.
 	 */
 	public void setHierarchyHavingPredicate(@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate) {
-		Assert.isPremiseValid(this.hierarchyHavingPredicate == null, "The hierarchy exclusion predicate can be set only once!");
+		Assert.isPremiseValid(
+			this.hierarchyHavingPredicate == null || this.hierarchyHavingPredicate.equals(hierarchyHavingPredicate),
+			"The hierarchy exclusion predicate can be set only once!"
+		);
 		this.hierarchyHavingPredicate = hierarchyHavingPredicate;
 	}
 
@@ -853,7 +894,9 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	@Nonnull
 	public QueryExecutionContext createExecutionContext(@Nullable byte[] frozenRandom) {
-		return new QueryExecutionContext(this, frozenRandom);
+		return new QueryExecutionContext(
+			this, frozenRandom, this.evitaSession::createEntityProxy
+		);
 	}
 
 	/*

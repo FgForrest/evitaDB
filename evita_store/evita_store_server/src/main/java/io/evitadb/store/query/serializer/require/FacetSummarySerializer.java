@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,8 +32,8 @@ import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
-import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.FacetSummary;
 import lombok.RequiredArgsConstructor;
@@ -78,15 +78,15 @@ public class FacetSummarySerializer extends Serializer<FacetSummary> {
 		final OrderGroupBy orderGroupBy = kryo.readObjectOrNull(input, OrderGroupBy.class);
 		final EntityFetch facetEntityRequirement = kryo.readObjectOrNull(input, EntityFetch.class);
 		final EntityGroupFetch groupEntityRequirement = kryo.readObjectOrNull(input, EntityGroupFetch.class);
-		final EntityRequire[] requirements;
+		final EntityFetchRequire[] requirements;
 		if (facetEntityRequirement == null && groupEntityRequirement == null) {
-			requirements = new EntityRequire[0];
+			requirements = new EntityFetchRequire[0];
 		} else if (facetEntityRequirement == null) {
-			requirements = new EntityRequire[] {groupEntityRequirement};
+			requirements = new EntityFetchRequire[] {groupEntityRequirement};
 		} else if (groupEntityRequirement == null) {
-			requirements = new EntityRequire[] {facetEntityRequirement};
+			requirements = new EntityFetchRequire[] {facetEntityRequirement};
 		} else {
-			requirements = new EntityRequire[] {facetEntityRequirement, groupEntityRequirement};
+			requirements = new EntityFetchRequire[] {facetEntityRequirement, groupEntityRequirement};
 		}
 
 		return new FacetSummary(

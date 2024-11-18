@@ -120,7 +120,10 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
         ));
 
         final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
-        final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+        final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(
+            catalogSchema,
+            new AtomicReference<>(filterConstraintResolver)
+        );
         final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
             catalogSchema,
             new AtomicReference<>(filterConstraintResolver)

@@ -92,6 +92,11 @@ import java.util.stream.Collectors;
 public class EntityConverter {
 
 	/**
+	 * Default converter that leaves the sealed entity as it is.
+	 */
+	public static final TypeConverter<SealedEntity> SEALED_ENTITY_TYPE_CONVERTER = (sealedEntityClass, sealedEntity) -> sealedEntity;
+
+	/**
 	 * Method converts {@link GrpcSealedEntity} to the {@link SealedEntity} that can be used on the client side.
 	 */
 	@Nonnull
@@ -99,9 +104,10 @@ public class EntityConverter {
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull GrpcSealedEntity grpcEntity,
-		@Nonnull Class<T> expectedType
+		@Nonnull Class<T> expectedType,
+		@Nonnull TypeConverter<T> typeConverter
 	) {
-		return toEntity(entitySchemaFetcher, evitaRequest, null, grpcEntity, expectedType);
+		return toEntity(entitySchemaFetcher, evitaRequest, null, grpcEntity, expectedType, typeConverter);
 	}
 
 	/**
@@ -113,7 +119,8 @@ public class EntityConverter {
 		@Nonnull EvitaRequest evitaRequest,
 		@Nullable SealedEntity parent,
 		@Nonnull GrpcSealedEntity grpcEntity,
-		@Nonnull Class<T> expectedType
+		@Nonnull Class<T> expectedType,
+		@Nonnull TypeConverter<T> typeConverter
 	) {
 		final SealedEntitySchema entitySchema = entitySchemaFetcher.apply(grpcEntity);
 		final EntityClassifierWithParent parentEntity;
@@ -133,7 +140,7 @@ public class EntityConverter {
 					)
 				)
 				.orElse(evitaRequest);
-			parentEntity = toEntity(entitySchemaFetcher, parentRequest, grpcEntity.getParentEntity(), SealedEntity.class);
+			parentEntity = toEntity(entitySchemaFetcher, parentRequest, grpcEntity.getParentEntity(), SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 		} else if (grpcEntity.hasParentReference()) {
 			parentEntity = toEntityReferenceWithParent(grpcEntity.getParentReference());
 		} else {
@@ -207,8 +214,7 @@ public class EntityConverter {
 				//noinspection unchecked
 				return (T) sealedEntity;
 			} else {
-				//noinspection unchecked
-				return (T) evitaRequest.getConverter().apply(expectedType, sealedEntity);
+				return typeConverter.apply(expectedType, sealedEntity);
 			}
 		}
 	}
@@ -223,17 +229,19 @@ public class EntityConverter {
 	) {
 		final GroupEntityReference group;
 		if (grpcReference.hasGroupReferencedEntityReference()) {
+			final GrpcEntityReference grpcGroupReference = grpcReference.getGroupReferencedEntityReference();
 			group = new GroupEntityReference(
-				grpcReference.getGroupReferencedEntityReference().getEntityType(),
-				grpcReference.getGroupReferencedEntityReference().getPrimaryKey(),
-				grpcReference.getGroupReferencedEntityReference().getVersion(),
+				grpcGroupReference.getEntityType(),
+				grpcGroupReference.getPrimaryKey(),
+				grpcGroupReference.hasReferenceVersion() ? grpcGroupReference.getReferenceVersion().getValue() : grpcGroupReference.getVersion(),
 				false
 			);
 		} else if (grpcReference.hasGroupReferencedEntity()) {
+			final GrpcSealedEntity grpcEntityReference = grpcReference.getGroupReferencedEntity();
 			group = new GroupEntityReference(
-				grpcReference.getGroupReferencedEntity().getEntityType(),
-				grpcReference.getGroupReferencedEntity().getPrimaryKey(),
-				grpcReference.getGroupReferencedEntity().getVersion(),
+				grpcEntityReference.getEntityType(),
+				grpcEntityReference.getPrimaryKey(),
+				grpcEntityReference.getVersion(),
 				false
 			);
 		} else {
@@ -344,7 +352,11 @@ public class EntityConverter {
 				} else {
 					grpcReferenceBuilder.setReferencedEntityReference(GrpcEntityReference.newBuilder()
 						.setEntityType(reference.getReferencedEntityType())
-						.setPrimaryKey(reference.getReferencedPrimaryKey()).build());
+						.setPrimaryKey(reference.getReferencedPrimaryKey())
+						.setReferenceVersion(Int32Value.newBuilder().setValue(reference.version()).build())
+						.setVersion(reference.version())
+						.build()
+					);
 				}
 
 				if (reference.getGroupEntity().isPresent()) {
@@ -354,6 +366,7 @@ public class EntityConverter {
 					grpcReferenceBuilder.setGroupReferencedEntityReference(GrpcEntityReference.newBuilder()
 						.setEntityType(theGroup.getType())
 						.setPrimaryKey(theGroup.getPrimaryKey())
+						.setReferenceVersion(Int32Value.newBuilder().setValue(reference.version()).build())
 						.setVersion(theGroup.version())
 						.build()
 					);
@@ -457,7 +470,8 @@ public class EntityConverter {
 			.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(price.priceWithoutTax()))
 			.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(price.priceWithTax()))
 			.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(price.taxRate()))
-			.setSellable(price.sellable())
+			.setSellable(price.indexed())
+			.setIndexed(price.indexed())
 			.setVersion(price.version());
 		if (price.innerRecordId() != null) {
 			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(price.innerRecordId()).build());
@@ -515,7 +529,8 @@ public class EntityConverter {
 		@Nonnull List<GrpcSealedEntity> sealedEntitiesList,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull BiFunction<String, Integer, SealedEntitySchema> entitySchemaProvider,
-		@Nonnull Class<S> expectedType
+		@Nonnull Class<S> expectedType,
+		@Nonnull TypeConverter<S> typeConverter
 	) {
 		return sealedEntitiesList
 			.stream()
@@ -524,7 +539,8 @@ public class EntityConverter {
 					entity -> entitySchemaProvider.apply(entity.getEntityType(), entity.getSchemaVersion()),
 					evitaRequest,
 					it,
-					expectedType
+					expectedType,
+					typeConverter
 				)
 			)
 			.toList();
@@ -697,7 +713,7 @@ public class EntityConverter {
 			EvitaDataTypesConverter.toBigDecimal(grpcPrice.getTaxRate()),
 			EvitaDataTypesConverter.toBigDecimal(grpcPrice.getPriceWithTax()),
 			grpcPrice.hasValidity() ? EvitaDataTypesConverter.toDateTimeRange(grpcPrice.getValidity()) : null,
-			grpcPrice.getSellable()
+			grpcPrice.getIndexed() || grpcPrice.getSellable()
 		);
 	}
 
@@ -761,6 +777,7 @@ public class EntityConverter {
 		private final EntityClassifierWithParent parentEntity;
 		private final Map<EntityReference, SealedEntity> entityIndex;
 		private final Map<EntityReference, SealedEntity> groupIndex;
+		private final EvitaRequest evitaRequest;
 
 		public ClientReferenceFetcher(
 			@Nullable EntityClassifierWithParent parentEntity,
@@ -776,7 +793,7 @@ public class EntityConverter {
 						.orElse(evitaRequest.getDefaultReferenceRequirement());
 					final GrpcSealedEntity referencedEntity = it.getReferencedEntity();
 					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityFetch());
-					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class);
+					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 				})
 				.collect(
 					Collectors.toMap(
@@ -791,7 +808,7 @@ public class EntityConverter {
 						.orElse(evitaRequest.getDefaultReferenceRequirement());
 					final GrpcSealedEntity referencedEntity = it.getGroupReferencedEntity();
 					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityGroupFetch());
-					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class);
+					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 				})
 				.collect(
 					Collectors.toMap(
@@ -800,6 +817,7 @@ public class EntityConverter {
 						(sealedEntity, sealedEntity2) -> sealedEntity
 					)
 				);
+			this.evitaRequest = evitaRequest;
 		}
 
 		@Nonnull
@@ -812,6 +830,12 @@ public class EntityConverter {
 		@Override
 		public <T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection) {
 			throw new UnsupportedOperationException("Unexpected call!");
+		}
+
+		@Nonnull
+		@Override
+		public EvitaRequest getEnvelopingEntityRequest() {
+			return this.evitaRequest;
 		}
 
 		@Nullable
@@ -844,4 +868,17 @@ public class EntityConverter {
 			return (entityId, referenceDecorator) -> true;
 		}
 	}
+
+	/**
+	 * The TypeConverter interface provides a method to convert an instance of {@link SealedEntity} into different types.
+	 * This interface extends the {@link BiFunction} interface, using a {@link Class} object representing the expected type
+	 * and a {@link SealedEntity} object as input parameters, and returns an object of the expected type.
+	 *
+	 * @param <T> the type of object into which the {@link SealedEntity} is to be converted.
+	 */
+	@FunctionalInterface
+	public interface TypeConverter<T> extends BiFunction<Class<T>, SealedEntity, T> {
+
+	}
+
 }

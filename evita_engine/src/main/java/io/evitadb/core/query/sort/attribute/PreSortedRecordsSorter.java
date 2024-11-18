@@ -30,6 +30,7 @@ import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.cache.FlattenedMergedSortedRecordsProvider;
+import io.evitadb.core.query.sort.generic.AbstractRecordsSorter;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -39,6 +40,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -160,8 +162,16 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
-		return getMemoizedResult().sortAndSlice(queryContext, input, startIndex, endIndex, result, peak);
+	public int sortAndSlice(
+		@Nonnull QueryExecutionContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
+		return getMemoizedResult().sortAndSlice(queryContext, input, startIndex, endIndex, result, peak, skippedRecordsConsumer);
 	}
 
 	@Override

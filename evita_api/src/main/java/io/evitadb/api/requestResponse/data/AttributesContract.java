@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 	/**
 	 * Returns true if single attribute differs between first and second instance.
 	 */
-	static <S extends AttributeSchemaContract> boolean anyAttributeDifferBetween(AttributesContract<S> first, AttributesContract<S> second) {
+	static <S extends AttributeSchemaContract> boolean anyAttributeDifferBetween(@Nonnull AttributesContract<S> first, @Nonnull AttributesContract<S> second) {
 		final Collection<AttributeValue> thisValues = first.attributesAvailable() ? first.getAttributeValues() : Collections.emptyList();
 		final Collection<AttributeValue> otherValues = second.attributesAvailable() ? second.getAttributeValues() : Collections.emptyList();
 

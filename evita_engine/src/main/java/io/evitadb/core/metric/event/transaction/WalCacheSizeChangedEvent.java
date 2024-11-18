@@ -38,11 +38,12 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".WalCacheSizeChanged")
-@Description("Event that is fired when a shared WAL location cache size is changed.")
+@Description("Event fired when the cache size of a shared WAL location is changed.")
 @Label("WAL cache size changed")
 @Getter
 public class WalCacheSizeChangedEvent extends AbstractTransactionEvent {
 	@Label("Total cached locations in WAL file")
+	@Description("The total number of cached locations (used for fast mutation lookups) in the shared WAL file.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int locationsCached;
 

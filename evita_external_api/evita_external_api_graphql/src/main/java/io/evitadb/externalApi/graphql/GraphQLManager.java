@@ -24,10 +24,7 @@
 package io.evitadb.externalApi.graphql;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linecorp.armeria.common.HttpRequest;
-import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.HttpService;
-import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
@@ -46,9 +43,7 @@ import io.evitadb.externalApi.graphql.io.GraphQLRouter;
 import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent;
 import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent.BuildType;
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
-import io.evitadb.externalApi.http.HttpServiceTlsCheckingDecorator;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
-import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -91,17 +86,14 @@ public class GraphQLManager {
 	@Nullable private SystemBuildStatistics systemBuildStatistics;
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
-	@Nonnull private final TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction;
-
-	public GraphQLManager(@Nonnull Evita evita, @Nonnull GraphQLConfig graphQLConfig, @Nonnull TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction) {
+	public GraphQLManager(@Nonnull Evita evita, @Nonnull GraphQLConfig graphQLConfig) {
 		this.evita = evita;
 		this.graphQLConfig = graphQLConfig;
 		/**
 		 * Common object mapper for endpoints
 		 */
 		ObjectMapper objectMapper = new ObjectMapper();
-		this.graphQLRouter = new GraphQLRouter(objectMapper, evita, graphQLConfig);
-		this.apiHandlerPortSslValidatingFunction = apiHandlerPortSslValidatingFunction;
+		this.graphQLRouter = new GraphQLRouter(objectMapper, evita);
 
 		final long buildingStartTime = System.currentTimeMillis();
 
@@ -114,9 +106,7 @@ public class GraphQLManager {
 
 	@Nonnull
 	public HttpService getGraphQLRouter() {
-		return new HttpServiceTlsCheckingDecorator(
-			new PathNormalizingHandler(graphQLRouter), apiHandlerPortSslValidatingFunction
-		);
+		return new PathNormalizingHandler(graphQLRouter);
 	}
 
 	/**
@@ -340,7 +330,7 @@ public class GraphQLManager {
 	/**
 	 * Counts lines of printed GraphQL schema in DSL.
 	 */
-	private long countGraphQLSchemaLines(@Nonnull GraphQLSchema schema) {
+	private static long countGraphQLSchemaLines(@Nonnull GraphQLSchema schema) {
 		return GraphQLSchemaPrinter.print(schema).lines().count();
 	}
 

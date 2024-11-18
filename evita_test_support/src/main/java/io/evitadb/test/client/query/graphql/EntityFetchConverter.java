@@ -39,6 +39,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
@@ -167,7 +168,7 @@ public class EntityFetchConverter extends RequireConverter {
 					ParentsFieldHeaderDescriptor.STOP_AT,
 					offset,
 					multipleArguments,
-					convertRequireConstraint(new HierarchyDataLocator(entitySchema.getName()), requireConstraints)
+					convertRequireConstraint(new HierarchyDataLocator(new ManagedEntityTypePointer(entitySchema.getName())), requireConstraints)
 						.orElseThrow()
 				)
 			})
@@ -414,7 +415,7 @@ public class EntityFetchConverter extends RequireConverter {
 						pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_LIST);
 						pricesBuilder.addPrimitiveField(PriceDescriptor.CURRENCY);
 						pricesBuilder.addPrimitiveField(PriceDescriptor.INNER_RECORD_ID);
-						pricesBuilder.addPrimitiveField(PriceDescriptor.SELLABLE);
+						pricesBuilder.addPrimitiveField(PriceDescriptor.INDEXED);
 						pricesBuilder.addPrimitiveField(PriceDescriptor.VALIDITY);
 						pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX, getPriceValueFieldArguments(locale));
 						pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX, getPriceValueFieldArguments(locale));
@@ -516,7 +517,7 @@ public class EntityFetchConverter extends RequireConverter {
 			return new ArgumentSupplier[0];
 		}
 
-		final InlineReferenceDataLocator referenceDataLocator = new InlineReferenceDataLocator(entityType, referenceName);
+		final InlineReferenceDataLocator referenceDataLocator = new InlineReferenceDataLocator(new ManagedEntityTypePointer(entityType), referenceName);
 		final List<ArgumentSupplier> arguments = new ArrayList<>(2);
 
 		if (referenceContent.getFilterBy().isPresent()) {

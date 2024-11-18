@@ -33,6 +33,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.generic.AbstractRecordsSorter;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -52,6 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntConsumer;
 import java.util.function.ToIntFunction;
 
 import static java.util.Optional.ofNullable;
@@ -124,7 +126,15 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(
+		@Nonnull QueryExecutionContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
 		final Bitmap selectedRecordIds = input.compute();
 		if (selectedRecordIds.isEmpty()) {
 			return 0;

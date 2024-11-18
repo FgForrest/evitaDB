@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.configuration;
 
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
@@ -55,13 +56,18 @@ public abstract class AbstractApiConfiguration {
 	 */
 	@Getter private final boolean enabled;
 	/**
+	 * Defines whether the API should keep the connection alive (default is true). When set to false, the connection
+	 * will be closed after each request from the server side.
+	 */
+	@Getter private final boolean keepAlive;
+	/**
 	 * Defines hosts the API will listen on.
 	 */
 	@Getter private final HostDefinition[] host;
 	/**
 	 * Defines external host the API will be exposed on when database is running in a container.
 	 */
-	@Getter private final String exposedHost;
+	@Getter private final String exposeOn;
 	/**
 	 * By enabling this internal flag, the API will be forced to use unencrypted HTTP protocol. The only purpose of this
 	 * flag is to allow accessing the system API, from where the client obtains to access all of evita's APIs. All of
@@ -95,10 +101,11 @@ public abstract class AbstractApiConfiguration {
 	protected AbstractApiConfiguration() {
 		this.enabled = true;
 		this.tlsMode = TlsMode.RELAXED;
-		this.exposedHost = null;
+		this.exposeOn = null;
 		this.host = new HostDefinition[]{
 			new HostDefinition(NetworkUtils.getByName("0.0.0.0"), true, DEFAULT_PORT)
 		};
+		this.keepAlive = true;
 	}
 
 	/**
@@ -107,7 +114,7 @@ public abstract class AbstractApiConfiguration {
 	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
 	 */
 	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host) {
-		this(enabled, host, null, null);
+		this(enabled, host, null, null, null);
 	}
 
 	/**
@@ -116,37 +123,65 @@ public abstract class AbstractApiConfiguration {
 	 *                   (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
 	 * @param tlsMode    allows the API to run with TLS encryption
 	 */
-	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nonnull String exposedHost, @Nullable String tlsMode) {
+	protected AbstractApiConfiguration(
+		@Nullable Boolean enabled,
+		@Nonnull String host,
+		@Nonnull String exposeOn,
+		@Nullable String tlsMode,
+		@Nullable Boolean keepAlive
+	) {
 		this.enabled = ofNullable(enabled).orElse(true);
 		this.tlsMode = TlsMode.getByName(tlsMode);
 		this.host = Arrays.stream(host.split(","))
 			.map(AbstractApiConfiguration::parseHost)
 			.flatMap(Arrays::stream)
 			.toArray(HostDefinition[]::new);
-		this.exposedHost = exposedHost;
+		this.exposeOn = exposeOn;
+		this.keepAlive = ofNullable(keepAlive).orElse(true);
 	}
 
 	/**
 	 * Returns base url for the API.
 	 */
 	@Nonnull
-	public String[] getBaseUrls(@Nullable String exposedOn) {
+	public String[] getBaseUrls() {
 		return Stream.concat(
 				Arrays.stream(getHost())
 					.map(HostDefinition::port)
 					.distinct()
 					.flatMap(
-						port -> ofNullable(getExposedHost())
-							.or(() -> ofNullable(exposedOn)
-								.map(it -> it + ":" + port))
+						port -> ofNullable(getExposeOn())
+							.map(it -> it.contains(":") ? it : it + ":" + port)
 							.stream()
 					),
 				Arrays.stream(getHost())
 					.map(HostDefinition::hostAddressWithPort)
 			)
-			.map(it -> (getTlsMode() == TlsMode.FORCE_NO_TLS ? "http://" : "https://") + it +
-				(this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))
+			.map(it -> it.contains("://") ? it : (getTlsMode() == TlsMode.FORCE_NO_TLS ? "http://" : "https://") + it)
+			.map(it -> it + (this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))
 			.toArray(String[]::new);
+	}
+
+	/**
+	 * Returns URL on which the API is exposed on based on config.
+	 */
+	@Nonnull
+	public String getResolvedExposeOnUrl() {
+		return Stream.concat(
+				Arrays.stream(getHost())
+					.map(HostDefinition::port)
+					.distinct()
+					.flatMap(
+						port -> ofNullable(getExposeOn())
+							.map(it -> it.contains(":") ? it : it + ":" + port)
+							.stream()
+					),
+				Arrays.stream(getHost())
+					.map(HostDefinition::hostAddressWithPort)
+			)
+			.map(it -> it.contains("://") ? it : (getTlsMode() == TlsMode.FORCE_NO_TLS ? "http://" : "https://") + it)
+			.findFirst()
+			.orElseThrow(() -> new ExternalApiInternalError("No API access URL found."));
 	}
 
 	/**

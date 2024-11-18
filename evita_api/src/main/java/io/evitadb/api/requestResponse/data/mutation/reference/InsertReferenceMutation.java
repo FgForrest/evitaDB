@@ -79,6 +79,13 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 	@Nullable
 	private final String referencedEntityType;
 
+	public InsertReferenceMutation(@Nonnull ReferenceKey referenceKey) {
+		super(referenceKey);
+		this.referenceKey = referenceKey;
+		this.referenceCardinality = null;
+		this.referencedEntityType = null;
+	}
+
 	public InsertReferenceMutation(@Nonnull ReferenceKey referenceKey, @Nullable Cardinality referenceCardinality, @Nullable String referencedEntityType) {
 		super(referenceKey);
 		this.referenceKey = referenceKey;

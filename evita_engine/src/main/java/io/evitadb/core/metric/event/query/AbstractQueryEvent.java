@@ -27,6 +27,7 @@ import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.core.metric.event.CatalogRelatedEvent;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import jdk.jfr.Category;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
@@ -38,18 +39,20 @@ import lombok.RequiredArgsConstructor;
 @EventGroup(
 	value = AbstractQueryEvent.PACKAGE_NAME,
 	name = "evitaDB - Query",
-	description = "evitaDB events relating to query processing."
+	description = "evitaDB events related to query processing."
 )
 @Category({"evitaDB", "Query"})
 @RequiredArgsConstructor
 @Getter
 abstract class AbstractQueryEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
 	protected static final String PACKAGE_NAME = "io.evitadb.query";
+
 	/**
 	 * The name of the catalog the transaction relates to.
 	 */
 	@Label("Catalog")
 	@Name("catalogName")
+	@Description("The name of the catalog to which this event/metric is associated.")
 	final String catalogName;
 
 }

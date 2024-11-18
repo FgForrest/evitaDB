@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,7 +60,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 				jsonNodeFactory.numberNode(123)
 			),
 			converter.convert(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				attributeEquals("CODE", 123)
 			).get()
 		);
@@ -76,7 +77,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		assertEquals(
 			new JsonConstraint("and", and1),
 			converter.convert(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				and(
 					attributeEquals("CODE", "123"),
 					attributeIs("AGE", AttributeSpecialValue.NULL)
@@ -95,7 +96,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		assertEquals(
 			new JsonConstraint("and", and2),
 			converter.convert(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				and(
 					attributeEquals("CODE", "123"),
 					attributeEquals("CODE", 321)
@@ -122,7 +123,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		assertEquals(
 			new JsonConstraint("hierarchyCategoryWithin", within),
 			converter.convert(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				hierarchyWithin(
 					"CATEGORY",
 					entityPrimaryKeyInSet(1),
@@ -141,7 +142,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		assertEquals(
 			new JsonConstraint("attributeAgeBetween", between1),
 			converter.convert(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				attributeBetween(
 					"AGE",
 					1,
@@ -157,7 +158,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		assertEquals(
 			new JsonConstraint("attributeAgeBetween", between2),
 			converter.convert(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				attributeBetween(
 					"AGE",
 					null,
@@ -173,7 +174,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		assertEquals(
 			new JsonConstraint("attributeAgeBetween", between3),
 			converter.convert(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				attributeBetween(
 					"AGE",
 					1,
@@ -255,7 +256,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		assertEquals(
 			new JsonConstraint("filterBy", filterBy),
 			converter.convert(
-				new EntityDataLocator(Entities.PRODUCT),
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				filterBy(
 					attributeEquals("CODE", "123"),
 					or(

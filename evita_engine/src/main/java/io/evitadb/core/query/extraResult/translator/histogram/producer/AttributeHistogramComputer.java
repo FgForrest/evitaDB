@@ -47,6 +47,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -120,7 +121,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 * Contains bucket array that contains only entity primary keys that match the {@link #filterFormula}. The array
 	 * is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
 	 */
-	private ValueToRecordBitmap<?>[] memoizedNarrowedBuckets;
+	private ValueToRecordBitmap[] memoizedNarrowedBuckets;
 	/**
 	 * Contains result - computed histogram. The value is initialized during {@link #compute()} method, and it is
 	 * memoized, so it's ensured it's computed only once.
@@ -135,7 +136,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		@Nonnull AttributeHistogramComputer histogramComputer,
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
-		@Nonnull ValueToRecordBitmap<T>[] buckets
+		@Nonnull ValueToRecordBitmap[] buckets
 	) {
 		if (ArrayUtils.isEmpty(buckets)) {
 			return null;
@@ -153,7 +154,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 					// combine all together - we want to have single bucket for single distinct value
 					buckets,
 					// value in the bucket represents the distinct value
-					bucket -> converter.applyAsInt(bucket.getValue()),
+					bucket -> converter.applyAsInt((T) bucket.getValue()),
 					// number of records in the bucket represents the weight of it
 					bucket -> bucket.getRecordIds().size(),
 					// conversion method from / to BigDecimal that use histogramRequest#decimalPlaces for the conversion
@@ -169,7 +170,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 					// combine all together - we want to have single bucket for single distinct value
 					buckets,
 					// value in the bucket represents the distinct value
-					bucket -> converter.applyAsInt(bucket.getValue()),
+					bucket -> converter.applyAsInt((T) bucket.getValue()),
 					// number of records in the bucket represents the weight of it
 					bucket -> bucket.getRecordIds().size(),
 					// conversion method from / to BigDecimal that use histogramRequest#decimalPlaces for the conversion
@@ -346,7 +347,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				return Long.MAX_VALUE;
 			} else {
 				this.cost = this.filterFormula.getCost() +
-					Arrays.stream(computeNarrowedHistogramBuckets(this, filterFormula))
+					Arrays.stream(computeNarrowedHistogramBuckets(this, this.filterFormula, this.request.comparator()))
 						.mapToInt(it -> it.getRecordIds().size())
 						.sum() * getOperationCost();
 
@@ -376,30 +377,34 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	@Nonnull
 	@Override
 	public CacheableHistogramContract compute() {
-		if (memoizedResult == null) {
+		if (this.memoizedResult == null) {
 			// create cruncher that will compute the histogram
-			@SuppressWarnings("rawtypes") final ValueToRecordBitmap[] histogramBuckets = computeNarrowedHistogramBuckets(
-				this, filterFormula
+			final ValueToRecordBitmap[] histogramBuckets = computeNarrowedHistogramBuckets(
+				this, this.filterFormula, this.request.comparator()
 			);
-			@SuppressWarnings("unchecked") final HistogramDataCruncher<?> optimalHistogram = createHistogramDataCruncher(
-				this, bucketCount, behavior, histogramBuckets
+			final HistogramDataCruncher<?> optimalHistogram = createHistogramDataCruncher(
+				this, this.bucketCount, this.behavior, histogramBuckets
 			);
 
 			if (optimalHistogram != null) {
-				memoizedResult = new CacheableHistogram(
+				this.memoizedResult = new CacheableHistogram(
 					optimalHistogram.getHistogram(),
 					optimalHistogram.getMaxValue()
 				);
 			} else {
-				memoizedResult = CacheableHistogramContract.EMPTY;
+				this.memoizedResult = CacheableHistogramContract.EMPTY;
 			}
 
-			ofNullable(onComputationCallback).ifPresent(it -> it.accept(this));
+			ofNullable(this.onComputationCallback).ifPresent(it -> it.accept(this));
 		}
-		return memoizedResult;
+		return this.memoizedResult;
 	}
 
-	private <T extends Comparable<T>> ValueToRecordBitmap<T>[] computeNarrowedHistogramBuckets(@Nonnull AttributeHistogramComputer histogramComputer, @Nonnull Formula filterFormula) {
+	private ValueToRecordBitmap[] computeNarrowedHistogramBuckets(
+		@Nonnull AttributeHistogramComputer histogramComputer,
+		@Nonnull Formula filterFormula,
+		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator
+	) {
 		if (this.memoizedNarrowedBuckets == null) {
 			// create formula clone without formula targeting current attribute
 			final Formula optimizedFormula = FormulaCloner.clone(
@@ -429,20 +434,18 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			);
 
 			// now collect all INDEX histogram subsets that will be used for the computation
-			@SuppressWarnings({"unchecked", "rawtypes"}) final ValueToRecordBitmap[][] attributeIndexes = histogramComputer
+			final ValueToRecordBitmap[][] attributeIndexes = histogramComputer
 				.getAttributeIndexes()
 				.stream()
-				.map(it -> (InvertedIndexSubSet<T>) it.getHistogramOfAllRecords())
+				.map(FilterIndex::getHistogramOfAllRecords)
 				.map(InvertedIndexSubSet::getHistogramBuckets)
 				.toArray(ValueToRecordBitmap[][]::new);
 
-			//noinspection unchecked
 			this.memoizedNarrowedBuckets = AttributeHistogramProducer.getCombinedAndFilteredBucketArray(
-				optimizedFormula, attributeIndexes
+				optimizedFormula, attributeIndexes, comparator
 			);
 		}
-		//noinspection unchecked
-		return (ValueToRecordBitmap<T>[]) this.memoizedNarrowedBuckets;
+		return this.memoizedNarrowedBuckets;
 	}
 
 	/**

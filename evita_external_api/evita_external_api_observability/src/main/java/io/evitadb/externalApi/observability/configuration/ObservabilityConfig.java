@@ -26,54 +26,45 @@ package io.evitadb.externalApi.observability.configuration;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
-import io.evitadb.externalApi.configuration.ApiWithOriginControl;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
-import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Observability API specific configuration.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class ObservabilityConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix, ApiWithOriginControl {
+public class ObservabilityConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix {
 	/**
 	 * Port on which will server be run and on which will channel be opened.
 	 */
 	public static final int DEFAULT_OBSERVABILITY_PORT = 5555;
 	private static final String BASE_OBSERVABILITY_PATH = "observability";
-	private static final Pattern ORIGIN_PATTERN = Pattern.compile("([a-z]+)://([\\w.]+)(:(\\d+))?");
 
 	/**
 	 * Controls the prefix Metrics API will react on.
 	 * Default value is `metrics`.
 	 */
 	@Getter private final String prefix;
-	@Getter private final String[] allowedOrigins;
 	@Getter private final TracingConfig tracing;
 
 	@Getter @Nullable private final List<String> allowedEvents;
 
 	public ObservabilityConfig() {
-		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, null);
+		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, null, null);
 		this.prefix = BASE_OBSERVABILITY_PATH;
-		this.allowedOrigins = null;
 		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
 	}
 
 	public ObservabilityConfig(@Nonnull String host) {
-		super(true, host, null, null);
+		super(true, host, null, null, null);
 		this.prefix = BASE_OBSERVABILITY_PATH;
-		this.allowedOrigins = null;
 		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
 	}
@@ -81,24 +72,15 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	@JsonCreator
 	public ObservabilityConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                           @Nonnull @JsonProperty("host") String host,
-	                           @Nullable @JsonProperty("exposedHost") String exposedHost,
+	                           @Nullable @JsonProperty("exposeOn") String exposeOn,
 	                           @Nullable @JsonProperty("tlsMode") String tlsMode,
+	                           @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
 	                           @Nullable @JsonProperty("prefix") String prefix,
-	                           @Nullable @JsonProperty("allowedOrigins") String allowedOrigins,
 							   @Nullable @JsonProperty("tracing") TracingConfig tracing,
-	                           @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents) {
-		super(enabled, host, exposedHost, tlsMode);
+	                           @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents
+	) {
+		super(enabled, host, exposeOn, tlsMode, keepAlive);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_OBSERVABILITY_PATH);
-		if (allowedOrigins == null) {
-			this.allowedOrigins = null;
-		} else {
-			this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
-				.peek(origin -> {
-					final Matcher matcher = ORIGIN_PATTERN.matcher(origin);
-					Assert.isTrue(matcher.matches(), "Invalid origin definition: " + origin);
-				})
-				.toArray(String[]::new);
-		}
 		this.tracing = Optional.ofNullable(tracing).orElse(new TracingConfig());
 		this.allowedEvents = allowedEvents;
 	}

@@ -36,6 +36,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
+import io.evitadb.api.query.require.Spacing;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -43,8 +44,10 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.SegmentDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
@@ -113,7 +116,7 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
-	@Nonnull private final RequireConstraintSchemaBuilder extraResultRequireConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder complementaryRequireConstraintSchemaBuilder;
 
 	public FullResponseObjectBuilder(@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
 	                                 @Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
@@ -132,7 +135,7 @@ public class FullResponseObjectBuilder {
 		this.inputFieldBuilderTransformer = inputFieldBuilderTransformer;
 		this.filterConstraintSchemaBuilder = filterConstraintSchemaBuilder;
 		this.orderConstraintSchemaBuilder = orderConstraintSchemaBuilder;
-		this.extraResultRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forExtraResultsRequire(
+		this.complementaryRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forComplementaryRequire(
 			constraintSchemaBuildingContext,
 			new AtomicReference<>(filterConstraintSchemaBuilder)
 		);
@@ -175,11 +178,19 @@ public class FullResponseObjectBuilder {
 	private BuiltFieldDescriptor buildRecordPageField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLObjectType recordPageObject = buildRecordPageObject(entitySchema);
 
+		final GraphQLInputType spacingConstraint = complementaryRequireConstraintSchemaBuilder.build(
+			new SegmentDataLocator(new ManagedEntityTypePointer(entitySchema.getName())),
+			Spacing.class
+		);
+
 		final GraphQLFieldDefinition recordPageField = ResponseDescriptor.RECORD_PAGE
 			.to(fieldBuilderTransformer)
 			.type(recordPageObject)
 			.argument(RecordPageFieldHeaderDescriptor.NUMBER.to(argumentBuilderTransformer))
 			.argument(RecordPageFieldHeaderDescriptor.SIZE.to(argumentBuilderTransformer))
+			.argument(RecordPageFieldHeaderDescriptor.SPACING
+				.to(argumentBuilderTransformer)
+				.type(spacingConstraint))
 			.build();
 
 		return new BuiltFieldDescriptor(
@@ -444,12 +455,11 @@ public class FullResponseObjectBuilder {
 		}
 
 		if (referenceSchema.getReferencedGroupType() != null) {
-			final DataLocator groupEntityDataLocator;
-			if (referenceSchema.isReferencedGroupTypeManaged()) {
-				groupEntityDataLocator = new EntityDataLocator(referenceSchema.getReferencedGroupType());
-			} else {
-				groupEntityDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedGroupType());
-			}
+			final DataLocator groupEntityDataLocator = new EntityDataLocator(
+				referenceSchema.isReferencedGroupTypeManaged()
+					? new ManagedEntityTypePointer(referenceSchema.getReferencedGroupType())
+					: new ExternalEntityTypePointer(referenceSchema.getReferencedGroupType())
+			);
 			final GraphQLInputType filterGroupByConstraint = filterConstraintSchemaBuilder.build(groupEntityDataLocator, FilterGroupBy.class);
 			final GraphQLInputType orderGroupByConstraint = orderConstraintSchemaBuilder.build(groupEntityDataLocator, OrderGroupBy.class);
 
@@ -517,12 +527,11 @@ public class FullResponseObjectBuilder {
 	@Nonnull
 	private BuiltFieldDescriptor buildFacetStatisticsField(@Nonnull EntitySchemaContract entitySchema,
 	                                                       @Nonnull ReferenceSchemaContract referenceSchema) {
-		final DataLocator facetEntityDataLocator;
-		if (referenceSchema.isReferencedEntityTypeManaged()) {
-			facetEntityDataLocator = new EntityDataLocator(referenceSchema.getReferencedEntityType());
-		} else {
-			facetEntityDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
-		}
+		final DataLocator facetEntityDataLocator = new EntityDataLocator(
+			referenceSchema.isReferencedEntityTypeManaged()
+				? new ManagedEntityTypePointer(referenceSchema.getReferencedEntityType())
+				: new ExternalEntityTypePointer(referenceSchema.getReferencedEntityType())
+		);
 		final GraphQLInputType filterByConstraint = filterConstraintSchemaBuilder.build(facetEntityDataLocator, FilterBy.class);
 		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(facetEntityDataLocator, OrderBy.class);
 		final GraphQLObjectType facetStatisticsObject = buildFacetStatisticsObject(entitySchema, referenceSchema);
@@ -617,7 +626,9 @@ public class FullResponseObjectBuilder {
 	private BuiltFieldDescriptor buildHierarchyOfSelfField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLObjectType hierarchyOfSelfObject = buildHierarchyOfSelfObject(entitySchema);
 
-		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(new EntityDataLocator(entitySchema.getName()));
+		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(
+			new EntityDataLocator(new ManagedEntityTypePointer(entitySchema.getName()))
+		);
 
 		final GraphQLFieldDefinition hierarchyOfSelfField = HierarchyDescriptor.SELF
 			.to(fieldBuilderTransformer)
@@ -634,9 +645,11 @@ public class FullResponseObjectBuilder {
 	private GraphQLObjectType buildHierarchyOfSelfObject(@Nonnull EntitySchemaContract entitySchema) {
 		final String objectName = HierarchyOfSelfDescriptor.THIS.name(entitySchema, entitySchema);
 
-		final DataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(entitySchema.getName());
-		final GraphQLInputType nodeConstraint = extraResultRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyNode.class);
-		final GraphQLInputType stopAtConstraint = extraResultRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyStopAt.class);
+		final DataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(
+			new ManagedEntityTypePointer(entitySchema.getName())
+		);
+		final GraphQLInputType nodeConstraint = complementaryRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyNode.class);
+		final GraphQLInputType stopAtConstraint = complementaryRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyStopAt.class);
 		final GraphQLInputObjectType parentsSiblingsSpecification = HierarchyParentsSiblingsSpecification.THIS
 			.to(inputObjectBuilderTransformer)
 			.name(HierarchyParentsSiblingsSpecification.THIS.name(entitySchema, entitySchema))
@@ -725,12 +738,11 @@ public class FullResponseObjectBuilder {
 			.argument(HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR
 				.to(argumentBuilderTransformer));
 
-		final DataLocator hierarchyDataLocator;
-		if (referenceSchema.isReferencedEntityTypeManaged()) {
-			hierarchyDataLocator = new EntityDataLocator(referenceSchema.getReferencedEntityType());
-		} else {
-			hierarchyDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
-		}
+		final DataLocator hierarchyDataLocator = new EntityDataLocator(
+			referenceSchema.isReferencedEntityTypeManaged()
+				? new ManagedEntityTypePointer(referenceSchema.getReferencedEntityType())
+				: new ExternalEntityTypePointer(referenceSchema.getReferencedEntityType())
+		);
 		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(hierarchyDataLocator);
 		hierarchyOfReferenceFieldBuilder.argument(HierarchyOfReferenceHeaderDescriptor.ORDER_BY
 			.to(argumentBuilderTransformer)
@@ -745,11 +757,11 @@ public class FullResponseObjectBuilder {
 		final String objectName = HierarchyOfReferenceDescriptor.THIS.name(entitySchema, referenceSchema);
 
 		final DataLocator referenceHierarchyConstraintDataLocator = new HierarchyDataLocator(
-			entitySchema.getName(),
+			new ManagedEntityTypePointer(entitySchema.getName()),
 			referenceSchema.getName()
 		);
-		final GraphQLInputType nodeConstraint = extraResultRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyNode.class);
-		final GraphQLInputType stopAtConstraint = extraResultRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyStopAt.class);
+		final GraphQLInputType nodeConstraint = complementaryRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyNode.class);
+		final GraphQLInputType stopAtConstraint = complementaryRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyStopAt.class);
 		final GraphQLInputObjectType parentsSiblingsSpecification = HierarchyParentsSiblingsSpecification.THIS
 			.to(inputObjectBuilderTransformer)
 			.name(HierarchyParentsSiblingsSpecification.THIS.name(entitySchema, referenceSchema))

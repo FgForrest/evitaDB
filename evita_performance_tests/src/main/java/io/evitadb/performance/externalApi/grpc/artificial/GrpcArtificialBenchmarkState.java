@@ -71,7 +71,7 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 				.tlsCustomizer(tlsCustomizer -> clientCertificateManager.buildClientSslContext(null, tlsCustomizer))
 				.build();
 
-			final GrpcClientBuilder clientBuilder = GrpcClients.builder(HOST + ":" + PORT + "/")
+			final GrpcClientBuilder clientBuilder = GrpcClients.builder("https://" + HOST + ":" + PORT + "/")
 				.factory(clientFactory)
 				.serializationFormat(GrpcSerializationFormats.PROTO)
 				.responseTimeoutMillis(10000);
@@ -81,7 +81,7 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 				.setCatalogName(TEST_CATALOG)
 				.build());
 
-			final GrpcClientBuilder clientBuilderWithJmhInterceptor = GrpcClients.builder(HOST + ":" + PORT + "/")
+			final GrpcClientBuilder clientBuilderWithJmhInterceptor = GrpcClients.builder("https://" + HOST + ":" + PORT + "/")
 				.factory(clientFactory)
 				.serializationFormat(GrpcSerializationFormats.PROTO)
 				.responseTimeoutMillis(10000)

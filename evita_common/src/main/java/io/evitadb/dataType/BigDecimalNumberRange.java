@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
+	public static final BigDecimalNumberRange INFINITE = new BigDecimalNumberRange();
 	@Serial private static final long serialVersionUID = -7031165388993390172L;
 
 	/**
@@ -155,6 +156,71 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 		return new BigDecimalNumberRange(from, to, retainedDecimalPlaces, fromToCompare, toToCompare);
 	}
 
+	/**
+	 * Creates a union of two BigDecimalNumberRanges. If either range is infinite, the result is an infinite range.
+	 * If the ranges overlap, a new BigDecimalNumberRange is created from the common bounds;
+	 * otherwise, an infinite range is returned as a simplification for non-overlapping ranges.
+	 *
+	 * @param rangeA The first BigDecimalNumberRange.
+	 * @param rangeB The second BigDecimalNumberRange.
+	 * @return A new BigDecimalNumberRange representing the union of rangeA and rangeB. If the ranges do not overlap,
+	 *         the result is an infinite range.
+	 */
+	@Nonnull
+	public static BigDecimalNumberRange union(@Nonnull BigDecimalNumberRange rangeA, @Nonnull BigDecimalNumberRange rangeB) {
+		if (rangeA == INFINITE || rangeB == INFINITE) {
+			return INFINITE;
+		} else {
+			final BigDecimal from = rangeA.from == null ? null : (rangeB.from == null ? null : rangeA.from.min(rangeB.from));
+			final BigDecimal to = rangeA.to == null ? null : (rangeB.to == null ? null : rangeA.to.max(rangeB.to));
+			final boolean leftLesserThanRight = from != null && to != null && from.compareTo(to) > 0;
+			final BigDecimal recalculatedFrom = leftLesserThanRight ? to : from;
+			final BigDecimal recalculatedTo = leftLesserThanRight ? from : to;
+			if (recalculatedFrom == null && recalculatedTo == null) {
+				return INFINITE;
+			} else {
+				return new BigDecimalNumberRange(
+					recalculatedFrom,
+					recalculatedTo,
+					Math.max(
+						rangeA.retainedDecimalPlaces == null ? resolveDefaultRetainedDecimalPlaces(rangeA.from, rangeA.to) : rangeA.retainedDecimalPlaces,
+						rangeB.retainedDecimalPlaces == null ? resolveDefaultRetainedDecimalPlaces(rangeB.from, rangeB.to) : rangeB.retainedDecimalPlaces
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Computes the intersection of two BigDecimalNumberRanges. If both ranges are infinite, the result is also infinite.
+	 * In case of no intersection, the result is infinite range (we have no representation for empty range).
+	 *
+	 * @param rangeA The first BigDecimalNumberRange.
+	 * @param rangeB The second BigDecimalNumberRange.
+	 * @return A new BigDecimalNumberRange representing the intersection of rangeA and rangeB.
+	 */
+	@Nonnull
+	public static BigDecimalNumberRange intersect(@Nonnull BigDecimalNumberRange rangeA, @Nonnull BigDecimalNumberRange rangeB) {
+		if (rangeA == INFINITE && rangeB == INFINITE) {
+			return INFINITE;
+		} else {
+			final BigDecimal from = rangeA.from == null ? rangeB.from : (rangeB.from == null ? rangeA.from : rangeA.from.max(rangeB.from));
+			final BigDecimal to = rangeA.to == null ? rangeB.to : (rangeB.to == null ? rangeA.to : rangeA.to.min(rangeB.to));
+			if (rangeA.overlaps(rangeB) && (from != null || to != null)) {
+				return new BigDecimalNumberRange(
+					from, to,
+					Math.max(
+						rangeA.retainedDecimalPlaces == null ? resolveDefaultRetainedDecimalPlaces(rangeA.from, rangeA.to) : rangeA.retainedDecimalPlaces,
+						rangeB.retainedDecimalPlaces == null ? resolveDefaultRetainedDecimalPlaces(rangeB.from, rangeB.to) : rangeB.retainedDecimalPlaces
+					)
+				);
+			} else {
+				// simplification - the result is empty range, but we have no representation for it
+				return INFINITE;
+			}
+		}
+	}
+
 	@Override
 	public boolean isWithin(@Nonnull BigDecimal valueToCheck) {
 		Assert.notNull(valueToCheck, "Cannot resolve within range with NULL value!");
@@ -169,6 +235,10 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 		} catch (NumberFormatException ex) {
 			throw new DataTypeParseException("String " + toBeNumber + " is not a number!");
 		}
+	}
+
+	private BigDecimalNumberRange() {
+		super(null, null, 0, Long.MIN_VALUE, Long.MAX_VALUE);
 	}
 
 	private BigDecimalNumberRange(@Nullable BigDecimal from, @Nullable BigDecimal to, @Nullable Integer retainedDecimalPlaces, long fromToCompare, long toToCompare) {
@@ -203,6 +273,25 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 			return new BigDecimalNumberRange(from, to, this.retainedDecimalPlaces);
 		} else {
 			return new BigDecimalNumberRange(from, to);
+		}
+	}
+
+	/**
+	 * Return range that is complement to this range. If this range is infinite, the result is also infinite.
+	 * If the range is bounded from both sides, the result is infinite (since we'd have to return multiple ranges).
+	 * If the range is bounded from one side, the result is range from the other side to infinity.
+	 *
+	 * @param precision The number of decimal places to consider for the inverse operation.
+	 * @return A new BigDecimalNumberRange representing the inverse of this range.
+	 */
+	@Nonnull
+	public BigDecimalNumberRange inverse(int precision) {
+		if (this == BigDecimalNumberRange.INFINITE || this.from != null && this.to != null) {
+			return BigDecimalNumberRange.INFINITE;
+		} else if (this.from == null) {
+			return BigDecimalNumberRange.from(this.to.add(BigDecimal.ONE.movePointLeft(precision)));
+		} else {
+			return BigDecimalNumberRange.to(this.from.subtract(BigDecimal.ONE.movePointLeft(precision)));
 		}
 	}
 

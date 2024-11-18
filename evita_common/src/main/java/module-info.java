@@ -7,6 +7,7 @@ module evita.common {
 	exports io.evitadb.dataType.data;
 	exports io.evitadb.dataType.trie;
 	exports io.evitadb.dataType.exception;
+	exports io.evitadb.dataType.expression;
 	exports io.evitadb.function;
 	exports io.evitadb.comparator;
 	exports io.evitadb.exception;
@@ -20,5 +21,6 @@ module evita.common {
 	requires com.fasterxml.jackson.databind;
 	requires zero.allocation.hashing;
 	requires okhttp3;
+	requires java.desktop;
 
 }

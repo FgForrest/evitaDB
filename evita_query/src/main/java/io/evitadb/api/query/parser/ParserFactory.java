@@ -23,8 +23,8 @@
 
 package io.evitadb.api.query.parser;
 
-import io.evitadb.api.query.parser.error.EvitaQLBailErrorStrategy;
-import io.evitadb.api.query.parser.error.EvitaQLErrorReporter;
+import io.evitadb.api.query.parser.exception.BailErrorStrategy;
+import io.evitadb.api.query.parser.exception.SyntaxErrorReporter;
 import io.evitadb.api.query.parser.grammar.EvitaQLLexer;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import lombok.AccessLevel;
@@ -48,12 +48,12 @@ public class ParserFactory {
 	public static EvitaQLParser getParser(@Nonnull String stringToParse) {
 		final EvitaQLLexer lexer = new EvitaQLLexer(CharStreams.fromString(stringToParse));
 		lexer.removeErrorListeners();
-		lexer.addErrorListener(EvitaQLErrorReporter.getInstance());
+		lexer.addErrorListener(SyntaxErrorReporter.getInstance());
 
 		final EvitaQLParser parser = new EvitaQLParser(new CommonTokenStream(lexer));
-		parser.setErrorHandler(new EvitaQLBailErrorStrategy());
+		parser.setErrorHandler(new BailErrorStrategy());
 		parser.removeErrorListeners();
-		parser.addErrorListener(EvitaQLErrorReporter.getInstance());
+		parser.addErrorListener(SyntaxErrorReporter.getInstance());
 
 		return parser;
 	}
