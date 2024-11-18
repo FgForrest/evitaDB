@@ -36,14 +36,19 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.hierarchy.HierarchyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.Set;
 
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -79,7 +84,13 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 			)
 		);
 
-		return queryContext.getGlobalEntityIndexIfExists(targetEntitySchema.getName())
+		// we use only the first applicable scope here - if LIVE scope is present it always takes precedence
+		final Set<Scope> scopesToLookup = queryContext.getScopes();
+		return Arrays.stream(Scope.values())
+			.filter(scopesToLookup::contains)
+			.map(scope -> queryContext.getIndex(targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class))
+			.filter(Optional::isPresent)
+			.map(Optional::get)
 			.map(
 				targetEntityIndex ->
 					queryContext.computeOnlyOnce(
@@ -102,6 +113,7 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 						)
 					)
 			)
+			.findFirst()
 			.orElse(EmptyFormula.INSTANCE);
 	}
 

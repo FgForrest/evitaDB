@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -44,6 +45,7 @@ import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} adds only a requirement for prefetching references when
@@ -91,7 +93,8 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 		@Nonnull String[] attributeNames,
 		@Nonnull AttributeSchemaProvider<? extends AttributeSchemaContract> schema,
 		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull EntitySchemaContract entitySchema
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Set<Scope> requestedScopes
 	) {
 		final List<String> missingLocalizedAttributes = new LinkedList<>();
 		for (String attributeName : attributeNames) {
@@ -103,7 +106,8 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 					new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
 			);
 			// unique attributes could provide implicit locale
-			if (attributeSchema.get().isLocalized() && !attributeSchema.get().isUnique()) {
+			final AttributeSchemaContract as = attributeSchema.get();
+			if (as.isLocalized() && requestedScopes.stream().noneMatch(as::isUnique)) {
 				missingLocalizedAttributes.add(attributeName);
 			}
 		}
@@ -166,7 +170,10 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 		if (!ArrayUtils.isEmpty(attributeNames)) {
 			final EvitaRequest evitaRequest = extraResultPlanningVisitor.getEvitaRequest();
 			if (evitaRequest.getRequiredLocales() == null && evitaRequest.getImplicitLocale() == null) {
-				verifyAttributesKnownAndNotLocalized(attributeNames, schema, referenceSchema, entitySchema);
+				verifyAttributesKnownAndNotLocalized(
+					attributeNames, schema, referenceSchema, entitySchema,
+					extraResultPlanningVisitor.getScopes()
+				);
 			} else {
 				verifyAttributesKnown(attributeNames, schema, referenceSchema, entitySchema);
 			}

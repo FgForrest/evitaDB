@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -100,8 +101,8 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			""")
 		.type(nullable(Boolean.class))
 		.build();
-	PropertyDescriptor INDEXED = PropertyDescriptor.builder()
-		.name("indexed")
+	PropertyDescriptor INDEXED_IN_SCOPES = PropertyDescriptor.builder()
+		.name("indexedInScopes")
 		.description("""
 			Whether the index for this reference should be created and maintained allowing to filter by
 			`reference_{reference name}_having` filtering constraints. Index is also required when reference is
@@ -111,11 +112,13 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
 			the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
 			alongside other references if requested.
+			
+			This array defines in which scopes the reference will be indexed. It will not be indexed in not-specified scopes.
 			""")
-		.type(nullable(Boolean.class))
+		.type(nullable(Scope[].class))
 		.build();
-	PropertyDescriptor FACETED = PropertyDescriptor.builder()
-		.name("faceted")
+	PropertyDescriptor FACETED_IN_SCOPES = PropertyDescriptor.builder()
+		.name("facetedInScopes")
 		.description("""
 			Whether the statistics data for this reference should be maintained and this allowing to get
 			`facetSummary` for this reference or use `facet_{reference name}_inSet`
@@ -124,8 +127,10 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
 			occupies (memory/disk) space in the form of index.
 			Reference that was marked as faceted is called Facet.
+			
+			This array defines in which scopes the reference will be faceted. It will not be faceted in not-specified scopes.
 			""")
-		.type(nullable(Boolean.class))
+		.type(nullable(Scope[].class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -143,8 +148,8 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			REFERENCED_ENTITY_TYPE_MANAGED,
 			REFERENCED_GROUP_TYPE,
 			REFERENCED_GROUP_TYPE_MANAGED,
-			INDEXED,
-			FACETED
+			INDEXED_IN_SCOPES,
+			FACETED_IN_SCOPES
 		))
 		.build();
 }

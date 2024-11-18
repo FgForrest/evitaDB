@@ -56,6 +56,7 @@ import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.StripList;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsBuilder;
@@ -63,6 +64,7 @@ import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
@@ -750,8 +752,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						request.getNamedQueryParamsMap(),
 						responseObserver
 					);
+				final Scope[] scopes = request.getScopesList()
+					.stream()
+					.map(EvitaEnumConverter::toScope)
+					.toArray(Scope[]::new);
 
-				entity = session.getEntity(request.getEntityType(), request.getPrimaryKey(), entityContentRequires);
+				entity = scopes.length == 0 ?
+					session.getEntity(request.getEntityType(), request.getPrimaryKey(), entityContentRequires) :
+					session.getEntity(request.getEntityType(), request.getPrimaryKey(), scopes, entityContentRequires);
 				final GrpcEntityResponse.Builder evitaEntityResponseBuilder = GrpcEntityResponse.newBuilder();
 				entity.ifPresent(it -> evitaEntityResponseBuilder.setEntity(EntityConverter.toGrpcSealedEntity(it)));
 				responseObserver.onNext(evitaEntityResponseBuilder.build());
@@ -981,6 +989,112 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
+	 * Method used to archive single entity by primary key by calling {@link EvitaSessionContract#archiveEntity(String, int)}.
+	 *
+	 * @param request          request containing entity type and primary key of archived entity
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void archiveEntity(GrpcArchiveEntityRequest request, StreamObserver<GrpcArchiveEntityResponse> responseObserver) {
+		executeWithClientContext(
+			session -> {
+				final String entityType = request.getEntityType();
+				final int primaryKey = request.getPrimaryKey().getValue();
+				final String require = request.getRequire();
+				final Optional<SealedEntity> entity;
+				final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
+					new EntityContentRequire[0] :
+					QueryUtil.parseEntityRequiredContents(
+						request.getRequire(),
+						request.getPositionalQueryParamsList(),
+						request.getNamedQueryParamsMap(),
+						responseObserver
+					);
+
+				final boolean archived;
+				if (ArrayUtils.isEmpty(entityContentRequires)) {
+					entity = empty();
+					archived = session.archiveEntity(entityType, primaryKey);
+				} else {
+					entity = session.archiveEntity(entityType, primaryKey, entityContentRequires);
+					archived = entity.isPresent();
+				}
+
+				final GrpcArchiveEntityResponse.Builder response = GrpcArchiveEntityResponse.newBuilder();
+				if (archived) {
+					response.setEntityReference(
+						GrpcEntityReference
+							.newBuilder()
+							.setEntityType(entityType)
+							.setPrimaryKey(primaryKey)
+							.build()
+					);
+				}
+				entity.ifPresent(it -> response.setEntity(EntityConverter.toGrpcSealedEntity(it)));
+				responseObserver.onNext(
+					response.build()
+				);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor(),
+			responseObserver
+		);
+	}
+
+	/**
+	 * Method used to restore single entity by primary key by calling {@link EvitaSessionContract#restoreEntity(String, int)}.
+	 *
+	 * @param request          request containing entity type and primary key of restored entity
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void restoreEntity(GrpcRestoreEntityRequest request, StreamObserver<GrpcRestoreEntityResponse> responseObserver) {
+		executeWithClientContext(
+			session -> {
+				final String entityType = request.getEntityType();
+				final int primaryKey = request.getPrimaryKey().getValue();
+				final String require = request.getRequire();
+				final Optional<SealedEntity> entity;
+				final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
+					new EntityContentRequire[0] :
+					QueryUtil.parseEntityRequiredContents(
+						request.getRequire(),
+						request.getPositionalQueryParamsList(),
+						request.getNamedQueryParamsMap(),
+						responseObserver
+					);
+
+				final boolean restored;
+				if (ArrayUtils.isEmpty(entityContentRequires)) {
+					entity = empty();
+					restored = session.restoreEntity(entityType, primaryKey);
+				} else {
+					entity = session.restoreEntity(entityType, primaryKey, entityContentRequires);
+					restored = entity.isPresent();
+				}
+
+				final GrpcRestoreEntityResponse.Builder response = GrpcRestoreEntityResponse.newBuilder();
+				if (restored) {
+					response.setEntityReference(
+						GrpcEntityReference
+							.newBuilder()
+							.setEntityType(entityType)
+							.setPrimaryKey(primaryKey)
+							.build()
+					);
+				}
+				entity.ifPresent(it -> response.setEntity(EntityConverter.toGrpcSealedEntity(it)));
+				responseObserver.onNext(
+					response.build()
+				);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor(),
+			responseObserver
+		);
+	}
+
+	/**
 	 * Method used to remove single entity by primary key by calling {@link EvitaSessionContract#deleteEntity(String, int)}.
 	 *
 	 * @param request          request containing entity type and primary key of removed entity
@@ -1029,7 +1143,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				responseObserver.onCompleted();
 			},
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 	/**

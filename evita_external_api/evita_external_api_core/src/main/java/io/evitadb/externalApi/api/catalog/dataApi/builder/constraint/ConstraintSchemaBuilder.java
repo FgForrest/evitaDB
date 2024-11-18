@@ -540,7 +540,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		fields.addAll(
 			referenceSchemas
 				.stream()
-				.filter(ReferenceSchemaContract::isIndexed)
+				.filter(ReferenceSchemaContract::isIndexedInAnyScope)
 				.flatMap(referenceSchema -> {
 					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
 						buildContext.switchToChildContext(new ReferenceDataLocator(
@@ -694,7 +694,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		fields.addAll(
 			referenceSchemas
 				.stream()
-				.filter(ReferenceSchemaContract::isFaceted)
+				.filter(ReferenceSchemaContract::isFacetedInAnyScope)
 				.flatMap(facetSchema -> {
 					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder =
 						constraintDescriptor -> buildFieldFromConstraintDescriptor(

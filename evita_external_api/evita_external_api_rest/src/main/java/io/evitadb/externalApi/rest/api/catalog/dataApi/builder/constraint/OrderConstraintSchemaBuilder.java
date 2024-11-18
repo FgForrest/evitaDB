@@ -40,8 +40,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
-
 /**
  * Implementation of {@link ConstraintSchemaBuilder} for building order query tree starting from {@link OrderBy}.
  *
@@ -86,6 +84,6 @@ public class OrderConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder
 	@Nonnull
 	@Override
 	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {
-		return AttributeSchemaContract::isSortable;
+		return AttributeSchemaContract::isSortableInAnyScope;
 	}
 }

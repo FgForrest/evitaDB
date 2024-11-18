@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -128,5 +129,13 @@ public @interface Attribute {
 	 * that is used for filtering / sorting.
 	 */
 	int indexedDecimalPlaces() default 0;
+
+	/**
+	 * Allows to define different settings for different scopes. If not specified, the general settings apply only to
+	 * the {@link Scope#LIVE} and in the {@link Scope#ARCHIVED} the attribute is not indexed whatsoever (not filterable,
+	 * not sortable, not unique). If scope settings are specified for {@link Scope#LIVE}, the general settings are
+	 * ignored completely.
+	 */
+	ScopeAttributeSettings[] scope() default {};
 
 }

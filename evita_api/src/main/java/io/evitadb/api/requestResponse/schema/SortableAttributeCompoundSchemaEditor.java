@@ -28,8 +28,10 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 
 /**
@@ -40,6 +42,47 @@ import java.util.Collection;
  */
 public interface SortableAttributeCompoundSchemaEditor<S extends SortableAttributeCompoundSchemaEditor<S>> extends
 	SortableAttributeCompoundSchemaContract, NamedSchemaWithDeprecationEditor<S> {
+
+	/**
+	 * Makes evitaDB create and maintain sortable index for this attribute compound allowing to order entities by it.
+	 *
+	 * This method makes sortable attribute compound indexed only in the default (e.g. {@link Scope#LIVE}) scope.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default S indexed() {
+		return indexedInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Makes evitaDB create and maintain sortable index for this attribute compound allowing to order entities by it.
+	 *
+	 * This method makes sortable attribute compound indexed in specified set of scopes.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	S indexedInScope(@Nullable Scope... inScope);
+
+	/**
+	 * Makes evitaDB drop sortable index for this attribute compound effectively preventing to order entities by it.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default S nonIndexed() {
+		return nonIndexed(Scope.values());
+	}
+
+	/**
+	 * Makes evitaDB drop sortable index for this attribute compound in specified set of scopes effectively preventing
+	 * to order entities by it in that scope.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	S nonIndexed(@Nullable Scope... inScope);
 
 	/**
 	 * Interface that simply combines {@link SortableAttributeCompoundSchemaEditor} and

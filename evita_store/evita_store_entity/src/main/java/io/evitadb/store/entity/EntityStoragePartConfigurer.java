@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.dataType.Scope;
+import io.evitadb.store.dataType.serializer.EnumNameSerializer;
 import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
@@ -60,7 +62,12 @@ public class EntityStoragePartConfigurer implements Consumer<Kryo> {
 	public void accept(Kryo kryo) {
 		int index = ENTITY_BASE;
 
-		kryo.register(EntityBodyStoragePart.class, new SerialVersionBasedSerializer<>(new EntityBodyStoragePartSerializer(keyCompressor), EntityBodyStoragePart.class), index++);
+		kryo.register(
+			EntityBodyStoragePart.class,
+			new SerialVersionBasedSerializer<>(new EntityBodyStoragePartSerializer(keyCompressor), EntityBodyStoragePart.class)
+				.addBackwardCompatibleSerializer(34998825794290379L, new EntityBodyStoragePartSerializer_2024_11(keyCompressor)),
+			index++
+		);
 		kryo.register(PricesStoragePart.class, new SerialVersionBasedSerializer<>(new PricesStoragePartSerializer(), PricesStoragePart.class), index++);
 		kryo.register(ReferencesStoragePart.class, new SerialVersionBasedSerializer<>(new ReferencesStoragePartSerializer(), ReferencesStoragePart.class), index++);
 		kryo.register(AttributesStoragePart.class, new SerialVersionBasedSerializer<>(new AttributesStoragePartSerializer(keyCompressor), AttributesStoragePart.class), index++);
@@ -74,6 +81,7 @@ public class EntityStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(Price.class, new SerialVersionBasedSerializer<>(new PriceSerializer(keyCompressor), Price.class), index++);
 		kryo.register(EntityReference.class, new SerialVersionBasedSerializer<>(new EntityReferenceSerializer(), EntityReference.class), index++);
 		kryo.register(AttributesSetKey.class, new SerialVersionBasedSerializer<>(new AttributesSetKeySerializer(), AttributesSetKey.class), index++);
+		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);
 
 		Assert.isPremiseValid(index < 600, "Index count overflow.");
 	}

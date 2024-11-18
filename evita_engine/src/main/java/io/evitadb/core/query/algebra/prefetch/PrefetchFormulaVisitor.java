@@ -93,6 +93,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 * Result of {@link FormulaPostProcessor} interface - basically root of the formula. This implementation doesn't
 	 * change the input formula tree - just analyzes it.
 	 */
+	@Nullable
 	protected Formula outputFormula;
 	/**
 	 * Contains sum of all collected bitmap cardinalities. If sum is greater than {@link #BITMAP_SIZE_THRESHOLD}
@@ -128,8 +129,8 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 		this.requirements.addRequirementsToPrefetch(requirement);
 	}
 
+	@Nonnull
 	@Override
-	@Nullable
 	public Optional<Runnable> createPrefetchLambdaIfNeededOrWorthwhile(@Nonnull QueryExecutionContext queryContext) {
 		EntityFetchRequire requirements = null;
 		Bitmap entitiesToPrefetch = null;
@@ -143,7 +144,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 			final Bitmap conjunctiveEntities = getConjunctiveEntities();
 			requirements = requirements == null ? getRequirements() : requirements;
 			// does the prefetch pay off?
-			if (getExpectedComputationalCosts() > queryContext.estimatePrefetchCost(conjunctiveEntities.size(), requirements)) {
+			if (requirements != null && getExpectedComputationalCosts() > queryContext.estimatePrefetchCost(conjunctiveEntities.size(), requirements)) {
 				if (entitiesToPrefetch == null) {
 					entitiesToPrefetch = conjunctiveEntities;
 				} else {

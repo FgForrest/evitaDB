@@ -30,6 +30,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
@@ -39,6 +40,7 @@ import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -72,6 +74,7 @@ public class EvitaRequest {
 	private static final int[] EMPTY_INTS = new int[0];
 	private static final ConditionalGap[] EMPTY_GAPS = new ConditionalGap[0];
 	private static final String[] EMPTY_PRICE_LISTS = new String[0];
+	private static final EnumSet<Scope> DEFAULT_SCOPES = EnumSet.of(Scope.DEFAULT_SCOPE);
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
 	private final String entityType;
@@ -113,6 +116,7 @@ public class EvitaRequest {
 	private Map<String, FacetFilterBy> facetGroupNegation;
 	private Boolean queryTelemetryRequested;
 	private EnumSet<DebugMode> debugModes;
+	private EnumSet<Scope> scopes;
 	private Map<String, RequirementContext> entityFetchRequirements;
 	private RequirementContext defaultReferenceRequirement;
 
@@ -190,23 +194,31 @@ public class EvitaRequest {
 		this.parentContent = evitaRequest.parentContent;
 		this.entityRequirement = evitaRequest.entityRequirement;
 		this.expectedType = evitaRequest.expectedType;
+		this.debugModes = evitaRequest.debugModes;
+		this.scopes = evitaRequest.scopes;
 	}
 
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull String entityType,
+		@Nullable String entityType,
 		@Nonnull EntityFetchRequire requirements
 	) {
 
 		this.requiresEntity = true;
 		this.entityRequirement = new EntityFetch(requirements.getRequirements());
 		this.entityType = entityType;
-		this.query = Query.query(
-			collection(entityType),
-			evitaRequest.query.getFilterBy(),
-			evitaRequest.query.getOrderBy(),
-			require(this.entityRequirement)
-		);
+		this.query = entityType == null ?
+			Query.query(
+				evitaRequest.query.getFilterBy(),
+				evitaRequest.query.getOrderBy(),
+				require(this.entityRequirement)
+			) :
+			Query.query(
+				collection(entityType),
+				evitaRequest.query.getFilterBy(),
+				evitaRequest.query.getOrderBy(),
+				require(this.entityRequirement)
+			);
 		this.alignedNow = evitaRequest.alignedNow;
 		this.implicitLocale = evitaRequest.implicitLocale;
 		this.primaryKeys = evitaRequest.primaryKeys;
@@ -249,6 +261,8 @@ public class EvitaRequest {
 		this.facetGroupDisjunction = evitaRequest.facetGroupDisjunction;
 		this.facetGroupNegation = evitaRequest.facetGroupNegation;
 		this.expectedType = evitaRequest.expectedType;
+		this.debugModes = evitaRequest.debugModes;
+		this.scopes = evitaRequest.scopes;
 	}
 
 	public EvitaRequest(
@@ -305,6 +319,8 @@ public class EvitaRequest {
 		this.facetGroupDisjunction = null;
 		this.facetGroupNegation = null;
 		this.expectedType = evitaRequest.expectedType;
+		this.debugModes = null;
+		this.scopes = null;
 	}
 
 	/**
@@ -882,7 +898,7 @@ public class EvitaRequest {
 	 * requirements.
 	 */
 	@Nonnull
-	public EvitaRequest deriveCopyWith(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {
+	public EvitaRequest deriveCopyWith(@Nullable String entityType, @Nonnull EntityFetchRequire requirements) {
 		return new EvitaRequest(
 			this,
 			entityType, requirements
@@ -908,12 +924,29 @@ public class EvitaRequest {
 	}
 
 	/**
+	 * Retrieves the set of scopes associated with the current query.
+	 * If the scopes have not been initialized, it attempts to find the required
+	 * scopes from the query, falling back to the default scopes if none are found.
+	 *
+	 * @return an EnumSet of Scope objects representing the scopes for the current query
+	 */
+	@Nonnull
+	public EnumSet<Scope> getScopes() {
+		if (this.scopes == null) {
+			this.scopes = ofNullable(QueryUtils.findFilter(this.query, EntityScope.class))
+				.map(EntityScope::getScope)
+				.orElse(DEFAULT_SCOPES);
+		}
+		return this.scopes;
+	}
+
+	/**
 	 * Internal method that consults input query and initializes pagination information.
 	 * If there is no pagination in the input query, first page with size of 20 records is used as default.
 	 */
 	private void initPagination() {
-		final Optional<Page> page = ofNullable(QueryUtils.findRequire(query, Page.class));
-		final Optional<Strip> strip = ofNullable(QueryUtils.findRequire(query, Strip.class));
+		final Optional<Page> page = ofNullable(QueryUtils.findRequire(this.query, Page.class));
+		final Optional<Strip> strip = ofNullable(QueryUtils.findRequire(this.query, Strip.class));
 		if (page.isPresent()) {
 			final Page thePage = page.get();
 			this.limit = thePage.getPageSize();
@@ -1026,10 +1059,6 @@ public class EvitaRequest {
 	public record FacetFilterBy(
 		@Nullable FilterBy filterBy
 	) {
-
-		public boolean isFilterDefined() {
-			return filterBy != null;
-		}
 
 	}
 

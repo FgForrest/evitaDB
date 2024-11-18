@@ -21,26 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity;
+package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class SetHierarchicalParentTest {
+class SetReferenceSchemaIndexedMutationConverterTest {
 
-	private static SetParentMutationConverter converter;
+	private static SetReferenceSchemaIndexedMutationConverter converter;
 
 	@BeforeAll
 	static void setup() {
-		converter = SetParentMutationConverter.INSTANCE;
+		converter = SetReferenceSchemaIndexedMutationConverter.INSTANCE;
 	}
 
 	@Test
 	void shouldConvertMutation() {
-		final SetParentMutation mutation1 = new SetParentMutation(10);
+		final SetReferenceSchemaIndexedMutation mutation1 = new SetReferenceSchemaIndexedMutation(
+			"tags", true
+		);
 		assertEquals(mutation1, converter.convert(converter.convert(mutation1)));
 	}
 }

@@ -81,6 +81,7 @@ filterConstraint
     | 'excludingRoot'                       emptyArgs                                                       # hierarchyExcludingRootConstraint
     | 'excluding'                           args = filterConstraintListArgs                                 # hierarchyExcludingConstraint
     | 'entityHaving'                        args = filterConstraintArgs                                     # entityHavingConstraint
+    | 'scope'                               args = valueListArgs                                            # entityScopeConstraint
     ;
 
 orderConstraint

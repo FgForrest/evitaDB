@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
@@ -164,7 +165,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 
     @Nonnull
     @Override
-    public DataFetcherResult<EvitaResponse<EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) {
+    public DataFetcherResult<EvitaResponse<EntityClassifier>> get(DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment);
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
@@ -246,8 +247,9 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		if (recordFields.isEmpty()) {
 			requireConstraints.add(strip(0, 0));
 		} else {
-			// build paging require
 			final SelectedField recordField = recordFields.get(0);
+
+			// build paging require
 			requireConstraints.add(pagingRequireResolver.resolve(recordField));
 
 			// build content requires

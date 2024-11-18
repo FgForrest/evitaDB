@@ -28,13 +28,20 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.Builder;
+import io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType;
+import io.evitadb.externalApi.grpc.generated.GrpcScopedGlobalAttributeUniquenessType;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
@@ -42,10 +49,12 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.*;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -143,13 +152,51 @@ public class CatalogSchemaConverter {
 		final Builder builder = GrpcGlobalAttributeSchema.newBuilder()
 			.setName(attributeSchema.getName())
 			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(attributeSchema.getUniquenessType()))
+			.addAllUniqueInScopes(
+				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedAttributeUniquenessType(scope, attributeSchema.getUniquenessType(scope)))
+					// filter default values
+					.filter(scopedUniquenessType -> scopedUniquenessType.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+					.map(
+						scopedUniquenessType -> GrpcScopedAttributeUniquenessType.newBuilder()
+							.setScope(EvitaEnumConverter.toGrpcScope(scopedUniquenessType.scope()))
+							.setUniquenessType(toGrpcAttributeUniquenessType(scopedUniquenessType.uniquenessType()))
+							.build()
+					)
+					.toList()
+			)
+			.setUniqueGlobally(toGrpcGlobalAttributeUniquenessType(attributeSchema.getGlobalUniquenessType()))
+			.addAllUniqueGloballyInScopes(
+				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedGlobalAttributeUniquenessType(scope, attributeSchema.getGlobalUniquenessType(scope)))
+					// filter default values
+					.filter(scopedUniquenessType -> scopedUniquenessType.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE)
+					.map(
+						scopedUniquenessType -> GrpcScopedGlobalAttributeUniquenessType.newBuilder()
+							.setScope(EvitaEnumConverter.toGrpcScope(scopedUniquenessType.scope()))
+							.setUniquenessType(toGrpcGlobalAttributeUniquenessType(scopedUniquenessType.uniquenessType()))
+							.build()
+					)
+					.toList()
+			)
 			.setFilterable(attributeSchema.isFilterable())
+			.addAllFilterableInScopes(
+				Arrays.stream(Scope.values())
+					.filter(attributeSchema::isFilterable)
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setSortable(attributeSchema.isSortable())
+			.addAllSortableInScopes(
+				Arrays.stream(Scope.values())
+					.filter(attributeSchema::isSortable)
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setLocalized(attributeSchema.isLocalized())
 			.setNullable(attributeSchema.isNullable())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(attributeSchema.getType()))
-			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces())
-			.setUniqueGlobally(EvitaEnumConverter.toGrpcGlobalAttributeUniquenessType(attributeSchema.getGlobalUniquenessType()));
+			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces());
 
 		ofNullable(attributeSchema.getDefaultValue())
 			.ifPresent(it -> builder.setDefaultValue(EvitaDataTypesConverter.toGrpcEvitaValue(it, null)));
@@ -173,14 +220,47 @@ public class CatalogSchemaConverter {
 	 */
 	@Nonnull
 	private static GlobalAttributeSchemaContract toGlobalAttributeSchema(@Nonnull GrpcGlobalAttributeSchema attributeSchema) {
+		final ScopedAttributeUniquenessType[] uniqueInScopes = attributeSchema.getUniqueInScopesList().isEmpty() ?
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(attributeSchema.getUnique()))
+			}
+			:
+			attributeSchema.getUniqueInScopesList()
+				.stream()
+				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedAttributeUniquenessType[]::new);
+		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = attributeSchema.getUniqueGloballyInScopesList().isEmpty() ?
+			new ScopedGlobalAttributeUniquenessType[]{
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()))
+			}
+			:
+			attributeSchema.getUniqueGloballyInScopesList()
+				.stream()
+				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
+		final Scope[] filterableInScopes = attributeSchema.getFilterableInScopesList().isEmpty() ?
+			(attributeSchema.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			attributeSchema.getFilterableInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+		final Scope[] sortableInScopes = attributeSchema.getSortableInScopesList().isEmpty() ?
+			(attributeSchema.getSortable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			attributeSchema.getSortableInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+
 		return GlobalAttributeSchema._internalBuild(
 			attributeSchema.getName(),
 			attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 			attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-			EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
-			EvitaEnumConverter.toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()),
-			attributeSchema.getFilterable(),
-			attributeSchema.getSortable(),
+			uniqueInScopes,
+			uniqueGloballyInScopes,
+			filterableInScopes,
+			sortableInScopes,
 			attributeSchema.getLocalized(),
 			attributeSchema.getNullable(),
 			attributeSchema.getRepresentative(),

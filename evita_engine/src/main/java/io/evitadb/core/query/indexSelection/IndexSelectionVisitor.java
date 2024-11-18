@@ -43,6 +43,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -56,10 +57,13 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * This visitor examines {@link Query#getFilterBy()} query and tries to construct multiple {@link TargetIndexes}
@@ -67,9 +71,8 @@ import java.util.Optional;
  * one with another to produce filtering query with minimal execution costs.
  *
  * Currently, the logic is quite stupid - it searches the filter for all constraints within AND relation and when
- * relation or hierarchy query is encountered, it adds specific {@link EntityIndexType#REFERENCED_ENTITY} or
- * {@link EntityIndexType#REFERENCED_HIERARCHY_NODE} that contains limited subset of the entities related to that
- * placement/relation.
+ * relation or hierarchy query is encountered, it adds specific {@link EntityIndexType#REFERENCED_ENTITY} that contains
+ * limited subset of the entities related to that placement/relation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -80,26 +83,39 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 
 	public IndexSelectionVisitor(@Nonnull QueryPlanningContext queryContext) {
 		this.queryContext = queryContext;
-		final Optional<EntityIndex> entityIndex = queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
-		if (entityIndex.isPresent()) {
-			final EntityIndex eix = entityIndex.get();
+		final Set<Scope> allowedScopes = this.queryContext.getScopes();
+		if (this.queryContext.hasEntityGlobalIndex()) {
+			final List<EntityIndex> indexes = Arrays.stream(Scope.values())
+				.filter(allowedScopes::contains)
+				.map(it -> this.queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL, it)))
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.map(EntityIndex.class::cast)
+				.toList();
 			this.targetIndexes.add(
 				new TargetIndexes<>(
-					eix.getIndexKey().getType().name(),
+					indexes.stream().map(it -> it.getIndexKey().toString()).collect(Collectors.joining(", ")),
 					EntityIndex.class,
-					Collections.singletonList(eix)
+					indexes
 				)
 			);
 		} else {
-			queryContext.getIndex(CatalogIndexKey.INSTANCE)
-				.ifPresent(it -> this.targetIndexes.add(
-						new TargetIndexes<>(
-							it.getIndexKey().toString(),
-							CatalogIndex.class,
-							Collections.singletonList((CatalogIndex) it)
-						)
+			final List<CatalogIndex> indexes = Arrays.stream(Scope.values())
+				.filter(allowedScopes::contains)
+				.map(it -> this.queryContext.getIndex(new CatalogIndexKey(it)))
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.map(CatalogIndex.class::cast)
+				.toList();
+			if (!indexes.isEmpty()) {
+				this.targetIndexes.add(
+					new TargetIndexes<>(
+						indexes.stream().map(it -> it.getIndexKey().toString()).collect(Collectors.joining(", ")),
+						CatalogIndex.class,
+						indexes
 					)
 				);
+			}
 		}
 	}
 
@@ -129,7 +145,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 
 	/**
 	 * Registers {@link TargetIndexes} that represents hierarchy placement. It finds collection of
-	 * {@link EntityIndexType#REFERENCED_HIERARCHY_NODE} indexes that contains all relevant data for entities that
+	 * {@link EntityIndexType#REFERENCED_ENTITY} indexes that contains all relevant data for entities that
 	 * are part of the requested tree. This significantly limits the scope that needs to be examined.
 	 */
 	private void addHierarchyIndexOption(@Nonnull HierarchyFilterConstraint constraint) {
@@ -156,22 +172,26 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						targetIndexes.add(TargetIndexes.EMPTY);
 					}
 					// locate all hierarchy indexes
+					final Set<Scope> scopes = queryContext.getScopes();
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
-					final List<ReducedEntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size());
+					final List<ReducedEntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size() * scopes.size());
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
-						queryContext.getIndex(
-							new EntityIndexKey(
-								EntityIndexType.REFERENCED_HIERARCHY_NODE,
-								new ReferenceKey(filteredHierarchyReferenceName, hierarchyEntityId)
-							)
-						)
-							.map(ReducedEntityIndex.class::cast)
-							.ifPresent(theTargetIndexes::add);
+						for (Scope scope : scopes) {
+							queryContext.getIndex(
+									new EntityIndexKey(
+										EntityIndexType.REFERENCED_ENTITY,
+										scope,
+										new ReferenceKey(filteredHierarchyReferenceName, hierarchyEntityId)
+									)
+								)
+								.map(ReducedEntityIndex.class::cast)
+								.ifPresent(theTargetIndexes::add);
+						}
 					}
 					// add indexes as potential target indexes
 					this.targetIndexes.add(
 						new TargetIndexes<>(
-							EntityIndexType.REFERENCED_HIERARCHY_NODE.name() +
+							EntityIndexType.REFERENCED_ENTITY.name() +
 								" composed of " + requestedHierarchyNodes.size() + " indexes",
 							constraint,
 							ReducedEntityIndex.class,

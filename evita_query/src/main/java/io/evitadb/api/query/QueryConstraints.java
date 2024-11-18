@@ -30,6 +30,7 @@ import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Range;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.StripList;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
@@ -1858,6 +1859,31 @@ public interface QueryConstraints {
 			return null;
 		}
 		return new EntityPrimaryKeyInSet(Arrays.stream(primaryKey).boxed().toArray(Integer[]::new));
+	}
+
+	/**
+	 * This `scope` require constraint can be used to control the scope of the entity search. It has single vararg argument
+	 * that accepts one or more scopes where the entity should be searched. The following scopes are supported:
+	 *
+	 * - LIVE: entities that are currently active and reside in the live data set indexes
+	 * - ARCHIVED: entities that are no longer active and reside in the archive indexes (with limited accessibility)
+	 *
+	 * By default, entities are searched only in the LIVE scope. The ARCHIVED scope is being searched only when explicitly
+	 * requested. Archived entities are considered to be "soft-deleted", can be still queried if necessary, and can be
+	 * restored back to the LIVE scope.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * scope(ARCHIVED)
+	 * scope(LIVE,ARCHIVED)
+	 * ```
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#scope">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static EntityScope scope(@Nullable Scope... scope) {
+		return ArrayUtils.isEmptyOrItsValuesNull(scope) ? null : new EntityScope(scope);
 	}
 
 	/*
@@ -22299,7 +22325,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `useOfPrice` require query can be used to control the form of prices that will be used for computation in
+	 * This `useOfPrice` require constraint can be used to control the form of prices that will be used for computation in
 	 * {@link io.evitadb.api.query.filter.PriceBetween} filtering, and {@link PriceNatural},
 	 * ordering. Also {@link PriceHistogram} is sensitive to this setting.
 	 *
@@ -22407,8 +22433,9 @@ public interface QueryConstraints {
 	 * are defined by the {@link SpacingGap} sub-constraints, which specify the number of entities that should be skipped
 	 * on the page when the `onPage` expression is evaluated to true.
 	 *
-	 * First gap space that satisfies the condition is used. If no gap space is satisfied, the page contains the number of
-	 * entities defined by the `page` requirement (as long as there is enough entities available in the result).
+	 * All gap space definitions that satisfy the condition are used (the rules are cumulative). If no gap space is satisfied,
+	 * the page contains the number of entities defined by the `page` requirement (as long as there is enough entities
+	 * available in the result).
 	 *
 	 * Example of usage:
 	 *

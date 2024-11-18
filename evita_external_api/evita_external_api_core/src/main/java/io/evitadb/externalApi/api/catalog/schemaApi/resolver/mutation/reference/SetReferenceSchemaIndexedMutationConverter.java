@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
@@ -39,10 +40,10 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class SetReferenceSchemaFilterableMutationConverter extends ReferenceSchemaMutationConverter<SetReferenceSchemaIndexedMutation> {
+public class SetReferenceSchemaIndexedMutationConverter extends ReferenceSchemaMutationConverter<SetReferenceSchemaIndexedMutation> {
 
-	public SetReferenceSchemaFilterableMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                     @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public SetReferenceSchemaIndexedMutationConverter(@Nonnull MutationObjectParser objectParser,
+	                                                  @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 
@@ -57,8 +58,7 @@ public class SetReferenceSchemaFilterableMutationConverter extends ReferenceSche
 	protected SetReferenceSchemaIndexedMutation convert(@Nonnull Input input) {
 		return new SetReferenceSchemaIndexedMutation(
 			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetReferenceSchemaIndexedMutationDescriptor.INDEXED)
-
+			(Scope[]) input.getOptionalField(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES)
 		);
 	}
 }

@@ -40,6 +40,7 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.utils.Assert;
@@ -99,7 +100,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 				.collect(Collectors.toList());
 
 			// retrieve attribute schema for requested attribute
-			final AttributeSchemaContract attributeSchema = getAttributeSchema(schema, attributeName);
+			final AttributeSchemaContract attributeSchema = getAttributeSchema(schema, extraResultPlanner.getScopes(), attributeName);
 
 			// register computational lambda for producing attribute histogram
 			attributeHistogramProducer.addAttributeHistogramRequest(
@@ -121,7 +122,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 	}
 
 	@Nonnull
-	private static AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract schema, @Nonnull String attributeName) {
+	private static AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract schema, @Nonnull Set<Scope> scopes, @Nonnull String attributeName) {
 		final AttributeSchemaContract attributeSchema = schema.getAttribute(attributeName)
 			.orElseThrow(() -> new AttributeNotFoundException(attributeName, schema));
 		Assert.isTrue(
@@ -129,7 +130,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			"Attribute `" + attributeName + "` must be a number in order to compute histogram!"
 		);
 		Assert.isTrue(
-			attributeSchema.isFilterable(),
+			scopes.stream().anyMatch(attributeSchema::isFilterable),
 			() -> new AttributeNotFilterableException(attributeName, "\"filterable\"", schema)
 		);
 		return attributeSchema;

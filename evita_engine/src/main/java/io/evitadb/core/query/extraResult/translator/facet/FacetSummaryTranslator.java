@@ -151,7 +151,13 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 		entitySchema.getReferences()
 			.values()
 			.stream()
-			.filter(ReferenceSchemaContract::isFaceted)
+			.filter(
+				referenceSchema -> extraResultPlanner
+					.getEvitaRequest()
+					.getScopes()
+					.stream()
+					.anyMatch(referenceSchema::isFacetedInScope)
+			)
 			.forEach(referenceSchema -> {
 				final String referencedEntityType = referencedType.apply(referenceSchema);
 				if (referencedEntityType != null) {
@@ -210,7 +216,8 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 						);
 					}
 				}
-			});
+			}
+		);
 
 		return requirement;
 	}

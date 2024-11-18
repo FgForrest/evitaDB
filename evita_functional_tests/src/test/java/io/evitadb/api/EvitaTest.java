@@ -1015,6 +1015,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReflectedReferenceToEntity(
 						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
 						whichIs -> whichIs.withAttributesInheritedExcept("note")
+							.withFacetedInherited()
 							.withAttribute("customNote", String.class)
 					)
 					.updateVia(session);
@@ -2209,9 +2210,9 @@ class EvitaTest implements EvitaTestSupport {
 
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1642,
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1656,
 					new EntityCollectionStatistics[]{
-						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 508)
+						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 522)
 					}
 				),
 				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow()

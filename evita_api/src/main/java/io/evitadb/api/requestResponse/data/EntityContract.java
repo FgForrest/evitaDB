@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
@@ -160,6 +161,15 @@ public interface EntityContract extends EntityClassifierWithParent,
 	 */
 	@Nonnull
 	Set<Locale> getLocales();
+
+	/**
+	 * Returns the scope the entity is part of.
+	 *
+	 * @see Scope
+	 * @return scope of the entity - either archived or live
+	 */
+	@Nonnull
+	Scope getScope();
 
 	/**
 	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be

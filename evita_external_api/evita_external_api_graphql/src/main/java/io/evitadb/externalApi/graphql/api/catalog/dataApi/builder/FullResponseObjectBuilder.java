@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInputType;
@@ -106,7 +105,9 @@ import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.STRING;
  */
 public class FullResponseObjectBuilder {
 
-	private static final ObjectMapper QUERY_TELEMETRY_OBJECT_MAPPER = new ObjectMapper();
+	private static final PropertyDataFetcher<Integer> REQUEST_IMPACT_DIFFERENCE_DATA_FETCHER = PropertyDataFetcher.fetching(RequestImpact::difference);
+	private static final PropertyDataFetcher<Integer> REQUEST_IMPACT_MATCH_COUNT_DATA_FETCHER = PropertyDataFetcher.fetching(RequestImpact::matchCount);
+	private static final PropertyDataFetcher<Boolean> REQUEST_IMPACT_HAS_SENSE_DATA_FETCHER = PropertyDataFetcher.fetching(RequestImpact::hasSense);
 
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
@@ -195,7 +196,7 @@ public class FullResponseObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			recordPageField,
-			new RecordPageDataFetcher()
+			RecordPageDataFetcher.getInstance()
 		);
 	}
 
@@ -225,7 +226,7 @@ public class FullResponseObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			recordStripField,
-			new RecordStripDataFetcher()
+			RecordStripDataFetcher.getInstance()
 		);
 	}
 
@@ -256,7 +257,7 @@ public class FullResponseObjectBuilder {
 
 		return Optional.of(new BuiltFieldDescriptor(
 			extraResultsField,
-			new ExtraResultsDataFetcher()
+			ExtraResultsDataFetcher.getInstance()
 		));
 	}
 
@@ -306,7 +307,7 @@ public class FullResponseObjectBuilder {
 
 		return Optional.of(new BuiltFieldDescriptor(
 			attributeHistogramField,
-			new AttributeHistogramDataFetcher()
+			AttributeHistogramDataFetcher.getInstance()
 		));
 	}
 
@@ -316,7 +317,7 @@ public class FullResponseObjectBuilder {
 			.getAttributes()
 			.values()
 			.stream()
-			.filter(attributeSchema -> attributeSchema.isFilterable() &&
+			.filter(attributeSchema -> attributeSchema.isFilterableInAnyScope() &&
 				Number.class.isAssignableFrom(attributeSchema.getPlainType()))
 			.toList();
 
@@ -377,7 +378,7 @@ public class FullResponseObjectBuilder {
 
 		return Optional.of(new BuiltFieldDescriptor(
 			ExtraResultsDescriptor.PRICE_HISTOGRAM.to(fieldBuilderTransformer).build(),
-			new PriceHistogramDataFetcher()
+			PriceHistogramDataFetcher.getInstance()
 		));
 	}
 
@@ -395,7 +396,7 @@ public class FullResponseObjectBuilder {
 
 		return Optional.of(new BuiltFieldDescriptor(
 			facetSummaryField,
-			new FacetSummaryDataFetcher()
+			FacetSummaryDataFetcher.getInstance()
 		));
 	}
 
@@ -405,7 +406,7 @@ public class FullResponseObjectBuilder {
 			.getReferences()
 			.values()
 			.stream()
-			.filter(ReferenceSchemaContract::isFaceted)
+			.filter(ReferenceSchemaContract::isFacetedInAnyScope)
 			.toList();
 
 		if (referenceSchemas.isEmpty()) {
@@ -854,7 +855,7 @@ public class FullResponseObjectBuilder {
 				.argument(HierarchyFromRootHeaderDescriptor.STATISTICS_BASE
 					.to(argumentBuilderTransformer))
 				.build(),
-			new SpecificHierarchyDataFetcher()
+			SpecificHierarchyDataFetcher.getInstance()
 		);
 	}
 
@@ -875,7 +876,7 @@ public class FullResponseObjectBuilder {
 				.argument(HierarchyFromNodeHeaderDescriptor.STATISTICS_BASE
 					.to(argumentBuilderTransformer))
 				.build(),
-			new SpecificHierarchyDataFetcher()
+			SpecificHierarchyDataFetcher.getInstance()
 		);
 	}
 
@@ -892,7 +893,7 @@ public class FullResponseObjectBuilder {
 				.argument(HierarchyChildrenHeaderDescriptor.STATISTICS_BASE
 					.to(argumentBuilderTransformer))
 				.build(),
-			new SpecificHierarchyDataFetcher()
+			SpecificHierarchyDataFetcher.getInstance()
 		);
 	}
 
@@ -913,7 +914,7 @@ public class FullResponseObjectBuilder {
 					.to(argumentBuilderTransformer)
 					.type(parentsSiblingsSpecification))
 				.build(),
-			new SpecificHierarchyDataFetcher()
+			SpecificHierarchyDataFetcher.getInstance()
 		);
 	}
 
@@ -930,7 +931,7 @@ public class FullResponseObjectBuilder {
 				.argument(HierarchySiblingsHeaderDescriptor.STATISTICS_BASE
 					.to(argumentBuilderTransformer))
 				.build(),
-			new SpecificHierarchyDataFetcher()
+			SpecificHierarchyDataFetcher.getInstance()
 		);
 	}
 
@@ -941,7 +942,7 @@ public class FullResponseObjectBuilder {
 				.to(fieldBuilderTransformer)
 				.type(nonNull(OBJECT)) // workaround because GQL doesn't support infinite recursive structures
 				.build(),
-			new QueryTelemetryDataFetcher(QUERY_TELEMETRY_OBJECT_MAPPER)
+			QueryTelemetryDataFetcher.getInstance()
 		);
 	}
 
@@ -986,17 +987,17 @@ public class FullResponseObjectBuilder {
 		buildingContext.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.DIFFERENCE,
-			PropertyDataFetcher.fetching(RequestImpact::difference)
+			REQUEST_IMPACT_DIFFERENCE_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.MATCH_COUNT,
-			PropertyDataFetcher.fetching(RequestImpact::matchCount)
+			REQUEST_IMPACT_MATCH_COUNT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.HAS_SENSE,
-			PropertyDataFetcher.fetching(RequestImpact::hasSense)
+			REQUEST_IMPACT_HAS_SENSE_DATA_FETCHER
 		);
 
 		return FacetRequestImpactDescriptor.THIS

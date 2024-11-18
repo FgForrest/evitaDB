@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.api.requestResponse.data.Versioned;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.core.query.algebra.Formula;
@@ -34,6 +35,8 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.AttributeIndexContract;
+import io.evitadb.index.attribute.AttributeIndexScopeSpecificContract;
+import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
@@ -51,6 +54,7 @@ import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -98,7 +102,7 @@ public abstract class EntityIndex implements
 	 * data that are necessary for constructing {@link Formula} tree for the constraints
 	 * related to the attributes.
 	 */
-	@Delegate(types = AttributeIndexContract.class)
+	@Delegate(types = AttributeIndexContract.class, excludes = AttributeIndexScopeSpecificContract.class)
 	protected final AttributeIndex attributeIndex;
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
@@ -344,6 +348,18 @@ public abstract class EntityIndex implements
 	}
 
 	/**
+	 * Retrieves a unique index for the given attribute schema and optional locale.
+	 *
+	 * @param attributeSchema The schema of the attribute for which the unique index is being retrieved. Must not be null.
+	 * @param locale The locale for which the unique index is sought, can be null.
+	 * @return The unique index corresponding to the specified attribute schema and locale, or null if it does not exist.
+	 */
+	@Nullable
+	public UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nullable Locale locale) {
+		return this.attributeIndex.getUniqueIndex(attributeSchema, this.indexKey.scope(), locale);
+	}
+
+	/**
 	 * Returns formula that computes all record ids in this index that has at least one localized attribute / associated
 	 * data in passed `locale`.
 	 */
@@ -366,14 +382,14 @@ public abstract class EntityIndex implements
 	 * Returns true if index contains no data whatsoever.
 	 */
 	public boolean isEmpty() {
-		return entityIds.isEmpty() &&
-			attributeIndex.isAttributeIndexEmpty() &&
-			hierarchyIndex.isHierarchyIndexEmpty();
+		return this.entityIds.isEmpty() &&
+			this.attributeIndex.isAttributeIndexEmpty() &&
+			this.hierarchyIndex.isHierarchyIndexEmpty();
 	}
 
 	@Override
 	public int version() {
-		return version;
+		return this.version;
 	}
 
 	/**
@@ -417,6 +433,12 @@ public abstract class EntityIndex implements
 		this.facetIndex.resetDirty();
 	}
 
+	/**
+	 * Removes the transactional memory layers of various referenced producers associated with the given transactional
+	 * layer. This method is used when index is removed to clear all orphaned transactional memory layers.
+	 *
+	 * @param transactionalLayer the instance of TransactionalLayerMaintainer whose layers are to be removed from the referenced producers
+	 */
 	public void removeTransactionalMemoryOfReferencedProducers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.dirty.removeLayer(transactionalLayer);
 		this.entityIds.removeLayer(transactionalLayer);
@@ -426,8 +448,23 @@ public abstract class EntityIndex implements
 		this.facetIndex.removeLayer(transactionalLayer);
 	}
 
+	/**
+	 * Retrieves the price index for the implementing entity.
+	 *
+	 * @return an instance of the price index conforming to the PriceIndexContract.
+	 */
 	@Nonnull
 	public abstract <S extends PriceIndexContract> S getPriceIndex();
+
+	/**
+	 * Checks if the given primary key is present in the set of entity IDs.
+	 *
+	 * @param primaryKey the primary key to check for presence in the entity index
+	 * @return true if the primary key is present, false otherwise
+	 */
+	public boolean contains(int primaryKey) {
+		return entityIds.contains(primaryKey);
+	}
 
 	/**
 	 * Method creates container that is possible to serialize and store into persistent storage.
@@ -449,6 +486,11 @@ public abstract class EntityIndex implements
 			facetIndexReferencedEntities,
 			null
 		);
+	}
+
+	@Override
+	public String toString() {
+		return "EntityIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) + ")";
 	}
 
 	/*

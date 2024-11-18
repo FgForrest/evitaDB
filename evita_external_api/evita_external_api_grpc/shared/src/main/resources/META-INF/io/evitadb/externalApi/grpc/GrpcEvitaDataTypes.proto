@@ -227,6 +227,12 @@ message GrpcHistogramBehaviorTypeArray {
   repeated GrpcHistogramBehavior value = 1;
 }
 
+// Wrapper for representing an array of Scope enums.
+message GrpcEntityScopeArray {
+  // Value that supports storing a Scope array.
+  repeated GrpcEntityScope value = 1;
+}
+
 // Structure that holds one of the supported data type values, its type and version of stored value.
 message GrpcEvitaValue {
   // The stored value. May by only one of the following at the time.
@@ -411,4 +417,20 @@ message GrpcNameVariant {
   GrpcNamingConvention namingConvention = 1;
   // the name in the particular naming convention
   string name = 2;
+}
+
+// uniqueness type associated with particular scope
+message GrpcScopedAttributeUniquenessType {
+  // scope of entities where uniqueness is enforced
+  GrpcEntityScope scope = 1;
+  // type of uniqueness
+  GrpcAttributeUniquenessType uniquenessType = 2;
+}
+
+// uniqueness type associated with particular scope
+message GrpcScopedGlobalAttributeUniquenessType {
+  // scope of entities where uniqueness is enforced
+  GrpcEntityScope scope = 1;
+  // type of uniqueness
+  GrpcGlobalAttributeUniquenessType uniquenessType = 2;
 }

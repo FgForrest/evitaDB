@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,28 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
+package io.evitadb.api.exception;
 
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
-class SetReferenceSchemaFilterableMutationConverterTest {
+import javax.annotation.Nonnull;
+import java.io.Serial;
 
-	private static SetReferenceSchemaFilterableMutationConverter converter;
+/**
+ * Exception is thrown when there is attempt to retrieve primary key that has not been assigned yet.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ */
+public class PrimaryKeyNotAssignedException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = -2077933335811704930L;
 
-	@BeforeAll
-	static void setup() {
-		converter = SetReferenceSchemaFilterableMutationConverter.INSTANCE;
+	public PrimaryKeyNotAssignedException(@Nonnull String entityType) {
+		super("Primary key for entity `" + entityType + "` has not been assigned yet. Please store the entity first.");
 	}
 
-	@Test
-	void shouldConvertMutation() {
-		final SetReferenceSchemaIndexedMutation mutation1 = new SetReferenceSchemaIndexedMutation(
-			"tags", true
-		);
-		assertEquals(mutation1, converter.convert(converter.convert(mutation1)));
-	}
 }

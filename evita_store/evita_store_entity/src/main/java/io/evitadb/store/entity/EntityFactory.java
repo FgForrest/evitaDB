@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,6 +73,7 @@ public class EntityFactory {
 	 *
 	 * This method is used for initial loading of the entity.
 	 */
+	@Nonnull
 	public static Entity createEntityFrom(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull EntityBodyStoragePart entityStorageContainer,
@@ -123,6 +124,8 @@ public class EntityFactory {
 				.orElseGet(() -> new Prices(entitySchema, PriceInnerRecordHandling.UNKNOWN)),
 			// pass all locales known in the entity container
 			entityStorageContainer.getLocales(),
+			// pass entity scope
+			entityStorageContainer.getScope(),
 			// loaded entity is never dropped - otherwise it could not have been read
 			false
 		);
@@ -218,6 +221,10 @@ public class EntityFactory {
 			ofNullable(entityStoragePart)
 				.map(EntityBodyStoragePart::getLocales)
 				.orElse(null),
+			// pass scope known in the entity container
+			ofNullable(entityStoragePart)
+				.map(EntityBodyStoragePart::getScope)
+				.orElseGet(entity::getScope),
 			// loaded entity is never dropped - otherwise it could not have been read
 			false
 		);

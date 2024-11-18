@@ -62,6 +62,7 @@ import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
@@ -76,6 +77,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -229,6 +231,11 @@ public class Entity implements SealedEntity {
 	 */
 	private final boolean dropped;
 	/**
+	 * Contains the scope of the entity. The scope is used to determine the visibility of the entity in the system.
+	 * @see Scope
+	 */
+	private final Scope scope;
+	/**
 	 * Contains map of all references by their name. This map is used for fast lookup of the references by their name
 	 * and is initialized lazily on first request.
 	 */
@@ -250,7 +257,8 @@ public class Entity implements SealedEntity {
 		@Nonnull EntityAttributes attributes,
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
-		@Nonnull Set<Locale> locales
+		@Nonnull Set<Locale> locales,
+		@Nonnull Scope scope
 	) {
 		return new Entity(
 			ofNullable(version).orElse(1),
@@ -262,6 +270,7 @@ public class Entity implements SealedEntity {
 			associatedData,
 			prices,
 			locales,
+			scope,
 			false
 		);
 	}
@@ -299,6 +308,7 @@ public class Entity implements SealedEntity {
 			locales,
 			referencesDefined,
 			withHierarchy,
+			Scope.DEFAULT_SCOPE,
 			dropped
 		);
 	}
@@ -320,13 +330,14 @@ public class Entity implements SealedEntity {
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
+		@Nonnull Scope scope,
 		boolean dropped
 	) {
 		return new Entity(
 			version, schema, primaryKey,
 			parent, references,
 			attributes, associatedData, prices,
-			locales, dropped
+			locales, scope, dropped
 		);
 	}
 
@@ -348,6 +359,7 @@ public class Entity implements SealedEntity {
 		@Nullable AssociatedData associatedData,
 		@Nullable Prices prices,
 		@Nullable Set<Locale> locales,
+		@Nonnull Scope scope,
 		boolean dropped
 	) {
 		return new Entity(
@@ -358,6 +370,7 @@ public class Entity implements SealedEntity {
 			ofNullable(associatedData).orElse(entity.associatedData),
 			ofNullable(prices).orElse(entity.prices),
 			ofNullable(locales).orElse(entity.locales),
+			scope,
 			dropped
 		);
 	}
@@ -375,13 +388,14 @@ public class Entity implements SealedEntity {
 	) {
 		final Optional<Entity> possibleEntity = ofNullable(entity);
 
-		final Integer oldParent = ofNullable(entity).map(it -> it.parent).orElse(null);
+		final Integer oldParent = possibleEntity.map(it -> it.parent).orElse(null);
 		Integer newParent = oldParent;
 		PriceInnerRecordHandling newPriceInnerRecordHandling = null;
 		final Map<AttributeKey, AttributeValue> newAttributes = CollectionUtils.createHashMap(localMutations.size());
 		final Map<AssociatedDataKey, AssociatedDataValue> newAssociatedData = CollectionUtils.createHashMap(localMutations.size());
 		final Map<ReferenceKey, ReferenceContract> newReferences = CollectionUtils.createHashMap(localMutations.size());
 		final Map<PriceKey, PriceContract> newPrices = CollectionUtils.createHashMap(localMutations.size());
+		Scope newScope = possibleEntity.map(Entity::getScope).orElse(Scope.DEFAULT_SCOPE);
 
 		for (LocalMutation<?, ?> localMutation : localMutations) {
 			if (localMutation instanceof ParentMutation parentMutation) {
@@ -396,6 +410,8 @@ public class Entity implements SealedEntity {
 				mutatePrices(entitySchema, possibleEntity, newPrices, priceMutation);
 			} else if (localMutation instanceof SetPriceInnerRecordHandlingMutation innerRecordHandlingMutation) {
 				newPriceInnerRecordHandling = mutateInnerPriceRecordHandling(entitySchema, possibleEntity, innerRecordHandlingMutation);
+			} else if (localMutation instanceof SetEntityScopeMutation scopeMutation) {
+				newScope = scopeMutation.mutateLocal(entitySchema, newScope);
 			}
 		}
 
@@ -434,6 +450,7 @@ public class Entity implements SealedEntity {
 				entityLocales,
 				mergedReferences.referencesDefined(),
 				entitySchema.isWithHierarchy() || newParent != null,
+				newScope,
 				false
 			);
 		} else if (entity == null) {
@@ -825,6 +842,7 @@ public class Entity implements SealedEntity {
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
+		@Nonnull Scope scope,
 		boolean dropped
 	) {
 		this(
@@ -839,8 +857,28 @@ public class Entity implements SealedEntity {
 			locales,
 			schema.getReferences().keySet(),
 			schema.isWithHierarchy(),
+			scope,
 			dropped
 		);
+	}
+
+	public Entity(@Nonnull String type, @Nullable Integer primaryKey) {
+		this.version = 1;
+		this.type = type;
+		this.schema = EntitySchema._internalBuild(type);
+		this.primaryKey = primaryKey;
+		this.parent = null;
+		this.withHierarchy = this.schema.isWithHierarchy();
+		this.references = Collections.emptyMap();
+		this.referencesDefined = Collections.emptySet();
+		this.attributes = new EntityAttributes(this.schema);
+		this.associatedData = new AssociatedData(this.schema);
+		this.prices = new io.evitadb.api.requestResponse.data.structure.Prices(
+			this.schema, 1, Collections.emptySet(), PriceInnerRecordHandling.NONE
+		);
+		this.locales = Collections.emptySet();
+		this.scope = Scope.DEFAULT_SCOPE;
+		this.dropped = false;
 	}
 
 	/**
@@ -859,6 +897,7 @@ public class Entity implements SealedEntity {
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<String> referencesDefined,
 		boolean withHierarchy,
+		@Nonnull Scope scope,
 		boolean dropped
 	) {
 		this.version = version;
@@ -886,30 +925,13 @@ public class Entity implements SealedEntity {
 		this.associatedData = associatedData;
 		this.prices = prices;
 		this.locales = Collections.unmodifiableSet(locales);
+		this.scope = scope;
 		this.dropped = dropped;
-	}
-
-	public Entity(@Nonnull String type, @Nullable Integer primaryKey) {
-		this.version = 1;
-		this.type = type;
-		this.schema = EntitySchema._internalBuild(type);
-		this.primaryKey = primaryKey;
-		this.parent = null;
-		this.withHierarchy = this.schema.isWithHierarchy();
-		this.references = Collections.emptyMap();
-		this.referencesDefined = Collections.emptySet();
-		this.attributes = new EntityAttributes(this.schema);
-		this.associatedData = new AssociatedData(this.schema);
-		this.prices = new io.evitadb.api.requestResponse.data.structure.Prices(
-			this.schema, 1, Collections.emptySet(), PriceInnerRecordHandling.NONE
-		);
-		this.locales = Collections.emptySet();
-		this.dropped = false;
 	}
 
 	@Override
 	public boolean parentAvailable() {
-		return withHierarchy;
+		return this.withHierarchy;
 	}
 
 	/**
@@ -931,21 +953,21 @@ public class Entity implements SealedEntity {
 	@Nonnull
 	public OptionalInt getParent() throws EntityIsNotHierarchicalException {
 		Assert.isTrue(
-			withHierarchy,
-			() -> new EntityIsNotHierarchicalException(schema.getName())
+			this.withHierarchy,
+			() -> new EntityIsNotHierarchicalException(this.schema.getName())
 		);
-		return parent == null ? OptionalInt.empty() : OptionalInt.of(parent);
+		return this.parent == null ? OptionalInt.empty() : OptionalInt.of(this.parent);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
 		Assert.isTrue(
-			withHierarchy,
-			() -> new EntityIsNotHierarchicalException(schema.getName())
+			this.withHierarchy,
+			() -> new EntityIsNotHierarchicalException(this.schema.getName())
 		);
-		return ofNullable(parent)
-			.map(it -> new EntityReferenceWithParent(type, it, null));
+		return ofNullable(this.parent)
+			.map(it -> new EntityReferenceWithParent(this.type, it, null));
 	}
 
 	@Override
@@ -961,7 +983,7 @@ public class Entity implements SealedEntity {
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences() {
-		return references.values();
+		return this.references.values();
 	}
 
 	@Nonnull
@@ -969,7 +991,7 @@ public class Entity implements SealedEntity {
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
 		checkReferenceName(referenceName);
 		if (this.referencesByName == null) {
-			this.referencesByName = references
+			this.referencesByName = this.references
 				.entrySet()
 				.stream()
 				.collect(
@@ -982,7 +1004,7 @@ public class Entity implements SealedEntity {
 					)
 				);
 		}
-		return ofNullable(referencesByName.get(referenceName))
+		return ofNullable(this.referencesByName.get(referenceName))
 			.orElse(Collections.emptyList());
 	}
 
@@ -990,13 +1012,13 @@ public class Entity implements SealedEntity {
 	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
 		checkReferenceName(referenceName);
-		return ofNullable(references.get(new ReferenceKey(referenceName, referencedEntityId)));
+		return ofNullable(this.references.get(new ReferenceKey(referenceName, referencedEntityId)));
 	}
 
 	@Nonnull
 	@Override
 	public Set<Locale> getAllLocales() {
-		return locales;
+		return this.locales;
 	}
 
 	/**
@@ -1004,8 +1026,8 @@ public class Entity implements SealedEntity {
 	 */
 	public void checkReferenceName(@Nonnull String referenceName) {
 		Assert.isTrue(
-			referencesDefined.contains(referenceName),
-			() -> new ReferenceNotFoundException(referenceName, schema)
+			this.referencesDefined.contains(referenceName),
+			() -> new ReferenceNotFoundException(referenceName, this.schema)
 		);
 	}
 
@@ -1015,23 +1037,29 @@ public class Entity implements SealedEntity {
 	 */
 	@Nullable
 	public Optional<ReferenceContract> getReferenceWithoutSchemaCheck(@Nonnull ReferenceKey referenceKey) {
-		return ofNullable(references.get(referenceKey));
+		return ofNullable(this.references.get(referenceKey));
 	}
 
 	@Nullable
 	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) {
 		checkReferenceName(referenceKey.referenceName());
-		return ofNullable(references.get(referenceKey));
+		return ofNullable(this.references.get(referenceKey));
+	}
+
+	@Nonnull
+	@Override
+	public Scope getScope() {
+		return this.scope;
 	}
 
 	@Override
 	public boolean dropped() {
-		return dropped;
+		return this.dropped;
 	}
 
 	@Override
 	public int version() {
-		return version;
+		return this.version;
 	}
 
 	@Nonnull
@@ -1062,9 +1090,9 @@ public class Entity implements SealedEntity {
 	@Override
 	public int hashCode() {
 		int result = 1;
-		result = 31 * result + version;
-		result = 31 * result + type.hashCode();
-		result = 31 * result + (primaryKey == null ? 0 : primaryKey.hashCode());
+		result = 31 * result + this.version;
+		result = 31 * result + this.type.hashCode();
+		result = 31 * result + (this.primaryKey == null ? 0 : this.primaryKey.hashCode());
 		return result;
 	}
 
@@ -1073,7 +1101,7 @@ public class Entity implements SealedEntity {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		Entity entity = (Entity) o;
-		return version == entity.version && type.equals(entity.type) && Objects.equals(primaryKey, entity.primaryKey);
+		return this.version == entity.version && this.type.equals(entity.type) && Objects.equals(this.primaryKey, entity.primaryKey);
 	}
 
 	@Override

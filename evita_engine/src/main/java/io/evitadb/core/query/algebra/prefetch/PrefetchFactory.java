@@ -26,7 +26,6 @@ package io.evitadb.core.query.algebra.prefetch;
 import io.evitadb.core.query.QueryExecutionContext;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Optional;
 
 /**
@@ -46,7 +45,7 @@ public interface PrefetchFactory {
 	 * is possible and would "pay off". In case the possible prefetching would be more costly than executing the standard
 	 * filtering logic, the prefetch is not executed.
 	 */
-	@Nullable
+	@Nonnull
 	Optional<Runnable> createPrefetchLambdaIfNeededOrWorthwhile(@Nonnull QueryExecutionContext queryContext);
 
 }

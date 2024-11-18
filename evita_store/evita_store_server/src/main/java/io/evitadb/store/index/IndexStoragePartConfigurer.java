@@ -26,6 +26,7 @@ package io.evitadb.store.index;
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.CardinalityIndex;
@@ -62,8 +63,18 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 	public void accept(Kryo kryo) {
 		int index = INDEX_BASE;
 
-		kryo.register(CatalogIndexStoragePart.class, new SerialVersionBasedSerializer<>(new CatalogIndexStoragePartSerializer(keyCompressor), CatalogIndexStoragePart.class), index++);
-		kryo.register(EntityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new EntityIndexStoragePartSerializer(keyCompressor), EntityIndexStoragePart.class), index++);
+		kryo.register(
+			CatalogIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new CatalogIndexStoragePartSerializer(keyCompressor), CatalogIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-1216381352203651969L, new CatalogIndexStoragePartSerializer_2024_11(keyCompressor)),
+			index++
+		);
+		kryo.register(
+			EntityIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new EntityIndexStoragePartSerializer(keyCompressor), EntityIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-6245538251957498672L, new EntityIndexStoragePartSerializer_2024_11(keyCompressor)),
+			index++
+		);
 		kryo.register(UniqueIndexStoragePart.class, new SerialVersionBasedSerializer<>(new UniqueIndexStoragePartSerializer(keyCompressor), UniqueIndexStoragePart.class), index++);
 		kryo.register(
 			FilterIndexStoragePart.class,
@@ -97,6 +108,7 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(FacetIndexStoragePart.class, new SerialVersionBasedSerializer<>(new FacetIndexStoragePartSerializer(), FacetIndexStoragePart.class), index++);
 		kryo.register(ComparableLocale.class, new SerialVersionBasedSerializer<>(new ComparableLocaleSerializer(), ComparableLocale.class), index++);
 		kryo.register(ComparableCurrency.class, new SerialVersionBasedSerializer<>(new ComparableCurrencySerializer(), ComparableCurrency.class), index++);
+		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);
 
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}

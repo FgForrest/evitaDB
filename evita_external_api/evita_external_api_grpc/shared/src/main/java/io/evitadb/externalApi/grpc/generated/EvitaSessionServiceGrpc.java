@@ -974,6 +974,68 @@ public final class EvitaSessionServiceGrpc {
     return getDeleteEntitiesMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse> getArchiveEntityMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "ArchiveEntity",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse> getArchiveEntityMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest, io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse> getArchiveEntityMethod;
+    if ((getArchiveEntityMethod = EvitaSessionServiceGrpc.getArchiveEntityMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getArchiveEntityMethod = EvitaSessionServiceGrpc.getArchiveEntityMethod) == null) {
+          EvitaSessionServiceGrpc.getArchiveEntityMethod = getArchiveEntityMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest, io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ArchiveEntity"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("ArchiveEntity"))
+              .build();
+        }
+      }
+    }
+    return getArchiveEntityMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse> getRestoreEntityMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "RestoreEntity",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse> getRestoreEntityMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse> getRestoreEntityMethod;
+    if ((getRestoreEntityMethod = EvitaSessionServiceGrpc.getRestoreEntityMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getRestoreEntityMethod = EvitaSessionServiceGrpc.getRestoreEntityMethod) == null) {
+          EvitaSessionServiceGrpc.getRestoreEntityMethod = getRestoreEntityMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RestoreEntity"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("RestoreEntity"))
+              .build();
+        }
+      }
+    }
+    return getRestoreEntityMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
       io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse> getGetTransactionIdMethod;
 
@@ -1366,6 +1428,26 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure that archives an entity and returns it with required richness.
+     * </pre>
+     */
+    public void archiveEntity(io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getArchiveEntityMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that restores an entity and returns it with required richness.
+     * </pre>
+     */
+    public void restoreEntity(io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRestoreEntityMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure that opens a transaction.
      * </pre>
      */
@@ -1586,6 +1668,20 @@ public final class EvitaSessionServiceGrpc {
                 io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest,
                 io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse>(
                   this, METHODID_DELETE_ENTITIES)))
+          .addMethod(
+            getArchiveEntityMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse>(
+                  this, METHODID_ARCHIVE_ENTITY)))
+          .addMethod(
+            getRestoreEntityMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest,
+                io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse>(
+                  this, METHODID_RESTORE_ENTITY)))
           .addMethod(
             getGetTransactionIdMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -1954,6 +2050,28 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure that archives an entity and returns it with required richness.
+     * </pre>
+     */
+    public void archiveEntity(io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getArchiveEntityMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that restores an entity and returns it with required richness.
+     * </pre>
+     */
+    public void restoreEntity(io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getRestoreEntityMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure that opens a transaction.
      * </pre>
      */
@@ -2288,6 +2406,26 @@ public final class EvitaSessionServiceGrpc {
     public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse deleteEntities(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getDeleteEntitiesMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that archives an entity and returns it with required richness.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse archiveEntity(io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getArchiveEntityMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that restores an entity and returns it with required richness.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse restoreEntity(io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getRestoreEntityMethod(), getCallOptions(), request);
     }
 
     /**
@@ -2647,6 +2785,28 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure that archives an entity and returns it with required richness.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse> archiveEntity(
+        io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getArchiveEntityMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that restores an entity and returns it with required richness.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse> restoreEntity(
+        io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getRestoreEntityMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
      * Procedure that opens a transaction.
      * </pre>
      */
@@ -2687,7 +2847,9 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_DELETE_ENTITY = 27;
   private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 28;
   private static final int METHODID_DELETE_ENTITIES = 29;
-  private static final int METHODID_GET_TRANSACTION_ID = 30;
+  private static final int METHODID_ARCHIVE_ENTITY = 30;
+  private static final int METHODID_RESTORE_ENTITY = 31;
+  private static final int METHODID_GET_TRANSACTION_ID = 32;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -2826,6 +2988,14 @@ public final class EvitaSessionServiceGrpc {
           serviceImpl.deleteEntities((io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse>) responseObserver);
           break;
+        case METHODID_ARCHIVE_ENTITY:
+          serviceImpl.archiveEntity((io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse>) responseObserver);
+          break;
+        case METHODID_RESTORE_ENTITY:
+          serviceImpl.restoreEntity((io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse>) responseObserver);
+          break;
         case METHODID_GET_TRANSACTION_ID:
           serviceImpl.getTransactionId((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse>) responseObserver);
@@ -2921,6 +3091,8 @@ public final class EvitaSessionServiceGrpc {
               .addMethod(getDeleteEntityMethod())
               .addMethod(getDeleteEntityAndItsHierarchyMethod())
               .addMethod(getDeleteEntitiesMethod())
+              .addMethod(getArchiveEntityMethod())
+              .addMethod(getRestoreEntityMethod())
               .addMethod(getGetTransactionIdMethod())
               .build();
         }

@@ -94,6 +94,7 @@ module evita.engine {
 
 	requires jdk.jfr;
 	requires net.bytebuddy;
+	requires java.sql;
 
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;

@@ -48,9 +48,12 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
+import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -172,9 +175,13 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 								nestedResult.filter(),
 								it -> {
 									// leave the return here, so that we can easily debug it
-									return filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it)
-										.map(EntityIndex::getAllPrimaryKeys)
-										.orElse(EmptyBitmap.INSTANCE);
+									final RoaringBitmap combinedResult = RoaringBitmap.or(
+										filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it)
+											.map(EntityIndex::getAllPrimaryKeys)
+											.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
+											.toArray(RoaringBitmap[]::new)
+									);
+									return combinedResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(combinedResult);
 								}
 							);
 							return new DeferredFormula(

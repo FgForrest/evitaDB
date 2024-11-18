@@ -39,9 +39,12 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
@@ -53,10 +56,13 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static io.evitadb.dataType.Scope.NO_SCOPE;
 
 /**
  * Mutation is responsible for setting up a new {@link GlobalAttributeSchemaContract} in the {@link CatalogSchemaContract}.
@@ -70,33 +76,22 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateGlobalAttributeSchemaMutation
-	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
-	@Serial private static final long serialVersionUID = -7082514745878566818L;
+	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation, CreateMutation {
+	@Serial private static final long serialVersionUID = 496202593310308290L;
+
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
-	@Getter @Nonnull private final AttributeUniquenessType unique;
-	@Getter @Nonnull private final GlobalAttributeUniquenessType uniqueGlobally;
-	@Getter private final boolean filterable;
-	@Getter private final boolean sortable;
+	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;
+	@Getter @Nonnull private final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes;
+	@Getter private final Scope[] filterableInScopes;
+	@Getter private final Scope[] sortableInScopes;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
 	@Getter private final boolean representative;
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
-
-	@Nullable
-	private static <T> LocalCatalogSchemaMutation makeMutationIfDifferent(
-		@Nonnull GlobalAttributeSchemaContract createdVersion,
-		@Nonnull GlobalAttributeSchemaContract existingVersion,
-		@Nonnull Function<GlobalAttributeSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalCatalogSchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
-	}
 
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
@@ -113,6 +108,35 @@ public class CreateGlobalAttributeSchemaMutation
 		@Nullable Serializable defaultValue,
 		int indexedDecimalPlaces
 	) {
+		this(
+			name, description, deprecationNotice,
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, unique)
+			},
+			new ScopedGlobalAttributeUniquenessType[]{
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, uniqueGlobally)
+			},
+			filterable ? Scope.DEFAULT_SCOPES : NO_SCOPE,
+			sortable ? Scope.DEFAULT_SCOPES : NO_SCOPE,
+			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces
+		);
+	}
+
+	public CreateGlobalAttributeSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<? extends Serializable> type,
+		@Nullable Serializable defaultValue,
+		int indexedDecimalPlaces
+	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
 		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
@@ -120,10 +144,12 @@ public class CreateGlobalAttributeSchemaMutation
 		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.unique = unique == null ? AttributeUniquenessType.NOT_UNIQUE : unique;
-		this.uniqueGlobally = uniqueGlobally == null ? GlobalAttributeUniquenessType.NOT_UNIQUE : uniqueGlobally;
-		this.filterable = filterable;
-		this.sortable = sortable;
+		this.uniqueInScopes = uniqueInScopes == null ?
+			new ScopedAttributeUniquenessType[] { new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE) } : uniqueInScopes;
+		this.uniqueGloballyInScopes = uniqueGloballyInScopes == null ?
+			new ScopedGlobalAttributeUniquenessType[] { new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, GlobalAttributeUniquenessType.NOT_UNIQUE) } : uniqueGloballyInScopes;
+		this.filterableInScopes = filterableInScopes == null ? NO_SCOPE : filterableInScopes;
+		this.sortableInScopes = sortableInScopes == null ? NO_SCOPE : sortableInScopes;
 		this.localized = localized;
 		this.nullable = nullable;
 		this.representative = representative;
@@ -132,68 +158,117 @@ public class CreateGlobalAttributeSchemaMutation
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 	}
 
+	@Nonnull
+	public AttributeUniquenessType getUnique() {
+		return Arrays.stream(this.uniqueInScopes)
+			.filter(it -> it.scope() == Scope.DEFAULT_SCOPE)
+			.findFirst()
+			.map(ScopedAttributeUniquenessType::uniquenessType)
+			.orElse(AttributeUniquenessType.NOT_UNIQUE);
+	}
+
+	@Nonnull
+	public GlobalAttributeUniquenessType getUniqueGlobally() {
+		return Arrays.stream(this.uniqueGloballyInScopes)
+			.filter(it -> it.scope() == Scope.DEFAULT_SCOPE)
+			.findFirst()
+			.map(ScopedGlobalAttributeUniquenessType::uniquenessType)
+			.orElse(GlobalAttributeUniquenessType.NOT_UNIQUE);
+	}
+
+	public boolean isFilterable() {
+		return !ArrayUtils.isEmptyOrItsValuesNull(this.filterableInScopes);
+	}
+
+	public boolean isSortable() {
+		return !ArrayUtils.isEmptyOrItsValuesNull(this.sortableInScopes);
+	}
+
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
 		// when the attribute schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
-		if (existingMutation instanceof RemoveAttributeSchemaMutation removeAttributeSchema && Objects.equals(removeAttributeSchema.getName(), name)) {
+		if (existingMutation instanceof RemoveAttributeSchemaMutation removeAttributeSchema && Objects.equals(removeAttributeSchema.getName(), this.name)) {
 			final GlobalAttributeSchemaContract createdVersion = mutate(currentCatalogSchema, null, GlobalAttributeSchemaContract.class);
-			final GlobalAttributeSchemaContract existingVersion = currentCatalogSchema.getAttribute(name).orElseThrow();
+			final GlobalAttributeSchemaContract existingVersion = currentCatalogSchema.getAttribute(this.name).orElseThrow();
 			return new MutationCombinationResult<>(
 				null,
 				Stream.of(
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							NamedSchemaContract::getDescription,
-							newValue -> new ModifyAttributeSchemaDescriptionMutation(name, newValue)
+							newValue -> new ModifyAttributeSchemaDescriptionMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							NamedSchemaWithDeprecationContract::getDeprecationNotice,
-							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(name, newValue)
+							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::getType,
-							newValue -> new ModifyAttributeSchemaTypeMutation(name, newValue, indexedDecimalPlaces)
+							newValue -> new ModifyAttributeSchemaTypeMutation(this.name, newValue, this.indexedDecimalPlaces)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::getDefaultValue,
-							newValue -> new ModifyAttributeSchemaDefaultValueMutation(name, defaultValue)
+							newValue -> new ModifyAttributeSchemaDefaultValueMutation(this.name, this.defaultValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::isFilterable,
-							newValue -> new SetAttributeSchemaFilterableMutation(name, newValue)
+							schema -> Arrays.stream(Scope.values())
+								.filter(schema::isFilterable)
+								.toArray(Scope[]::new),
+							newValue -> new SetAttributeSchemaFilterableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::getUniquenessType,
-							newValue -> new SetAttributeSchemaUniqueMutation(name, newValue)
+							schema -> Arrays.stream(Scope.values())
+								.map(scope -> new ScopedAttributeUniquenessType(scope, schema.getUniquenessType(scope)))
+								// filter out default values
+								.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+								.toArray(ScopedAttributeUniquenessType[]::new),
+							newValue -> new SetAttributeSchemaUniqueMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::getGlobalUniquenessType,
-							newValue -> new SetAttributeSchemaGloballyUniqueMutation(name, newValue)
+							schema -> Arrays.stream(Scope.values())
+								.map(scope -> new ScopedGlobalAttributeUniquenessType(scope, schema.getGlobalUniquenessType(scope)))
+								// filter out default values
+								.filter(it -> it.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE)
+								.toArray(ScopedGlobalAttributeUniquenessType[]::new),
+							newValue -> new SetAttributeSchemaGloballyUniqueMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::isSortable,
-							newValue -> new SetAttributeSchemaSortableMutation(name, newValue)
+							schema -> Arrays.stream(Scope.values())
+								.filter(schema::isSortable)
+								.toArray(Scope[]::new),
+							newValue -> new SetAttributeSchemaSortableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isLocalized,
-							newValue -> new SetAttributeSchemaLocalizedMutation(name, newValue)
+							newValue -> new SetAttributeSchemaLocalizedMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isNullable,
-							newValue -> new SetAttributeSchemaNullableMutation(name, newValue)
+							newValue -> new SetAttributeSchemaNullableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isRepresentative,
 							newValue -> new SetAttributeSchemaRepresentativeMutation(name, newValue)
@@ -212,10 +287,12 @@ public class CreateGlobalAttributeSchemaMutation
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		//noinspection unchecked,rawtypes
 		return (S) GlobalAttributeSchema._internalBuild(
-			name, description, deprecationNotice,
-			unique, uniqueGlobally, filterable, sortable, localized, nullable, representative,
-			(Class) type, defaultValue,
-			indexedDecimalPlaces
+			this.name, this.description, this.deprecationNotice,
+			this.uniqueInScopes, this.uniqueGloballyInScopes,
+			this.filterableInScopes, this.sortableInScopes,
+			this.localized, this.nullable, this.representative,
+			(Class) this.type, this.defaultValue,
+			this.indexedDecimalPlaces
 		);
 	}
 
@@ -224,7 +301,7 @@ public class CreateGlobalAttributeSchemaMutation
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null, GlobalAttributeSchemaContract.class);
-		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name).orElse(null);
+		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name).orElse(null);
 		if (existingAttributeSchema == null) {
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
@@ -252,7 +329,7 @@ public class CreateGlobalAttributeSchemaMutation
 		} else {
 			// ups, there is conflict in attribute settings
 			throw new InvalidSchemaMutationException(
-				"The attribute `" + name + "` already exists in entity `" + catalogSchema.getName() + "` schema and" +
+				"The attribute `" + this.name + "` already exists in entity `" + catalogSchema.getName() + "` schema and" +
 					" has different definition. To alter existing attribute schema you need to use different mutations."
 			);
 		}
@@ -267,18 +344,19 @@ public class CreateGlobalAttributeSchemaMutation
 	@Override
 	public String toString() {
 		return "Create global attribute schema: " +
-			"name='" + name + '\'' +
-			", description='" + description + '\'' +
-			", deprecationNotice='" + deprecationNotice + '\'' +
-			", unique=" + unique +
-			", uniqueGlobally=" + uniqueGlobally +
-			", filterable=" + filterable +
-			", sortable=" + sortable +
-			", localized=" + localized +
-			", nullable=" + nullable +
-			", representative=" + representative +
-			", type=" + type +
-			", defaultValue=" + defaultValue +
-			", indexedDecimalPlaces=" + indexedDecimalPlaces;
+			"name='" + this.name + '\'' +
+			", description='" + this.description + '\'' +
+			", deprecationNotice='" + this.deprecationNotice + '\'' +
+			", unique=(" + (Arrays.stream(this.uniqueInScopes).map(it -> it.scope() + ": " + it.uniquenessType().name())) + ")" +
+			", uniqueGlobally=(" + (Arrays.stream(this.uniqueGloballyInScopes).map(it -> it.scope() + ": " + it.uniquenessType().name())) + ")" +
+			", filterable=" + (isFilterable() ? "(in scopes: " + Arrays.toString(this.filterableInScopes) + ")" : "no") +
+			", sortable=" + (isSortable() ? "(in scopes: " + Arrays.toString(this.sortableInScopes) + ")" : "no") +
+			", localized=" + this.localized +
+			", nullable=" + this.nullable +
+			", representative=" + this.representative +
+			", type=" + this.type +
+			", defaultValue=" + this.defaultValue +
+			", indexedDecimalPlaces=" + this.indexedDecimalPlaces;
 	}
+
 }

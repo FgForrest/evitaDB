@@ -271,8 +271,12 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * @throws AttributeNotSortableException   when sortable traits are requested but the attribute does not
 	 */
 	@Nonnull
-	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(@Nonnull String attributeName) {
-		return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(attributeName);
+	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(
+		@Nonnull String attributeName
+	) {
+		return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(
+			attributeName, this.getScopes()
+		);
 	}
 
 	/**
@@ -286,8 +290,13 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * @throws AttributeNotSortableException   when sortable traits are requested but the attribute does not
 	 */
 	@Nonnull
-	public AttributeSchemaContract getAttributeSchema(@Nonnull String attributeName, @Nonnull AttributeTrait... requiredTrait) {
-		return attributeSchemaAccessor.getAttributeSchema(attributeName, requiredTrait);
+	public AttributeSchemaContract getAttributeSchema(
+		@Nonnull String attributeName,
+		@Nonnull AttributeTrait... requiredTrait
+	) {
+		return attributeSchemaAccessor.getAttributeSchema(
+			attributeName, this.getScopes(), requiredTrait
+		);
 	}
 
 	/**
@@ -320,14 +329,12 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				return Optional.ofNullable(this.lastRetrievedChainIndex);
 			} else {
 				// else we have to retrieve the chain and cache it
-				final boolean referencedEntityHierarchical = this.entitySchema.isWithHierarchy();
 				final ReferenceKey theLookupReferenceKey = new ReferenceKey(reflectedReferenceSchema.getReflectedReferenceName(), entityPrimaryKey);
 				// get the index from the referenced entity collection using inverted key specification
 				final Optional<ChainIndex> chainIndex = this.queryContext.getIndex(
 					this.referenceSchema.getReferencedEntityType(),
 					new EntityIndexKey(
-						referencedEntityHierarchical ?
-							EntityIndexType.REFERENCED_HIERARCHY_NODE : EntityIndexType.REFERENCED_ENTITY,
+						EntityIndexType.REFERENCED_ENTITY,
 						// this would fail if the entity primary key is null, but it should never happen, and if so, exception is thrown
 						theLookupReferenceKey
 					),
@@ -347,13 +354,10 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				return Optional.ofNullable(this.lastRetrievedChainIndex);
 			} else {
 				// else we have to retrieve the chain and cache it
-				final boolean referencedEntityHierarchical = this.referenceSchema.isReferencedEntityTypeManaged() &&
-					this.queryContext.getSchema(this.referenceSchema.getReferencedEntityType()).isWithHierarchy();
 				// get the index from this entity collection using the reference key
 				final Optional<ChainIndex> chainIndex = this.queryContext.getIndex(
 					new EntityIndexKey(
-						referencedEntityHierarchical ?
-							EntityIndexType.REFERENCED_HIERARCHY_NODE : EntityIndexType.REFERENCED_ENTITY,
+						EntityIndexType.REFERENCED_ENTITY,
 						referenceKey
 					)
 				).map(it -> ((EntityIndex) it).getChainIndex(attributeKey));

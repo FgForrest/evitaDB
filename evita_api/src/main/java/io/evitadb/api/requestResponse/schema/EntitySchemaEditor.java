@@ -29,7 +29,9 @@ import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.PriceInPriceLists;
+import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.AssociatedDataContent;
@@ -47,12 +49,14 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.Refl
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Optional;
@@ -127,9 +131,29 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * Hierarchy can limit returned entities by using filtering constraints {@link HierarchyWithin}. It's also used for
 	 * computation of extra data - such as {@link HierarchyContent}. It can also invert type of returned
 	 * entities in case requirement {@link HierarchyOfSelf} is used.
+	 *
+	 * Method automatically enables hierarchy indexes for default scope ({@link Scope#LIVE)).
 	 */
 	@Nonnull
-	S withHierarchy();
+	default S withHierarchy() {
+		return withHierarchyIndexedInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Enables hierarchy structure for this type of entity. Entities may have {@link Entity#getParent()}
+	 * defined on them. That means that entity may refer to single parent entity and may be
+	 * referred by multiple child entities. Hierarchy is always composed of entities of same type.
+	 * Each entity must be part of at most single hierarchy (tree).
+	 *
+	 * Hierarchy can limit returned entities by using filtering constraints {@link HierarchyWithin}. It's also used for
+	 * computation of extra data - such as {@link HierarchyContent}. It can also invert type of returned
+	 * entities in case requirement {@link HierarchyOfSelf} is used.
+	 *
+	 * Enables hierarchy indexes for specified scopes. Entities can be filtered and extra information calculated
+	 * by hierarchy structure in these scopes.
+	 */
+	@Nonnull
+	S withHierarchyIndexedInScope(@Nonnull Scope... inScopes);
 
 	/**
 	 * Disables hierarchy structure for this type of entity. This is default setting for new entity types.
@@ -138,84 +162,226 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	S withoutHierarchy();
 
 	/**
+	 * Disables hierarchy indexes for specified scopes but leaves the hierarchical information available on the entity
+	 * type itself. Entities can't be filtered and extra information calculated by hierarchy structure in these scopes
+	 * anymore. If you want to remove hierarchy information completely use {@link #withoutHierarchy()} method.
+	 */
+	@Nonnull
+	S withoutHierarchyIndexedInScope(@Nonnull Scope... inScopes);
+
+	/**
 	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
 	 *
-	 * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
+	 * Prices are specific to a very few entity types, but because correct price computation is very complex in e-commerce
 	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
 	 * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
 	 * customers.
 	 *
-	 * Specifying prices on entity allows usage of {@link io.evitadb.api.query.filter.PriceValidIn},
-	 * {@link io.evitadb.api.query.filter.PriceBetween}, {@link QueryPriceMode}
-	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural},
-	 * ordering of the entities. Additional requirements
-	 * {@link PriceHistogram}, {@link PriceContent}
-	 * can be used in query as well.
+	 * Specifying prices on entity allows usage of {@link PriceValidIn}, {@link PriceBetween}, {@link QueryPriceMode}
+	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural}, ordering of the entities.
+	 * Additional requirements {@link PriceHistogram}, {@link PriceContent} can be used in query as well. If the price
+	 * information is not indexed, it is still available on the entity itself (i.e. entity can define its price), but it
+	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
+	 * sorting by price, etc.).
+	 *
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
 	 *
 	 * This method variant expects that prices may have up to two decimal places.
 	 */
 	@Nonnull
-	S withPrice();
+	default S withPrice() {
+		return withPriceIndexedInScope(Scope.DEFAULT_SCOPE);
+	}
 
 	/**
 	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
 	 *
-	 * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
+	 * Prices are specific to a very few entity types, but because correct price computation is very complex in e-commerce
 	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
 	 * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
 	 * customers.
 	 *
-	 * Specifying prices on entity allows usage of {@link io.evitadb.api.query.filter.PriceValidIn},
-	 * {@link io.evitadb.api.query.filter.PriceBetween}, {@link QueryPriceMode}
-	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural},
-	 * ordering of the entities. Additional requirements
-	 * {@link PriceHistogram}, {@link PriceContent}
-	 * can be used in query as well.
+	 * Specifying prices on entity allows usage of {@link PriceValidIn}, {@link PriceBetween}, {@link QueryPriceMode}
+	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural}, ordering of the entities.
+	 * Additional requirements {@link PriceHistogram}, {@link PriceContent} can be used in query as well. If the price
+	 * information is not indexed, it is still available on the entity itself (i.e. entity can define its price), but it
+	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
+	 * sorting by price, etc.).
+	 *
+	 * Method enables price indexes for all specified scopes.
+	 *
+	 * This method will use two decimal places for indexing price information in the indexes. The original price
+	 * information in the entity data will remain precise in the form of {@link BigDecimal} with "infinite" decimal
+	 * places.
 	 */
 	@Nonnull
-	S withPrice(int indexedDecimalPlaces);
+	S withPriceIndexedInScope(@Nonnull Scope... inScopes);
 
 	/**
 	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
 	 *
-	 * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
+	 * Prices are specific to a very few entity types, but because correct price computation is very complex in e-commerce
 	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
 	 * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
 	 * customers.
 	 *
-	 * Specifying prices on entity allows usage of {@link io.evitadb.api.query.filter.PriceValidIn},
-	 * {@link io.evitadb.api.query.filter.PriceBetween}, {@link QueryPriceMode}
-	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural},
-	 * ordering of the entities. Additional requirements
-	 * {@link PriceHistogram}, {@link PriceContent}
-	 * can be used in query as well.
+	 * Specifying prices on entity allows usage of {@link PriceValidIn}, {@link PriceBetween}, {@link QueryPriceMode}
+	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural}, ordering of the entities.
+	 * Additional requirements {@link PriceHistogram}, {@link PriceContent} can be used in query as well. If the price
+	 * information is not indexed, it is still available on the entity itself (i.e. entity can define its price), but it
+	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
+	 * sorting by price, etc.).
 	 *
-	 * This method variant expects that prices may have up to two decimal places and allows specifying exact set of
-	 * allowed currencies.
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
+	 *
+	 * This method will use specified number of decimal places for indexing price information in the indexes.
+	 * The original price information in the entity data will remain precise in the form of {@link BigDecimal} with
+	 * "infinite" decimal places.
 	 */
 	@Nonnull
-	S withPriceInCurrency(@Nonnull Currency... currency);
+	default S withPrice(int indexedDecimalPlaces) {
+		return withPriceIndexedInScope(indexedDecimalPlaces, Scope.DEFAULT_SCOPE);
+	}
 
 	/**
 	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
 	 *
-	 * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
+	 * Prices are specific to a very few entity types, but because correct price computation is very complex in e-commerce
 	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
 	 * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
 	 * customers.
 	 *
-	 * Specifying prices on entity allows usage of {@link io.evitadb.api.query.filter.PriceValidIn},
-	 * {@link io.evitadb.api.query.filter.PriceBetween}, {@link QueryPriceMode}
-	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural},
-	 * ordering of the entities. Additional requirements
-	 * {@link PriceHistogram}, {@link PriceContent}
-	 * can be used in query as well.
+	 * Specifying prices on entity allows usage of {@link PriceValidIn}, {@link PriceBetween}, {@link QueryPriceMode}
+	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural}, ordering of the entities.
+	 * Additional requirements {@link PriceHistogram}, {@link PriceContent} can be used in query as well. If the price
+	 * information is not indexed, it is still available on the entity itself (i.e. entity can define its price), but it
+	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
+	 * sorting by price, etc.).
 	 *
-	 * This method variant expects that prices may have up to two decimal places and allows specifying exact set of
-	 * allowed currencies.
+	 * Method enables price indexes for all specified scopes.
+	 *
+	 * This method will use specified number of decimal places for indexing price information in the indexes.
+	 * The original price information in the entity data will remain precise in the form of {@link BigDecimal} with
+	 * "infinite" decimal places.
 	 */
 	@Nonnull
-	S withPriceInCurrency(int indexedPricePlaces, @Nonnull Currency... currency);
+	S withPriceIndexedInScope(int indexedDecimalPlaces, @Nonnull Scope... inScopes);
+
+	/**
+	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
+	 *
+	 * Prices are specific to a very few entity types, but because correct price computation is very complex in e-commerce
+	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
+	 * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
+	 * customers.
+	 *
+	 * Specifying prices on entity allows usage of {@link PriceValidIn}, {@link PriceBetween}, {@link QueryPriceMode}
+	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural}, ordering of the entities.
+	 * Additional requirements {@link PriceHistogram}, {@link PriceContent} can be used in query as well. If the price
+	 * information is not indexed, it is still available on the entity itself (i.e. entity can define its price), but it
+	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
+	 * sorting by price, etc.).
+	 *
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
+	 *
+	 * This method will use two decimal places for indexing price information in the indexes. The original price
+	 * information in the entity data will remain precise in the form of {@link BigDecimal} with "infinite" decimal
+	 * places.
+	 *
+	 * Method also specifies a limited set of allowed currencies for the prices. If you want to allow all currencies
+	 * specify {@link EvolutionMode#ADDING_CURRENCIES} in the {@link #verifySchemaButAllow(EvolutionMode...)} method.
+	 * This will add currencies to the schema automatically as they are encountered in the data.
+	 */
+	@Nonnull
+	default S withPriceInCurrency(@Nonnull Currency... currency) {
+		return withIndexedPriceInCurrency(currency, Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
+	 *
+	 * Prices are specific to a very few entity types, but because correct price computation is very complex in e-commerce
+	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
+	 * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
+	 * customers.
+	 *
+	 * Specifying prices on entity allows usage of {@link PriceValidIn}, {@link PriceBetween}, {@link QueryPriceMode}
+	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural}, ordering of the entities.
+	 * Additional requirements {@link PriceHistogram}, {@link PriceContent} can be used in query as well. If the price
+	 * information is not indexed, it is still available on the entity itself (i.e. entity can define its price), but it
+	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
+	 * sorting by price, etc.).
+	 *
+	 * Method automatically enables price indexes in a particular set of scopes.
+	 *
+	 * This method will use two decimal places for indexing price information in the indexes. The original price
+	 * information in the entity data will remain precise in the form of {@link BigDecimal} with "infinite" decimal
+	 * places.
+	 *
+	 * Method also specifies a limited set of allowed currencies for the prices. If you want to allow all currencies
+	 * specify {@link EvolutionMode#ADDING_CURRENCIES} in the {@link #verifySchemaButAllow(EvolutionMode...)} method.
+	 * This will add currencies to the schema automatically as they are encountered in the data.
+	 */
+	@Nonnull
+	S withIndexedPriceInCurrency(@Nonnull Currency[] currency, @Nonnull Scope... inScopes);
+
+	/**
+	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
+	 *
+	 * Prices are specific to a very few entity types, but because correct price computation is very complex in e-commerce
+	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
+	 * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
+	 * customers.
+	 *
+	 * Specifying prices on entity allows usage of {@link PriceValidIn}, {@link PriceBetween}, {@link QueryPriceMode}
+	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural}, ordering of the entities.
+	 * Additional requirements {@link PriceHistogram}, {@link PriceContent} can be used in query as well. If the price
+	 * information is not indexed, it is still available on the entity itself (i.e. entity can define its price), but it
+	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
+	 * sorting by price, etc.).
+	 *
+	 * Method automatically enables price indexes for default scope ({@link Scope#LIVE)).
+	 *
+	 * This method will use specified number of decimal places for indexing price information in the indexes.
+	 * The original price information in the entity data will remain precise in the form of {@link BigDecimal} with
+	 * "infinite" decimal places.
+	 *
+	 * Method also specifies a limited set of allowed currencies for the prices. If you want to allow all currencies
+	 * specify {@link EvolutionMode#ADDING_CURRENCIES} in the {@link #verifySchemaButAllow(EvolutionMode...)} method.
+	 * This will add currencies to the schema automatically as they are encountered in the data.
+	 */
+	@Nonnull
+	default S withPriceInCurrency(int indexedPricePlaces, @Nonnull Currency... currency) {
+		return withPriceInCurrencyIndexedInScope(indexedPricePlaces, currency, Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Enables price related data for this type of entity. Entities may have {@link Entity#getPrices()} defined on them.
+	 *
+	 * Prices are specific to a very few entity types, but because correct price computation is very complex in e-commerce
+	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
+	 * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
+	 * customers.
+	 *
+	 * Specifying prices on entity allows usage of {@link PriceValidIn}, {@link PriceBetween}, {@link QueryPriceMode}
+	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural}, ordering of the entities.
+	 * Additional requirements {@link PriceHistogram}, {@link PriceContent} can be used in query as well. If the price
+	 * information is not indexed, it is still available on the entity itself (i.e. entity can define its price), but it
+	 * is not possible to work with the price information in any other way (calculating price histogram, filtering,
+	 * sorting by price, etc.).
+	 *
+	 * Method automatically enables price indexes in a particular set of scopes.
+	 *
+	 * This method will use specified number of decimal places for indexing price information in the indexes.
+	 * The original price information in the entity data will remain precise in the form of {@link BigDecimal} with
+	 * "infinite" decimal places.
+	 *
+	 * Method also specifies a limited set of allowed currencies for the prices. If you want to allow all currencies
+	 * specify {@link EvolutionMode#ADDING_CURRENCIES} in the {@link #verifySchemaButAllow(EvolutionMode...)} method.
+	 * This will add currencies to the schema automatically as they are encountered in the data.
+	 */
+	@Nonnull
+	S withPriceInCurrencyIndexedInScope(int indexedPricePlaces, @Nonnull Currency[] currency, @Nonnull Scope... inScopes);
 
 	/**
 	 * Disables price related data for this type of entity. This is default setting for new entity types.
@@ -224,9 +390,18 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	S withoutPrice();
 
 	/**
-	 * Disables set of allowed currencies for this entity type.
-	 * This method doesn't disable the price support for the entity - for complete price support removal use
-	 * {@link #withPrice()} method.
+	 * Disables price indexes for specified scopes but leaves the price information available on the entity
+	 * type itself. Entities can't be filtered and extra information calculated by price structure in these scopes
+	 * anymore. If you want to remove price information completely use {@link #withoutPrice()} method.
+	 */
+	@Nonnull
+	S withoutPriceIndexedInScope(@Nonnull Scope... inScopes);
+
+	/**
+	 * Disables set of allowed currencies for this entity type but leaves the price information available on the entity
+	 * type itself. Entities can't be filtered and extra information calculated by price structure in these scopes
+	 * anymore. If you want to remove price information completely use {@link #withoutPrice()} method.
+	 *
 	 * Supported currencies can be removed only when there is no single price in specified currency present.
 	 */
 	@Nonnull

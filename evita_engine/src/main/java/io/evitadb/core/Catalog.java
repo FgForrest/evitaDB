@@ -94,6 +94,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -225,6 +226,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	private final CatalogIndex catalogIndex;
 	/**
+	 * Contains reference to the archived catalog index that allows fast lookups for entities across all types.
+	 */
+	private CatalogIndex archiveCatalogIndex;
+	/**
 	 * Isolated sequence service for this catalog.
 	 */
 	private final SequenceService sequenceService = new SequenceService();
@@ -271,8 +276,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 *
 	 * @param catalogName        the name of the catalog
 	 * @param storageOptions     the storage options
-	 * @param fileId			   The ID of the file to be restored.
-	 * @param pathToFile 	   the path to the ZIP file with the catalog content
+	 * @param fileId             The ID of the file to be restored.
+	 * @param pathToFile         the path to the ZIP file with the catalog content
 	 * @param totalBytesExpected total bytes expected to be read from the input stream
 	 * @param deleteAfterRestore whether to delete the ZIP file after restore
 	 * @return future that will be completed with path where the content of the catalog was restored
@@ -339,8 +344,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.entityTypeSequence = sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.ENTITY_COLLECTION, 0
 		);
-		this.catalogIndex = new CatalogIndex();
+		this.catalogIndex = new CatalogIndex(Scope.LIVE);
 		this.catalogIndex.attachToCatalog(null, this);
+		this.archiveCatalogIndex = null;
 		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
 		this.evitaConfiguration = evitaConfiguration;
 		this.scheduler = scheduler;
@@ -399,8 +405,14 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				.orElseThrow(() -> new SchemaNotFoundException(catalogHeader.catalogName()))
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
-		this.catalogIndex = this.persistenceService.readCatalogIndex(this);
+		this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
+			.orElseGet(() -> new CatalogIndex(Scope.LIVE));
 		this.catalogIndex.attachToCatalog(null, this);
+		this.archiveCatalogIndex = this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
+			.orElse(null);
+		if (this.archiveCatalogIndex != null) {
+			this.archiveCatalogIndex.attachToCatalog(null, this);
+		}
 		this.cacheSupervisor = cacheSupervisor;
 		this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
 			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
@@ -478,6 +490,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		long catalogVersion,
 		@Nonnull CatalogState catalogState,
 		@Nonnull CatalogIndex catalogIndex,
+		@Nonnull CatalogIndex archiveCatalogIndex,
 		@Nonnull Collection<EntityCollection> entityCollections,
 		@Nonnull Catalog previousCatalogVersion
 	) {
@@ -485,6 +498,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			catalogVersion,
 			catalogState,
 			catalogIndex,
+			archiveCatalogIndex,
 			entityCollections,
 			previousCatalogVersion.persistenceService,
 			previousCatalogVersion,
@@ -497,6 +511,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		long catalogVersion,
 		@Nonnull CatalogState catalogState,
 		@Nonnull CatalogIndex catalogIndex,
+		@Nullable CatalogIndex archiveCatalogIndex,
 		@Nonnull Collection<EntityCollection> entityCollections,
 		@Nonnull CatalogPersistenceService persistenceService,
 		@Nonnull Catalog previousCatalogVersion,
@@ -508,6 +523,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.versionId = new TransactionalReference<>(catalogVersion);
 		this.state = catalogState;
 		this.catalogIndex = catalogIndex;
+		this.archiveCatalogIndex = archiveCatalogIndex;
 		this.persistenceService = persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
 		this.entityTypeSequence = previousCatalogVersion.entityTypeSequence;
@@ -518,7 +534,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.newCatalogVersionConsumer = previousCatalogVersion.newCatalogVersionConsumer;
 		this.transactionManager = previousCatalogVersion.transactionManager;
 
-		catalogIndex.attachToCatalog(null, this);
+		this.catalogIndex.attachToCatalog(null, this);
+		if (this.archiveCatalogIndex != null) {
+			this.archiveCatalogIndex.attachToCatalog(null, this);
+		}
 		final StoragePartPersistenceService storagePartPersistenceService = persistenceService.getStoragePartPersistenceService(catalogVersion);
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuildWithUpdatedEntitySchemaAccessor(
 			previousCatalogVersion.getInternalSchema(),
@@ -698,11 +717,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		return ofNullable(entityCollections.get(entityType));
 	}
 
-	@Nonnull
-	public Optional<EntityCollection> getCollectionForEntityInternal(@Nonnull String entityType) {
-		return ofNullable(entityCollections.get(entityType));
-	}
-
 	@Override
 	@Nonnull
 	public EntityCollection getCollectionForEntityOrThrowException(@Nonnull String entityType) throws CollectionNotFoundException {
@@ -796,6 +810,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			catalogVersionAfterRename,
 			catalogState,
 			this.catalogIndex.createCopyForNewCatalogAttachment(catalogState),
+			this.archiveCatalogIndex == null ? null : this.archiveCatalogIndex.createCopyForNewCatalogAttachment(catalogState),
 			newCollections,
 			newIoService,
 			this,
@@ -840,6 +855,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				1L,
 				CatalogState.ALIVE,
 				this.catalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
+				this.archiveCatalogIndex == null ? null : this.archiveCatalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
 				newCollections,
 				this.persistenceService,
 				this,
@@ -884,14 +900,14 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 	@Nonnull
 	@Override
-	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
-		return this.persistenceService.getCatalogVersionDescriptors(catalogVersion);
+	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
 	}
 
 	@Nonnull
 	@Override
-	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
-		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
+	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
+		return this.persistenceService.getCatalogVersionDescriptors(catalogVersion);
 	}
 
 	@Override
@@ -912,6 +928,26 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(pastMoment, includingWAL);
 		this.scheduler.submit(backupTask);
 		return backupTask;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStatistics getStatistics() {
+		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
+			.stream()
+			.map(EntityCollection::getStatistics)
+			.toArray(EntityCollectionStatistics[]::new);
+		return new CatalogStatistics(
+			getCatalogId(),
+			getName(),
+			false,
+			getCatalogState(),
+			getVersion(),
+			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::totalRecords).sum(),
+			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::indexCount).sum() + 1,
+			this.persistenceService.getSizeOnDiskInBytes(),
+			collectionStatistics
+		);
 	}
 
 	@Override
@@ -959,12 +995,34 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		}
 	}
 
+	@Nonnull
+	public Optional<EntityCollection> getCollectionForEntityInternal(@Nonnull String entityType) {
+		return ofNullable(entityCollections.get(entityType));
+	}
+
+	/**
+	 * Returns reference to the main catalog index that allows fast lookups for entities across all types or empty
+	 * value if the index does not exist.
+	 */
+	@Nonnull
+	public Optional<CatalogIndex> getCatalogIndexIfExits(@Nonnull Scope scope) {
+		return scope == Scope.ARCHIVED ? ofNullable(this.archiveCatalogIndex) : of(this.catalogIndex);
+	}
+
 	/**
 	 * Returns reference to the main catalog index that allows fast lookups for entities across all types.
 	 */
 	@Nonnull
-	public CatalogIndex getCatalogIndex() {
-		return catalogIndex;
+	public CatalogIndex getCatalogIndex(@Nonnull Scope scope) {
+		if (scope == Scope.ARCHIVED) {
+			if (this.archiveCatalogIndex == null) {
+				this.archiveCatalogIndex = new CatalogIndex(Scope.ARCHIVED);
+				this.archiveCatalogIndex.attachToCatalog(null, this);
+			}
+			return this.archiveCatalogIndex;
+		} else {
+			return this.catalogIndex;
+		}
 	}
 
 	/**
@@ -994,7 +1052,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	@Nonnull
 	public CatalogSchema getInternalSchema() {
-		return schema.get().getDelegate();
+		return this.schema.get().getDelegate();
 	}
 
 	/**
@@ -1030,6 +1088,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.schema.removeLayer(transactionalLayer);
 		this.entityCollections.removeLayer(transactionalLayer);
 		this.catalogIndex.removeLayer(transactionalLayer);
+		if (this.archiveCatalogIndex != null) {
+			this.archiveCatalogIndex.removeLayer(transactionalLayer);
+		}
 		this.entityCollectionsByPrimaryKey.removeLayer(transactionalLayer);
 		this.entitySchemaIndex.removeLayer(transactionalLayer);
 	}
@@ -1081,21 +1142,28 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(entityCollections);
 		// replace all entity collections with new one if their storage persistence service was changed
 		if (updatedServiceCollections != null) {
-			updatedServiceCollections.forEach((entityType, newPersistenceService) -> {
-				possiblyUpdatedCollections.compute(
+			updatedServiceCollections.forEach(
+				(entityType, newPersistenceService) -> possiblyUpdatedCollections.compute(
 					entityType,
-					(entityTypeKey, entityCollection) -> entityCollection.createCopyWithNewPersistenceService(newCatalogVersionId, CatalogState.ALIVE, newPersistenceService)
-				);
-			});
+					(entityTypeKey, entityCollection) -> entityCollection.createCopyWithNewPersistenceService(
+						newCatalogVersionId, CatalogState.ALIVE, newPersistenceService
+					)
+				)
+			);
 		}
 
-		final CatalogIndex possiblyUpdatedCatalogIndex = transactionalLayer.getStateCopyWithCommittedChanges(catalogIndex);
+		final CatalogIndex possiblyUpdatedCatalogIndex = transactionalLayer.getStateCopyWithCommittedChanges(this.catalogIndex);
+		final CatalogIndex possiblyUpdatedArchiveCatalogIndex = this.archiveCatalogIndex == null ?
+			null :
+			of(transactionalLayer.getStateCopyWithCommittedChanges(this.archiveCatalogIndex))
+				.filter(it -> !it.isEmpty())
+				.orElse(null);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entityCollectionsByPrimaryKey);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entitySchemaIndex);
 
 		if (transactionalChanges != null) {
 			final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService(newCatalogVersionId);
-			if (newSchema.version() != lastPersistedSchemaVersion) {
+			if (newSchema.version() != this.lastPersistedSchemaVersion) {
 				final CatalogSchemaStoragePart storagePart = new CatalogSchemaStoragePart(newSchema.getDelegate());
 				storagePartPersistenceService.putStoragePart(storagePart.getStoragePartPK(), storagePart);
 			}
@@ -1107,11 +1175,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				newCatalogVersionId,
 				getCatalogState(),
 				possiblyUpdatedCatalogIndex,
+				possiblyUpdatedArchiveCatalogIndex,
 				possiblyUpdatedCollections.values(),
 				this
 			);
 		} else {
-			if (possiblyUpdatedCatalogIndex != catalogIndex ||
+			if (possiblyUpdatedCatalogIndex != this.catalogIndex ||
+				possiblyUpdatedArchiveCatalogIndex != this.archiveCatalogIndex ||
 				possiblyUpdatedCollections
 					.entrySet()
 					.stream()
@@ -1121,6 +1191,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 					newCatalogVersionId,
 					getCatalogState(),
 					possiblyUpdatedCatalogIndex,
+					possiblyUpdatedArchiveCatalogIndex,
 					possiblyUpdatedCollections.values(),
 					this
 				);
@@ -1284,26 +1355,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		}
 	}
 
-	@Nonnull
-	@Override
-	public CatalogStatistics getStatistics() {
-		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
-			.stream()
-			.map(EntityCollection::getStatistics)
-			.toArray(EntityCollectionStatistics[]::new);
-		return new CatalogStatistics(
-			getCatalogId(),
-			getName(),
-			false,
-			getCatalogState(),
-			getVersion(),
-			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::totalRecords).sum(),
-			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::indexCount).sum() + 1,
-			this.persistenceService.getSizeOnDiskInBytes(),
-			collectionStatistics
-		);
-	}
-
 	/**
 	 * Method allows to immediately flush all information held in memory to the persistent storage.
 	 * This method might do nothing particular in transaction ({@link CatalogState#ALIVE}) mode.
@@ -1329,11 +1380,19 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
 		}
 
+		if (this.archiveCatalogIndex != null && this.archiveCatalogIndex.isEmpty()) {
+			this.dataStoreBuffer.removeIndex(
+				this.archiveCatalogIndex.getIndexKey(),
+				catalogIndexKey -> this.archiveCatalogIndex = null
+			);
+		}
+
 		if (changeOccurred) {
 			this.persistenceService.flushTrappedUpdates(
 				0L,
 				this.dataStoreBuffer.getTrappedChanges()
 			);
+
 			final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(0L);
 			Assert.isPremiseValid(
 				catalogHeader != null && catalogHeader.catalogState() == CatalogState.WARMING_UP,
@@ -1685,20 +1744,21 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		 */
 		@Nonnull
 		@Override
-		public CatalogIndex getOrCreateIndex(@Nonnull CatalogIndexKey entityIndexKey) {
+		public CatalogIndex getOrCreateIndex(@Nonnull CatalogIndexKey catalogIndexKey) {
 			return Catalog.this.dataStoreBuffer.getOrCreateIndexForModification(
-				entityIndexKey,
-				eik -> Catalog.this.catalogIndex
+				catalogIndexKey,
+				cik -> Catalog.this.getCatalogIndex(cik.scope())
 			);
 		}
 
 		/**
-		 * Returns existing index for passed `entityIndexKey` or returns null.
+		 * Returns existing index for passed `catalogIndexKey` or returns null.
 		 */
 		@Nullable
 		@Override
-		public CatalogIndex getIndexIfExists(@Nonnull CatalogIndexKey entityIndexKey) {
-			return Catalog.this.catalogIndex;
+		public CatalogIndex getIndexIfExists(@Nonnull CatalogIndexKey catalogIndexKey) {
+			return catalogIndexKey.scope() == Scope.ARCHIVED ?
+				Catalog.this.archiveCatalogIndex : Catalog.this.catalogIndex;
 		}
 
 		/**

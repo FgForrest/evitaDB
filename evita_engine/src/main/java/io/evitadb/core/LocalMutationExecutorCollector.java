@@ -24,6 +24,7 @@
 package io.evitadb.core;
 
 
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -34,15 +35,19 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.EntityCollectionPersistenceService.EntityWithFetchCount;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -52,10 +57,10 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
-import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation.computeLocalMutationsForEntityRemoval;
 
 /**
  * LocalMutationExecutorCollector is responsible for collecting, executing,
@@ -90,6 +95,11 @@ class LocalMutationExecutorCollector {
 	 */
 	private final List<EntityMutation> entityMutations = new ArrayList<>(16);
 	/**
+	 * Reference to the fully fetched entity that is being mutated. This entity is needed for removal / archive / restore
+	 * mutations to generate local mutations for all necessary parts of the entity.
+	 */
+	private EntityWithFetchCount fullEntityBody;
+	/**
 	 * The current nesting level of the collector.
 	 */
 	private int level;
@@ -102,22 +112,38 @@ class LocalMutationExecutorCollector {
 	 * Method fetches the full contents of the entity by its primary key from the I/O storage (taking advantage of
 	 * modified parts in the {@link TransactionalDataStoreMemoryBuffer}.
 	 */
-	@Nullable
-	private static EntityWithFetchCount getFullEntityById(
+	@Nonnull
+	public EntityWithFetchCount getFullEntityById(
 		int primaryKey,
-		@Nonnull EntitySchema entitySchema,
+		@Nonnull String entityType,
 		@Nonnull IntBiFunction<EvitaRequest, EntityWithFetchCount> entityFetcher
 	) {
-		final EvitaRequest evitaRequest = new EvitaRequest(
-			Query.query(
-				collection(entitySchema.getName()),
-				require(entityFetchAll())
-			),
-			OffsetDateTime.now(),
-			Entity.class,
-			null
-		);
-		return entityFetcher.apply(primaryKey, evitaRequest);
+		if (
+			this.fullEntityBody == null ||
+				!Objects.equals(this.fullEntityBody.entity().getPrimaryKey(), primaryKey) ||
+				!this.fullEntityBody.entity().getType().equals(entityType)
+		) {
+			final EvitaRequest evitaRequest = new EvitaRequest(
+				Query.query(
+					collection(entityType),
+					filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+					require(entityFetchAll())
+				),
+				OffsetDateTime.now(),
+				Entity.class,
+				null
+			);
+			this.fullEntityBody = entityFetcher.apply(primaryKey, evitaRequest);
+			Assert.notNull(
+				this.fullEntityBody,
+				() -> new InvalidMutationException(
+					"There is no entity " + entityType + " with primary key " +
+						primaryKey + " present! This means, that you're probably trying to update " +
+						"entity that has been already removed!"
+				)
+			);
+		}
+		return this.fullEntityBody;
 	}
 
 	/**
@@ -133,10 +159,10 @@ class LocalMutationExecutorCollector {
 	 * @param entityIndexUpdater        Executor to update the entity index with the mutations.
 	 * @param requestUpdatedEntity      Indicates whether to return the updated entity after mutation.
 	 * @return The updated entity with fetch count if {@code returnUpdatedEntity} is true and
-	 * the entity was updated, otherwise null.
+	 * the entity was updated, or entity reference
 	 */
-	@Nullable
-	public EntityWithFetchCount execute(
+	@Nonnull
+	public <T> Optional<T> execute(
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityMutation entityMutation,
 		boolean checkConsistency,
@@ -144,7 +170,8 @@ class LocalMutationExecutorCollector {
 		@Nonnull IntBiFunction<EvitaRequest, EntityWithFetchCount> entityFetcher,
 		@Nonnull ContainerizedLocalMutationExecutor changeCollector,
 		@Nonnull EntityIndexLocalMutationExecutor entityIndexUpdater,
-		@Nullable EvitaRequest requestUpdatedEntity
+		@Nullable EvitaRequest requestUpdatedEntity,
+		@Nonnull Class<T> requestedResultType
 	) {
 		// first register all mutation applicators and mutations to the internal state
 		this.executors.add(entityIndexUpdater);
@@ -167,11 +194,13 @@ class LocalMutationExecutorCollector {
 			this.level++;
 
 			final List<? extends LocalMutation<?, ?>> localMutations;
-			if (entityMutation instanceof EntityRemoveMutation erm) {
-				result = getFullEntityById(entityMutation.getEntityPrimaryKey(), entitySchema, entityFetcher);
-				localMutations = erm.computeLocalMutationsForEntityRemoval(
-					Objects.requireNonNull(result.entity())
+			if (entityMutation instanceof EntityRemoveMutation) {
+				result = getFullEntityById(
+					Objects.requireNonNull(entityMutation.getEntityPrimaryKey()),
+					entitySchema.getName(),
+					entityFetcher
 				);
+				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
 			} else {
 				localMutations = entityMutation.getLocalMutations();
 			}
@@ -200,7 +229,8 @@ class LocalMutationExecutorCollector {
 							serverEntityMutation.shouldVerifyConsistency(),
 							null,
 							serverEntityMutation.getImplicitMutationsBehavior(),
-							this
+							this,
+							Void.class
 						);
 				}
 			}
@@ -226,19 +256,38 @@ class LocalMutationExecutorCollector {
 			throw this.exception;
 		}
 
-		if (requestUpdatedEntity != null) {
-			return result == null ?
-				this.persistenceService.toEntity(
-					this.catalog.getVersion(),
-					changeCollector.getEntityPrimaryKey(),
-					requestUpdatedEntity,
-					entitySchema,
-					this.dataStoreReader,
-					changeCollector.getEntityStorageParts()
-				) :
-				result;
+		if (requestedResultType.equals(EntityWithFetchCount.class)) {
+			Assert.isPremiseValid(
+				requestUpdatedEntity != null,
+				"Requested result type is EntityWithFetchCount, but requestUpdatedEntity is null!"
+			);
+			//noinspection unchecked
+			return Optional.of((T) (
+					result == null ?
+						this.persistenceService.toEntity(
+							this.catalog.getVersion(),
+							changeCollector.getEntityPrimaryKey(),
+							requestUpdatedEntity,
+							entitySchema,
+							this.dataStoreReader,
+							changeCollector.getEntityStorageParts()
+						) :
+						result
+				)
+			);
+		} else if (requestedResultType.equals(EntityReference.class)) {
+			//noinspection unchecked
+			return Optional.of(
+				(T) new EntityReference(
+					entitySchema.getName(), changeCollector.getEntityPrimaryKey()
+				)
+			);
+		} else if (Void.class.equals(requestedResultType)) {
+			return Optional.empty();
 		} else {
-			return null;
+			throw new GenericEvitaInternalError(
+				"Unsupported requested result type: " + requestedResultType
+			);
 		}
 	}
 

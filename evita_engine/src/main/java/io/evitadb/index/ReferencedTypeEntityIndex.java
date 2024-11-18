@@ -47,6 +47,8 @@ import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
@@ -178,10 +180,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
 		return Stream.concat(
 			super.getAttributeIndexStorageKeyStream(),
-			ofNullable(cardinalityIndexes)
+			ofNullable(this.cardinalityIndexes)
 				.map(TransactionalMap::keySet)
-				.map(set -> set.stream().map(attributeKey -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.CARDINALITY, attributeKey)))
-				.orElseGet(Stream::empty)
+				.stream()
+				.flatMap(
+					set -> set.stream()
+						.map(attributeKey -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.CARDINALITY, attributeKey))
+				)
 		);
 	}
 
@@ -189,8 +194,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Override
 	public Collection<StoragePart> getModifiedStorageParts() {
 		final Collection<StoragePart> dirtyParts = super.getModifiedStorageParts();
-		for (Entry<AttributeKey, CardinalityIndex> entry : cardinalityIndexes.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(primaryKey, entry.getKey()))
+		for (Entry<AttributeKey, CardinalityIndex> entry : this.cardinalityIndexes.entrySet()) {
+			ofNullable(entry.getValue().createStoragePart(this.primaryKey, entry.getKey()))
 				.ifPresent(dirtyParts::add);
 		}
 		return dirtyParts;
@@ -230,11 +235,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	/**
 	 * This method delegates call to {@link #insertFilterAttribute(AttributeSchemaContract, Set, Locale, Object, int)}
 	 * but tracks the cardinality of the referenced primary key in {@link #cardinalityIndexes}.
-	 * @param attributeSchema
-	 * @param allowedLocales
-	 * @param locale
-	 * @param value
-	 * @param recordId
 	 */
 	@Override
 	public void insertFilterAttribute(
@@ -288,14 +288,12 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		int recordId
 	) {
 		// first retrieve or create the cardinality index for given attribute
-		final CardinalityIndex theCardinalityIndex = this.cardinalityIndexes.computeIfAbsent(
-			createAttributeKey(attributeSchema, allowedLocales, locale, value),
-			lookupKey -> {
-				final CardinalityIndex newCardinalityIndex = new CardinalityIndex(attributeSchema.getPlainType());
-				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
-					.ifPresent(it -> it.addCreatedItem(newCardinalityIndex));
-				return newCardinalityIndex;
-			}
+		final AttributeKey attributeKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
+		final CardinalityIndex theCardinalityIndex = this.cardinalityIndexes.get(attributeKey);
+
+		Assert.isPremiseValid(
+			theCardinalityIndex != null,
+			() -> "Cardinality index for attribute " + attributeSchema.getName() + " not found."
 		);
 		if (value instanceof Object[] valueArray) {
 			// for array values we need to remove only items which cardinality reaches zero
@@ -317,8 +315,14 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		} else {
 			// for non-array values we need to call super method only if cardinality reaches zero
 			if (theCardinalityIndex.removeRecord((Serializable) value, recordId)) {
-				super.insertFilterAttribute(attributeSchema, allowedLocales, locale, value, recordId);
+				super.removeFilterAttribute(attributeSchema, allowedLocales, locale, value, recordId);
 			}
+		}
+
+		if (theCardinalityIndex.isEmpty()) {
+			final CardinalityIndex removedIndex = this.cardinalityIndexes.remove(attributeKey);
+			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
+				.ifPresent(it -> it.addRemovedItem(removedIndex));
 		}
 	}
 
@@ -344,6 +348,11 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	public void removeSortAttributeCompound(SortableAttributeCompoundSchemaContract compoundSchemaContract, Locale locale, Object[] value, int recordId) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
 		// entities and the sort index couldn't handle multiple values
+	}
+
+	@Override
+	public String toString() {
+		return "ReducedEntityTypeIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) + ")";
 	}
 
 	/*

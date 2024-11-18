@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.test.builder.ListBuilder.list;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -53,11 +55,16 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(true);
+		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(
+			true,
+			new Scope[] { Scope.LIVE }
+		);
 
 		final SetEntitySchemaWithHierarchyMutation convertedMutation1 = converter.convert(
 			map()
 				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), true)
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -65,9 +72,26 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 		final SetEntitySchemaWithHierarchyMutation convertedMutation2 = converter.convert(
 			map()
 				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), "true")
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
+	}
+
+	@Test
+	void shouldResolveInputToLocalMutationWithRequiredDataOnly() {
+		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(
+			true,
+			null
+		);
+
+		final SetEntitySchemaWithHierarchyMutation convertedMutation1 = converter.convert(
+			map()
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), true)
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation1);
 	}
 
 	@Test

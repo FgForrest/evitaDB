@@ -42,15 +42,15 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
-import io.evitadb.index.CatalogIndex;
-import io.evitadb.index.CatalogIndexKey;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link AttributeIs} to {@link AbstractFormula}.
@@ -73,6 +73,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
+			final Set<Scope> scopes = filterByVisitor.getScopes();
 			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
@@ -80,13 +81,13 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 
 			// if attribute is unique prefer O(1) hash map lookup over inverted index
 			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
-				globalAttributeSchema.isUniqueGlobally()
+				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)
 			) {
 				return FutureNotFormula.postProcess(
 					createNullGloballyUniqueSubtractionFormula(globalAttributeSchema, filterByVisitor),
 					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
 				);
-			} else if (attributeDefinition.isUnique()) {
+			} else if (scopes.stream().anyMatch(attributeDefinition::isUnique)) {
 				return FutureNotFormula.postProcess(
 					createNullUniqueSubtractionFormula(attributeDefinition, filterByVisitor),
 					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
@@ -147,26 +148,19 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
-		return filterByVisitor.getIndex(CatalogIndexKey.INSTANCE)
-			.map(
-				it -> {
-					final CatalogIndex catalogIndex = (CatalogIndex) it;
-					final GlobalUniqueIndex uniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeDefinition, filterByVisitor.getLocale());
-					return new Formula[] {
-						uniqueIndex == null ?
-							EmptyFormula.INSTANCE :
-							new NotFormula(
-								uniqueIndex.getRecordIdsFormula(filterByVisitor.getEntityType()),
-								FormulaFactory.or(
-									filterByVisitor.getEntityIndexStream()
-										.map(EntityIndex::getAllPrimaryKeysFormula)
-										.toArray(Formula[]::new)
-								)
-							)
-					};
-				}
+		return new Formula[]{
+			filterByVisitor.applyOnGlobalUniqueIndexes(
+				attributeDefinition,
+				uniqueIndex -> new NotFormula(
+					uniqueIndex.getRecordIdsFormula(filterByVisitor.getEntityType()),
+					FormulaFactory.or(
+						filterByVisitor.getEntityIndexStream()
+							.map(EntityIndex::getAllPrimaryKeysFormula)
+							.toArray(Formula[]::new)
+					)
+				)
 			)
-			.orElse(new Formula[0]);
+		};
 	}
 
 	/**
@@ -235,23 +229,24 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
+			final Set<Scope> scopes = filterByVisitor.getScopes();
 			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
 			// if attribute is unique prefer O(1) hash map lookup over histogram
 			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
-				globalAttributeSchema.isUniqueGlobally()
+				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)
 			) {
 				return new AttributeFormula(
 					true,
 					attributeKey,
-					filterByVisitor.applyOnGlobalUniqueIndex(
+					filterByVisitor.applyOnGlobalUniqueIndexes(
 						globalAttributeSchema,
 						index -> new ConstantFormula(index.getRecordIds(filterByVisitor.getEntityType()))
 					)
 				);
-			} else if (attributeDefinition.isUnique()) {
+			} else if (scopes.stream().anyMatch(attributeDefinition::isUnique)) {
 				return new AttributeFormula(
 					attributeDefinition instanceof GlobalAttributeSchemaContract,
 					attributeKey,
@@ -301,7 +296,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
-			processingScope.getRequirements(),
+			Objects.requireNonNull(processingScope.getRequirements()),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> optionalStream -> optionalStream.noneMatch(Optional::isPresent),
@@ -324,7 +319,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
-			processingScope.getRequirements(),
+			Objects.requireNonNull(processingScope.getRequirements()),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent),

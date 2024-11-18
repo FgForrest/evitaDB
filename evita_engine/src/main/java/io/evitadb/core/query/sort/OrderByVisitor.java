@@ -58,6 +58,7 @@ import io.evitadb.core.query.sort.random.translator.RandomTranslator;
 import io.evitadb.core.query.sort.segment.SegmentsTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -73,6 +74,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -161,6 +163,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		this.filteringFormula = filteringFormula;
 		this.scope.push(
 			new ProcessingScope(
+				this.queryContext.getScopes(),
 				this.queryContext.getGlobalEntityIndexIfExists()
 					.map(it -> new EntityIndex[]{it})
 					.orElse(EMPTY_INDEX_ARRAY),
@@ -220,6 +223,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			final ProcessingScope currentScope = this.scope.peek();
 			this.scope.push(
 				new ProcessingScope(
+					// the requested scopes never change
+					this.queryContext.getScopes(),
 					currentScope.entityIndex(),
 					currentScope.entityType(),
 					currentScope.referenceSchema(),
@@ -250,6 +255,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		try {
 			this.scope.push(
 				new ProcessingScope(
+					// the requested scopes never change
+					this.queryContext.getScopes(),
 					entityIndex,
 					entityType,
 					null,
@@ -279,6 +286,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		try {
 			this.scope.push(
 				new ProcessingScope(
+					// the requested scopes never change
+					this.queryContext.getScopes(),
 					entityIndex,
 					referenceSchema.getReferencedEntityType(),
 					referenceSchema,
@@ -365,6 +374,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * implementations to exchange indexes that are being used, suppressing certain query evaluation or accessing
 	 * attribute schema information.
 	 *
+	 * @param requiredScopes          contains set of scopes that are requested in input query
 	 * @param entityIndex             contains index, that should be used for accessing {@link SortIndex}.
 	 * @param entityType              contains entity type the context refers to
 	 * @param referenceSchema         contains reference schema the scope relates to
@@ -374,6 +384,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * @param sorters                 contains the stack of sorters that are being composed on particular level of the query
 	 */
 	public record ProcessingScope(
+		@Nonnull Set<Scope> requiredScopes,
 		@Nonnull EntityIndex[] entityIndex,
 		@Nullable String entityType,
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -388,7 +399,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		 */
 		@Nonnull
 		public AttributeSchemaContract getAttributeSchema(@Nonnull String theAttributeName, @Nonnull AttributeTrait... attributeTraits) {
-			return this.attributeSchemaAccessor.getAttributeSchema(theAttributeName, attributeTraits);
+			return this.attributeSchemaAccessor.getAttributeSchema(theAttributeName, this.requiredScopes, attributeTraits);
 		}
 
 		/**
@@ -396,7 +407,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		 */
 		@Nonnull
 		public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(@Nonnull String theAttributeName) {
-			return this.attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(theAttributeName);
+			return this.attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(theAttributeName, this.requiredScopes);
 		}
 
 		/**

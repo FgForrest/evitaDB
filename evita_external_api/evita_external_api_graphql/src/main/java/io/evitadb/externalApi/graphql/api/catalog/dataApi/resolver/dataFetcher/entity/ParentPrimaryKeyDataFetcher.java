@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,7 +39,19 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ParentPrimaryKeyDataFetcher implements DataFetcher<Integer> {
+
+	@Nullable
+	private static ParentPrimaryKeyDataFetcher INSTANCE;
+
+	@Nonnull
+	public static ParentPrimaryKeyDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new ParentPrimaryKeyDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nullable
 	@Override

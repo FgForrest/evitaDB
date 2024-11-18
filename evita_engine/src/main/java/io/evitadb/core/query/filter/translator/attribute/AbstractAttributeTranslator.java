@@ -29,10 +29,12 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The AbstractAttributeTranslator class provides utility methods for handling attribute keys within
@@ -58,10 +60,11 @@ class AbstractAttributeTranslator {
 		@Nonnull AttributeSchemaContract attributeDefinition
 	) {
 		final String attributeName = attributeDefinition.getName();
+		final Set<Scope> scopes = filterByVisitor.getScopes();
 		Assert.isTrue(
 			!attributeDefinition.isLocalized() || filterByVisitor.getLocale() != null ||
-				(attributeDefinition.isUnique() && !attributeDefinition.isUniqueWithinLocale()),
-			() -> new EntityLocaleMissingException("Localized attribute `" + attributeName + "` requires locale specification in the input query!")
+				(scopes.stream().anyMatch(scope -> attributeDefinition.isUnique(scope) && !attributeDefinition.isUniqueWithinLocale(scope))),
+			() -> new EntityLocaleMissingException(attributeName)
 		);
 
 		return attributeDefinition.isLocalized() ?

@@ -41,6 +41,8 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchem
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -50,6 +52,12 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static io.evitadb.dataType.Scope.NO_SCOPE;
 
 /**
  * Mutation is responsible for setting value to a {@link AttributeSchemaContract#isFilterable()}
@@ -67,13 +75,28 @@ import java.io.Serial;
 public class SetAttributeSchemaFilterableMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
-	@Serial private static final long serialVersionUID = 2640270593395210307L;
-	@Nonnull @Getter private final String name;
-	@Getter private final boolean filterable;
+	@Serial private static final long serialVersionUID = -382658973541254821L;
+
+	@Getter @Nonnull private final String name;
+	@Getter private final Scope[] filterableInScopes;
 
 	public SetAttributeSchemaFilterableMutation(@Nonnull String name, boolean filterable) {
+		this(
+			name,
+			filterable ? Scope.DEFAULT_SCOPES : NO_SCOPE
+		);
+	}
+
+	public SetAttributeSchemaFilterableMutation(
+		@Nonnull String name,
+		@Nullable Scope[] filterableInScopes
+	) {
 		this.name = name;
-		this.filterable = filterable;
+		this.filterableInScopes = filterableInScopes == null ? NO_SCOPE : filterableInScopes;
+	}
+
+	public boolean isFilterable() {
+		return !ArrayUtils.isEmptyOrItsValuesNull(this.filterableInScopes);
 	}
 
 	@Nullable
@@ -104,57 +127,70 @@ public class SetAttributeSchemaFilterableMutation
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
-		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
-			//noinspection unchecked,rawtypes
-			return (S) GlobalAttributeSchema._internalBuild(
-				name,
-				globalAttributeSchema.getNameVariants(),
-				globalAttributeSchema.getDescription(),
-				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.getUniquenessType(),
-				globalAttributeSchema.getGlobalUniquenessType(),
-				filterable,
-				globalAttributeSchema.isSortable(),
-				globalAttributeSchema.isLocalized(),
-				globalAttributeSchema.isNullable(),
-				globalAttributeSchema.isRepresentative(),
-				(Class) globalAttributeSchema.getType(),
-				globalAttributeSchema.getDefaultValue(),
-				globalAttributeSchema.getIndexedDecimalPlaces()
-			);
-		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
-			//noinspection unchecked,rawtypes
-			return (S) EntityAttributeSchema._internalBuild(
-				name,
-				entityAttributeSchema.getNameVariants(),
-				entityAttributeSchema.getDescription(),
-				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.getUniquenessType(),
-				filterable,
-				entityAttributeSchema.isSortable(),
-				entityAttributeSchema.isLocalized(),
-				entityAttributeSchema.isNullable(),
-				entityAttributeSchema.isRepresentative(),
-				(Class) entityAttributeSchema.getType(),
-				entityAttributeSchema.getDefaultValue(),
-				entityAttributeSchema.getIndexedDecimalPlaces()
-			);
-		} else {
-			//noinspection unchecked,rawtypes
-			return (S) AttributeSchema._internalBuild(
-				name,
-				attributeSchema.getNameVariants(),
-				attributeSchema.getDescription(),
-				attributeSchema.getDeprecationNotice(),
-				attributeSchema.getUniquenessType(),
-				filterable,
-				attributeSchema.isSortable(),
-				attributeSchema.isLocalized(),
-				attributeSchema.isNullable(),
-				(Class) attributeSchema.getType(),
-				attributeSchema.getDefaultValue(),
-				attributeSchema.getIndexedDecimalPlaces()
-			);
+		final EnumSet<Scope> filterable = ArrayUtils.toEnumSet(Scope.class, this.filterableInScopes);
+		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
+			if (globalAttributeSchema.getFilterableInScopes().equals(filterable)) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) GlobalAttributeSchema._internalBuild(
+					this.name,
+					globalAttributeSchema.getNameVariants(),
+					globalAttributeSchema.getDescription(),
+					globalAttributeSchema.getDeprecationNotice(),
+					globalAttributeSchema.getUniquenessTypeInScopes(),
+					globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
+					filterable,
+					globalAttributeSchema.getSortableInScopes(),
+					globalAttributeSchema.isLocalized(),
+					globalAttributeSchema.isNullable(),
+					globalAttributeSchema.isRepresentative(),
+					(Class) globalAttributeSchema.getType(),
+					globalAttributeSchema.getDefaultValue(),
+					globalAttributeSchema.getIndexedDecimalPlaces()
+				);
+			}
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
+			if (entityAttributeSchema.getFilterableInScopes().equals(filterable)) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) EntityAttributeSchema._internalBuild(
+					this.name,
+					entityAttributeSchema.getNameVariants(),
+					entityAttributeSchema.getDescription(),
+					entityAttributeSchema.getDeprecationNotice(),
+					entityAttributeSchema.getUniquenessTypeInScopes(),
+					filterable,
+					entityAttributeSchema.getSortableInScopes(),
+					entityAttributeSchema.isLocalized(),
+					entityAttributeSchema.isNullable(),
+					entityAttributeSchema.isRepresentative(),
+					(Class) entityAttributeSchema.getType(),
+					entityAttributeSchema.getDefaultValue(),
+					entityAttributeSchema.getIndexedDecimalPlaces()
+				);
+			}
+		} else  {
+			if (attributeSchema.getFilterableInScopes().equals(filterable)) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) AttributeSchema._internalBuild(
+					this.name,
+					attributeSchema.getNameVariants(),
+					attributeSchema.getDescription(),
+					attributeSchema.getDeprecationNotice(),
+					attributeSchema.getUniquenessTypeInScopes(),
+					filterable,
+					attributeSchema.getSortableInScopes(),
+					attributeSchema.isLocalized(),
+					attributeSchema.isNullable(),
+					(Class) attributeSchema.getType(),
+					attributeSchema.getDefaultValue(),
+					attributeSchema.getIndexedDecimalPlaces()
+				);
+			}
 		}
 	}
 
@@ -162,9 +198,9 @@ public class SetAttributeSchemaFilterableMutation
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
+		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
+				"The attribute `" + this.name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
 			));
 
 		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
@@ -173,13 +209,13 @@ public class SetAttributeSchemaFilterableMutation
 		);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name)
+		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The attribute `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			));
 
 		final EntityAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, EntityAttributeSchemaContract.class);
@@ -192,14 +228,20 @@ public class SetAttributeSchemaFilterableMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		Assert.isTrue(
-			consistencyChecks == ReferenceSchemaMutator.ConsistencyChecks.SKIP || referenceSchema.isIndexed(),
-			() -> new InvalidSchemaMutationException(
-				"The reference `" + referenceSchema.getName() + "` is in entity `" + entitySchema.getName() + "` is not indexed! " +
-					"Non-indexed references must not contain filterable attribute `" + name + "`!"
-			)
-		);
-		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, name);
+		if (consistencyChecks != ReferenceSchemaMutator.ConsistencyChecks.SKIP) {
+			final List<Scope> nonIndexedScopes = Arrays.stream(this.filterableInScopes)
+				.filter(scope -> !referenceSchema.isIndexedInScope(scope))
+				.toList();
+			Assert.isTrue(
+				nonIndexedScopes.isEmpty(),
+				() -> new InvalidSchemaMutationException(
+					"The reference `" + referenceSchema.getName() + "` is in entity `" + entitySchema.getName() +
+						"` is not indexed in required scopes: " + nonIndexedScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + "! " +
+						"Non-indexed references must not contain filterable attribute `" + this.name + "`!"
+				)
+			);
+		}
+		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, this.name);
 		final AttributeSchemaContract updatedAttributeSchema = mutate(null, existingAttributeSchema, AttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
 			referenceSchema, existingAttributeSchema, updatedAttributeSchema
@@ -214,7 +256,7 @@ public class SetAttributeSchemaFilterableMutation
 
 	@Override
 	public String toString() {
-		return "Set attribute `" + name + "` schema: " +
-			"filterable=" + filterable;
+		return "Set attribute `" + this.name + "` schema: " +
+			", filterable=" + (isFilterable() ? "(in scopes: " + Arrays.toString(this.filterableInScopes) + ")" : "no");
 	}
 }

@@ -28,6 +28,8 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -39,7 +41,19 @@ import java.util.Map;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AttributeHistogramDataFetcher implements DataFetcher<Map<String, HistogramContract>> {
+
+	@Nullable
+	private static AttributeHistogramDataFetcher INSTANCE;
+
+	@Nonnull
+	public static AttributeHistogramDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new AttributeHistogramDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nullable
 	@Override

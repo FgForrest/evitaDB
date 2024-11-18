@@ -274,6 +274,12 @@ private static final long serialVersionUID = 0L;
             queryParam_ = s;
             break;
           }
+          case 192: {
+            int rawValue = input.readEnum();
+            queryParamCase_ = 24;
+            queryParam_ = rawValue;
+            break;
+          }
           case 810: {
             io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder subBuilder = null;
             if (queryParamCase_ == 101) {
@@ -568,6 +574,20 @@ private static final long serialVersionUID = 0L;
             queryParamCase_ = 121;
             break;
           }
+          case 978: {
+            io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder subBuilder = null;
+            if (queryParamCase_ == 122) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_).toBuilder();
+            }
+            queryParam_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
+            }
+            queryParamCase_ = 122;
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -628,6 +648,7 @@ private static final long serialVersionUID = 0L;
     HISTOGRAMBEHAVIOR(21),
     MANAGEDREFERENCESBEHAVIOUR(22),
     EXPRESSIONVALUE(23),
+    SCOPE(24),
     STRINGARRAYVALUE(101),
     INTEGERARRAYVALUE(102),
     LONGARRAYVALUE(103),
@@ -649,6 +670,7 @@ private static final long serialVersionUID = 0L;
     STATISTICSBASEARRAYVALUE(119),
     STATISTICSTYPEARRAYVALUE(120),
     HISTOGRAMBEHAVIORTYPEARRAYVALUE(121),
+    SCOPEARRAYVALUE(122),
     QUERYPARAM_NOT_SET(0);
     private final int value;
     private QueryParamCase(int value) {
@@ -689,6 +711,7 @@ private static final long serialVersionUID = 0L;
         case 21: return HISTOGRAMBEHAVIOR;
         case 22: return MANAGEDREFERENCESBEHAVIOUR;
         case 23: return EXPRESSIONVALUE;
+        case 24: return SCOPE;
         case 101: return STRINGARRAYVALUE;
         case 102: return INTEGERARRAYVALUE;
         case 103: return LONGARRAYVALUE;
@@ -710,6 +733,7 @@ private static final long serialVersionUID = 0L;
         case 119: return STATISTICSBASEARRAYVALUE;
         case 120: return STATISTICSTYPEARRAYVALUE;
         case 121: return HISTOGRAMBEHAVIORTYPEARRAYVALUE;
+        case 122: return SCOPEARRAYVALUE;
         case 0: return QUERYPARAM_NOT_SET;
         default: return null;
       }
@@ -1724,6 +1748,50 @@ private static final long serialVersionUID = 0L;
     }
   }
 
+  public static final int SCOPE_FIELD_NUMBER = 24;
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+   * @return Whether the scope field is set.
+   */
+  public boolean hasScope() {
+    return queryParamCase_ == 24;
+  }
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+   * @return The enum numeric value on the wire for scope.
+   */
+  public int getScopeValue() {
+    if (queryParamCase_ == 24) {
+      return (java.lang.Integer) queryParam_;
+    }
+    return 0;
+  }
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+   * @return The scope.
+   */
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScope() {
+    if (queryParamCase_ == 24) {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(
+          (java.lang.Integer) queryParam_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE;
+  }
+
   public static final int STRINGARRAYVALUE_FIELD_NUMBER = 101;
   /**
    * <pre>
@@ -2615,6 +2683,49 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.getDefaultInstance();
   }
 
+  public static final int SCOPEARRAYVALUE_FIELD_NUMBER = 122;
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+   * @return Whether the scopeArrayValue field is set.
+   */
+  @java.lang.Override
+  public boolean hasScopeArrayValue() {
+    return queryParamCase_ == 122;
+  }
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+   * @return The scopeArrayValue.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray getScopeArrayValue() {
+    if (queryParamCase_ == 122) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder getScopeArrayValueOrBuilder() {
+    if (queryParamCase_ == 122) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -2701,6 +2812,9 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 23) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 23, queryParam_);
     }
+    if (queryParamCase_ == 24) {
+      output.writeEnum(24, ((java.lang.Integer) queryParam_));
+    }
     if (queryParamCase_ == 101) {
       output.writeMessage(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_);
     }
@@ -2763,6 +2877,9 @@ private static final long serialVersionUID = 0L;
     }
     if (queryParamCase_ == 121) {
       output.writeMessage(121, (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_);
+    }
+    if (queryParamCase_ == 122) {
+      output.writeMessage(122, (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_);
     }
     unknownFields.writeTo(output);
   }
@@ -2866,6 +2983,10 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 23) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(23, queryParam_);
     }
+    if (queryParamCase_ == 24) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(24, ((java.lang.Integer) queryParam_));
+    }
     if (queryParamCase_ == 101) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_);
@@ -2949,6 +3070,10 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 121) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(121, (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_);
+    }
+    if (queryParamCase_ == 122) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(122, (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -3059,6 +3184,10 @@ private static final long serialVersionUID = 0L;
         if (!getExpressionValue()
             .equals(other.getExpressionValue())) return false;
         break;
+      case 24:
+        if (getScopeValue()
+            != other.getScopeValue()) return false;
+        break;
       case 101:
         if (!getStringArrayValue()
             .equals(other.getStringArrayValue())) return false;
@@ -3142,6 +3271,10 @@ private static final long serialVersionUID = 0L;
       case 121:
         if (!getHistogramBehaviorTypeArrayValue()
             .equals(other.getHistogramBehaviorTypeArrayValue())) return false;
+        break;
+      case 122:
+        if (!getScopeArrayValue()
+            .equals(other.getScopeArrayValue())) return false;
         break;
       case 0:
       default:
@@ -3252,6 +3385,10 @@ private static final long serialVersionUID = 0L;
         hash = (37 * hash) + EXPRESSIONVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getExpressionValue().hashCode();
         break;
+      case 24:
+        hash = (37 * hash) + SCOPE_FIELD_NUMBER;
+        hash = (53 * hash) + getScopeValue();
+        break;
       case 101:
         hash = (37 * hash) + STRINGARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getStringArrayValue().hashCode();
@@ -3335,6 +3472,10 @@ private static final long serialVersionUID = 0L;
       case 121:
         hash = (37 * hash) + HISTOGRAMBEHAVIORTYPEARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getHistogramBehaviorTypeArrayValue().hashCode();
+        break;
+      case 122:
+        hash = (37 * hash) + SCOPEARRAYVALUE_FIELD_NUMBER;
+        hash = (53 * hash) + getScopeArrayValue().hashCode();
         break;
       case 0:
       default:
@@ -3605,6 +3746,9 @@ private static final long serialVersionUID = 0L;
       if (queryParamCase_ == 23) {
         result.queryParam_ = queryParam_;
       }
+      if (queryParamCase_ == 24) {
+        result.queryParam_ = queryParam_;
+      }
       if (queryParamCase_ == 101) {
         if (stringArrayValueBuilder_ == null) {
           result.queryParam_ = queryParam_;
@@ -3750,6 +3894,13 @@ private static final long serialVersionUID = 0L;
           result.queryParam_ = queryParam_;
         } else {
           result.queryParam_ = histogramBehaviorTypeArrayValueBuilder_.build();
+        }
+      }
+      if (queryParamCase_ == 122) {
+        if (scopeArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
+        } else {
+          result.queryParam_ = scopeArrayValueBuilder_.build();
         }
       }
       result.queryParamCase_ = queryParamCase_;
@@ -3898,6 +4049,10 @@ private static final long serialVersionUID = 0L;
           onChanged();
           break;
         }
+        case SCOPE: {
+          setScopeValue(other.getScopeValue());
+          break;
+        }
         case STRINGARRAYVALUE: {
           mergeStringArrayValue(other.getStringArrayValue());
           break;
@@ -3980,6 +4135,10 @@ private static final long serialVersionUID = 0L;
         }
         case HISTOGRAMBEHAVIORTYPEARRAYVALUE: {
           mergeHistogramBehaviorTypeArrayValue(other.getHistogramBehaviorTypeArrayValue());
+          break;
+        }
+        case SCOPEARRAYVALUE: {
+          mergeScopeArrayValue(other.getScopeArrayValue());
           break;
         }
         case QUERYPARAM_NOT_SET: {
@@ -6806,6 +6965,101 @@ private static final long serialVersionUID = 0L;
       queryParamCase_ = 23;
       queryParam_ = value;
       onChanged();
+      return this;
+    }
+
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+     * @return Whether the scope field is set.
+     */
+    @java.lang.Override
+    public boolean hasScope() {
+      return queryParamCase_ == 24;
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+     * @return The enum numeric value on the wire for scope.
+     */
+    @java.lang.Override
+    public int getScopeValue() {
+      if (queryParamCase_ == 24) {
+        return ((java.lang.Integer) queryParam_).intValue();
+      }
+      return 0;
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+     * @param value The enum numeric value on the wire for scope to set.
+     * @return This builder for chaining.
+     */
+    public Builder setScopeValue(int value) {
+      queryParamCase_ = 24;
+      queryParam_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+     * @return The scope.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScope() {
+      if (queryParamCase_ == 24) {
+        @SuppressWarnings("deprecation")
+        io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(
+            (java.lang.Integer) queryParam_);
+        return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+      }
+      return io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE;
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+     * @param value The scope to set.
+     * @return This builder for chaining.
+     */
+    public Builder setScope(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      queryParamCase_ = 24;
+      queryParam_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearScope() {
+      if (queryParamCase_ == 24) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
+        onChanged();
+      }
       return this;
     }
 
@@ -10488,6 +10742,183 @@ private static final long serialVersionUID = 0L;
       queryParamCase_ = 121;
       onChanged();;
       return histogramBehaviorTypeArrayValueBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder> scopeArrayValueBuilder_;
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+     * @return Whether the scopeArrayValue field is set.
+     */
+    @java.lang.Override
+    public boolean hasScopeArrayValue() {
+      return queryParamCase_ == 122;
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+     * @return The scopeArrayValue.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray getScopeArrayValue() {
+      if (scopeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 122) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
+      } else {
+        if (queryParamCase_ == 122) {
+          return scopeArrayValueBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+     */
+    public Builder setScopeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray value) {
+      if (scopeArrayValueBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        queryParam_ = value;
+        onChanged();
+      } else {
+        scopeArrayValueBuilder_.setMessage(value);
+      }
+      queryParamCase_ = 122;
+      return this;
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+     */
+    public Builder setScopeArrayValue(
+        io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder builderForValue) {
+      if (scopeArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
+        onChanged();
+      } else {
+        scopeArrayValueBuilder_.setMessage(builderForValue.build());
+      }
+      queryParamCase_ = 122;
+      return this;
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+     */
+    public Builder mergeScopeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray value) {
+      if (scopeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 122 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          queryParam_ = value;
+        }
+        onChanged();
+      } else {
+        if (queryParamCase_ == 122) {
+          scopeArrayValueBuilder_.mergeFrom(value);
+        }
+        scopeArrayValueBuilder_.setMessage(value);
+      }
+      queryParamCase_ = 122;
+      return this;
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+     */
+    public Builder clearScopeArrayValue() {
+      if (scopeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 122) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
+          onChanged();
+        }
+      } else {
+        if (queryParamCase_ == 122) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
+        }
+        scopeArrayValueBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder getScopeArrayValueBuilder() {
+      return getScopeArrayValueFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder getScopeArrayValueOrBuilder() {
+      if ((queryParamCase_ == 122) && (scopeArrayValueBuilder_ != null)) {
+        return scopeArrayValueBuilder_.getMessageOrBuilder();
+      } else {
+        if (queryParamCase_ == 122) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * The scope enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder>
+        getScopeArrayValueFieldBuilder() {
+      if (scopeArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 122)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
+        }
+        scopeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_,
+                getParentForChildren(),
+                isClean());
+        queryParam_ = null;
+      }
+      queryParamCase_ = 122;
+      onChanged();;
+      return scopeArrayValueBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

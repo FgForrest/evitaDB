@@ -72,11 +72,11 @@ public class ModifyEntitySchemaDeprecationNoticeMutation implements CombinableLo
 		}
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (Objects.equals(entitySchema.getDeprecationNotice(), deprecationNotice)) {
+		if (Objects.equals(entitySchema.getDeprecationNotice(), this.deprecationNotice)) {
 			// entity schema is already removed - no need to do anything
 			return entitySchema;
 		} else {
@@ -85,10 +85,12 @@ public class ModifyEntitySchemaDeprecationNoticeMutation implements CombinableLo
 				entitySchema.getName(),
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
-				deprecationNotice,
+				this.deprecationNotice,
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
 				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
@@ -110,6 +112,6 @@ public class ModifyEntitySchemaDeprecationNoticeMutation implements CombinableLo
 	@Override
 	public String toString() {
 		return "Modify entity schema: " +
-			"deprecationNotice='" + deprecationNotice + '\'';
+			"deprecationNotice='" + this.deprecationNotice + '\'';
 	}
 }

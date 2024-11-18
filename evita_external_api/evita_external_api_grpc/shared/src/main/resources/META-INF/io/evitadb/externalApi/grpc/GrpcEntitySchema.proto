@@ -124,6 +124,18 @@ message GrpcEntitySchema {
   map<string, GrpcSortableAttributeCompoundSchema> sortableAttributeCompounds = 15;
   // Contains entity type converted to different naming conventions.
   repeated GrpcNameVariant nameVariant = 16;
+	// Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+	// extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+	// can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+	// (calculating parent chain, children, siblings, etc.).
+  repeated GrpcEntityScope hierarchyIndexedInScopes = 17;
+	// Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+	// of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+	// can define its price), but it is not possible to work with the price information in any other way (calculating
+	// price histogram, filtering, sorting by price, etc.).
+	//
+	// Prices can be also set as non-indexed individually by setting {@link PriceContract#indexed()} to false.
+  repeated GrpcEntityScope priceIndexedInScopes = 18;
 }
 
 // This is the definition object for attributes that are stored along with
@@ -161,19 +173,29 @@ message GrpcAttributeSchema {
   //
   // As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
   // better to have this ensured by the database engine.
-  GrpcAttributeUniquenessType unique = 5;
-  GrpcGlobalAttributeUniquenessType uniqueGlobally = 6;
+  // deprecated in favor of `uniqueInScopes`
+  GrpcAttributeUniquenessType unique = 5 [deprecated = true];
+  // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+  // entity having certain value of this attribute in entire {@link CatalogContract}.
+  // {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable} interface.
+  //
+  // As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+  // better to have this ensured by the database engine.
+  // deprecated in favor of `uniqueGloballyInScopes`
+  GrpcGlobalAttributeUniquenessType uniqueGlobally = 6 [deprecated = true];
   // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
   // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
   // (memory/disk) space in the form of index.
   //
   // When attribute is filterable, extra result `attributeHistogram`
   // can be requested for this attribute.
-  bool filterable = 7;
+  // deprecated in favor of `filterableInScopes`
+  bool filterable = 7 [deprecated = true];
   // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
   // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
   // (memory/disk) space in the form of index.
-  bool sortable = 8;
+  // deprecated in favor of `sortableInScopes`
+  bool sortable = 8 [deprecated = true];
   // When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
   bool localized = 9;
   // When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
@@ -200,6 +222,30 @@ message GrpcAttributeSchema {
   repeated GrpcNameVariant nameVariant = 15;
   // Contains true if the attribute was inherited from the original object via reflected reference relation
   bool inherited = 16;
+  // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+  // having certain value of this attribute among other entities in the same collection.
+  //
+  // As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+  // better to have this ensured by the database engine.
+  repeated GrpcScopedAttributeUniquenessType uniqueInScopes = 17;
+  // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+  // entity having certain value of this attribute in entire {@link CatalogContract}.
+  // {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable} interface.
+  //
+  // As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+  // better to have this ensured by the database engine.
+  repeated GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 18;
+  // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+  // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+  // (memory/disk) space in the form of index.
+  //
+  // When attribute is filterable, extra result `attributeHistogram`
+  // can be requested for this attribute.
+  repeated GrpcEntityScope filterableInScopes = 19;
+  // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+  // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+  // (memory/disk) space in the form of index.
+  repeated GrpcEntityScope sortableInScopes = 20;
 }
 
 // This is the definition object for associated data that is stored along with
@@ -289,7 +335,8 @@ message GrpcReferenceSchema {
   // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
   // fetched.
-  bool indexed = 9;
+  // deprecated in favor of `indexedInScopes`
+  bool indexed = 9 [deprecated = true];
   // Contains `true` if the statistics data for this reference should be maintained and this allowing to get
   // `facetStatistics` for this reference or use `facet_{reference name}_inSet`
   // filtering constraint.
@@ -298,7 +345,8 @@ message GrpcReferenceSchema {
   // occupies (memory/disk) space in the form of index.
   //
   // Reference that was marked as faceted is called Facet.
-  bool faceted = 10;
+  // deprecated in favor of `facetedInScopes`
+  bool faceted = 10 [deprecated = true];
   // Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
   // Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
   // (`AttributeSchema.filterable`). Attributes are not automatically indexed in order not to waste precious
@@ -339,6 +387,26 @@ message GrpcReferenceSchema {
   // The array of attribute names that are inherited / excluded from inheritance based on the value of
   // attributeInheritanceBehavior property.
   repeated string attributeInheritanceFilter = 24;
+  // Contains true if the indexed property settings of the reflected reference is inherited from the target reference.
+  bool indexedInherited = 25;
+  // Contains `true` if the index for this reference should be created and maintained allowing to filter by
+  // `reference_{reference name}_having` filtering constraints. Index is also required when reference is
+  // `faceted`.
+  //
+  // Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+  // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+  // the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
+  // fetched.
+  repeated GrpcEntityScope indexedInScopes = 26;
+  // Contains `true` if the statistics data for this reference should be maintained and this allowing to get
+  // `facetStatistics` for this reference or use `facet_{reference name}_inSet`
+  // filtering constraint.
+  //
+  // Do not mark reference as faceted unless you want it among `facetStatistics`. Each faceted reference
+  // occupies (memory/disk) space in the form of index.
+  //
+  // Reference that was marked as faceted is called Facet.
+  repeated GrpcEntityScope facetedInScopes = 27;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB
@@ -364,6 +432,9 @@ message GrpcSortableAttributeCompoundSchema {
   repeated GrpcNameVariant nameVariant = 5;
   // Contains true if the attribute was inherited from the original object via reflected reference relation
   bool inherited = 6;
+  // When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+  // This property contains set of all scopes this attribute compound is indexed in.
+  repeated GrpcEntityScope indexedInScopes = 7;
 }
 
 // Attribute element is a part of the sortable compound. It defines the attribute name, the direction of the

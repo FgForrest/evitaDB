@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.store.spi.model.storageParts.index;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import lombok.Getter;
@@ -48,13 +49,17 @@ import java.util.Set;
  */
 @RequiredArgsConstructor
 public class CatalogIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = -1216381352203651969L;
+	@Serial private static final long serialVersionUID = -2897805224966000541L;
 
 	/**
 	 * Version of the entity index that gets increased with each atomic change in the index (incremented by one when
 	 * transaction is committed and anything in this index was changed).
 	 */
 	@Getter private final int version;
+	/**
+	 * Type of the index.
+	 */
+	@Getter private final CatalogIndexKey catalogIndexKey;
 	/**
 	 * Contains references to the {@link GlobalUniqueIndexStoragePart} in the form of {@link AttributeKey} that
 	 * allows to translate itself to a unique key allowing to fetch {@link StoragePart} from persistent storage.

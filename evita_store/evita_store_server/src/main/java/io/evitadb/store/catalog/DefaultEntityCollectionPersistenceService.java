@@ -57,6 +57,7 @@ import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
@@ -555,6 +556,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	private static Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> fetchPriceRefIndexes(
 		long catalogVersion,
 		int entityIndexId,
+		@Nonnull Scope scope,
 		@Nonnull Set<PriceIndexKey> priceIndexes,
 		@Nonnull StoragePartPersistenceService persistenceService
 	) {
@@ -569,6 +571,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			priceRefIndexes.put(
 				priceIndexKey,
 				new PriceListAndCurrencyPriceRefIndex(
+					scope,
 					priceIndexKey,
 					priceIndexCnt.getValidityIndex(),
 					priceIndexCnt.getPriceIds()
@@ -1084,14 +1087,14 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		//noinspection rawtypes
 		final Function<AttributeKey, Class> attributeTypeFetcher;
 		final EntityIndexKey entityIndexKey = entityIndexCnt.getEntityIndexKey();
-		if (entityIndexKey.getType() == EntityIndexType.GLOBAL) {
+		if (entityIndexKey.type() == EntityIndexType.GLOBAL) {
 			attributeTypeFetcher = attributeKey -> entitySchema
 				.getAttribute(attributeKey.attributeName())
 				.map(AttributeSchemaContract::getType)
 				.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), entitySchema));
 		} else {
-			final String referenceName = entityIndexKey.getType() == EntityIndexType.REFERENCED_ENTITY_TYPE ?
-				(String) entityIndexKey.getDiscriminator() : ((ReferenceKey) entityIndexKey.getDiscriminator()).referenceName();
+			final String referenceName = entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ?
+				(String) entityIndexKey.discriminator() : ((ReferenceKey) entityIndexKey.discriminator()).referenceName();
 			final ReferenceSchema referenceSchema = entitySchema
 				.getReferenceOrThrowException(referenceName);
 			attributeTypeFetcher = attributeKey -> referenceSchema
@@ -1121,7 +1124,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(catalogVersion, entityIndexId, storagePartPersistenceService, entityIndexCnt);
 		final FacetIndex facetIndex = fetchFacetIndex(catalogVersion, entityIndexId, storagePartPersistenceService, entityIndexCnt);
 
-		final EntityIndexType entityIndexType = entityIndexKey.getType();
+		final EntityIndexType entityIndexType = entityIndexKey.type();
 		// base on entity index type we either create GlobalEntityIndex or ReducedEntityIndex
 		if (entityIndexType == EntityIndexType.GLOBAL) {
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes = fetchPriceSuperIndexes(
@@ -1161,8 +1164,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				cardinalityIndexes
 			);
 		} else {
+			final Scope scope = entityIndexKey.scope();
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
-				catalogVersion, entityIndexId, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
+				catalogVersion, entityIndexId, scope, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
 			);
 			return new ReducedEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
@@ -1173,7 +1177,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				new AttributeIndex(
 					entitySchema.getName(), uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 				),
-				new PriceRefIndex(priceIndexes),
+				new PriceRefIndex(scope, priceIndexes),
 				hierarchyIndex,
 				facetIndex
 			);

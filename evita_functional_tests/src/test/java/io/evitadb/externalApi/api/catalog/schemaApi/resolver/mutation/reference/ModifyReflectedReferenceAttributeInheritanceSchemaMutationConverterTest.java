@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,13 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaIndexedMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -39,53 +40,39 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link SetReferenceSchemaFilterableMutationConverter}
+ * Tests for {@link ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter}
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-class SetReferenceSchemaFilterableMutationConverterTest {
+class ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverterTest {
 
-	private SetReferenceSchemaFilterableMutationConverter converter;
+	private ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter converter;
 
 	@BeforeEach
 	void init() {
-		converter = new SetReferenceSchemaFilterableMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		converter = new ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final SetReferenceSchemaIndexedMutation expectedMutation = new SetReferenceSchemaIndexedMutation(
+		final ModifyReflectedReferenceAttributeInheritanceSchemaMutation expectedMutation = new ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
 			"tags",
-			true
+			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+			"code"
 		);
 
-		final SetReferenceSchemaIndexedMutation convertedMutation1 = converter.convert(
+		final ModifyReflectedReferenceAttributeInheritanceSchemaMutation convertedMutation = converter.convert(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-				.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED.name(), true)
+				.e(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED)
+				.e(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER.name(), new String[] {"code"})
 				.build()
 		);
-		assertEquals(expectedMutation, convertedMutation1);
-
-		final SetReferenceSchemaIndexedMutation convertedMutation2 = converter.convert(
-			map()
-				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-				.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED.name(), "true")
-				.build()
-		);
-		assertEquals(expectedMutation, convertedMutation2);
+		assertEquals(expectedMutation, convertedMutation);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED.name(), true)
-					.build()
-			)
-		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> converter.convert(
@@ -97,4 +84,5 @@ class SetReferenceSchemaFilterableMutationConverterTest {
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
 	}
+
 }

@@ -33,9 +33,12 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.Getter;
 
@@ -47,11 +50,13 @@ import java.io.Serial;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -70,22 +75,20 @@ import static java.util.Optional.ofNullable;
 @Immutable
 @ThreadSafe
 public sealed class ReferenceSchema implements ReferenceSchemaContract permits ReflectedReferenceSchema {
-	@Serial private static final long serialVersionUID = 2018566260261489037L;
-
+	@Serial private static final long serialVersionUID = -5640763435228403921L;
 	@Getter @Nonnull protected final String name;
-	@Getter @Nonnull protected final Map<NamingConvention, String> nameVariants;
-	@Getter @Nullable protected final String description;
-	@Getter @Nullable protected final String deprecationNotice;
 	@Getter @Nonnull protected final Cardinality cardinality;
+	@Getter @Nullable protected final String deprecationNotice;
+	@Getter @Nullable protected final String description;
+	@Getter protected final Set<Scope> indexedInScopes;
+	@Getter protected final Set<Scope> facetedInScopes;
+	@Getter @Nonnull protected final Map<NamingConvention, String> nameVariants;
 	@Getter @Nonnull protected final String referencedEntityType;
 	@Nonnull protected final Map<NamingConvention, String> entityTypeNameVariants;
 	@Getter protected final boolean referencedEntityTypeManaged;
 	@Getter @Nullable protected final String referencedGroupType;
 	@Nonnull protected final Map<NamingConvention, String> groupTypeNameVariants;
 	@Getter protected final boolean referencedGroupTypeManaged;
-	@Getter protected final boolean indexed;
-	@Getter protected final boolean faceted;
-
 	/**
 	 * Contains index of all {@link SortableAttributeCompoundSchema} that could be used as sortable attribute compounds
 	 * of reference of this type.
@@ -133,16 +136,17 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Cardinality cardinality,
 		@Nullable String groupType,
 		boolean referencedGroupTypeManaged,
-		boolean indexed,
-		boolean faceted
+		@Nullable Scope[] indexedInScopes,
+		@Nullable Scope[] facetedInScopes
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 		if (groupType != null) {
 			ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, groupType);
 		}
-		if (faceted) {
-			Assert.isTrue(indexed, "When reference is marked as faceted, it needs also to be indexed.");
-		}
+
+		final EnumSet<Scope> indexedScopes = ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
+		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
+		validateScopeSettings(facetedScopes, indexedScopes);
 
 		return new ReferenceSchema(
 			name, NamingConvention.generate(name),
@@ -154,8 +158,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			groupType != null && groupType.isBlank() && !referencedGroupTypeManaged ?
 				NamingConvention.generate(groupType) : Collections.emptyMap(),
 			referencedGroupTypeManaged,
-			indexed,
-			faceted,
+			indexedScopes,
+			facetedScopes,
 			Collections.emptyMap(),
 			Collections.emptyMap()
 		);
@@ -177,8 +181,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Cardinality cardinality,
 		@Nullable String groupType,
 		boolean referencedGroupTypeManaged,
-		boolean indexed,
-		boolean faceted,
+		@Nonnull Scope[] indexedInScopes,
+		@Nonnull Scope[] facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
@@ -186,9 +190,10 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		if (groupType != null) {
 			ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, groupType);
 		}
-		if (faceted) {
-			Assert.isTrue(indexed, "When reference is marked as faceted, it needs also to be indexed.");
-		}
+
+		final EnumSet<Scope> indexedScopes = ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
+		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
+		validateScopeSettings(facetedScopes, indexedScopes);
 
 		return new ReferenceSchema(
 			name, NamingConvention.generate(name),
@@ -200,8 +205,48 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			groupType != null && groupType.isBlank() && !referencedGroupTypeManaged ?
 				NamingConvention.generate(groupType) : Collections.emptyMap(),
 			referencedGroupTypeManaged,
-			indexed,
-			faceted,
+			indexedScopes,
+			facetedScopes,
+			attributes,
+			sortableAttributeCompounds
+		);
+	}
+
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
+	 * different package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
+	public static ReferenceSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Map<NamingConvention, String> entityTypeNameVariants,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		@Nonnull Map<NamingConvention, String> groupTypeNameVariants,
+		boolean referencedGroupTypeManaged,
+		@Nonnull Set<Scope> indexedInScopes,
+		@Nonnull Set<Scope> facetedInScopes,
+		@Nonnull Map<String, AttributeSchemaContract> attributes,
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
+	) {
+		return new ReferenceSchema(
+			name, nameVariants,
+			description, deprecationNotice, cardinality,
+			referencedEntityType,
+			entityTypeNameVariants,
+			referencedEntityTypeManaged,
+			referencedGroupType,
+			ofNullable(groupTypeNameVariants).orElse(Collections.emptyMap()),
+			referencedGroupTypeManaged,
+			indexedInScopes,
+			facetedInScopes,
 			attributes,
 			sortableAttributeCompounds
 		);
@@ -226,8 +271,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable String groupType,
 		@Nullable Map<NamingConvention, String> groupTypeNameVariants,
 		boolean referencedGroupTypeManaged,
-		boolean indexed,
-		boolean faceted,
+		@Nonnull Scope[] indexedInScopes,
+		@Nonnull Scope[] facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
@@ -235,9 +280,10 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		if (groupType != null) {
 			ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, groupType);
 		}
-		if (faceted) {
-			Assert.isTrue(indexed, "When reference is marked as faceted, it needs also to be indexed.");
-		}
+
+		final EnumSet<Scope> indexedScopes = ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
+		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
+		validateScopeSettings(facetedScopes, indexedScopes);
 
 		return new ReferenceSchema(
 			name, nameVariants,
@@ -248,11 +294,35 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			groupType,
 			ofNullable(groupTypeNameVariants).orElse(Collections.emptyMap()),
 			referencedGroupTypeManaged,
-			indexed,
-			faceted,
+			indexedScopes,
+			facetedScopes,
 			attributes,
 			sortableAttributeCompounds
 		);
+	}
+
+	/**
+	 * Validates the consistency between the sets of faceted and indexed scopes.
+	 * Ensures that any scope marked as faceted is also marked as indexed.
+	 *
+	 * @param facetedScopes the set of scopes where faceting is enabled; must not be null
+	 * @param indexedScopes the set of scopes where indexing is enabled; must not be null
+	 */
+	static void validateScopeSettings(
+		@Nonnull Set<Scope> facetedScopes,
+		@Nonnull Set<Scope> indexedScopes
+	) {
+		final Scope[] scopes = Scope.values();
+		for (Scope scope : scopes) {
+			if (facetedScopes.contains(scope)) {
+				Assert.isTrue(
+					indexedScopes.contains(scope),
+					() -> new InvalidSchemaMutationException(
+						"When reference is marked as faceted in scope `" + scope + "`, it needs also to be indexed for the same scope."
+					)
+				);
+			}
+		}
 	}
 
 	protected ReferenceSchema(
@@ -267,8 +337,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable String referencedGroupType,
 		@Nonnull Map<NamingConvention, String> groupTypeNameVariants,
 		boolean referencedGroupTypeManaged,
-		boolean indexed,
-		boolean faceted,
+		@Nonnull Set<Scope> indexedInScopes,
+		@Nonnull Set<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
@@ -277,15 +347,15 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		this.nameVariants = Collections.unmodifiableMap(nameVariants);
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.cardinality = cardinality;
+		this.cardinality = cardinality == null ? Cardinality.ZERO_OR_MORE : cardinality;
 		this.referencedEntityType = referencedEntityType;
 		this.entityTypeNameVariants = Collections.unmodifiableMap(entityTypeNameVariants);
 		this.referencedEntityTypeManaged = referencedEntityTypeManaged;
 		this.referencedGroupType = referencedGroupType;
 		this.groupTypeNameVariants = Collections.unmodifiableMap(groupTypeNameVariants);
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
-		this.indexed = indexed;
-		this.faceted = faceted;
+		this.indexedInScopes = CollectionUtils.toUnmodifiableSet(indexedInScopes);
+		this.facetedInScopes = CollectionUtils.toUnmodifiableSet(facetedInScopes);
 		this.attributes = Collections.unmodifiableMap(
 			attributes.entrySet()
 				.stream()
@@ -343,20 +413,28 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		return this.nameVariants.get(namingConvention);
 	}
 
-	@Nonnull
-	@Override
-	public Map<NamingConvention, String> getEntityTypeNameVariants(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
-		return referencedEntityTypeManaged ?
-			Objects.requireNonNull(entitySchemaFetcher.apply(referencedEntityType)).getNameVariants() :
-			this.entityTypeNameVariants;
-	}
-
 	@Override
 	@Nonnull
 	public String getReferencedEntityTypeNameVariant(@Nonnull NamingConvention namingConvention, @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
 		return referencedEntityTypeManaged ?
 			Objects.requireNonNull(entitySchemaFetcher.apply(referencedEntityType)).getNameVariant(namingConvention) :
 			this.entityTypeNameVariants.get(namingConvention);
+	}
+
+	@Override
+	@Nonnull
+	public String getReferencedGroupTypeNameVariant(@Nonnull NamingConvention namingConvention, @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
+		return referencedGroupTypeManaged ?
+			Objects.requireNonNull(entitySchemaFetcher.apply(referencedGroupType)).getNameVariant(namingConvention) :
+			this.groupTypeNameVariants.get(namingConvention);
+	}
+
+	@Nonnull
+	@Override
+	public Map<NamingConvention, String> getEntityTypeNameVariants(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
+		return referencedEntityTypeManaged ?
+			Objects.requireNonNull(entitySchemaFetcher.apply(referencedEntityType)).getNameVariants() :
+			this.entityTypeNameVariants;
 	}
 
 	@Nonnull
@@ -368,11 +446,68 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	@Override
+	public boolean isIndexedInScope(@Nonnull Scope scope) {
+		return this.indexedInScopes.contains(scope);
+	}
+
+	@Override
+	public boolean isFacetedInScope(@Nonnull Scope scope) {
+		return this.facetedInScopes.contains(scope);
+	}
+
+	@Override
+	public void validate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchema entitySchema) throws SchemaAlteringException {
+		final Optional<EntitySchemaContract> referencedEntityTypeSchema = catalogSchema.getEntitySchema(this.referencedEntityType);
+		Stream<String> referenceErrors = Stream.empty();
+		if (this.referencedEntityTypeManaged && referencedEntityTypeSchema.isEmpty()) {
+			referenceErrors = Stream.concat(
+				referenceErrors,
+				Stream.of("Referenced entity type `" + this.referencedEntityType + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
+		} else if (!this.referencedEntityTypeManaged && referencedEntityTypeSchema.isPresent()) {
+			referenceErrors = Stream.concat(
+				referenceErrors,
+				Stream.of("Referenced entity type `" + this.referencedEntityType + "` is present in catalog `" + catalogSchema.getName() + "` schema, but it's marked as not managed!"));
+		}
+		if (this.referencedGroupTypeManaged) {
+			if (this.referencedGroupType == null) {
+				referenceErrors = Stream.concat(
+					referenceErrors,
+					Stream.of("Referenced group entity is not defined even though it's declared as managed!"));
+			} else if (catalogSchema.getEntitySchema(this.referencedGroupType).isEmpty()) {
+				referenceErrors = Stream.concat(
+					referenceErrors,
+					Stream.of("Referenced group entity type `" + this.referencedGroupType + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
+			}
+		} else if (this.referencedGroupType != null) {
+			if (catalogSchema.getEntitySchema(this.referencedGroupType).isPresent()) {
+				referenceErrors = Stream.concat(
+					referenceErrors,
+					Stream.of("Referenced group entity type `" + this.referencedGroupType + "` is present in catalog `" + catalogSchema.getName() + "` schema, but it's marked as not managed!"));
+			}
+		}
+
+		referenceErrors = Stream.concat(
+			referenceErrors,
+			validateAttributes(this.getAttributes())
+		);
+
+		final List<String> errors = referenceErrors.map(it -> "\t" + it).toList();
+		if (!errors.isEmpty()) {
+			throw new InvalidSchemaMutationException(
+				"Reference schema `" + this.name + "` contains validation errors:\n" + String.join("\n", errors)
+			);
+		}
+	}
+
 	@Nonnull
-	public String getReferencedGroupTypeNameVariant(@Nonnull NamingConvention namingConvention, @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
-		return referencedGroupTypeManaged ?
-			Objects.requireNonNull(entitySchemaFetcher.apply(referencedGroupType)).getNameVariant(namingConvention) :
-			this.groupTypeNameVariants.get(namingConvention);
+	@Override
+	public Map<String, AttributeSchemaContract> getAttributes() {
+		// we need EntitySchema to provide access to internal representations - i.e. whoever has
+		// reference to EntitySchema should have access to other internal schema representations as well
+		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
+		// collection, so we have to work around that issue using generics stripping
+		//noinspection unchecked,rawtypes
+		return (Map) this.attributes;
 	}
 
 	@Nonnull
@@ -390,24 +525,13 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 
 	@Nonnull
 	@Override
-	public Map<String, AttributeSchemaContract> getAttributes() {
-		// we need EntitySchema to provide access to internal representations - i.e. whoever has
-		// reference to EntitySchema should have access to other internal schema representations as well
-		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
-		// collection, so we have to work around that issue using generics stripping
-		//noinspection unchecked,rawtypes
-		return (Map)this.attributes;
-	}
-
-	@Nonnull
-	@Override
 	public Map<String, SortableAttributeCompoundSchemaContract> getSortableAttributeCompounds() {
 		// we need EntitySchema to provide access to internal representations - i.e. whoever has
 		// reference to EntitySchema should have access to other internal schema representations as well
 		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
 		// collection, so we have to work around that issue using generics stripping
 		//noinspection unchecked,rawtypes
-		return (Map)this.sortableAttributeCompounds;
+		return (Map) this.sortableAttributeCompounds;
 	}
 
 	@Nonnull
@@ -428,46 +552,6 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	public Collection<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundsForAttribute(@Nonnull String attributeName) {
 		return ofNullable(attributeToSortableAttributeCompoundIndex.get(attributeName))
 			.orElse(Collections.emptyList());
-	}
-
-	@Override
-	public void validate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchema entitySchema) throws SchemaAlteringException {
-		final Optional<EntitySchemaContract> referencedEntityTypeSchema = catalogSchema.getEntitySchema(this.referencedEntityType);
-		Stream<String> referenceErrors = Stream.empty();
-		if (this.referencedEntityTypeManaged && referencedEntityTypeSchema.isEmpty()) {
-			referenceErrors = Stream.concat(
-				referenceErrors,
-				Stream.of("Referenced entity type `" + this.referencedEntityType + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
-		} else if (!this.referencedEntityTypeManaged && referencedEntityTypeSchema.isPresent()) {
-			referenceErrors = Stream.concat(
-				referenceErrors,
-				Stream.of("Referenced entity type `" + this.referencedEntityType + "` is present in catalog `" + catalogSchema.getName() + "` schema, but it's marked as not managed!"));
-		}
-		if (this.referencedGroupTypeManaged &&
-				catalogSchema.getEntitySchema(this.referencedGroupType).isEmpty()
-		) {
-			referenceErrors = Stream.concat(
-				referenceErrors,
-				Stream.of("Referenced group entity type `" + this.referencedGroupType + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
-		} else if (!this.referencedGroupTypeManaged &&
-			catalogSchema.getEntitySchema(this.referencedGroupType).isPresent()
-		) {
-			referenceErrors = Stream.concat(
-				referenceErrors,
-				Stream.of("Referenced group entity type `" + this.referencedGroupType + "` is present in catalog `" + catalogSchema.getName() + "` schema, but it's marked as not managed!"));
-		}
-
-		referenceErrors = Stream.concat(
-			referenceErrors,
-			validateAttributes(this.getAttributes())
-		);
-
-		final List<String> errors = referenceErrors.map(it -> "\t" + it).toList();
-		if (!errors.isEmpty()) {
-			throw new InvalidSchemaMutationException(
-				"Reference schema `" + this.name + "` contains validation errors:\n" + String.join("\n", errors)
-			);
-		}
 	}
 
 	/**
@@ -496,8 +580,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			this.referencedGroupType,
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
-			this.indexed,
-			this.faceted,
+			this.indexedInScopes,
+			this.facetedInScopes,
 			this.getAttributes(),
 			this.getSortableAttributeCompounds()
 		);
@@ -529,54 +613,11 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			// is always empty for managed types
 			Map.of(),
 			true,
-			this.indexed,
-			this.faceted,
+			this.indexedInScopes,
+			this.facetedInScopes,
 			this.getAttributes(),
 			this.getSortableAttributeCompounds()
 		);
-	}
-
-	/**
-	 * Collects errors for reference attributes.
-	 *
-	 * @param attributes a map of attribute schemas
-	 * @return returns errors for reference attribute schemas as a stream
-	 */
-	@Nonnull
-	protected Stream<String> validateAttributes(@Nonnull Map<String, AttributeSchemaContract> attributes) {
-		Stream<String> attributeErrors = Stream.empty();
-		if (!this.isIndexed()) {
-			for (AttributeSchemaContract attribute : attributes.values()) {
-				if (attribute.isFilterable()) {
-					attributeErrors = Stream.concat(
-						attributeErrors,
-						Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is filterable but reference schema is not indexed!")
-					);
-				}
-				if (attribute.isSortable()) {
-					attributeErrors = Stream.concat(
-						attributeErrors,
-						Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is sortable but reference schema is not indexed!")
-					);
-				}
-				if (attribute.isUnique()) {
-					attributeErrors = Stream.concat(
-						attributeErrors,
-						Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is unique but reference schema is not indexed!")
-					);
-				}
-			}
-		}
-		return attributeErrors;
-	}
-
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-
-		ReferenceSchema that = (ReferenceSchema) o;
-		return referencedEntityTypeManaged == that.referencedEntityTypeManaged && referencedGroupTypeManaged == that.referencedGroupTypeManaged && indexed == that.indexed && faceted == that.faceted && name.equals(that.name) && nameVariants.equals(that.nameVariants) && Objects.equals(description, that.description) && Objects.equals(deprecationNotice, that.deprecationNotice) && cardinality == that.cardinality && referencedEntityType.equals(that.referencedEntityType) && entityTypeNameVariants.equals(that.entityTypeNameVariants) && Objects.equals(referencedGroupType, that.referencedGroupType) && groupTypeNameVariants.equals(that.groupTypeNameVariants) && sortableAttributeCompounds.equals(that.sortableAttributeCompounds) && attributes.equals(that.attributes);
 	}
 
 	@Override
@@ -592,17 +633,76 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		result = 31 * result + Objects.hashCode(referencedGroupType);
 		result = 31 * result + groupTypeNameVariants.hashCode();
 		result = 31 * result + Boolean.hashCode(referencedGroupTypeManaged);
-		result = 31 * result + Boolean.hashCode(indexed);
-		result = 31 * result + Boolean.hashCode(faceted);
+		result = 31 * result + indexedInScopes.hashCode();
+		result = 31 * result + facetedInScopes.hashCode();
 		result = 31 * result + sortableAttributeCompounds.hashCode();
 		result = 31 * result + attributes.hashCode();
 		return result;
 	}
 
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		ReferenceSchema that = (ReferenceSchema) o;
+		return referencedEntityTypeManaged == that.referencedEntityTypeManaged &&
+			referencedGroupTypeManaged == that.referencedGroupTypeManaged &&
+			indexedInScopes.equals(that.indexedInScopes) &&
+			facetedInScopes.equals(that.facetedInScopes) &&
+			name.equals(that.name) &&
+			nameVariants.equals(that.nameVariants) &&
+			Objects.equals(description, that.description) &&
+			Objects.equals(deprecationNotice, that.deprecationNotice) &&
+			cardinality == that.cardinality &&
+			referencedEntityType.equals(that.referencedEntityType) &&
+			entityTypeNameVariants.equals(that.entityTypeNameVariants) &&
+			Objects.equals(referencedGroupType, that.referencedGroupType) &&
+			groupTypeNameVariants.equals(that.groupTypeNameVariants) &&
+			sortableAttributeCompounds.equals(that.sortableAttributeCompounds) &&
+			attributes.equals(that.attributes);
+	}
+
+	/**
+	 * Collects errors for reference attributes.
+	 *
+	 * @param attributes a map of attribute schemas
+	 * @return returns errors for reference attribute schemas as a stream
+	 */
+	@Nonnull
+	protected Stream<String> validateAttributes(@Nonnull Map<String, AttributeSchemaContract> attributes) {
+		Stream<String> attributeErrors = Stream.empty();
+		for (Scope scope : Scope.values()) {
+			if (!this.isIndexedInScope(scope)) {
+				for (AttributeSchemaContract attribute : attributes.values()) {
+					if (attribute.isFilterable(scope)) {
+						attributeErrors = Stream.concat(
+							attributeErrors,
+							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is filterable but reference schema is not indexed!")
+						);
+					}
+					if (attribute.isSortable(scope)) {
+						attributeErrors = Stream.concat(
+							attributeErrors,
+							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is sortable but reference schema is not indexed!")
+						);
+					}
+					if (attribute.isUnique(scope)) {
+						attributeErrors = Stream.concat(
+							attributeErrors,
+							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is unique but reference schema is not indexed!")
+						);
+					}
+				}
+			}
+		}
+		return attributeErrors;
+	}
+
 	/**
 	 * Helper DTO to envelope relation between {@link AttributeElement} and {@link SortableAttributeCompoundSchemaContract}.
 	 *
-	 * @param attribute {@link SortableAttributeCompoundSchemaContract#getAttributeElements()} item
+	 * @param attribute      {@link SortableAttributeCompoundSchemaContract#getAttributeElements()} item
 	 * @param compoundSchema {@link SortableAttributeCompoundSchemaContract} enveloping compound
 	 */
 	private record AttributeToCompound(
