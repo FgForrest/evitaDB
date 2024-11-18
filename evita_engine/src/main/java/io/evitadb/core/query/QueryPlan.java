@@ -250,6 +250,7 @@ public class QueryPlan {
 							result = (T) new EvitaBinaryEntityResponse(
 								evitaRequest.getQuery(),
 								dataChunk,
+								this.primaryKeys,
 								extraResults
 							);
 						} else {

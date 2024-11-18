@@ -29,11 +29,8 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.traffic.TrafficRecorder;
-import io.evitadb.store.kryo.ObservableOutput;
-import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
-import io.evitadb.store.traffic.data.QueryContainer;
 import io.evitadb.store.traffic.data.SessionTraffic;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.Assert;
@@ -135,13 +132,13 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, Closeable {
 			/* TODO JNO - tady bude potřeba naučit StorageRecord zapisovat do různých regionů */
 			/* TODO JNO - možná strčit ObservableOutput přímo dovnitř SessionTrafficu a peek neřešit (ten je uvnitř) */
 			/* TODO JNO - možná udělat chytrý OutputStream, který si bude umět doalokovat paměť, když bude chybět */
-			final StorageRecord<QueryContainer> queryContainerStorageRecord = new StorageRecord<>(
+			/*final StorageRecord<QueryContainer> queryContainerStorageRecord = new StorageRecord<>(
 				OFF_HEAP_TRAFFIC_RECORDER_KRYO_POOL.obtain(),
 				new ObservableOutput<>(),
 				0L,
 				false,
 				new QueryContainer(sessionId, query, totalRecordCount, primaryKeys)
-			);
+			);*/
 		}
 	}
 

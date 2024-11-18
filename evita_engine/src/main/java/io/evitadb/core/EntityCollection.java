@@ -147,8 +147,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
-import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.core.Transaction.getTransactionalLayerMaintainer;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -631,23 +629,6 @@ public final class EntityCollection implements
 	}
 
 	@Override
-	public int deleteEntityAndItsHierarchy(int primaryKey, @Nonnull EvitaSessionContract session) {
-		return deleteEntityAndItsHierarchy(
-			new EvitaRequest(
-				Query.query(
-					collection(getSchema().getName()),
-					filterBy(entityPrimaryKeyInSet(primaryKey)),
-					require(entityFetchAll())
-				),
-				OffsetDateTime.now(),
-				EntityReference.class,
-				null
-			),
-			session
-		).deletedEntities();
-	}
-
-	@Override
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 		if (globalIndex != null) {
@@ -655,7 +636,7 @@ public final class EntityCollection implements
 			Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 			final int[] entityHierarchy = globalIndex.listHierarchyNodesFromParentIncludingItself(primaryKeys[0]).getArray();
 			if (entityHierarchy.length == 0) {
-				return new DeletedHierarchy<>(0, null);
+				return new DeletedHierarchy<>(0, entityHierarchy, null);
 			} else {
 				ServerEntityDecorator removedRoot = null;
 				for (int entityToRemove : entityHierarchy) {
@@ -668,6 +649,7 @@ public final class EntityCollection implements
 				//noinspection unchecked
 				return new DeletedHierarchy<>(
 					entityHierarchy.length,
+					entityHierarchy,
 					ofNullable(removedRoot)
 						.map(it -> (T) applyReferenceFetcherInternal(
 								referenceFetcher.initReferenceIndex(it, this),
@@ -678,55 +660,7 @@ public final class EntityCollection implements
 				);
 			}
 		}
-		return new DeletedHierarchy<>(0, null);
-	}
-
-	@Override
-	public int deleteEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
-		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
-
-		final EvitaEntityReferenceResponse result = tracingContext.executeWithinBlockIfParentContextAvailable(
-			"delete - " + queryPlan.getDescription(),
-			(Supplier<EvitaEntityReferenceResponse>) queryPlan::execute,
-			queryPlan::getSpanAttributes
-		);
-
-		return result
-			.getRecordData()
-			.stream()
-			.mapToInt(EntityReference::getPrimaryKey)
-			.map(it -> this.deleteEntity(it) ? 1 : 0)
-			.sum();
-	}
-
-	@Override
-	@Nonnull
-	public SealedEntity[] deleteEntitiesAndReturnThem(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
-		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
-
-		final EvitaResponse<? extends Serializable> result = tracingContext.executeWithinBlockIfParentContextAvailable(
-			"delete - " + queryPlan.getDescription(),
-			() -> queryPlan.execute(),
-			queryPlan::getSpanAttributes
-		);
-
-		final int[] entitiesToRemove = result.getRecordData()
-			.stream()
-			.mapToInt(EntityCollection::getPrimaryKey)
-			.toArray();
-
-		final List<SealedEntity> removedEntities = new ArrayList<>(entitiesToRemove.length);
-		for (int entityToRemove : entitiesToRemove) {
-			removedEntities.add(
-				wrapToDecorator(evitaRequest, deleteEntityInternal(entityToRemove, evitaRequest), false)
-			);
-		}
-
-		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-		return applyReferenceFetcher(removedEntities, referenceFetcher).toArray(SealedEntity[]::new);
-
+		return new DeletedHierarchy<>(0, new int[0], null);
 	}
 
 	@Override

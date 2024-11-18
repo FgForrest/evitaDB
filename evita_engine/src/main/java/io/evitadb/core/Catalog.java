@@ -917,14 +917,14 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 	@Nonnull
 	@Override
-	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
-		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
+	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
+		return this.persistenceService.getCatalogVersionDescriptors(catalogVersion);
 	}
 
 	@Nonnull
 	@Override
-	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
-		return this.persistenceService.getCatalogVersionDescriptors(catalogVersion);
+	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+		return this.persistenceService.getCatalogVersions(timeFlow, page, pageSize);
 	}
 
 	@Override
@@ -945,26 +945,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(pastMoment, includingWAL);
 		this.scheduler.submit(backupTask);
 		return backupTask;
-	}
-
-	@Nonnull
-	@Override
-	public CatalogStatistics getStatistics() {
-		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
-			.stream()
-			.map(EntityCollection::getStatistics)
-			.toArray(EntityCollectionStatistics[]::new);
-		return new CatalogStatistics(
-			getCatalogId(),
-			getName(),
-			false,
-			getCatalogState(),
-			getVersion(),
-			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::totalRecords).sum(),
-			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::indexCount).sum() + 1,
-			this.persistenceService.getSizeOnDiskInBytes(),
-			collectionStatistics
-		);
 	}
 
 	@Override
@@ -1335,6 +1315,26 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		if (this.persistenceService instanceof CatalogVersionBeyondTheHorizonListener cvbthl) {
 			cvbthl.catalogVersionBeyondTheHorizon(minimalActiveCatalogVersion);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStatistics getStatistics() {
+		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
+			.stream()
+			.map(EntityCollection::getStatistics)
+			.toArray(EntityCollectionStatistics[]::new);
+		return new CatalogStatistics(
+			getCatalogId(),
+			getName(),
+			false,
+			getCatalogState(),
+			getVersion(),
+			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::totalRecords).sum(),
+			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::indexCount).sum() + 1,
+			this.persistenceService.getSizeOnDiskInBytes(),
+			collectionStatistics
+		);
 	}
 
 	/**
