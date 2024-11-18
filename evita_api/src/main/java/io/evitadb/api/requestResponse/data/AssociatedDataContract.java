@@ -70,7 +70,7 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 					final AssociatedDataKey key = it.key();
 					final Serializable thisValue = it.value();
 					final Serializable otherValue = key.locale() == null ?
-						second.getAssociatedDataArray(key.associatedDataName()) :
+						second.getAssociatedData(key.associatedDataName()) :
 						second.getAssociatedData(key.associatedDataName(), key.localeOrThrowException());
 					return QueryUtils.valueDiffers(thisValue, otherValue);
 				});
