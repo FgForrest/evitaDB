@@ -63,6 +63,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -108,9 +109,9 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 
 	@Test
 	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
-	@DisplayName("Should prefer live when unique attribute is in conflict")
-	void shouldReturnPreferLiveEntitiesExplicitlyOnUniqueAttributeConflict(Evita evita, RestTester tester) {
-		final List<SealedEntity> liveEntities = getEntities(
+	@DisplayName("Should return both live and archived entities explicitly")
+	void shouldReturnBothLiveAndArchivedEntitiesExplicitly(Evita evita, RestTester tester) {
+		final SealedEntity liveEntity = getEntity(
 			evita,
 			query(
 				collection(Entities.PRODUCT),
@@ -118,13 +119,13 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 					scope(Scope.LIVE)
 				),
 				require(
-					page(1, 2),
+					page(1, 1),
 					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),
 			SealedEntity.class
 		);
-		final List<SealedEntity> archivedEntities = getEntities(
+		final SealedEntity archivedEntity = getEntity(
 			evita,
 			query(
 				collection(Entities.PRODUCT),
@@ -138,15 +139,16 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			),
 			SealedEntity.class
 		);
+		assertNotEquals((String) liveEntity.getAttribute(ATTRIBUTE_CODE), (String) archivedEntity.getAttribute(ATTRIBUTE_CODE));
 
-		final var expectedBodyOfArchivedEntities = liveEntities.stream()
+		final var expectedBodyOfArchivedEntities = Stream.of(liveEntity, archivedEntity)
 			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))
 			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
 			.toList();
 
 		tester.test(TEST_CATALOG)
 			.get("/entity/list")
-			.requestParam(ATTRIBUTE_CODE, Stream.concat(liveEntities.stream(), archivedEntities.stream()).map(it -> it.getAttribute(ATTRIBUTE_CODE)).toList())
+			.requestParam(ATTRIBUTE_CODE, Stream.of(liveEntity, archivedEntity).map(it -> it.getAttribute(ATTRIBUTE_CODE)).toList())
 			.requestParam(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.LIVE.name(), Scope.ARCHIVED.name()))
 			.executeAndThen()
 			.statusCode(200)
