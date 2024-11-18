@@ -136,6 +136,8 @@
 		<bouncyCastle.version>1.78</bouncyCastle.version>
 		<swagger.version>2.2.25</swagger.version>
 		<armeria.version>1.31.0</armeria.version>
+		<!-- we should keep this in sync with armeria -->
+		<netty.version>4.1.115.Final</netty.version>
 		<prometheus.version>1.3.3</prometheus.version>
 		<byteBuddy.version>1.15.10</byteBuddy.version>
 		<graphql.version>22.3</graphql.version>
