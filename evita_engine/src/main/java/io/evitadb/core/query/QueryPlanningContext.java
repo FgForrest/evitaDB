@@ -362,7 +362,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			.getIndexByKeyIfExists(entityIndexKey);
 		Assert.isPremiseValid(
 			entityIndex == null || indexType.isInstance(entityIndex),
-			() -> "Expected index of type " + indexType + " but got " + entityIndex.getClass() + "!"
+			() -> "Expected index of type " + indexType + " but got " + (entityIndex == null ? "NULL" : entityIndex.getClass()) + "!"
 		);
 		//noinspection unchecked
 		return ofNullable((T) entityIndex);
@@ -639,7 +639,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * {@link EntityCollection#enrichEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  methods.
 	 */
 	@Nonnull
-	public EvitaRequest fabricateFetchRequest(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {
+	public EvitaRequest fabricateFetchRequest(@Nullable String entityType, @Nonnull EntityFetchRequire requirements) {
 		return evitaRequest.deriveCopyWith(entityType, requirements);
 	}
 
@@ -805,21 +805,35 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		final Optional<FacetFilterBy> facetGroupConjunction = getEvitaRequest().getFacetGroupConjunction(referenceName);
 		if (facetGroupConjunction.isEmpty()) {
 			return false;
-		} else if (facetGroupConjunction.get().isFilterDefined()) {
-			if (groupId == null) {
-				return false;
-			} else {
-				return getFacetRelationTuples().computeIfAbsent(
-					new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
-					refName -> new FilteringFormulaPredicate(
-						this, facetGroupConjunction.get().filterBy(),
-						referenceSchema.getReferencedGroupType(),
-						() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupConjunction.get()
-					)
-				).test(groupId);
-			}
 		} else {
-			return true;
+			final FacetFilterBy facetFilterBy = facetGroupConjunction.get();
+			final FilterBy filterBy = facetFilterBy.filterBy();
+			if (filterBy != null) {
+				if (groupId == null) {
+					return false;
+				} else {
+					return getFacetRelationTuples()
+						.computeIfAbsent(
+							new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
+							refName -> {
+								final String referencedGroupType = referenceSchema.getReferencedGroupType();
+								Assert.isTrue(
+									referencedGroupType != null,
+									() -> "Referenced group type must be defined for facet group conjunction of `" + referenceName + "`!"
+								);
+								return new FilteringFormulaPredicate(
+									this,
+									filterBy,
+									referencedGroupType,
+									() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+								);
+							}
+						)
+						.test(groupId);
+				}
+			} else {
+				return true;
+			}
 		}
 	}
 
@@ -832,21 +846,32 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		final Optional<FacetFilterBy> facetGroupDisjunction = getEvitaRequest().getFacetGroupDisjunction(referenceName);
 		if (facetGroupDisjunction.isEmpty()) {
 			return false;
-		} else if (facetGroupDisjunction.get().isFilterDefined()) {
-			if (groupId == null) {
-				return false;
-			} else {
-				return getFacetRelationTuples().computeIfAbsent(
-					new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
-					refName -> new FilteringFormulaPredicate(
-						this, facetGroupDisjunction.get().filterBy(),
-						referenceSchema.getReferencedGroupType(),
-						() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupDisjunction.get()
-					)
-				).test(groupId);
-			}
 		} else {
-			return true;
+			final FacetFilterBy facetFilterBy = facetGroupDisjunction.get();
+			final FilterBy filterBy = facetFilterBy.filterBy();
+			if (filterBy != null) {
+				if (groupId == null) {
+					return false;
+				} else {
+					return getFacetRelationTuples().computeIfAbsent(
+						new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
+						refName -> {
+							final String referencedGroupType = referenceSchema.getReferencedGroupType();
+								Assert.isTrue(
+									referencedGroupType != null,
+									() -> "Referenced group type must be defined for facet group disjunction of `" + referenceName + "`!"
+								);
+							return new FilteringFormulaPredicate(
+								this, filterBy,
+								referencedGroupType,
+								() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+							);
+						}
+					).test(groupId);
+				}
+			} else {
+				return true;
+			}
 		}
 	}
 
@@ -859,21 +884,32 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		final Optional<FacetFilterBy> facetGroupNegation = getEvitaRequest().getFacetGroupNegation(referenceName);
 		if (facetGroupNegation.isEmpty()) {
 			return false;
-		} else if (facetGroupNegation.get().isFilterDefined()) {
-			if (groupId == null) {
-				return false;
-			} else {
-				return getFacetRelationTuples().computeIfAbsent(
-					new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
-					refName -> new FilteringFormulaPredicate(
-						this, facetGroupNegation.get().filterBy(),
-						referenceSchema.getReferencedGroupType(),
-						() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetGroupNegation.get()
-					)
-				).test(groupId);
-			}
 		} else {
-			return true;
+			final FacetFilterBy facetFilterBy = facetGroupNegation.get();
+			final FilterBy filterBy = facetFilterBy.filterBy();
+			if (filterBy != null) {
+				if (groupId == null) {
+					return false;
+				} else {
+					return getFacetRelationTuples().computeIfAbsent(
+						new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
+						refName -> {
+							final String referencedGroupType = referenceSchema.getReferencedGroupType();
+								Assert.isTrue(
+									referencedGroupType != null,
+									() -> "Referenced group type must be defined for facet group negation of `" + referenceName + "`!"
+								);
+							return new FilteringFormulaPredicate(
+								this, filterBy,
+								referencedGroupType,
+								() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+							);
+						}
+					).test(groupId);
+				}
+			} else {
+				return true;
+			}
 		}
 	}
 

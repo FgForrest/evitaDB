@@ -155,7 +155,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		assertNotNull(globalUniqueIndex);
 		assertEquals(
 			new EntityReference(productSchema.getName(), 1),
-			globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null)
+			globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null).orElse(null)
 		);
 
 		final Collection<StoragePart> modifiedProductIndexStorageParts = productIndex.getModifiedStorageParts();
@@ -247,10 +247,10 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) productAttributeSchemaProvider.apply(ATTRIBUTE_GLOBAL_CODE);
 		final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeSchema, null);
-		assertNull(globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null));
+		assertNull(globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null).orElse(null));
 		assertEquals(
 			new EntityReference(productSchema.getName(), 1),
-			globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null)
+			globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null).orElse(null)
 		);
 
 		final Collection<StoragePart> modifiedStorageParts = productIndex.getModifiedStorageParts();
@@ -451,8 +451,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) productAttributeSchemaProvider.apply(ATTRIBUTE_GLOBAL_CODE);
 		final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeSchema, null);
-		assertEquals(new EntityReference(productSchema.getName(), 2), globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null));
-		assertEquals(new EntityReference(productSchema.getName(), 1), globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null));
+		assertEquals(new EntityReference(productSchema.getName(), 2), globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null).orElse(null));
+		assertEquals(new EntityReference(productSchema.getName(), 1), globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null).orElse(null));
 
 		final Collection<StoragePart> modifiedStorageParts = productIndex.getModifiedStorageParts();
 		assertEquals(5, modifiedStorageParts.size());

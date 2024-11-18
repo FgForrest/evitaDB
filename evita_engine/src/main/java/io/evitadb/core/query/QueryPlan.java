@@ -53,6 +53,7 @@ import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -150,6 +151,7 @@ public class QueryPlan {
 		@Nonnull OffsetAndLimit offsetAndLimit
 	) {
 		sorter = ConditionalSorter.getFirstApplicableSorter(queryContext, sorter);
+		Assert.isPremiseValid(sorter != null, "No applicable sorter found for the query.");
 		final int[] result = new int[Math.min(totalRecordCount, offsetAndLimit.limit())];
 		final int peak = sorter.sortAndSlice(
 			queryContext, filteringFormula,
@@ -407,20 +409,24 @@ public class QueryPlan {
 	public SpanAttribute[] getSpanAttributes() {
 		final Query query = this.getEvitaRequest().getQuery();
 		final FinishedEvent queryFinishedEvent = queryContext.getQueryFinishedEvent();
-		return new SpanAttribute[] {
-			new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
-			new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
-			new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
-			new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
-			new SpanAttribute("prefetch", queryFinishedEvent.getPrefetched()),
-			new SpanAttribute("scannedRecords", queryFinishedEvent.getScanned()),
-			new SpanAttribute("totalRecordCount", queryFinishedEvent.getFound()),
-			new SpanAttribute("returnedRecordCount", queryFinishedEvent.getReturned()),
-			new SpanAttribute("fetchedRecordCount", queryFinishedEvent.getFetched()),
-			new SpanAttribute("fetchedRecordSizeBytes", queryFinishedEvent.getFetchedSizeBytes()),
-			new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
-			new SpanAttribute("complexity", queryFinishedEvent.getRealComplexity())
-		};
+		if (queryFinishedEvent == null) {
+			return SpanAttribute.EMPTY_ARRAY;
+		} else {
+			return new SpanAttribute[]{
+				new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
+				new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
+				new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
+				new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
+				new SpanAttribute("prefetch", queryFinishedEvent.getPrefetched() == null ? "<NONE>" : queryFinishedEvent.getPrefetched()),
+				new SpanAttribute("scannedRecords", queryFinishedEvent.getScanned()),
+				new SpanAttribute("totalRecordCount", queryFinishedEvent.getFound()),
+				new SpanAttribute("returnedRecordCount", queryFinishedEvent.getReturned()),
+				new SpanAttribute("fetchedRecordCount", queryFinishedEvent.getFetched()),
+				new SpanAttribute("fetchedRecordSizeBytes", queryFinishedEvent.getFetchedSizeBytes()),
+				new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
+				new SpanAttribute("complexity", queryFinishedEvent.getRealComplexity())
+			};
+		}
 	}
 
 	/**

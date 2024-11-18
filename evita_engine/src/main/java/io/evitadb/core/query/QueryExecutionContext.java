@@ -167,7 +167,7 @@ public class QueryExecutionContext implements Closeable {
 	 * real {@link EntityContract#getPrimaryKey()} or it may represent key masked by {@link QueryPlanningContext#translateEntityReference(EntityReferenceContract[])}
 	 * method.
 	 */
-	@Nullable
+	@Nonnull
 	public List<SealedEntity> fetchEntities(int... entityPrimaryKey) {
 		if (ArrayUtils.isEmpty(entityPrimaryKey)) {
 			return Collections.emptyList();
@@ -217,7 +217,7 @@ public class QueryExecutionContext implements Closeable {
 	 * real {@link EntityContract#getPrimaryKey()} or it may represent key masked by {@link QueryPlanningContext#translateEntityReference(EntityReferenceContract[])}
 	 * method.
 	 */
-	@Nullable
+	@Nonnull
 	public List<BinaryEntity> fetchBinaryEntities(int... entityPrimaryKey) {
 		final String entityType = this.queryContext.getEntityType();
 		final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
@@ -234,7 +234,7 @@ public class QueryExecutionContext implements Closeable {
 					entityCollection.getBinaryEntities(entityPrimaryKeys, evitaRequest, evitaSession),
 				(entityCollection, prefetchedEntities, requestToUse) -> entityCollection.getBinaryEntities(
 					prefetchedEntities.stream()
-						.mapToInt(EntityDecorator::getPrimaryKey)
+						.mapToInt(EntityDecorator::getPrimaryKeyOrThrowException)
 						.toArray(),
 					evitaRequest, evitaSession
 				)
@@ -519,7 +519,7 @@ public class QueryExecutionContext implements Closeable {
 					.forEach(
 						it -> index.put(
 							ofNullable(remappingIndex.get())
-								.map(ix -> ix.get(new EntityReference(it.getType(), it.getPrimaryKey())))
+								.map(ix -> ix.get(new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException())))
 								.orElse(it.getPrimaryKey()),
 							it
 						)
@@ -562,7 +562,7 @@ public class QueryExecutionContext implements Closeable {
 				dataCollector.run();
 				requestToUse.set(evitaRequest);
 				lastImplicitLocale = null;
-			} else if (!Objects.equals(lastImplicitLocale, implicitLocale)) {
+			} else if (implicitLocale != null && !Objects.equals(lastImplicitLocale, implicitLocale)) {
 				dataCollector.run();
 				// when implicit locale is found we need to fabricate new request for that particular entity
 				// that will use such implicit locale as if it would have been part of the original request
@@ -583,12 +583,12 @@ public class QueryExecutionContext implements Closeable {
 				primaryKeysToFetch[primaryKeyPeek.getAndIncrement()] = epk;
 			} else {
 				prefetchedEntities[prefetchedEntitiesPeek.getAndIncrement()] = prefetchedEntity;
-				if (epk != prefetchedEntity.getPrimaryKey()) {
+				if (epk != prefetchedEntity.getPrimaryKeyOrThrowException()) {
 					if (remappingIndex.get() == null) {
 						remappingIndex.set(CollectionUtils.createHashMap(inputPrimaryKeys.length));
 					}
 					remappingIndex.get().put(
-						new EntityReference(prefetchedEntity.getType(), prefetchedEntity.getPrimaryKey()),
+						new EntityReference(prefetchedEntity.getType(), prefetchedEntity.getPrimaryKeyOrThrowException()),
 						epk
 					);
 				}

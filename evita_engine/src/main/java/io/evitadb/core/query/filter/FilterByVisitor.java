@@ -904,6 +904,30 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
+	 * Method executes the logic on first unique index of certain attribute.
+	 */
+	@Nonnull
+	public Formula applyOnGlobalUniqueIndexes(
+		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
+		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
+	) {
+		return joinFormulas(
+			getScopes()
+				.stream()
+				.map(CatalogIndexKey::new)
+				.map(this::getIndex)
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.map(CatalogIndex.class::cast)
+				.map(index -> {
+					final GlobalUniqueIndex globalUniqueIndex = index.getGlobalUniqueIndex(attributeDefinition, getLocale());
+					return globalUniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(globalUniqueIndex);
+				})
+				.filter(formula -> formula != EmptyFormula.INSTANCE)
+		);
+	}
+
+	/**
 	 * Method executes the logic on first unique index of certain attribute that produces non empty result.
 	 */
 	@Nonnull
@@ -912,7 +936,16 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
 		final Set<Scope> allowedScopes = getScopes();
-		return Arrays.stream(Scope.values())
+		if (allowedScopes.size() == 1) {
+			return getIndex(new CatalogIndexKey(allowedScopes.iterator().next()))
+				.map(index -> {
+					final CatalogIndex catalogIndex = (CatalogIndex) index;
+					final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeDefinition, getLocale());
+					return globalUniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(globalUniqueIndex);
+				})
+				.orElse(EmptyFormula.INSTANCE);
+		} else {
+			return Arrays.stream(Scope.values())
 				.filter(allowedScopes::contains)
 				.map(CatalogIndexKey::new)
 				.map(this::getIndex)
@@ -925,10 +958,30 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				.filter(it -> !(it instanceof EmptyFormula))
 				.findFirst()
 				.orElse(EmptyFormula.INSTANCE);
+		}
 	}
 
 	/**
 	 * Method executes the logic on unique index of certain attribute.
+	 */
+	@Nonnull
+	public Formula applyOnUniqueIndexes(
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull Function<UniqueIndex, Formula> formulaFunction
+	) {
+		return joinFormulas(
+			getEntityIndexStream()
+				.map(
+					entityIndex -> {
+						final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
+						return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
+					}
+				)
+		);
+	}
+
+	/**
+	 * Method executes the logic on first unique index of certain attribute returning non-empty result.
 	 */
 	@Nonnull
 	public Formula applyOnFirstUniqueIndex(
@@ -936,37 +989,35 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Function<UniqueIndex, Formula> formulaFunction
 	) {
 		final Set<Scope> allowedScopes = getScopes();
-		return Arrays.stream(Scope.values())
-			.filter(allowedScopes::contains)
-			.map(
-				scope -> joinFormulas(
-					getEntityIndexStream()
-						.filter(index -> index.getIndexKey().scope() == scope)
-						.map(
-							entityIndex -> {
-								final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
-								return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
-							}
-						)
+		if (allowedScopes.size() == 1) {
+			return joinFormulas(
+				getEntityIndexStream()
+					.map(
+						entityIndex -> {
+							final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
+							return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
+						}
+					)
+			);
+		} else {
+			return Arrays.stream(Scope.values())
+				.filter(allowedScopes::contains)
+				.map(
+					scope -> joinFormulas(
+						getEntityIndexStream()
+							.filter(index -> index.getIndexKey().scope() == scope)
+							.map(
+								entityIndex -> {
+									final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
+									return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
+								}
+							)
+					)
 				)
-			)
-			.filter(it -> !(it instanceof EmptyFormula))
-			.findFirst()
-			.orElse(EmptyFormula.INSTANCE);
-	}
-
-	/**
-	 * Method executes the logic on unique index of certain attribute.
-	 */
-	@Nonnull
-	public Formula applyStreamOnUniqueIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<UniqueIndex, Stream<Formula>> formulaFunction) {
-		return applyStreamOnIndexes(entityIndex -> {
-			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
-			if (uniqueIndex == null) {
-				return Stream.empty();
-			}
-			return formulaFunction.apply(uniqueIndex);
-		});
+				.filter(it -> !(it instanceof EmptyFormula))
+				.findFirst()
+				.orElse(EmptyFormula.INSTANCE);
+		}
 	}
 
 	/**

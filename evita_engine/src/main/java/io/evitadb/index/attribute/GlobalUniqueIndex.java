@@ -57,6 +57,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -262,12 +263,11 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	/**
 	 * Returns record id by its unique value.
 	 */
-	@Nullable
-	public EntityReferenceWithLocale getEntityReferenceByUniqueValue(@Nonnull Serializable value, @Nullable Locale locale) {
+	@Nonnull
+	public Optional<EntityReferenceWithLocale> getEntityReferenceByUniqueValue(@Nonnull Serializable value, @Nullable Locale locale) {
 		return ofNullable(this.uniqueValueToEntityTuple.get(value))
 			.filter(it -> locale == null || it.locale() == NO_LOCALE || fromLocale(locale) == it.locale())
-			.map(it -> new EntityReferenceWithLocale(toClassifier(it.entityType()), it.entityPrimaryKey(), toLocale(it.locale())))
-			.orElse(null);
+			.map(it -> new EntityReferenceWithLocale(toClassifier(it.entityType()), it.entityPrimaryKey(), toLocale(it.locale())));
 	}
 
 	/**
@@ -441,6 +441,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 		}
 	}
 
+	@Nullable
 	private <T extends Serializable & Comparable<T>> EntityWithTypeTuple unregisterUniqueKeyValue(@Nonnull T key, EntityWithTypeTuple expectedRecordId) {
 		final EntityWithTypeTuple existingRecordId = this.uniqueValueToEntityTuple.remove(key);
 		if (existingRecordId != null) {

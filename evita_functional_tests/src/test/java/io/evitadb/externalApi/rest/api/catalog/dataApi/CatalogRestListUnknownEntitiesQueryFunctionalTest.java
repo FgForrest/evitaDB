@@ -133,7 +133,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 					scope(Scope.ARCHIVED)
 				),
 				require(
-					page(1, 2),
+					page(1, 1),
 					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),

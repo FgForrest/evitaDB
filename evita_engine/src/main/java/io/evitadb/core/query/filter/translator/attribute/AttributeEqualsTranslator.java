@@ -25,8 +25,6 @@ package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
@@ -84,18 +82,14 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			attributeKey,
 			filterByVisitor.applyOnFirstGlobalUniqueIndex(
 				globalAttributeSchema,
-				index -> {
-					final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue(
-						comparedValue, attributeKey.locale()
-					);
-					//noinspection unchecked
-					return entityReference == null ?
-						EmptyFormula.INSTANCE :
-						new MultipleEntityFormula(
+				index -> index.getEntityReferenceByUniqueValue(comparedValue, attributeKey.locale())
+					.map(
+						it -> (Formula) new MultipleEntityFormula(
 							new long[]{index.getId()},
-							filterByVisitor.translateEntityReference(entityReference)
-						);
-				}
+							filterByVisitor.translateEntityReference(it)
+						)
+					)
+					.orElse(EmptyFormula.INSTANCE)
 			)
 		);
 	}

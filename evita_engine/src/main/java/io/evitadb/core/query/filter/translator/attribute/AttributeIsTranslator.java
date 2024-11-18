@@ -48,6 +48,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -148,7 +149,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		return new Formula[]{
-			filterByVisitor.applyOnFirstGlobalUniqueIndex(
+			filterByVisitor.applyOnGlobalUniqueIndexes(
 				attributeDefinition,
 				uniqueIndex -> new NotFormula(
 					uniqueIndex.getRecordIdsFormula(filterByVisitor.getEntityType()),
@@ -240,7 +241,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 				return new AttributeFormula(
 					true,
 					attributeKey,
-					filterByVisitor.applyOnFirstGlobalUniqueIndex(
+					filterByVisitor.applyOnGlobalUniqueIndexes(
 						globalAttributeSchema,
 						index -> new ConstantFormula(index.getRecordIds(filterByVisitor.getEntityType()))
 					)
@@ -249,7 +250,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 				return new AttributeFormula(
 					attributeDefinition instanceof GlobalAttributeSchemaContract,
 					attributeKey,
-					filterByVisitor.applyOnFirstUniqueIndex(
+					filterByVisitor.applyOnUniqueIndexes(
 						attributeDefinition,
 						index -> new ConstantFormula(index.getRecordIds())
 					)
@@ -295,7 +296,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
-			processingScope.getRequirements(),
+			Objects.requireNonNull(processingScope.getRequirements()),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> optionalStream -> optionalStream.noneMatch(Optional::isPresent),
@@ -318,7 +319,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
-			processingScope.getRequirements(),
+			Objects.requireNonNull(processingScope.getRequirements()),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent),

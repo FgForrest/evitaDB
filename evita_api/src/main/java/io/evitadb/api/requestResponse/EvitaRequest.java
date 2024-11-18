@@ -200,19 +200,25 @@ public class EvitaRequest {
 
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull String entityType,
+		@Nullable String entityType,
 		@Nonnull EntityFetchRequire requirements
 	) {
 
 		this.requiresEntity = true;
 		this.entityRequirement = new EntityFetch(requirements.getRequirements());
 		this.entityType = entityType;
-		this.query = Query.query(
-			collection(entityType),
-			evitaRequest.query.getFilterBy(),
-			evitaRequest.query.getOrderBy(),
-			require(this.entityRequirement)
-		);
+		this.query = entityType == null ?
+			Query.query(
+				evitaRequest.query.getFilterBy(),
+				evitaRequest.query.getOrderBy(),
+				require(this.entityRequirement)
+			) :
+			Query.query(
+				collection(entityType),
+				evitaRequest.query.getFilterBy(),
+				evitaRequest.query.getOrderBy(),
+				require(this.entityRequirement)
+			);
 		this.alignedNow = evitaRequest.alignedNow;
 		this.implicitLocale = evitaRequest.implicitLocale;
 		this.primaryKeys = evitaRequest.primaryKeys;
@@ -892,7 +898,7 @@ public class EvitaRequest {
 	 * requirements.
 	 */
 	@Nonnull
-	public EvitaRequest deriveCopyWith(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {
+	public EvitaRequest deriveCopyWith(@Nullable String entityType, @Nonnull EntityFetchRequire requirements) {
 		return new EvitaRequest(
 			this,
 			entityType, requirements
@@ -1053,10 +1059,6 @@ public class EvitaRequest {
 	public record FacetFilterBy(
 		@Nullable FilterBy filterBy
 	) {
-
-		public boolean isFilterDefined() {
-			return filterBy != null;
-		}
 
 	}
 

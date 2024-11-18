@@ -21,31 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.algebra.prefetch;
+package io.evitadb.api.exception;
 
-import io.evitadb.core.query.QueryExecutionContext;
+
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
-import java.util.Optional;
+import java.io.Serial;
 
 /**
- * Prefetch factory is used to create an implementation that might prefetch entities for particular query context if
- * it looks like it would be beneficial. The prefetching is not always beneficial and it is not always possible.
+ * Exception is thrown when there is attempt to retrieve primary key that has not been assigned yet.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface PrefetchFactory {
-	/**
-	 * Implementation that always returns empty optional (avoids prefetching).
-	 */
-	PrefetchFactory NO_OP = queryContext -> Optional.empty();
+public class PrimaryKeyNotAssignedException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = -2077933335811704930L;
 
-	/**
-	 * Method will prefetch the entities identified in {@link PrefetchFormulaVisitor} but only in case the prefetch
-	 * is possible and would "pay off". In case the possible prefetching would be more costly than executing the standard
-	 * filtering logic, the prefetch is not executed.
-	 */
-	@Nonnull
-	Optional<Runnable> createPrefetchLambdaIfNeededOrWorthwhile(@Nonnull QueryExecutionContext queryContext);
+	public PrimaryKeyNotAssignedException(@Nonnull String entityType) {
+		super("Primary key for entity `" + entityType + "` has not been assigned yet. Please store the entity first.");
+	}
 
 }
