@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
@@ -48,6 +49,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMut
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -99,7 +101,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Delegate(types = PricesContract.class, excludes = Versioned.class)
 	private final InitialPricesBuilder pricesBuilder;
 	private final Map<ReferenceKey, ReferenceContract> references;
-	private Integer parent;
+	@Nullable private Integer parent;
 
 	public InitialEntityBuilder(@Nonnull String type) {
 		this.type = type;
@@ -158,14 +160,14 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = entitySchema.getName();
 		this.schema = entitySchema;
 		this.primaryKey = primaryKey;
-		this.scope = scope;
+		this.scope = scope == null ? Scope.DEFAULT_SCOPE : scope;
 		this.attributesBuilder = new InitialEntityAttributesBuilder(this.schema);
 		for (AttributeValue attributeValue : attributeValues) {
 			final AttributeKey attributeKey = attributeValue.key();
 			if (attributeKey.localized()) {
 				this.attributesBuilder.setAttribute(
 					attributeKey.attributeName(),
-					attributeKey.locale(),
+					attributeKey.localeOrThrowException(),
 					attributeValue.value()
 				);
 			} else {
@@ -181,7 +183,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 			if (associatedDataKey.localized()) {
 				this.associatedDataBuilder.setAssociatedData(
 					associatedDataKey.associatedDataName(),
-					associatedDataKey.locale(),
+					associatedDataKey.localeOrThrowException(),
 					associatedDataValue.value()
 				);
 			} else {
@@ -522,6 +524,8 @@ public class InitialEntityBuilder implements EntityBuilder {
 				getPrimaryKey(),
 				EntityExistence.MUST_NOT_EXIST,
 				Stream.of(
+						this.scope == Scope.LIVE ?
+							Stream.<LocalMutation<?,?>>empty() : Stream.of(new SetEntityScopeMutation(this.scope)),
 						ofNullable(this.parent)
 							.map(SetParentMutation::new)
 							.stream(),
@@ -552,7 +556,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 						this.associatedDataBuilder
 							.getAssociatedDataValues()
 							.stream()
-							.map(it -> new UpsertAssociatedDataMutation(it.key(), it.value())),
+							.map(it -> new UpsertAssociatedDataMutation(it.key(), it.valueOrThrowException())),
 						Stream.of(
 							new SetPriceInnerRecordHandlingMutation(this.pricesBuilder.getPriceInnerRecordHandling())
 						),

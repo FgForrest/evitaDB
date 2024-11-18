@@ -71,7 +71,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 				.anyMatch(it -> {
 					final Serializable thisValue = it.value();
 					final AttributeKey key = it.key();
-					final AttributeValue other = second.getAttributeValue(key.attributeName(), key.locale())
+					final AttributeValue other = second.getAttributeValue(key.attributeName(), key.localeOrThrowException())
 						.orElse(null);
 					if (other == null) {
 						return true;
@@ -186,6 +186,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 * @throws ContextMissingException    when the query lacks locale identifier, or the attribute was not fetched at all
 	 */
+	@Nullable
 	default <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType)
 		throws AttributeNotFoundException {
 		return getAttribute(attributeName, locale);
@@ -215,6 +216,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 * @throws ContextMissingException    when the query lacks locale identifier, or the attribute was not fetched at all
 	 */
+	@Nullable
 	default <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType)
 		throws AttributeNotFoundException {
 		return getAttributeArray(attributeName, locale);
@@ -328,6 +330,21 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 			return locale != null;
 		}
 
+		/**
+		 * Returns the locale associated with this attribute key or throws an exception if the locale is not present.
+		 *
+		 * @return the locale associated with the attribute key
+		 * @throws IllegalArgumentException if the locale is not present
+		 */
+		@Nonnull
+		public Locale localeOrThrowException() {
+			Assert.isTrue(
+				this.locale != null,
+				"Attribute key " + this.attributeName + " is not accompanied by locale identifier!"
+			);
+			return this.locale;
+		}
+
 		@Override
 		public int compareTo(AttributeKey o) {
 			return ComparatorUtils.compareLocale(locale, o.locale, () -> attributeName.compareTo(o.attributeName));
@@ -395,13 +412,6 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 
 		public AttributeValue(int version, @Nonnull AttributeKey attributeKey, @Nonnull Serializable value) {
 			this(version, attributeKey, value, false);
-		}
-
-		public AttributeValue(int version, @Nonnull AttributeKey key, @Nonnull Serializable value, boolean dropped) {
-			this.version = version;
-			this.key = key;
-			this.value = value;
-			this.dropped = dropped;
 		}
 
 		@Override
