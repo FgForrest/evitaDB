@@ -499,4 +499,4 @@ Scopes are separate areas of memory where entity indexes are stored. Scopes are 
 data. The scopes are used to handle so-called "soft deletes" - the application can choose between a hard delete and 
 archiving the entity, which simply moves the entity to the archive scope. The details of the archiving process are 
 described in the [Archiving](../use/schema.md#scopes) chapter and the reasons for this feature are explained in 
-the [dedicated blog post](/blog/en/15-soft-delete.md).
+the [dedicated blog post](https://evitadb.io/blog/15-soft-delete).
