@@ -29,6 +29,7 @@ import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiConfigurationWithMutualTls;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,6 +45,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Slf4j
 public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigurationWithMutualTls {
 
 	private static final String BASE_GRPC_PATH = "";
@@ -96,6 +98,17 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 		this.exposeDocsService = ofNullable(exposeDocsService).orElse(false);
 		this.mtlsConfiguration = mtlsConfiguration;
 		this.prefix = ofNullable(prefix).orElse(BASE_GRPC_PATH);
+	}
+
+	@Override
+	public boolean isKeepAlive() {
+		if (!super.isKeepAlive()) {
+			log.warn(
+				"Keep alive is disabled for gRPC API in the configuration settings. However, this setting results in " +
+					"unpredictable behavior and should be enabled. The settings from the configuration are ignored."
+			);
+		}
+		return true;
 	}
 
 	@Override
