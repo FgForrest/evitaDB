@@ -643,7 +643,7 @@ The reference schema is described by:
 Scopes are separate areas of memory where entity indexes are stored. Scopes are used to separate live data from archived 
 data. Scopes are used to handle so-called "soft deletes" - the application can choose between a hard delete and 
 archiving the entity, which simply moves the entity to the archive scope. The reasons for this feature are explained in 
-the [dedicated blog post](blog/en/15-soft-delete.md).
+the [dedicated blog post](/blog/en/15-soft-delete.md).
 
 By default, archived entities have no indexes other than the primary key index. This is because archived entities are 
 not normally queried and are only looked up by their primary key. By not maintaining the indexes of archived entities, 

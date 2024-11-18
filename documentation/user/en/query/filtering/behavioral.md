@@ -34,7 +34,7 @@ the scope in which the result is searched. Two scopes are available:
 Scopes represent the means how evitaDB handles so called "soft deletes". The application can choose between a hard 
 delete and archiving the entity, which simply moves the entity to the archive scope. The details of the archiving 
 process are described in the chapter [Archiving](../../use/schema.md#scopes) and the reasons why this feature 
-exists are explained in the [dedicated blog post](blog/en/15-soft-delete.md).
+exists are explained in the [dedicated blog post](/blog/en/15-soft-delete.md).
 
 There are a few archived entities in our demo dataset. Our schema is configured to index only the `URL` and `code`
 attributes in the archived scope, so we can search for archived entities using only these attributes and, of course, 
