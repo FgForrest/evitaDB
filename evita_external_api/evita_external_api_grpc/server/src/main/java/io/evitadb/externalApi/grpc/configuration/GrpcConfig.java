@@ -102,10 +102,12 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 
 	@Override
 	public boolean isKeepAlive() {
-		log.warn(
-			"Keep alive is disabled for gRPC API in the configuration settings. However, this setting results in " +
-				"unpredictable behavior and should be enabled. The settings from the configuration are ignored."
-		);
+		if (!super.isKeepAlive()) {
+			log.warn(
+				"Keep alive is disabled for gRPC API in the configuration settings. However, this setting results in " +
+					"unpredictable behavior and should be enabled. The settings from the configuration are ignored."
+			);
+		}
 		return true;
 	}
 
