@@ -689,7 +689,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertFalse(restConfig.isKeepAlive());
 			final AbstractApiConfiguration grpcConfig = externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE).getConfiguration();
 			assertEquals(TlsMode.FORCE_NO_TLS, grpcConfig.getTlsMode());
-			assertFalse(grpcConfig.isKeepAlive());
+			// gRPC is always keep-alive - it is a requirement, WARNING is logged when it is set to false
+			assertTrue(grpcConfig.isKeepAlive());
 			final AbstractApiConfiguration observabilityConfig = externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE).getConfiguration();
 			assertEquals(TlsMode.FORCE_TLS, observabilityConfig.getTlsMode());
 			assertFalse(observabilityConfig.isKeepAlive());

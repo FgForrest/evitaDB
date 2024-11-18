@@ -112,6 +112,11 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 				attributeFormulas.get(attributeName)
 			);
 		}
+
+		Assert.isPremiseValid(
+			attributeHistogramProducer != null,
+			"AttributeHistogramProducer must be initialized!"
+		);
 		return attributeHistogramProducer;
 	}
 
