@@ -340,7 +340,7 @@ public class ClassSchemaAnalyzer {
 				}
 			} else {
 				Assert.isTrue(
-					attributeAnnotation.unique() != AttributeUniquenessType.NOT_UNIQUE,
+					attributeAnnotation.unique() == AttributeUniquenessType.NOT_UNIQUE,
 					"When `scope` is defined in `@Attribute` annotation, " +
 						"the value of `unique` property is not taken into an account " +
 						"(and thus it doesn't make sense to set it to any value)!"
@@ -424,7 +424,7 @@ public class ClassSchemaAnalyzer {
 						}
 					} else {
 						Assert.isTrue(
-							attributeAnnotation.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE,
+							attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.NOT_UNIQUE,
 							"When `scope` is defined in `@Attribute` annotation, " +
 								"the value of `uniqueGlobally` property is not taken into an account " +
 								"(and thus it doesn't make sense to set it to any value)!"
