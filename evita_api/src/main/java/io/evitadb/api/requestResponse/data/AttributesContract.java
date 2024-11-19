@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ComparatorUtils;
 import io.evitadb.utils.MemoryMeasuringConstants;
@@ -413,6 +414,23 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 
 		public AttributeValue(int version, @Nonnull AttributeKey attributeKey, @Nonnull Serializable value) {
 			this(version, attributeKey, value, false);
+		}
+
+		/**
+		 * Returns the value of the attribute if it is not null. Throws an exception if the value is null,
+		 * indicating that the attribute value is unexpectedly missing.
+		 *
+		 * @return the non-null value of the attribute
+		 * @throws GenericEvitaInternalError if the attribute value is null
+		 */
+		@Nonnull
+		public Serializable valueOrThrowException() {
+			final Serializable theValue = this.value;
+			Assert.isPremiseValid(
+				theValue != null,
+				"Attribute value " + key.attributeName() + " is unexpectedly null!"
+			);
+			return theValue;
 		}
 
 		@Override
