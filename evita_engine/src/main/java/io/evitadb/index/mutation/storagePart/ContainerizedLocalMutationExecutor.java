@@ -95,6 +95,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.Setter;
+import org.roaringbitmap.PeekableIntIterator;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -204,18 +205,18 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	) {
 		referenceSchema.getNonNullableOrDefaultValueAttributes()
 			.values()
-			.forEach(attribute -> {
-				final Serializable defaultValue = attribute.getDefaultValue();
-				if (attribute.isLocalized()) {
+			.forEach(attributeSchema -> {
+				final Serializable defaultValue = attributeSchema.getDefaultValue();
+				if (attributeSchema.isLocalized()) {
 					entityLocales.stream()
-						.map(locale -> new AttributeKey(attribute.getName(), locale))
+						.map(locale -> new AttributeKey(attributeSchema.getName(), locale))
 						.map(key -> availableAttributes.contains(key) ? null : key)
 						.filter(Objects::nonNull)
-						.forEach(it -> missingAttributeHandler.accept(defaultValue, attribute.isNullable(), it));
+						.forEach(it -> missingAttributeHandler.accept(defaultValue, attributeSchema.isNullable(), it));
 				} else {
-					final AttributeKey attributeKey = new AttributeKey(attribute.getName());
+					final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
 					if (!availableAttributes.contains(attributeKey)) {
-						missingAttributeHandler.accept(defaultValue, attribute.isNullable(), attributeKey);
+						missingAttributeHandler.accept(defaultValue, attributeSchema.isNullable(), attributeKey);
 					}
 				}
 			});
@@ -993,8 +994,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	private void propagateReferencesToEntangledEntities(
 		@Nonnull Scope scope,
-		@Nullable CatalogSchema catalogSchema,
-		@Nullable EntitySchema entitySchema,
+		@Nonnull CatalogSchema catalogSchema,
+		@Nonnull EntitySchema entitySchema,
 		@Nonnull ReferencesStoragePart referencesStorageContainer,
 		@Nonnull Function<ReferenceKey, ReferenceMutation<?>> mutationFactory,
 		@Nonnull MutationCollector mutationCollector
@@ -1015,7 +1016,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				final int currentIndex = i;
 				// setup references
 				propagateReferenceModification(
-					scope, catalogSchema, entitySchema,
+					scope,
+					catalogSchema,
+					entitySchema,
 					thisReferenceName,
 					() -> {
 						final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(thisReferenceName);
@@ -1102,53 +1105,65 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		final DataStoreReader dataStoreReader = this.dataStoreReaderAccessor.apply(referencedEntityType);
 		// and if such is found (collection might not yet exist, but we can still reference to it)
 		if (dataStoreReader != null) {
-			final Optional<String> reflectedReferenceSchema = catalogSchema.getEntitySchema(referencedEntityType)
+			final Optional<String> referencedSchemaRef = catalogSchema.getEntitySchema(referencedEntityType)
 				.map(it -> ((EntitySchemaDecorator) it).getDelegate())
 				.flatMap(
 					it -> referenceSchema instanceof ReflectedReferenceSchema rrs ?
-						of(rrs.getReflectedReferenceName()) :
-						it.getReflectedReferenceFor(entitySchema.getName(), referenceName).map(ReferenceSchema::getName)
-				);
+						of(it.getReferenceOrThrowException(rrs.getReflectedReferenceName())) :
+						it.getReflectedReferenceFor(entitySchema.getName(), referenceName)
+				)
+				.filter(theSchema -> theSchema.isIndexedInScope(scope))
+				.map(ReferenceSchema::getName);
 			// if there is any reflected reference schemas
-			if (reflectedReferenceSchema.isPresent()) {
+			if (referencedSchemaRef.isPresent()) {
 				// lets collect all primary keys of the reference with the same name into a bitmap
 				final ReferenceBlock referenceBlock = referenceBlockSupplier.get();
-				final RoaringBitmap referencePrimaryKeys = referenceBlock.getReferencedPrimaryKeys();
 				final GlobalEntityIndex globalIndex = dataStoreReader.getIndexIfExists(
 					new EntityIndexKey(EntityIndexType.GLOBAL, scope),
 					entityIndexKey -> null
 				);
 				// if global index is found there is at least one entity of such type
+				final RoaringBitmap referencedPrimaryKeys = referenceBlock.getReferencedPrimaryKeys();
 				if (globalIndex != null) {
 					// but we need to match only those our entity refers to via this reference
 					final RoaringBitmap existingEntityPks = RoaringBitmap.and(
-						referencePrimaryKeys,
+						referencedPrimaryKeys,
 						getRoaringBitmap(globalIndex.getAllPrimaryKeys())
 					);
 					// and for all of those create missing references
-					final String reflectedReferenceName = reflectedReferenceSchema.get();
-					for (Integer epk : existingEntityPks) {
-						final ReferenceMutation<?> baseReferenceMutation = mutationFactory.apply(
-							new ReferenceKey(reflectedReferenceName, this.entityPrimaryKey)
+					final String reflectedReferenceName = referencedSchemaRef.get();
+					final PeekableIntIterator existingPrimaryKeysIterator = existingEntityPks.getIntIterator();
+					while (existingPrimaryKeysIterator.hasNext()) {
+						int epk = existingPrimaryKeysIterator.next();
+						// but we need to match only those our entity refers to via this reference and doesn't exist
+						final ReducedEntityIndex referenceIndex = dataStoreReader.getIndexIfExists(
+							new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, new ReferenceKey(reflectedReferenceName, epk)),
+							entityIndexKey -> null
 						);
-						mutationCollector.addExternalMutation(
-							new ServerEntityUpsertMutation(
-								referencedEntityType, epk, EntityExistence.MUST_EXIST,
-								EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES),
-								true,
-								true,
-								baseReferenceMutation instanceof InsertReferenceMutation ?
-									ArrayUtils.mergeArrays(
-										new LocalMutation[]{baseReferenceMutation},
-										referenceBlock.getAttributeSupplier().get()
-									) :
-									new LocalMutation[]{baseReferenceMutation}
-							)
-						);
+						if (referenceIndex == null || !referenceIndex.getAllPrimaryKeys().contains(this.entityPrimaryKey)) {
+							// if the reference is not present, we need to create it
+							final ReferenceMutation<?> baseReferenceMutation = mutationFactory.apply(
+								new ReferenceKey(reflectedReferenceName, this.entityPrimaryKey)
+							);
+							mutationCollector.addExternalMutation(
+								new ServerEntityUpsertMutation(
+									referencedEntityType, epk, EntityExistence.MUST_EXIST,
+									EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES),
+									true,
+									true,
+									baseReferenceMutation instanceof InsertReferenceMutation ?
+										ArrayUtils.mergeArrays(
+											new LocalMutation[]{baseReferenceMutation},
+											referenceBlock.getAttributeSupplier().get()
+										) :
+										new LocalMutation[]{baseReferenceMutation}
+								)
+							);
+						}
 					}
-				} else if (referenceSchema instanceof ReflectedReferenceSchema && !referencePrimaryKeys.isEmpty()) {
+				} else if (referenceSchema instanceof ReflectedReferenceSchema && !referencedPrimaryKeys.isEmpty()) {
 					throw new EntityMissingException(
-						referencedEntityType, referencePrimaryKeys.toArray(),
+						referencedEntityType, referencedPrimaryKeys.toArray(),
 						"Cannot set up main reference via reflected reference with name `" + referenceName + "`!"
 					);
 				}

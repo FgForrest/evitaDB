@@ -213,7 +213,7 @@ class ReferenceBlock {
 			final Function<AttributeKey, Serializable> valueLookup = attributeKey ->
 				attributeValues.stream()
 					.filter(attVal -> attributeKey.equals(attVal.key()))
-					.map(AttributeValue::value)
+					.map(AttributeValue::valueOrThrowException)
 					.findFirst()
 					.orElse(defaultValue);
 			// if the attribute is localized
@@ -248,7 +248,7 @@ class ReferenceBlock {
 			final Function<AttributeKey, Serializable> valueLookup = attributeKey ->
 				attributeValues.stream()
 					.filter(attVal -> attributeKey.equals(attVal.key()))
-					.map(AttributeValue::value)
+					.map(AttributeValue::valueOrThrowException)
 					.findFirst()
 					.orElse(null);
 			if (attributeSchema.isLocalized()) {
