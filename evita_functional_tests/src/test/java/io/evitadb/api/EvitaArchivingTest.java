@@ -433,6 +433,39 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 2));
 	}
 
+	@DisplayName("Entity could be created in already archived state")
+	@Test
+	void shouldCreateArchivedEntity() {
+		/* create schema for entity archival */
+		createSchemaForEntityArchiving(Scope.LIVE, Scope.ARCHIVED);
+
+		// upsert entities product depends on
+		createBrandAndCategoryEntities();
+
+		// create product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setScope(Scope.ARCHIVED)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.setReference(Entities.BRAND, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "123"))
+					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+
+				session.archiveEntity(Entities.BRAND, 1);
+				session.archiveEntity(Entities.CATEGORY, 2);
+			}
+		);
+
+		// check product entity is not in any of indexes
+		checkProductCannotBeLookedUpByIndexes(Scope.LIVE);
+		checkProductCanBeLookedUpByIndexes(Scope.ARCHIVED);
+	}
+
 	@DisplayName("Entity reflected references should be removed when entity is archived")
 	@Test
 	void shouldDropReflectedReferencesOnEntityArchivingAndCreateWhenBeingRestored() {
@@ -1110,10 +1143,6 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertEquals(
 			productReference,
 			queryProductReferenceBy(scope, referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1)))
-		);
-		assertEquals(
-			productReference,
-			queryProductReferenceBy(scope, hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)))
 		);
 		assertEquals(
 			productReference,

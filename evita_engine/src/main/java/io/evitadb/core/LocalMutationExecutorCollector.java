@@ -42,7 +42,6 @@ import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
@@ -113,14 +112,12 @@ class LocalMutationExecutorCollector {
 	 * modified parts in the {@link TransactionalDataStoreMemoryBuffer}.
 	 */
 	@Nonnull
-	public EntityWithFetchCount getFullEntityById(
-		int primaryKey,
-		@Nonnull String entityType,
-		@Nonnull IntBiFunction<EvitaRequest, EntityWithFetchCount> entityFetcher
-	) {
+	public EntityWithFetchCount getFullEntityContents(@Nonnull ContainerizedLocalMutationExecutor changeCollector) {
+		final int entityPrimaryKey = changeCollector.getEntityPrimaryKey();
+		final String entityType = changeCollector.getEntityType();
 		if (
 			this.fullEntityBody == null ||
-				!Objects.equals(this.fullEntityBody.entity().getPrimaryKey(), primaryKey) ||
+				!Objects.equals(this.fullEntityBody.entity().getPrimaryKey(), entityPrimaryKey) ||
 				!this.fullEntityBody.entity().getType().equals(entityType)
 		) {
 			final EvitaRequest evitaRequest = new EvitaRequest(
@@ -133,12 +130,19 @@ class LocalMutationExecutorCollector {
 				Entity.class,
 				null
 			);
-			this.fullEntityBody = entityFetcher.apply(primaryKey, evitaRequest);
+			this.fullEntityBody = this.persistenceService.toEntity(
+				this.catalog.getVersion(),
+				entityPrimaryKey,
+				evitaRequest,
+				changeCollector.getEntitySchema(),
+				this.dataStoreReader,
+				changeCollector.getAllEntityStorageParts()
+			);
 			Assert.notNull(
 				this.fullEntityBody,
 				() -> new InvalidMutationException(
 					"There is no entity " + entityType + " with primary key " +
-						primaryKey + " present! This means, that you're probably trying to update " +
+						entityPrimaryKey + " present! This means, that you're probably trying to update " +
 						"entity that has been already removed!"
 				)
 			);
@@ -154,7 +158,6 @@ class LocalMutationExecutorCollector {
 	 * @param entityMutation            The mutation to be applied to the entity.
 	 * @param checkConsistency          Indicates whether consistency checks should be performed.
 	 * @param generateImplicitMutations Flags indicating which implicit mutations should be generated.
-	 * @param entityFetcher             Function used to fetch the full entity by its primary key.
 	 * @param changeCollector           Executor to collect and apply local mutations.
 	 * @param entityIndexUpdater        Executor to update the entity index with the mutations.
 	 * @param requestUpdatedEntity      Indicates whether to return the updated entity after mutation.
@@ -167,7 +170,6 @@ class LocalMutationExecutorCollector {
 		@Nonnull EntityMutation entityMutation,
 		boolean checkConsistency,
 		@Nonnull EnumSet<ImplicitMutationBehavior> generateImplicitMutations,
-		@Nonnull IntBiFunction<EvitaRequest, EntityWithFetchCount> entityFetcher,
 		@Nonnull ContainerizedLocalMutationExecutor changeCollector,
 		@Nonnull EntityIndexLocalMutationExecutor entityIndexUpdater,
 		@Nullable EvitaRequest requestUpdatedEntity,
@@ -195,11 +197,7 @@ class LocalMutationExecutorCollector {
 
 			final List<? extends LocalMutation<?, ?>> localMutations;
 			if (entityMutation instanceof EntityRemoveMutation) {
-				result = getFullEntityById(
-					Objects.requireNonNull(entityMutation.getEntityPrimaryKey()),
-					entitySchema.getName(),
-					entityFetcher
-				);
+				result = getFullEntityContents(changeCollector);
 				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
 			} else {
 				localMutations = entityMutation.getLocalMutations();
@@ -222,7 +220,7 @@ class LocalMutationExecutorCollector {
 				// and for each external mutation - call external collection to apply it
 				for (EntityMutation externalEntityMutations : implicitMutations.externalMutations()) {
 					final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externalEntityMutations;
-					catalog.getCollectionForEntityOrThrowException(externalEntityMutations.getEntityType())
+					this.catalog.getCollectionForEntityOrThrowException(externalEntityMutations.getEntityType())
 						.applyMutations(
 							externalEntityMutations,
 							serverEntityMutation.shouldApplyUndoOnError(),

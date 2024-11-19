@@ -97,7 +97,12 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyResolver {
-	private static final EntityIndexKey GLOBAL_INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL);
+	private static final EnumMap<Scope, EntityIndexKey> GLOBAL_INDEX_KEY = new EnumMap<>(
+		Map.of(
+			Scope.LIVE, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE),
+			Scope.ARCHIVED, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.ARCHIVED)
+		)
+	);
 
 	/**
 	 * Contains reference to the parent context of this one. The reference is not NULL only for sub-queries.
@@ -541,17 +546,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns global {@link GlobalEntityIndex} of the collection if the target entity collection is known.
 	 */
 	@Nonnull
-	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists() {
-		return getIndex(GLOBAL_INDEX_KEY);
+	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull Scope scope) {
+		return getIndex(GLOBAL_INDEX_KEY.get(scope));
 	}
 
 	/**
 	 * Returns global {@link GlobalEntityIndex} of the collection or throws an exception.
 	 */
 	@Nonnull
-	public GlobalEntityIndex getGlobalEntityIndex() {
-		return getGlobalEntityIndexIfExists()
-			.map(GlobalEntityIndex.class::cast)
+	public GlobalEntityIndex getGlobalEntityIndex(@Nonnull Scope scope) {
+		return getGlobalEntityIndexIfExists(scope)
 			.orElseThrow(() -> new GenericEvitaInternalError("Global index of entity unexpectedly not found!"));
 	}
 
@@ -559,8 +563,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns {@link EntityIndex} by its key and entity type.
 	 */
 	@Nonnull
-	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType) {
-		return getIndex(entityType, GLOBAL_INDEX_KEY, GlobalEntityIndex.class);
+	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType, @Nonnull Scope scope) {
+		return getIndex(entityType, GLOBAL_INDEX_KEY.get(scope), GlobalEntityIndex.class);
 	}
 
 	/**

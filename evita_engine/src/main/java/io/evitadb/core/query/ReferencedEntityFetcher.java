@@ -30,7 +30,6 @@ import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
@@ -75,8 +74,12 @@ import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor.OrderingDescriptor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -99,12 +102,13 @@ import javax.annotation.Nullable;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -427,6 +431,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	private static int[] getFilteredReferencedEntityIds(
 		@Nonnull int[] entityPrimaryKeys,
 		@Nonnull QueryExecutionContext executionContext,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		boolean targetEntityManaged,
 		@Nonnull String targetEntityType,
@@ -450,102 +455,112 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		if (ArrayUtils.isEmpty(allReferencedEntityIds)) {
 			// if nothing was found, quickly finish
 			return EMPTY_INTS;
-		} else if (filterBy == null) {
-			final int[] result;
-			if (managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING) {
-				if (targetEntityManaged) {
-					// we need to filter the referenced entity ids to only those that really exist
-					final Optional<EntityCollection> targetEntityCollection = executionContext
-						.getQueryContext()
-						.getEntityCollection(targetEntityType);
-					if (targetEntityCollection.isEmpty()) {
-						validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
-						result = EMPTY_INTS;
+		} else {
+			final QueryPlanningContext queryContext = executionContext.getQueryContext();
+			if (filterBy == null) {
+				final int[] result;
+				if (managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING) {
+					if (targetEntityManaged) {
+						// we need to filter the referenced entity ids to only those that really exist
+						final Optional<EntityCollection> targetEntityCollection = queryContext
+							.getEntityCollection(targetEntityType);
+						if (targetEntityCollection.isEmpty()) {
+							validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
+							result = EMPTY_INTS;
+						} else {
+							final Formula existingOnlyReferencedIds = FormulaFactory.and(
+								new ConstantFormula(new ArrayBitmap(allReferencedEntityIds)),
+								FormulaFactory.or(
+									queryContext.getScopes()
+										.stream()
+										.map(scope -> targetEntityCollection.get().getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
+										.filter(Objects::nonNull)
+										.map(EntityIndex::getAllPrimaryKeysFormula)
+										.toArray(Formula[]::new)
+								)
+							);
+							final Bitmap existingReferences = existingOnlyReferencedIds.compute();
+							result = existingReferences.getArray();
+							validityMappingOptional.ifPresent(it -> it.restrictTo(existingReferences));
+						}
 					} else {
-						final Formula existingOnlyReferencedIds = FormulaFactory.and(
-							new ConstantFormula(new ArrayBitmap(allReferencedEntityIds)),
-							targetEntityCollection.get().getGlobalIndex().getAllPrimaryKeysFormula()
-						);
-						final Bitmap existingReferences = existingOnlyReferencedIds.compute();
-						result = existingReferences.getArray();
-						validityMappingOptional.ifPresent(it -> it.restrictTo(existingReferences));
+						// target entity is not managed - we may allow all referenced entity ids
+						validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
+						result = allReferencedEntityIds;
 					}
 				} else {
-					// target entity is not managed - we may allow all referenced entity ids
+					// we may allow all referenced entity ids
 					validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
 					result = allReferencedEntityIds;
 				}
+				initNestedQueryComparator(
+					entityNestedQueryComparator,
+					referenceSchema,
+					queryContext
+				);
+				return result;
 			} else {
-				// we may allow all referenced entity ids
-				validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
-				result = allReferencedEntityIds;
-			}
-			initNestedQueryComparator(
-				entityNestedQueryComparator,
-				referenceSchema,
-				executionContext.getQueryContext()
-			);
-			return result;
-		} else {
-			final FilterByVisitor theFilterByVisitor = getFilterByVisitor(executionContext.getQueryContext(), filterByVisitor);
-			final List<ReducedEntityIndex> referencedEntityIndexes = theFilterByVisitor.getReferencedRecordEntityIndexes(
-				new ReferenceHaving(
-					referenceSchema.getName(),
-					and(
-						ArrayUtils.mergeArrays(
-							new FilterConstraint[]{entityPrimaryKeyInSet(allReferencedEntityIds)},
-							filterBy.getChildren()
+				final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
+				final List<ReducedEntityIndex> referencedEntityIndexes = theFilterByVisitor.getReferencedRecordEntityIndexes(
+					new ReferenceHaving(
+						referenceSchema.getName(),
+						and(
+							ArrayUtils.mergeArrays(
+								new FilterConstraint[]{entityPrimaryKeyInSet(allReferencedEntityIds)},
+								filterBy.getChildren()
+							)
 						)
 					)
-				)
-			);
+				);
 
-			if (referencedEntityIndexes.isEmpty()) {
-				validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
-				return EMPTY_INTS;
-			} else {
-				final CompositeIntArray referencedPrimaryKeys = new CompositeIntArray();
-				final Formula entityPrimaryKeyFormula = new ConstantFormula(new BaseBitmap(entityPrimaryKeys));
-				final IntSet foundReferencedIds = new IntHashSet(referencedEntityIndexes.size());
-				Formula lastIndexFormula = null;
-				Bitmap lastResult = null;
-				for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
-					final ReferenceKey indexDiscriminator = (ReferenceKey) referencedEntityIndex.getIndexKey().discriminator();
-					final int referencedPrimaryKey = indexDiscriminator.primaryKey();
-					foundReferencedIds.add(referencedPrimaryKey);
+				if (referencedEntityIndexes.isEmpty()) {
+					validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
+					return EMPTY_INTS;
+				} else {
+					final CompositeIntArray referencedPrimaryKeys = new CompositeIntArray();
+					final Formula entityPrimaryKeyFormula = new ConstantFormula(new BaseBitmap(entityPrimaryKeys));
+					final IntSet foundReferencedIds = new IntHashSet(referencedEntityIndexes.size());
+					Formula lastIndexFormula = null;
+					Bitmap lastResult = null;
+					for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
+						final ReferenceKey indexDiscriminator = (ReferenceKey) referencedEntityIndex.getIndexKey().discriminator();
+						final int referencedPrimaryKey = indexDiscriminator.primaryKey();
+						foundReferencedIds.add(referencedPrimaryKey);
 
-					final Formula resultFormula = computeResultWithPassedIndex(
-						referencedEntityIndex,
-						referenceSchema,
-						theFilterByVisitor,
-						filterBy,
-						entityNestedQueryComparator,
-						EntityPrimaryKeyInSet.class
-					);
-
-					final Bitmap matchingPrimaryKeys;
-					if (lastIndexFormula == resultFormula) {
-						matchingPrimaryKeys = lastResult;
-					} else {
-						final Formula combinedFormula = FormulaFactory.and(
-							resultFormula,
-							entityPrimaryKeyFormula
+						final Formula resultFormula = computeResultWithPassedIndex(
+							referencedEntityIndex,
+							entitySchema,
+							referenceSchema,
+							theFilterByVisitor,
+							filterBy,
+							entityNestedQueryComparator,
+							EntityPrimaryKeyInSet.class
 						);
-						combinedFormula.initialize(executionContext);
-						matchingPrimaryKeys = combinedFormula.compute();
-						lastIndexFormula = resultFormula;
-						lastResult = matchingPrimaryKeys;
-					}
 
-					if (matchingPrimaryKeys.isEmpty()) {
-						validityMappingOptional.ifPresent(it -> it.forbid(referencedPrimaryKey));
-					} else {
-						validityMappingOptional.ifPresent(it -> it.restrictTo(matchingPrimaryKeys, referencedPrimaryKey));
-						referencedPrimaryKeys.add(referencedPrimaryKey);
+						final Bitmap matchingPrimaryKeys;
+						if (lastIndexFormula == resultFormula) {
+							matchingPrimaryKeys = lastResult;
+						} else {
+							final Formula combinedFormula = FormulaFactory.and(
+								resultFormula,
+								entityPrimaryKeyFormula
+							);
+							combinedFormula.initialize(executionContext);
+							matchingPrimaryKeys = combinedFormula.compute();
+							lastIndexFormula = resultFormula;
+							lastResult = matchingPrimaryKeys;
+						}
+
+						if (matchingPrimaryKeys.isEmpty()) {
+							validityMappingOptional.ifPresent(it -> it.forbid(referencedPrimaryKey));
+						} else {
+							validityMappingOptional.ifPresent(it -> it.restrictTo(matchingPrimaryKeys, referencedPrimaryKey));
+							referencedPrimaryKeys.add(referencedPrimaryKey);
+						}
 					}
+					validityMappingOptional.ifPresent(it -> it.forbidAllExcept(foundReferencedIds));
+					return referencedPrimaryKeys.toArray();
 				}
-				validityMappingOptional.ifPresent(it -> it.forbidAllExcept(foundReferencedIds));
-				return referencedPrimaryKeys.toArray();
 			}
 		}
 	}
@@ -569,6 +584,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nullable
 	private static Formula computeResultWithPassedIndex(
 		@Nonnull ReducedEntityIndex index,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull FilterBy filterBy,
@@ -582,7 +598,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			ReducedEntityIndex.class,
 			() -> Collections.singletonList(index),
 			ReferenceContent.ALL_REFERENCES,
-			processingScope.getEntitySchema(),
+			entitySchema,
 			referenceSchema,
 			null,
 			entityNestedQueryComparator,
@@ -823,7 +839,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				this.hierarchyContent,
 				this.executionContext,
 				entityCollection,
-				() -> theEntity.getParent().stream().toArray()
+				List.of(theEntity.getScope()),
+				scope -> theEntity.getParent().stream().toArray(),
+				1
 			);
 		}
 		// prefetch the entities
@@ -863,7 +881,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.filter(it -> it.getGroup().map(GroupEntityReference::primaryKey).map(groupId::equals).orElse(false))
 					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 					.toArray(),
-			new int[]{theEntity.getPrimaryKey()}
+			new int[]{theEntity.getPrimaryKeyOrThrowException()}
 		);
 
 		return richEnoughEntity;
@@ -877,21 +895,37 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		for (T entity : entities) {
 			richEnoughEntities.add(((EntityCollection) entityCollection).ensureReferencesFetched(entity));
 		}
+
 		// prefetch the parents
 		if (entityCollection.getSchema().isWithHierarchy()) {
+			// collect ids by their scope
+			final Map<Scope, int[]> parentIdsByScope = richEnoughEntities.stream()
+				// filter only those with parent
+				.filter(it -> it instanceof EntityDecorator entityDecorator ?
+					entityDecorator.getDelegate().getParent().isPresent() :
+					((Entity) it).getParent().isPresent())
+				.collect(
+					Collectors.groupingBy(
+						EntityContract::getScope,
+						Collectors.mapping(
+							it -> it instanceof EntityDecorator entityDecorator ?
+								entityDecorator.getDelegate().getParent().orElseThrow() :
+								((Entity) it).getParent().orElseThrow(),
+							Collectors.collectingAndThen(
+								Collectors.toList(),
+								list -> list.stream().mapToInt(Integer::intValue).toArray()
+							)
+						)
+					)
+				);
+
 			prefetchParents(
 				this.hierarchyContent,
 				this.executionContext,
 				entityCollection,
-				() -> richEnoughEntities.stream()
-					.map(
-						it -> it instanceof EntityDecorator entityDecorator ?
-							entityDecorator.getDelegate().getParent() :
-							((Entity) it).getParent()
-					)
-					.filter(OptionalInt::isPresent)
-					.mapToInt(OptionalInt::getAsInt)
-					.toArray()
+				parentIdsByScope.keySet(),
+				scope -> parentIdsByScope.getOrDefault(scope, EMPTY_INTS),
+				richEnoughEntities.size()
 			);
 		}
 
@@ -940,7 +974,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			),
 			groupToEntityIdMapping::get,
 			entities.stream()
-				.mapToInt(SealedEntity::getPrimaryKey)
+				.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 				.toArray()
 		);
 
@@ -960,7 +994,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nullable
 	@Override
 	public Function<Integer, EntityClassifierWithParent> getParentEntityFetcher() {
-		return ofNullable(parentEntities)
+		return ofNullable(this.parentEntities)
 			.map(prefetchedEntities -> (Function<Integer, EntityClassifierWithParent>) prefetchedEntities::get)
 			.orElse(null);
 	}
@@ -968,7 +1002,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nullable
 	@Override
 	public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
+		return ofNullable(this.fetchedEntities)
+			.map(it -> it.get(referenceSchema.getName()))
 			.map(prefetchedEntities -> (Function<Integer, SealedEntity>) prefetchedEntities::getEntity)
 			.orElse(null);
 	}
@@ -976,7 +1011,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nullable
 	@Override
 	public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
+		return ofNullable(this.fetchedEntities)
+			.map(it -> it.get(referenceSchema.getName()))
 			.map(prefetchedEntities -> (Function<Integer, SealedEntity>) prefetchedEntities::getGroupEntity)
 			.orElse(null);
 	}
@@ -984,7 +1020,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nonnull
 	@Override
 	public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
+		return ofNullable(this.fetchedEntities)
+			.map(it -> it.get(referenceSchema.getName()))
 			.map(PrefetchedEntities::referenceComparator)
 			.orElse(ReferenceComparator.DEFAULT);
 	}
@@ -999,17 +1036,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				if (it.filterBy() == null && (it.managedReferencesBehaviour() == ManagedReferencesBehaviour.ANY || !referenceSchema.isReferencedEntityTypeManaged())) {
 					return null;
 				} else {
-					final PrefetchedEntities prefetchedEntities = fetchedEntities.get(referenceSchema.getName());
-					if (prefetchedEntities != null) {
-						final ValidEntityToReferenceMapping validityMapping = prefetchedEntities.validityMapping();
-						if (validityMapping != null) {
-							return (BiPredicate<Integer, ReferenceDecorator>) (entityPrimaryKey, referenceDecorator) ->
-								ofNullable(referenceDecorator)
-									.map(refDec -> validityMapping.isReferenceSelected(entityPrimaryKey, refDec.getReferencedPrimaryKey()))
-									.orElse(false);
-						}
-					}
-					return null;
+					return ofNullable(this.fetchedEntities)
+						.map(fe -> fe.get(referenceSchema.getName()))
+						.map(PrefetchedEntities::validityMapping)
+						.map(vm -> (BiPredicate<Integer, ReferenceDecorator>) (entityPrimaryKey, referenceDecorator) ->
+							ofNullable(referenceDecorator)
+								.map(refDec -> vm.isReferenceSelected(entityPrimaryKey, refDec.getReferencedPrimaryKey()))
+								.orElse(false)
+						)
+						.orElse(null);
 				}
 			})
 			.orElse(null);
@@ -1084,7 +1119,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						if (referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null) {
 							// if so, fetch them
 							filteredReferencedGroupEntityIds = getFilteredReferencedEntityIds(
-								entityPrimaryKey, executionContext, referenceSchema,
+								entityPrimaryKey, executionContext, entitySchema, referenceSchema,
 								referenceSchema.isReferencedGroupTypeManaged(),
 								referenceSchema.getReferencedGroupType(),
 								filterByVisitor,
@@ -1115,7 +1150,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						// are we requested to (are we able to) fetch the entity bodies?
 						if (referenceSchema.isReferencedEntityTypeManaged()) {
 							final int[] filteredReferencedEntityIds = getFilteredReferencedEntityIds(
-								entityPrimaryKey, executionContext, referenceSchema,
+								entityPrimaryKey, executionContext, entitySchema, referenceSchema,
 								referenceSchema.isReferencedEntityTypeManaged(),
 								referenceSchema.getReferencedEntityType(),
 								filterByVisitor,
@@ -1185,65 +1220,31 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nullable HierarchyContent hierarchyContent,
 		@Nonnull QueryExecutionContext executionContext,
 		@Nonnull EntityCollectionContract entityCollection,
-		@Nonnull Supplier<int[]> parentIdsSupplier
+		@Nonnull Collection<Scope> scopes,
+		@Nonnull Function<Scope, int[]> parentIdsSupplier,
+		int parentCount
 	) {
 		// prefetch only if there is any requirement
 		if (hierarchyContent != null) {
-			final int[] parentIds = parentIdsSupplier.get();
-			final IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences = new IntObjectHashMap<>(parentIds.length);
+			final IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences = new IntObjectHashMap<>(parentCount);
 			final boolean bodyRequired = hierarchyContent.getEntityFetch().isPresent();
 			final IntHashSet allReferencedParents = bodyRequired ?
-				new IntHashSet(parentIds.length * 3) : null;
+				new IntHashSet(parentCount * 3) : null;
 
 			// initialize used data structures
 			final EntitySchemaContract entitySchema = entityCollection.getSchema();
 			final String entityType = entitySchema.getName();
 			final QueryPlanningContext queryContext = executionContext.getQueryContext();
-			final GlobalEntityIndex globalIndex = entityCollection instanceof EntityCollection ec ?
-				ec.getGlobalIndex() :
-				queryContext.getGlobalEntityIndexIfExists(entityType)
-					.orElseThrow(() -> new CollectionNotFoundException(entityType));
-			// scope predicate limits the parent traversal
-			final HierarchyTraversalPredicate scopePredicate = hierarchyContent.getStopAt()
-				.map(
-					stopAt -> {
-						final HierarchyTraversalPredicate predicate = stopAtConstraintToPredicate(
-							TraversalDirection.BOTTOM_UP,
-							stopAt,
-							queryContext,
-							globalIndex,
-							entitySchema,
-							null
-						);
-						predicate.initializeIfNotAlreadyInitialized(executionContext);
-						return predicate;
-					}
-				)
-				.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 
-			// first, construct EntityReferenceWithParent for each requested parent id
-			for (int parentId : parentIds) {
-				final AtomicReference<EntityReferenceWithParent> theParent = new AtomicReference<>();
-				if (bodyRequired) {
-					allReferencedParents.add(parentId);
-				}
-				globalIndex.traverseHierarchyToRoot(
-					(node, level, distance, traverser) -> {
-						if (scopePredicate.test(node.entityPrimaryKey(), level, distance + 1)) {
-							if (scopePredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
-								selfTraversingPredicate.traverse(node.entityPrimaryKey(), level, distance + 1, traverser);
-							} else {
-								traverser.run();
-							}
-							theParent.set(new EntityReferenceWithParent(entityType, node.entityPrimaryKey(), theParent.get()));
-							if (bodyRequired) {
-								allReferencedParents.add(node.entityPrimaryKey());
-							}
-						}
-					},
-					parentId
+			for (Scope scope : scopes) {
+				identifyParents(
+					entityType, scope, hierarchyContent,
+					queryContext, executionContext,
+					entitySchema,
+					allReferencedParents,
+					parentEntityReferences,
+					parentIdsSupplier.apply(scope)
 				);
-				parentEntityReferences.put(parentId, theParent.get());
 			}
 
 			// second, replace the EntityReferenceWithParent with EntityDecorator if the bodies are requested
@@ -1258,11 +1259,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				final Map<Integer, ServerEntityDecorator> parentBodies = fetchParentBodies(
 					allReferencedParents.toArray(), fetchRequest, executionContext,
 					referencedCollection,
-					existingEntityRetriever::getExistingParentEntity
+					this.existingEntityRetriever::getExistingParentEntity
 				);
 
 				// replace the previous EntityReferenceWithParent with EntityDecorator with filled parent
-				final IntObjectHashMap<EntityClassifierWithParent> parentSealedEntities = new IntObjectHashMap<>(parentIds.length);
+				final IntObjectHashMap<EntityClassifierWithParent> parentSealedEntities = new IntObjectHashMap<>(parentEntityReferences.size());
 				for (IntObjectCursor<EntityClassifierWithParent> parentRef : parentEntityReferences) {
 					parentSealedEntities.put(
 						parentRef.key,
@@ -1277,6 +1278,66 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			} else {
 				// initialize plain EntityReferenceWithParent - no body was requested
 				this.parentEntities = parentEntityReferences;
+			}
+		}
+	}
+
+	private static void identifyParents(
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull HierarchyContent hierarchyContent,
+		@Nonnull QueryPlanningContext queryPlanningContext,
+		@Nonnull QueryExecutionContext queryExecutionContext,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable IntHashSet allReferencedParents,
+		@Nonnull IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences, int[] parentIds
+	) {
+		final Optional<GlobalEntityIndex> globalIndexRef = queryPlanningContext.getGlobalEntityIndexIfExists(entityType, scope);
+		if (globalIndexRef.isPresent()) {
+			final GlobalEntityIndex globalIndex = globalIndexRef.get();
+			// scope predicate limits the parent traversal
+			final HierarchyTraversalPredicate stopPredicate = hierarchyContent.getStopAt()
+				.map(
+					stopAt -> {
+						final HierarchyTraversalPredicate predicate = stopAtConstraintToPredicate(
+							TraversalDirection.BOTTOM_UP,
+							stopAt,
+							queryPlanningContext,
+							globalIndex,
+							entitySchema,
+							null
+						);
+						if (predicate != null) {
+							predicate.initializeIfNotAlreadyInitialized(queryExecutionContext);
+						}
+						return predicate;
+					}
+				)
+				.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
+
+			// first, construct EntityReferenceWithParent for each requested parent id
+			for (int parentId : parentIds) {
+				final AtomicReference<EntityReferenceWithParent> theParent = new AtomicReference<>();
+				if (allReferencedParents != null) {
+					allReferencedParents.add(parentId);
+				}
+				globalIndex.traverseHierarchyToRoot(
+					(node, level, distance, traverser) -> {
+						if (stopPredicate.test(node.entityPrimaryKey(), level, distance + 1)) {
+							if (stopPredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
+								selfTraversingPredicate.traverse(node.entityPrimaryKey(), level, distance + 1, traverser);
+							} else {
+								traverser.run();
+							}
+							theParent.set(new EntityReferenceWithParent(entityType, node.entityPrimaryKey(), theParent.get()));
+							if (allReferencedParents != null) {
+								allReferencedParents.add(node.entityPrimaryKey());
+							}
+						}
+					},
+					parentId
+				);
+				parentEntityReferences.put(parentId, theParent.get());
 			}
 		}
 	}

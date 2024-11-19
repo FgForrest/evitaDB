@@ -69,11 +69,13 @@ import lombok.experimental.Delegate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -161,12 +163,16 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		this.targetIndexes = targetIndexes;
 		this.filterByVisitor = filterByVisitor;
 		this.filteringFormula = filteringFormula;
+		final Set<Scope> scopes = this.queryContext.getScopes();
 		this.scope.push(
 			new ProcessingScope(
-				this.queryContext.getScopes(),
-				this.queryContext.getGlobalEntityIndexIfExists()
-					.map(it -> new EntityIndex[]{it})
-					.orElse(EMPTY_INDEX_ARRAY),
+				scopes,
+				Arrays.stream(Scope.values())
+					.filter(scopes::contains)
+					.map(this.queryContext::getGlobalEntityIndexIfExists)
+					.filter(Optional::isPresent)
+					.map(Optional::get)
+					.toArray(EntityIndex[]::new),
 				this.queryContext.isEntityTypeKnown() ?
 					this.queryContext.getSchema().getName() : null,
 				null,

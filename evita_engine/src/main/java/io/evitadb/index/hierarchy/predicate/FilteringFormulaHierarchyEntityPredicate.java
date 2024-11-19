@@ -36,6 +36,7 @@ import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
@@ -46,7 +47,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -126,10 +129,19 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			);
 			final Formula theFormula;
 			if (referenceSchema == null) {
+				final Set<Scope> scopes = queryContext.getScopes();
+				Assert.isTrue(
+					scopes.size() == 1,
+					() -> "The query contains multiple scopes: " +
+						scopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ". " +
+						"The hierarchy filter can't be resolved - hierarchy tree is maintained separately for each scope and multiple trees cannot be merged."
+				);
+				final Scope scope = scopes.iterator().next();
+
 				theFormula = queryContext.analyse(
 					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
 						GlobalEntityIndex.class,
-						() -> Collections.singletonList(queryContext.getGlobalEntityIndex()),
+						() -> Collections.singletonList(queryContext.getGlobalEntityIndex(scope)),
 						null,
 						queryContext.getSchema(),
 						null,

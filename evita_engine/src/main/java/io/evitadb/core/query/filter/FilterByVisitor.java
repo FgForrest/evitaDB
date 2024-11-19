@@ -291,33 +291,38 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			);
 
 			// now analyze the filter by in a nested context with exchanged primary entity index
-			theFormula = queryContext.getGlobalEntityIndexIfExists(entityType)
-				.map(
-					entityIndex -> queryContext.analyse(
-						theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
-							GlobalEntityIndex.class,
-							() -> Collections.singletonList(entityIndex),
-							null,
-							queryContext.getSchema(entityType),
-							null,
-							null,
-							null,
-							new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
-							(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
-							() -> {
-								// initialize root constraint for the execution
-								if (rootFilterBy != null) {
-									// we don't need to pop it, because the filter by visitor is going to be discarded
-									getProcessingScope(theFilterByVisitor.scope).pushConstraint(rootFilterBy);
-								}
-
-								filterBy.accept(theFilterByVisitor);
-								// get the result and clear the visitor internal structures
-								return theFilterByVisitor.getFormulaAndClear();
+			final List<GlobalEntityIndex> globalIndexesToUse = queryContext.getScopes()
+				.stream()
+				.flatMap(scope -> queryContext.getGlobalEntityIndexIfExists(entityType, scope).stream())
+				.toList();
+			if (globalIndexesToUse.isEmpty()) {
+				return EmptyFormula.INSTANCE;
+			} else {
+				theFormula = queryContext.analyse(
+					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
+						GlobalEntityIndex.class,
+						() -> globalIndexesToUse,
+						null,
+						queryContext.getSchema(entityType),
+						null,
+						null,
+						null,
+						new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
+						(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
+						() -> {
+							// initialize root constraint for the execution
+							if (rootFilterBy != null) {
+								// we don't need to pop it, because the filter by visitor is going to be discarded
+								getProcessingScope(theFilterByVisitor.scope).pushConstraint(rootFilterBy);
 							}
-						)
+
+							filterBy.accept(theFilterByVisitor);
+							// get the result and clear the visitor internal structures
+							return theFilterByVisitor.getFormulaAndClear();
+						}
 					)
-				).orElse(EmptyFormula.INSTANCE);
+				);
+			}
 		} finally {
 			queryContext.popStep();
 		}

@@ -485,12 +485,77 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	}
 
 	/**
+	 * Returns all entity storage parts that have been changed during the mutation process and fetches all missing
+	 * storage parts from persistent storage so that full entity body can be reconstructed.
+	 *
+	 * @return an array of {@link EntityStoragePart} consisting of the entity container,
+	 */
+	@Nonnull
+	public EntityStoragePart[] getAllEntityStorageParts() {
+		final EntityBodyStoragePart entityStorageContainer = getEntityStorageContainer();
+		return Stream.of(
+				Stream.of(entityStorageContainer),
+				Stream.of(
+					ofNullable(this.globalAttributesStorageContainer)
+						.orElseGet(() -> getAttributeStoragePart(this.entityType, this.entityPrimaryKey))
+				),
+				entityStorageContainer.getAttributeLocales()
+					.stream()
+					.map(
+						locale -> ofNullable(this.languageSpecificAttributesContainer)
+						.map(it -> it.get(locale))
+						.orElseGet(() -> getAttributeStoragePart(this.entityType, this.entityPrimaryKey, locale))
+					),
+				getEntitySchema().isWithPrice() ?
+					Stream.of(
+						ofNullable(this.pricesContainer)
+							.orElseGet(() -> getPriceStoragePart(this.entityType, this.entityPrimaryKey))
+					) :
+					Stream.<PricesStoragePart>empty(),
+				Stream.of(
+					ofNullable(this.referencesStorageContainer)
+						.orElseGet(() -> getReferencesStoragePart(this.entityType, this.entityPrimaryKey))
+				),
+				entityStorageContainer.getAssociatedDataKeys()
+					.stream()
+					.map(
+						associatedDataKey -> ofNullable(this.associatedDataContainers)
+							.map(it -> it.get(associatedDataKey))
+							.orElseGet(() -> getAssociatedDataStoragePart(this.entityType, this.entityPrimaryKey, associatedDataKey))
+					)
+			)
+			.flatMap(Function.identity())
+			.filter(Objects::nonNull)
+			.toArray(EntityStoragePart[]::new);
+	}
+
+	/**
 	 * Returns entity primary key of the updated container.
 	 *
 	 * @return entity primary key
 	 */
 	public int getEntityPrimaryKey() {
 		return this.entityPrimaryKey;
+	}
+
+	/**
+	 * Retrieves the type of the entity.
+	 *
+	 * @return the entity type as a non-null string.
+	 */
+	@Nonnull
+	public String getEntityType() {
+		return this.entityType;
+	}
+
+	/**
+	 * Retrieves the entity schema using the schema accessor.
+	 *
+	 * @return EntitySchema object representing the schema.
+	 */
+	@Nonnull
+	public EntitySchema getEntitySchema() {
+		return this.schemaAccessor.get();
 	}
 
 	/*

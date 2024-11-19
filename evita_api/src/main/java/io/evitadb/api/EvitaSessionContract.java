@@ -649,12 +649,37 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * can represent any POJO, record or interface annotated with {@link io.evitadb.api.requestResponse.data.annotation}
 	 * annotations.
 	 *
+	 * @param expectedType expected interface of the result entity
+	 * @param primaryKey   primary key of the entity to be fetched
+	 * @param require      additional requirements for the entity fetching
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	default <T extends Serializable> Optional<T> getEntity(
+		@Nonnull Class<T> expectedType,
+		int primaryKey,
+		EntityContentRequire... require
+	) throws EntityClassInvalidException {
+		return getEntity(expectedType, primaryKey, Scope.DEFAULT_SCOPES, require);
+	}
+
+	/**
+	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
+	 * access to the entity contents when primary key is known. Result object is not constrained to an evitaDB type but
+	 * can represent any POJO, record or interface annotated with {@link io.evitadb.api.requestResponse.data.annotation}
+	 * annotations.
+	 *
+	 * @param expectedType expected interface of the result entity
+	 * @param primaryKey   primary key of the entity to be fetched
+	 * @param scopes       array of scopes that should be used for fetching the entity (at least one scope is required)
+	 * @param require      additional requirements for the entity fetching
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
 	<T extends Serializable> Optional<T> getEntity(
 		@Nonnull Class<T> expectedType,
 		int primaryKey,
+		@Nonnull Scope[] scopes,
 		EntityContentRequire... require
 	) throws EntityClassInvalidException;
 

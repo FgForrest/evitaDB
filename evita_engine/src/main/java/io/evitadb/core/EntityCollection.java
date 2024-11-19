@@ -1944,7 +1944,6 @@ public final class EntityCollection implements
 	) {
 		// prepare collectors
 		final int entityPrimaryKey = Objects.requireNonNull(entityMutation.getEntityPrimaryKey());
-		final String entityType = entityMutation.getEntityType();
 		final ContainerizedLocalMutationExecutor changeCollector = new ContainerizedLocalMutationExecutor(
 			this.dataStoreBuffer,
 			this.dataStoreReader,
@@ -1964,7 +1963,7 @@ public final class EntityCollection implements
 			this::getInternalSchema,
 			theEntityType -> this.catalog.getCollectionForEntityOrThrowException(theEntityType).getInternalSchema(),
 			undoOnError,
-			() -> localMutationExecutorCollector.getFullEntityById(entityPrimaryKey, entityType, this::getEntityById).entity()
+			() -> localMutationExecutorCollector.getFullEntityContents(changeCollector).entity()
 		);
 
 		return localMutationExecutorCollector.execute(
@@ -1972,7 +1971,6 @@ public final class EntityCollection implements
 			entityMutation,
 			checkConsistency,
 			generateImplicitMutations,
-			this::getEntityById,
 			changeCollector,
 			entityIndexUpdater,
 			returnUpdatedEntity,

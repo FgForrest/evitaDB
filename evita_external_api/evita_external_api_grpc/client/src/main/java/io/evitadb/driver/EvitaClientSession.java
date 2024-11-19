@@ -679,12 +679,15 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> Optional<T> getEntity(@Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
+	public <T extends Serializable> Optional<T> getEntity(@Nonnull Class<T> expectedType, int primaryKey, @Nonnull Scope[] scope, EntityContentRequire... require) throws EntityClassInvalidException {
 		final String entityType = extractEntityTypeFromClass(expectedType, reflectionLookup)
 			.orElseThrow(() -> new CollectionNotFoundException(expectedType));
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
+				filterBy(
+					scope(scope)
+				),
 				require(
 					entityFetch(require)
 				)

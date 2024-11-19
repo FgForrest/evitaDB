@@ -605,7 +605,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@RepresentsQuery
 	@Nonnull
 	@Override
-	public <T extends Serializable> Optional<T> getEntity(@Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire... require) {
+	public <T extends Serializable> Optional<T> getEntity(@Nonnull Class<T> expectedType, int primaryKey, @Nonnull Scope[] scope, EntityContentRequire... require) {
 		assertActive();
 		final String entityType = extractEntityTypeFromClass(expectedType, reflectionLookup)
 			.orElseThrow(() -> new CollectionNotFoundException(expectedType));
@@ -616,6 +616,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
+				filterBy(
+					scope(scope)
+				),
 				require(
 					entityFetch(require)
 				)

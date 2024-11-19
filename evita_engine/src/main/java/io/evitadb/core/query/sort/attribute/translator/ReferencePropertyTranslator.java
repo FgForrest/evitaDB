@@ -37,6 +37,7 @@ import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -49,6 +50,7 @@ import javax.annotation.Nonnull;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isTrue;
@@ -81,12 +83,10 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		final Optional<Index<EntityIndexKey>> referencedEntityTypeIndex = orderByVisitor.getIndex(entityIndexKey);
 
 		final Comparator<EntityIndex> indexComparator = referencedEntityHierarchical ?
-			orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType())
-				.map(ReferencePropertyTranslator::getHierarchyComparator)
-				.orElse(DEFAULT_COMPARATOR) : DEFAULT_COMPARATOR;
+			getHierarchyComparator(orderByVisitor, referenceSchema) : DEFAULT_COMPARATOR;
 
 		return referencedEntityTypeIndex.map(
-				it -> ((ReferencedTypeEntityIndex)it).getAllPrimaryKeys()
+				it -> ((ReferencedTypeEntityIndex) it).getAllPrimaryKeys()
 					.stream()
 					.mapToObj(
 						refPk -> orderByVisitor.getIndex(
@@ -106,6 +106,37 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	}
 
 	/**
+	 * This method generates a hierarchy-aware comparator for entity indices based on the provided
+	 * {@link OrderByVisitor} and {@link ReferenceSchemaContract}. It iterates through the scopes
+	 * provided by the OrderByVisitor and retrieves corresponding global entity indices to build
+	 * a comparator that sorts entity indices according to their hierarchical relationships.
+	 *
+	 * @param orderByVisitor  The visitor containing the order by constraints and scopes used to retrieve
+	 *                        global entity indices.
+	 * @param referenceSchema The schema contract defining the referenced entity types and relationships.
+	 * @return A {@link Comparator} for {@link EntityIndex} objects that sorts them based on hierarchical
+	 * relationships, or a default comparator if no hierarchical relationships are found.
+	 */
+	private static Comparator<EntityIndex> getHierarchyComparator(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final Set<Scope> allowedScopes = orderByVisitor.getScopes();
+		Comparator<EntityIndex> comparator = null;
+		for (Scope scope : Scope.values()) {
+			if (allowedScopes.contains(scope)) {
+				final Optional<GlobalEntityIndex> globalEntityIndex = orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope);
+				if (globalEntityIndex.isPresent()) {
+					comparator = comparator == null ?
+						ReferencePropertyTranslator.getHierarchyComparator(globalEntityIndex.get()) :
+						comparator.thenComparing(ReferencePropertyTranslator.getHierarchyComparator(globalEntityIndex.get()));
+				}
+			}
+		}
+		return comparator == null ? DEFAULT_COMPARATOR : comparator;
+	}
+
+	/**
 	 * Method locates all {@link EntityIndex} from the resolved list of {@link TargetIndexes} which were identified
 	 * by the {@link IndexSelectionVisitor}. The list is expected to be much smaller than the full list computed
 	 * in {@link #selectFullEntityIndexSet(OrderByVisitor, String, ReferenceSchemaContract, boolean)}.
@@ -118,9 +149,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		boolean referencedEntityHierarchical
 	) {
 		final Comparator<EntityIndex> indexComparator = referencedEntityHierarchical ?
-			orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType())
-				.map(ReferencePropertyTranslator::getHierarchyComparator)
-				.orElse(DEFAULT_COMPARATOR) : DEFAULT_COMPARATOR;
+			getHierarchyComparator(orderByVisitor, referenceSchema) : DEFAULT_COMPARATOR;
 
 		return orderByVisitor.getTargetIndexes()
 			.stream()
