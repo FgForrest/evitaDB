@@ -128,8 +128,8 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	private final ExistingPricesBuilder pricesBuilder;
 	private final Map<ReferenceKey, List<ReferenceMutation<?>>> referenceMutations;
 	private final Set<ReferenceKey> removedReferences = new HashSet<>();
-	private SetEntityScopeMutation scopeMutation;
-	private ParentMutation hierarchyMutation;
+	@Nullable private SetEntityScopeMutation scopeMutation;
+	@Nullable private ParentMutation hierarchyMutation;
 
 	private static void assertPricesFetched(PriceContractSerializablePredicate pricePredicate) {
 		Assert.isTrue(
@@ -783,6 +783,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		this.referenceMutations.remove(referenceKey);
 
 		final Optional<ReferenceContract> theReference = this.baseEntity.getReferenceWithoutSchemaCheck(referenceKey)
+			.filter(Droppable::exists)
 			.filter(referencePredicate);
 		if (theReference.isPresent()) {
 			// if the reference was part of the previous entity version we build upon, remove it as-well

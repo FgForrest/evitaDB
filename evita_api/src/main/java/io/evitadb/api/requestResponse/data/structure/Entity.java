@@ -1035,12 +1035,12 @@ public class Entity implements SealedEntity {
 	 * Returns reference contract without checking the existence in the schema.
 	 * Part of the private API.
 	 */
-	@Nullable
+	@Nonnull
 	public Optional<ReferenceContract> getReferenceWithoutSchemaCheck(@Nonnull ReferenceKey referenceKey) {
 		return ofNullable(this.references.get(referenceKey));
 	}
 
-	@Nullable
+	@Nonnull
 	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) {
 		checkReferenceName(referenceKey.referenceName());
 		return ofNullable(this.references.get(referenceKey));
