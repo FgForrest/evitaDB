@@ -402,9 +402,11 @@ public class ClassSchemaAnalyzer {
 			}
 		};
 
+		final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
 		if (attributeAnnotation.global() ||
 			attributeAnnotation.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE ||
-			Arrays.stream(attributeAnnotation.scope()).anyMatch(it -> it.uniqueGlobally() == GlobalAttributeUniquenessType.NOT_UNIQUE)
+			Arrays.stream(attributeAnnotation.scope()).anyMatch(it -> it.uniqueGlobally() == GlobalAttributeUniquenessType.NOT_UNIQUE) ||
+			(!ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition) && Arrays.stream(scopedDefinition).anyMatch(it -> it.unique() != AttributeUniquenessType.NOT_UNIQUE || it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE))
 		) {
 			Assert.notNull(
 				catalogBuilder,
@@ -414,7 +416,6 @@ public class ClassSchemaAnalyzer {
 				attributeName, attributeType,
 				whichIs -> {
 					attributeBuilder.accept(whichIs);
-					final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
 					if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
 						if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
 							whichIs.uniqueGlobally();
