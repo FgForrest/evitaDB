@@ -9,7 +9,7 @@ proofreading: 'done'
 preferredLang: 'evitaql'
 ---
 
-### Scope
+## Scope
 
 ```evitaql-syntax
 scope(
@@ -35,6 +35,92 @@ Scopes represent the means how evitaDB handles so called "soft deletes". The app
 delete and archiving the entity, which simply moves the entity to the archive scope. The details of the archiving 
 process are described in the chapter [Archiving](../../use/schema.md#scopes) and the reasons why this feature 
 exists are explained in the [dedicated blog post](https://evitadb.io/blog/15-soft-delete).
+
+<Note type="warning">
+
+<NoteTitle toggles="true">
+
+##### Specific behavior related to unique keys
+
+</NoteTitle>
+
+Unique constraints are only enforced within the same scope. This means that two entities in different scopes can have
+the same unique attribute value. When you move an entity from one scope to another, the unique constraints within
+the target scope are checked and if the entity violates the unique constraint, the move is refused.
+
+If you query entities in both scopes using [scope](../query/filtering/behavioral.md#scope) filter and use the filtering
+constraint that exactly matches the unique attribute ([attribute equals](../filtering/comparable.md#attribute-equals),
+[attribute in set](../filtering/comparable.md#attribute-in-set), [attribute is](../filtering/comparable.md#attribute-is)),
+evitaDB will prefer the entity from the live scope over the entity from the archive scope. This means that if you query
+a single entity by its unique attribute value (e.g. `URL`) and search for the entity in both scopes, you will always get
+the entity from the live scope. This behavior is not applied, when only partial match is used (e.g. [attribute starts with](../filtering/string.md#attribute-starts-with), 
+etc.).
+
+</Note>
+
+<Note type="warning">
+
+<NoteTitle toggles="true">
+
+##### Specific behaviour when indexed and non-indexed data in different scopes are queried
+
+</NoteTitle>
+
+Another important aspect of the `scope` filter is the way it handles indexed and non-indexed data. This change in 
+behaviour stems from practical reasons and situations encountered in the field. Imagine you have a schema with 
+an attribute `code` that is indexed in the live scope and not indexed in the archived scope. If you query the entities 
+by the `code` attribute in both scopes in the following way
+
+```evitaql
+query(
+    collection("entity"),
+    filterBy(
+        entityPrimaryKeyInSet(1, 2, 3),
+        attributeIs("code", NOT_NULL),
+        scope(LIVE)
+    )
+)
+```
+
+You'd expect to get the entities with primary keys 1, 2 and 3 from the live scope. However, if you archive some of these 
+entities, say 1 and 2, and repeat the same query using the `scope(LIVE, ARCHIVED)` filter, you'd only get the entity 
+with primary key 3. This is because the `code` attribute is not indexed in the archived scope and the query would be 
+translated into a conjunction of `1`, `2`, `3` and non-null keys from the live scope - which is only the entity with 
+primary key `3` - and this would result in a result set containing only the entity with primary key `3`.
+
+This is not what developers expect when working with archived entities - they expect the query to return all 
+the entities that match all the constraints that are applicable (indexed) for a particular scope, and to ignore 
+the constraints that cannot be computed for that scope. So, in practice, they expect the query to be translated:
+
+```
+OR(
+    AND(                 // SCOPE(ARCHIVED)
+        [1, 2],          // SUPER SET OF ALL ARCHIVED ENTITIES
+        [1, 2, 3]        // CONSTANT: ENTITY_PRIMARY_KEY_IN_SET(1, 2, 3)
+    ),            
+    AND(                  // SCOPE(LIVE)
+        [3],              // SUPER SET OF ALL LIVE ENTITIES
+        [1, 2, 3],        // CONSTANT: ENTITY_PRIMARY_KEY_IN_SET(1, 2, 3)
+        [3]               // NOT_NULL("code"),
+    )
+)
+```
+
+This means that when both scopes are queried, the engine constructs two complement queries, each containing only 
+the constraints that apply to that scope, and ignoring other constraints. If there is no constraint left for 
+a particular scope, the whole scope is omitted so that the result isn't polluted with all the entities from the scope 
+(super set).
+
+In the case of the same query used with only the `scope(ARCHIVED)`, you'd get the exception informing you that the used
+attribute `code` is not indexed in the archived scope, and you'd have to reformulate the query to target only indexed 
+data in that scope.
+
+This hybrid behaviour makes it much easier for applications to use, because the application doesn't have to construct 
+different or more complex queries (to target only the indexed data) when both live and archived data are being queried,
+and the engine does the heavy lifting for them. On the other hand, if only a single area is targeted, the engine is
+strict and checks that all the constraints apply to that area (queries are expected to be tailored for that area).
+
+</Note>
 
 There are a few archived entities in our demo dataset. Our schema is configured to index only the `URL` and `code`
 attributes in the archived scope, so we can search for archived entities using only these attributes and, of course, 
