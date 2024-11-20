@@ -323,11 +323,15 @@ public final class EntityCollection implements
 		// from older storage format when it was stored as a part of the global index
 		this.pricePkSequence = sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.PRICE, entityType,
+			// if entity header has no last internal price id, initialized and there is global index available
 			entityHeader.lastInternalPriceId() == -1 && entityHeader.globalEntityIndexId() != null ?
+				// try to initialize sequence from deprecated storage key format
 				entityCollectionPersistenceService.fetchLastAssignedInternalPriceIdFromGlobalIndex(
 					catalogVersion,
 					entityHeader.globalEntityIndexId()
-				).orElse(0) : entityHeader.lastInternalPriceId()
+				).orElse(0) :
+				// otherwise initialize from the last internal price id - when it's initialized, othewise start from 0
+				entityHeader.lastInternalPriceId() == -1 ? 0 : entityHeader.lastInternalPriceId()
 		);
 
 		// initialize container buffer
