@@ -29,6 +29,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
+import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.PriceContentMode;
@@ -849,7 +850,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			.forEach(it -> {
 				if (it instanceof RemovedStoragePart removedStoragePart) {
 					this.storagePartPersistenceService.removeStoragePart(
-						catalogVersion, removedStoragePart.getStoragePartPK(), removedStoragePart.containerType()
+						catalogVersion,
+						removedStoragePart.getStoragePartPKOrElseThrowException(),
+						removedStoragePart.containerType()
 					);
 				} else {
 					this.storagePartPersistenceService.putStoragePart(catalogVersion, it);
@@ -899,7 +902,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			evitaRequest,
 			entitySchema,
 			dataStoreReader
-		).orElse(null);
+		)
+			.orElseThrow(
+				() -> new EntityMissingException(
+					entitySchema.getName(), new int[]{ entityPrimaryKey },
+					"Entity cannot be completed from the passed data and data stored in storage."
+				)
+			);
 	}
 
 	@Nullable
@@ -1140,10 +1149,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					entitySchema.getName(),
 					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 				),
-				new PriceSuperIndex(
-					Objects.requireNonNull(entityIndexCnt.getInternalPriceIdSequence()),
-					priceIndexes
-				),
+				new PriceSuperIndex(priceIndexes),
 				hierarchyIndex,
 				facetIndex
 			);
@@ -1191,11 +1197,29 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			this.entityCollectionFileReference.entityTypePrimaryKey()
 		);
 		return Arrays.stream(
-			this.entityCollectionFile.getParent().toFile().listFiles(
-				(dir, name) -> pattern.matcher(name).matches()
+			Objects.requireNonNull(
+				this.entityCollectionFile.getParent().toFile().listFiles(
+					(dir, name) -> pattern.matcher(name).matches()
+				)
 			)
 		).mapToLong(File::length).sum();
+	}
 
+	@Nonnull
+	@Override
+	public OptionalInt fetchLastAssignedInternalPriceIdFromGlobalIndex(long catalogVersion, int entityIndexId) {
+		return ofNullable(
+			this.storagePartPersistenceService.getStoragePart(
+				catalogVersion,
+				entityIndexId,
+				EntityIndexStoragePart.class
+			)
+		)
+			.filter(EntityIndexStoragePartDeprecated.class::isInstance)
+			.map(EntityIndexStoragePartDeprecated.class::cast)
+			.stream()
+			.mapToInt(EntityIndexStoragePartDeprecated::getInternalPriceIdSequence)
+			.findFirst();
 	}
 
 	@Override
@@ -1339,6 +1363,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			getStoragePartPersistenceService().countStorageParts(catalogVersion, EntityBodyStoragePart.class),
 			headerInfoSupplier.getLastAssignedPrimaryKey(),
 			headerInfoSupplier.getLastAssignedIndexKey(),
+			headerInfoSupplier.getLastAssignedInternalPriceId(),
 			getStoragePartPersistenceService().offsetIndex.getActiveRecordShare(collectionFileReference.toFilePath(catalogStoragePath).toFile().length()),
 			newDescriptor,
 			headerInfoSupplier.getGlobalIndexKey().isPresent() ?
@@ -1551,7 +1576,12 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			return currentHeader.lastEntityIndexPrimaryKey();
 		}
 
-		@Nullable
+		@Override
+		public int getLastAssignedInternalPriceId() {
+			return currentHeader.lastInternalPriceId();
+		}
+
+		@Nonnull
 		@Override
 		public OptionalInt getGlobalIndexKey() {
 			return currentHeader.globalEntityIndexId() == null ?

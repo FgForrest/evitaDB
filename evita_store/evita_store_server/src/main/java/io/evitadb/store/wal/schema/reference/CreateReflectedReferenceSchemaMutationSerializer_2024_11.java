@@ -41,20 +41,7 @@ public class CreateReflectedReferenceSchemaMutationSerializer_2024_11 extends Se
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateReflectedReferenceSchemaMutation mutation) {
-		output.writeString(mutation.getName());
-		output.writeString(mutation.getDescription());
-		output.writeString(mutation.getDeprecationNotice());
-		kryo.writeObjectOrNull(output, mutation.getCardinality(), Cardinality.class);
-		output.writeString(mutation.getReferencedEntityType());
-		output.writeString(mutation.getReflectedReferenceName());
-		kryo.writeObjectOrNull(output, mutation.isFaceted(), Boolean.class);
-		kryo.writeObject(output, mutation.getAttributesInheritanceBehavior());
-
-		final String[] attributesExcludedFromInheritance = mutation.getAttributeInheritanceFilter();
-		output.writeVarInt(attributesExcludedFromInheritance.length, true);
-		for (final String attribute : attributesExcludedFromInheritance) {
-			output.writeString(attribute);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

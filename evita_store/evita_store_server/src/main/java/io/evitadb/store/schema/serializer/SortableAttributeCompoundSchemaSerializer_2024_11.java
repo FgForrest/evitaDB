@@ -40,7 +40,6 @@ import lombok.RequiredArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
@@ -53,34 +52,7 @@ public class SortableAttributeCompoundSchemaSerializer_2024_11 extends Serialize
 
 	@Override
 	public void write(Kryo kryo, Output output, SortableAttributeCompoundSchema attributeCompoundSchema) {
-		output.writeString(attributeCompoundSchema.getName());
-		output.writeVarInt(attributeCompoundSchema.getNameVariants().size(), true);
-		for (Entry<NamingConvention, String> entry : attributeCompoundSchema.getNameVariants().entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
-
-		if (attributeCompoundSchema.getDescription() != null) {
-			output.writeBoolean(true);
-			output.writeString(attributeCompoundSchema.getDescription());
-		} else {
-			output.writeBoolean(false);
-		}
-		if (attributeCompoundSchema.getDeprecationNotice() != null) {
-			output.writeBoolean(true);
-			output.writeString(attributeCompoundSchema.getDeprecationNotice());
-		} else {
-			output.writeBoolean(false);
-		}
-
-		final List<AttributeElement> attributeElements = attributeCompoundSchema.getAttributeElements();
-		output.writeVarInt(attributeElements.size(), true);
-		for (AttributeElement attributeElement : attributeElements) {
-			output.writeString(attributeElement.attributeName());
-			kryo.writeObject(output, attributeElement.direction());
-			kryo.writeObject(output, attributeElement.behaviour());
-		}
-
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

@@ -94,8 +94,8 @@ public final class GlobalAttributeSchemaBuilder
 					// filter out default values
 					.filter(it -> it.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedGlobalAttributeUniquenessType[]::new),
-				Arrays.stream(Scope.values()).filter(baseSchema::isFilterable).toArray(Scope[]::new),
-				Arrays.stream(Scope.values()).filter(baseSchema::isSortable).toArray(Scope[]::new),
+				Arrays.stream(Scope.values()).filter(baseSchema::isFilterableInScope).toArray(Scope[]::new),
+				Arrays.stream(Scope.values()).filter(baseSchema::isSortableInScope).toArray(Scope[]::new),
 				baseSchema.isLocalized(),
 				baseSchema.isNullable(),
 				baseSchema.isRepresentative(),
@@ -135,7 +135,7 @@ public final class GlobalAttributeSchemaBuilder
 				new SetAttributeSchemaGloballyUniqueMutation(
 					baseSchema.getName(),
 					Arrays.stream(Scope.values())
-						.filter(it -> !isUniqueWithinLocale(it) || !excludedScopes.contains(it))
+						.filter(it -> !this.isUniqueWithinLocaleInScope(it) || !excludedScopes.contains(it))
 						.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG))
 						.toArray(ScopedGlobalAttributeUniquenessType[]::new)
 				)
@@ -168,7 +168,7 @@ public final class GlobalAttributeSchemaBuilder
 				new SetAttributeSchemaGloballyUniqueMutation(
 					baseSchema.getName(),
 					Arrays.stream(Scope.values())
-						.filter(it -> !isUniqueWithinLocale(it) || !excludedScopes.contains(it))
+						.filter(it -> !this.isUniqueWithinLocaleInScope(it) || !excludedScopes.contains(it))
 						.map(it -> new ScopedGlobalAttributeUniquenessType(it, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE))
 						.toArray(ScopedGlobalAttributeUniquenessType[]::new)
 				)

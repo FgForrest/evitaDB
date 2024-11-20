@@ -101,8 +101,6 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			output.writeVarInt(keyCompressor.getId(attributeIndexKey.attribute()), true);
 		}
 
-		kryo.writeObjectOrNull(output, entityIndex.getInternalPriceIdSequence(), Integer.class);
-
 		final Set<PriceIndexKey> priceIndexes = entityIndex.getPriceIndexes();
 		output.writeVarInt(priceIndexes.size(), true);
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
@@ -161,8 +159,6 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			attributeIndexes.add(new AttributeIndexStorageKey(entityIndexKey, attributeIndexType, attributeKey));
 		}
 
-		final Integer internalPriceIdSequenceSeed = kryo.readObjectOrNull(input, Integer.class);
-
 		final int priceIndexesCount = input.readVarInt(true);
 		final Set<PriceIndexKey> priceIndexes = createHashSet(priceIndexesCount);
 		for (int i = 0; i < priceIndexesCount; i++) {
@@ -202,7 +198,7 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			primaryKey, version, entityIndexKey,
 			entityIds, entityIdsByLocale,
 			attributeIndexes,
-			internalPriceIdSequenceSeed, priceIndexes,
+			priceIndexes,
 			hierarchyIndex, facetIndexes, primaryKeyCardinality
 		);
 	}

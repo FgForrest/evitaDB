@@ -40,16 +40,7 @@ public class CreateReferenceSchemaMutationSerializer_2024_11 extends Serializer<
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateReferenceSchemaMutation mutation) {
-		output.writeString(mutation.getName());
-		output.writeString(mutation.getDescription());
-		output.writeString(mutation.getDeprecationNotice());
-		kryo.writeObject(output, mutation.getCardinality());
-		output.writeString(mutation.getReferencedEntityType());
-		output.writeBoolean(mutation.isReferencedEntityTypeManaged());
-		output.writeString(mutation.getReferencedGroupType());
-		output.writeBoolean(mutation.isReferencedGroupTypeManaged());
-		output.writeBoolean(mutation.isIndexed());
-		output.writeBoolean(mutation.isFaceted());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

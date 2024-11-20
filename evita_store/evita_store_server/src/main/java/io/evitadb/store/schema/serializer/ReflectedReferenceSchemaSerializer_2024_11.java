@@ -41,7 +41,6 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
@@ -54,52 +53,7 @@ public class ReflectedReferenceSchemaSerializer_2024_11 extends Serializer<Refle
 
 	@Override
 	public void write(Kryo kryo, Output output, ReflectedReferenceSchema referenceSchema) {
-		output.writeString(referenceSchema.getName());
-		output.writeVarInt(referenceSchema.getNameVariants().size(), true);
-		for (Entry<NamingConvention, String> entry : referenceSchema.getNameVariants().entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
-		output.writeString(referenceSchema.getReferencedEntityType());
-		output.writeString(referenceSchema.getReflectedReferenceName());
-
-		kryo.writeObjectOrNull(
-			output,
-			referenceSchema.isCardinalityInherited() ? null : referenceSchema.getCardinality(),
-			Cardinality.class
-		);
-
-		kryo.writeObjectOrNull(
-			output,
-			referenceSchema.isFacetedInherited() ? null : referenceSchema.isFaceted(),
-			Boolean.class
-		);
-
-		kryo.writeObject(output, referenceSchema.getDeclaredAttributes());
-
-		kryo.writeObjectOrNull(
-			output,
-			referenceSchema.isDescriptionInherited() ? null : referenceSchema.getDescription(),
-			String.class
-		);
-
-		kryo.writeObjectOrNull(
-			output,
-			referenceSchema.isDeprecatedInherited() ? null : referenceSchema.getDeprecationNotice(),
-			String.class
-		);
-
-		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = referenceSchema.getDeclaredSortableAttributeCompounds();
-		output.writeVarInt(sortableAttributeCompounds.size(), true);
-		for (SortableAttributeCompoundSchemaContract sortableAttributeCompound : sortableAttributeCompounds.values()) {
-			kryo.writeObject(output, sortableAttributeCompound);
-		}
-
-		kryo.writeObject(output, referenceSchema.getAttributesInheritanceBehavior());
-		output.writeVarInt(referenceSchema.getAttributeInheritanceFilter().length, true);
-		for (String attributeName : referenceSchema.getAttributeInheritanceFilter()) {
-			output.writeString(attributeName);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

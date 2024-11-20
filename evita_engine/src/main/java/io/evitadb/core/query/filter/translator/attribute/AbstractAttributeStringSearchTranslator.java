@@ -163,7 +163,7 @@ class AbstractAttributeStringSearchTranslator extends AbstractAttributeTranslato
 	) {
 		final String attributeName = attributeConstraint.getAttributeName();
 		final String textToSearch = attributeConstraint.getTextToSearch();
-		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
+		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema

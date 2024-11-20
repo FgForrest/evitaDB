@@ -57,6 +57,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -81,12 +82,11 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		throw new UnsupportedOperationException("Not supported in the test.");
 	};
 	private static final String ATTRIBUTE_GLOBAL_CODE = "globalCode";
-	private static final String ATTRIBUTE_PEREX = "perex";
 	private static final String ATTRIBUTE_VARIANT_COUNT = "variantCount";
 	private static final String ATTRIBUTE_CHAR_ARRAY = "charArray";
-	private static final String ATTRIBUTE_COMPOUND = "nameVariantCount";
 	private Function<String, AttributeSchema> productAttributeSchemaProvider;
 	private Function<String, Stream<SortableAttributeCompoundSchema>> productCompoundSchemaProvider;
+	private final AtomicInteger priceIdSequence = new AtomicInteger(1);
 
 	private static int findInArray(int[] ids, int id) {
 		for (int i = 0; i < ids.length; i++) {
@@ -365,7 +365,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						new MockEntityIndexCreator<>(productIndex),
 						new MockEntityIndexCreator<>(catalogIndex),
 						() -> productSchema,
-						entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
+						priceIdSequence::incrementAndGet,
 						false,
 						UNSUPPORTED_OPERATION
 					),
@@ -388,7 +388,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						new MockEntityIndexCreator<>(productIndex),
 						new MockEntityIndexCreator<>(catalogIndex),
 						() -> productSchema,
-						entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
+						priceIdSequence::incrementAndGet,
 						false,
 						UNSUPPORTED_OPERATION
 					),
@@ -415,7 +415,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				new MockEntityIndexCreator<>(productIndex),
 				new MockEntityIndexCreator<>(catalogIndex),
 				() -> productSchema,
-				entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
+				priceIdSequence::incrementAndGet,
 				false,
 				UNSUPPORTED_OPERATION
 			),
@@ -433,7 +433,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				new MockEntityIndexCreator<>(productIndex),
 				new MockEntityIndexCreator<>(catalogIndex),
 				() -> productSchema,
-				entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
+				priceIdSequence::incrementAndGet,
 				false,
 				UNSUPPORTED_OPERATION
 			),
@@ -534,7 +534,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				new MockEntityIndexCreator<>(productIndex),
 				new MockEntityIndexCreator<>(catalogIndex),
 				() -> productSchema,
-				entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
+				priceIdSequence::incrementAndGet,
 				false,
 				UNSUPPORTED_OPERATION
 			),

@@ -152,11 +152,11 @@ public class SetReferenceSchemaIndexedMutation
 	private static void verifyNoAttributeRequiresIndex(@Nonnull EntitySchemaContract entitySchema, @Nonnull ReferenceSchemaContract referenceSchema) {
 		for (Scope scope : Scope.values()) {
 			for (AttributeSchemaContract attributeSchema : referenceSchema.getAttributes().values()) {
-				if (attributeSchema.isFilterable(scope) || attributeSchema.isUnique(scope) || attributeSchema.isSortable(scope)) {
+				if (attributeSchema.isFilterableInScope(scope) || attributeSchema.isUniqueInScope(scope) || attributeSchema.isSortableInScope(scope)) {
 					final String type;
-					if (attributeSchema.isFilterable(scope)) {
+					if (attributeSchema.isFilterableInScope(scope)) {
 						type = "filterable";
-					} else if (attributeSchema.isUnique(scope)) {
+					} else if (attributeSchema.isUniqueInScope(scope)) {
 						type = "unique";
 					} else {
 						type = "sortable";

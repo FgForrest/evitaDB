@@ -47,7 +47,6 @@ import io.evitadb.index.hierarchy.HierarchyIndexContract;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
-import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
@@ -148,12 +147,6 @@ public abstract class EntityIndex implements
 	 */
 	protected final boolean originalHierarchyIndexEmpty;
 	/**
-	 * This field captures the original state of the price id sequence when this index was created.
-	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
-	 * should be persisted.
-	 */
-	protected final Integer originalInternalPriceIdSequence;
-	/**
 	 * This field captures the original state of the attribute index when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
 	 * should be persisted.
@@ -187,7 +180,6 @@ public abstract class EntityIndex implements
 		this.hierarchyIndex = new HierarchyIndex();
 		this.facetIndex = new FacetIndex();
 		this.originalHierarchyIndexEmpty = true;
-		this.originalInternalPriceIdSequence = null;
 		this.originalAttributeIndexes = Collections.emptySet();
 		this.originalPriceIndexes = Collections.emptySet();
 		this.originalFacetIndexes = Collections.emptySet();
@@ -219,7 +211,6 @@ public abstract class EntityIndex implements
 		this.hierarchyIndex = hierarchyIndex;
 		this.facetIndex = facetIndex;
 		this.originalHierarchyIndexEmpty = this.hierarchyIndex.isHierarchyIndexEmpty();
-		this.originalInternalPriceIdSequence = getInternalPriceIdSequence(priceIndex);
 		this.originalAttributeIndexes = getAttributeIndexStorageKeys();
 		this.originalPriceIndexes = getPriceIndexKeys(priceIndex);
 		this.originalFacetIndexes = getFacetIndexReferencedEntities();
@@ -235,7 +226,6 @@ public abstract class EntityIndex implements
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		boolean originalHierarchyIndexEmpty,
-		@Nonnull Integer originalInternalPriceIdSequence,
 		@Nonnull Set<AttributeIndexStorageKey> originalAttributeIndexes,
 		@Nonnull Set<PriceIndexKey> originalPriceIndexes,
 		@Nonnull Set<String> originalFacetIndexes
@@ -250,7 +240,6 @@ public abstract class EntityIndex implements
 		this.hierarchyIndex = hierarchyIndex;
 		this.facetIndex = facetIndex;
 		this.originalHierarchyIndexEmpty = originalHierarchyIndexEmpty;
-		this.originalInternalPriceIdSequence = originalInternalPriceIdSequence;
 		this.originalAttributeIndexes = originalAttributeIndexes;
 		this.originalPriceIndexes = originalPriceIndexes;
 		this.originalFacetIndexes = originalFacetIndexes;
@@ -403,18 +392,15 @@ public abstract class EntityIndex implements
 		final Set<AttributeIndexStorageKey> attributeIndexStorageKeys = getAttributeIndexStorageKeys();
 		final Set<PriceIndexKey> priceIndexKeys = getPriceIndexKeys(priceIndex);
 		final Set<String> facetIndexReferencedEntities = getFacetIndexReferencedEntities();
-		final Integer internalPriceIdSequence = getInternalPriceIdSequence(priceIndex);
 		if (dirty.isTrue() ||
 			this.originalHierarchyIndexEmpty != hierarchyIndexEmpty ||
-			!Objects.equals(this.originalInternalPriceIdSequence, internalPriceIdSequence) ||
 			!Objects.equals(this.originalAttributeIndexes, attributeIndexStorageKeys) ||
 			!Objects.equals(this.originalPriceIndexes, priceIndexKeys) ||
 			!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities)
 		) {
 			dirtyList.add(
 				createStoragePart(
-					hierarchyIndexEmpty, internalPriceIdSequence,
-					attributeIndexStorageKeys, priceIndexKeys, facetIndexReferencedEntities
+					hierarchyIndexEmpty, attributeIndexStorageKeys, priceIndexKeys, facetIndexReferencedEntities
 				)
 			);
 		}
@@ -463,7 +449,7 @@ public abstract class EntityIndex implements
 	 * @return true if the primary key is present, false otherwise
 	 */
 	public boolean contains(int primaryKey) {
-		return entityIds.contains(primaryKey);
+		return this.entityIds.contains(primaryKey);
 	}
 
 	/**
@@ -471,16 +457,14 @@ public abstract class EntityIndex implements
 	 */
 	protected StoragePart createStoragePart(
 		boolean hierarchyIndexEmpty,
-		@Nullable Integer internalPriceIdSequence,
 		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
 		@Nonnull Set<PriceIndexKey> priceIndexKeys,
 		@Nonnull Set<String> facetIndexReferencedEntities
 	) {
 		return new EntityIndexStoragePart(
-			primaryKey, version, indexKey,
-			entityIds, entityIdsByLanguage,
+			this.primaryKey, this.version, this.indexKey,
+			this.entityIds, this.entityIdsByLanguage,
 			attributeIndexStorageKeys,
-			internalPriceIdSequence,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
 			facetIndexReferencedEntities,
@@ -520,19 +504,6 @@ public abstract class EntityIndex implements
 			.stream()
 			.map(PriceListAndCurrencyPriceIndex::getPriceIndexKey)
 			.collect(Collectors.toSet());
-	}
-
-	/**
-	 * Returns the internal price ID sequence for the given PriceIndex.
-	 * If the PriceIndex is an instance of PriceSuperIndex, it returns the last assigned internal price ID.
-	 * Otherwise, it returns null.
-	 *
-	 * @param priceIndex the PriceIndex to retrieve the internal price ID sequence from
-	 * @return the internal price ID sequence if the PriceIndex is an instance of PriceSuperIndex, null otherwise
-	 */
-	@Nullable
-	private static Integer getInternalPriceIdSequence(@Nonnull PriceIndexContract priceIndex) {
-		return priceIndex instanceof PriceSuperIndex ? ((PriceSuperIndex) priceIndex).getLastAssignedInternalPriceId() : null;
 	}
 
 	/**

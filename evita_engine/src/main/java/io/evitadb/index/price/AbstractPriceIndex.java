@@ -100,7 +100,8 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	@Override
 	public int addPrice(
 		int entityPrimaryKey,
-		@Nullable Integer internalPriceId, @Nonnull PriceKey priceKey,
+		int internalPriceId,
+		@Nonnull PriceKey priceKey,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
@@ -175,7 +176,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 
 	@Override
 	public void resetDirty() {
-		for (PriceListAndCurrencyPriceIndex priceIndex : getPriceIndexes().values()) {
+		for (PriceListAndCurrencyPriceIndex<?,?> priceIndex : getPriceIndexes().values()) {
 			priceIndex.resetDirty();
 		}
 	}
@@ -195,7 +196,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	protected abstract int addPrice(
 		@Nonnull T priceListIndex,
 		int entityPrimaryKey,
-		@Nullable Integer internalPriceId,
+		int internalPriceId,
 		int priceId,
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,

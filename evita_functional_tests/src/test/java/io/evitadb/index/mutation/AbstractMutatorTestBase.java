@@ -53,6 +53,7 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This class contains shared variables and logic for mutation specific tests in this package.
@@ -111,12 +112,13 @@ abstract class AbstractMutatorTestBase {
 			)
 		);
 		productIndex = new GlobalEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
+		final AtomicInteger sequencer = new AtomicInteger(1);
 		executor = new EntityIndexLocalMutationExecutor(
 			containerAccessor, 1,
 			new MockEntityIndexCreator<>(productIndex),
 			new MockEntityIndexCreator<>(catalogIndex),
 			() -> productSchema,
-			entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
+			sequencer::getAndIncrement,
 			false,
 			() -> {
 				throw new UnsupportedOperationException("Not supported in the test.");

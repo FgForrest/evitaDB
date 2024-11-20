@@ -38,6 +38,7 @@ import io.evitadb.store.dataType.serializer.EnumNameSerializer;
 import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.store.entity.serializer.PriceWithInternalIdsSerializer;
+import io.evitadb.store.entity.serializer.PriceWithInternalIdsSerializer_2024_11;
 import io.evitadb.store.index.serializer.*;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
@@ -101,7 +102,12 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 
 		kryo.register(PriceListAndCurrencySuperIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexStoragePartSerializer(keyCompressor), PriceListAndCurrencySuperIndexStoragePart.class), index++);
 		kryo.register(PriceListAndCurrencyRefIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencyRefIndexStoragePartSerializer(keyCompressor), PriceListAndCurrencyRefIndexStoragePart.class), index++);
-		kryo.register(PriceWithInternalIds.class, new SerialVersionBasedSerializer<>(new PriceWithInternalIdsSerializer(keyCompressor), PriceWithInternalIds.class), index++);
+		kryo.register(
+			PriceWithInternalIds.class,
+			new SerialVersionBasedSerializer<>(new PriceWithInternalIdsSerializer(keyCompressor), PriceWithInternalIds.class)
+				.addBackwardCompatibleSerializer(5008194525461751557L, new PriceWithInternalIdsSerializer_2024_11(keyCompressor)),
+			index++
+		);
 
 		kryo.register(HierarchyIndexStoragePart.class, new SerialVersionBasedSerializer<>(new HierarchyIndexStorgePartSerializer(), HierarchyIndexStoragePart.class), index++);
 

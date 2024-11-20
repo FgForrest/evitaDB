@@ -272,7 +272,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 					continue;
 				}
 				Assert.isPremiseValid(
-					Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUnique),
+					Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUniqueInScope),
 					() -> new GraphQLQueryResolvingInternalError(
 						"Cannot find entity by non-unique attribute `" + attributeName + "`."
 					)

@@ -401,10 +401,10 @@ public final class EntitySchema implements EntitySchemaContract {
 					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedAttributeUniquenessType[]::new),
 				Arrays.stream(Scope.values())
-					.filter(attributeSchemaContract::isFilterable)
+					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
 				Arrays.stream(Scope.values())
-					.filter(attributeSchemaContract::isSortable)
+					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
 				attributeSchemaContract.isLocalized(),
 				attributeSchemaContract.isNullable(),
@@ -436,10 +436,10 @@ public final class EntitySchema implements EntitySchemaContract {
 					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedAttributeUniquenessType[]::new),
 				Arrays.stream(Scope.values())
-					.filter(attributeSchemaContract::isFilterable)
+					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
 				Arrays.stream(Scope.values())
-					.filter(attributeSchemaContract::isSortable)
+					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
 				attributeSchemaContract.isLocalized(),
 				attributeSchemaContract.isNullable(),

@@ -42,18 +42,7 @@ public class CreateAttributeSchemaMutationSerializer_2024_11 extends Serializer<
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateAttributeSchemaMutation mutation) {
-		output.writeString(mutation.getName());
-		output.writeString(mutation.getDescription());
-		output.writeString(mutation.getDeprecationNotice());
-		kryo.writeObject(output, mutation.getUnique());
-		kryo.writeClass(output, mutation.getType());
-		output.writeBoolean(mutation.isFilterable());
-		output.writeBoolean(mutation.isSortable());
-		output.writeBoolean(mutation.isLocalized());
-		output.writeBoolean(mutation.isNullable());
-		output.writeBoolean(mutation.isRepresentative());
-		kryo.writeObjectOrNull(output, mutation.getDefaultValue(), mutation.getType());
-		output.writeVarInt(mutation.getIndexedDecimalPlaces(), true);
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

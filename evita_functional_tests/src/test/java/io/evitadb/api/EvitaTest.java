@@ -2204,7 +2204,7 @@ class EvitaTest implements EvitaTestSupport {
 			assertEquals(
 				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, 1150, new EntityCollectionStatistics[0]
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, 1152, new EntityCollectionStatistics[0]
 				)
 			);
 
@@ -2212,7 +2212,7 @@ class EvitaTest implements EvitaTestSupport {
 				new CatalogStatistics(
 					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1656,
 					new EntityCollectionStatistics[]{
-						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 522)
+						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 520)
 					}
 				),
 				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow()

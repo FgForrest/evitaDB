@@ -182,14 +182,14 @@ public class CatalogSchemaConverter {
 			.setFilterable(attributeSchema.isFilterable())
 			.addAllFilterableInScopes(
 				Arrays.stream(Scope.values())
-					.filter(attributeSchema::isFilterable)
+					.filter(attributeSchema::isFilterableInScope)
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
 			.setSortable(attributeSchema.isSortable())
 			.addAllSortableInScopes(
 				Arrays.stream(Scope.values())
-					.filter(attributeSchema::isSortable)
+					.filter(attributeSchema::isSortableInScope)
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)

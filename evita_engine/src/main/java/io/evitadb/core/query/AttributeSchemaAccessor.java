@@ -94,7 +94,7 @@ public class AttributeSchemaAccessor {
 	 * @throws ReferenceNotIndexedException     when a reference schema is provided but is not indexed in the requested scopes
 	 */
 	@Nonnull
-	private static AttributeSchemaContract verifyAndReturn(
+	public static AttributeSchemaContract verifyAndReturn(
 		@Nonnull String attributeName,
 		@Nonnull Set<Scope> requestedScopes,
 		@Nullable AttributeSchemaContract attributeSchema,
@@ -117,7 +117,7 @@ public class AttributeSchemaAccessor {
 			);
 			switch (attributeTrait) {
 				case UNIQUE ->
-					exception = requestedScopes.stream().anyMatch(attributeSchema::isUnique) ?
+					exception = requestedScopes.stream().anyMatch(attributeSchema::isUniqueInScope) ?
 						null :
 						ofNullable(referenceSchema)
 							.map(it -> new AttributeNotFilterableException(attributeName, it, entitySchema))
@@ -127,7 +127,7 @@ public class AttributeSchemaAccessor {
 									.orElseGet(() -> new AttributeNotFilterableException(attributeName, catalogSchema))
 							);
 				case FILTERABLE ->
-					exception = requestedScopes.stream().anyMatch(attributeSchema::isFilterable) || requestedScopes.stream().anyMatch(attributeSchema::isUnique) ?
+					exception = requestedScopes.stream().anyMatch(attributeSchema::isFilterableInScope) || requestedScopes.stream().anyMatch(attributeSchema::isUniqueInScope) ?
 						null :
 						ofNullable(referenceSchema)
 							.map(it -> new AttributeNotFilterableException(attributeName, it, entitySchema))
@@ -137,7 +137,7 @@ public class AttributeSchemaAccessor {
 									.orElseGet(() -> new AttributeNotFilterableException(attributeName, catalogSchema))
 							);
 				case SORTABLE ->
-					exception = requestedScopes.stream().anyMatch(attributeSchema::isSortable) ?
+					exception = requestedScopes.stream().anyMatch(attributeSchema::isSortableInScope) ?
 						null :
 						ofNullable(referenceSchema)
 							.map(it -> new AttributeNotSortableException(attributeName, it, entitySchema))

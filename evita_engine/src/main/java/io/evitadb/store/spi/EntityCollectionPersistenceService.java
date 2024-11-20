@@ -46,6 +46,7 @@ import io.evitadb.store.spi.model.EntityCollectionHeader;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.OptionalInt;
 import java.util.function.Function;
 
 /**
@@ -198,6 +199,16 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * @return size of the entity collection on disk in bytes
 	 */
 	long getSizeOnDiskInBytes();
+
+	/**
+	 * Fetches the last assigned price id from the global index (if this is present in the entity collection storage
+	 * file). This method is only temporary and will be removed in the future.
+	 *
+	 * @return the last assigned price id from the global index
+	 */
+	@Deprecated
+	@Nonnull
+	OptionalInt fetchLastAssignedInternalPriceIdFromGlobalIndex(long catalogVersion, int entityIndexId);
 
 	/**
 	 * Closes the entity collection persistent storage. If you don't call {@link #flushTrappedUpdates(long, DataStoreChanges)}

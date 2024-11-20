@@ -42,11 +42,7 @@ public class SetReferenceSchemaFacetedMutationSerializer_2024_11 extends Seriali
 
 	@Override
 	public void write(Kryo kryo, Output output, SetReferenceSchemaFacetedMutation mutation) {
-		output.writeString(mutation.getName());
-		final Boolean faceted = mutation.getFaceted();
-		output.writeBoolean(faceted != null);
-		output.writeBoolean(faceted);
-
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

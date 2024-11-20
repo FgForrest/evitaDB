@@ -107,7 +107,7 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 			);
 			// unique attributes could provide implicit locale
 			final AttributeSchemaContract as = attributeSchema.get();
-			if (as.isLocalized() && requestedScopes.stream().noneMatch(as::isUnique)) {
+			if (as.isLocalized() && requestedScopes.stream().noneMatch(as::isUniqueInScope)) {
 				missingLocalizedAttributes.add(attributeName);
 			}
 		}

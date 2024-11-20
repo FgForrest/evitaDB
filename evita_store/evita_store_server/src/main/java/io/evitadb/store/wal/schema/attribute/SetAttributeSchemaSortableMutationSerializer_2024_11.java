@@ -39,8 +39,7 @@ public class SetAttributeSchemaSortableMutationSerializer_2024_11 extends Serial
 
 	@Override
 	public void write(Kryo kryo, Output output, SetAttributeSchemaSortableMutation mutation) {
-		output.writeString(mutation.getName());
-		output.writeBoolean(mutation.isSortable());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

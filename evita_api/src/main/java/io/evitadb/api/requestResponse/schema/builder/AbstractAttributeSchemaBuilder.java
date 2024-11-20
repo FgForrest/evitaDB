@@ -146,7 +146,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				new SetAttributeSchemaFilterableMutation(
 					baseSchema.getName(),
 					Arrays.stream(Scope.values())
-						.filter(it -> !isFilterable(it) || !excludedScopes.contains(it))
+						.filter(it -> !isFilterableInScope(it) || !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
 				)
 			)
@@ -181,7 +181,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				new SetAttributeSchemaSortableMutation(
 					baseSchema.getName(),
 					Arrays.stream(Scope.values())
-						.filter(it -> !isUnique(it) || !excludedScopes.contains(it))
+						.filter(it -> !isUniqueInScope(it) || !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
 				)
 			)
@@ -216,7 +216,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				new SetAttributeSchemaUniqueMutation(
 					baseSchema.getName(),
 					Arrays.stream(Scope.values())
-						.filter(it -> !isUniqueWithinLocale(it) || !excludedScopes.contains(it))
+						.filter(it -> !isUniqueWithinLocaleInScope(it) || !excludedScopes.contains(it))
 						.map(it -> new ScopedAttributeUniquenessType(it, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE))
 						.toArray(ScopedAttributeUniquenessType[]::new)
 				)
@@ -250,7 +250,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				new SetAttributeSchemaSortableMutation(
 					baseSchema.getName(),
 					Arrays.stream(Scope.values())
-						.filter(it -> !isSortable(it) || !excludedScopes.contains(it))
+						.filter(it -> !isSortableInScope(it) || !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
 				)
 			)

@@ -110,7 +110,6 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		boolean originalHierarchyIndexEmpty,
-		@Nonnull Integer originalInternalPriceIdSequence,
 		@Nonnull Set<AttributeIndexStorageKey> originalAttributeIndexes,
 		@Nonnull Set<PriceIndexKey> originalPriceIndexes,
 		@Nonnull Set<String> originalFacetIndexes,
@@ -119,7 +118,7 @@ public class ReducedEntityIndex extends EntityIndex
 		super(
 			primaryKey, indexKey, version, entityIds,
 			entityIdsByLanguage, attributeIndex, hierarchyIndex, facetIndex,
-			originalHierarchyIndexEmpty, originalInternalPriceIdSequence,
+			originalHierarchyIndexEmpty,
 			originalAttributeIndexes, originalPriceIndexes, originalFacetIndexes
 		);
 		this.priceIndex = priceIndex;
@@ -140,7 +139,6 @@ public class ReducedEntityIndex extends EntityIndex
 			this.hierarchyIndex,
 			this.facetIndex,
 			this.originalHierarchyIndexEmpty,
-			this.originalInternalPriceIdSequence,
 			this.originalAttributeIndexes,
 			this.originalPriceIndexes,
 			this.originalFacetIndexes,

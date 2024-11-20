@@ -466,6 +466,56 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCanBeLookedUpByIndexes(Scope.ARCHIVED);
 	}
 
+	@DisplayName("Entity could be created in already archived state without indexes in archived scope")
+	@Test
+	void shouldCreateArchivedEntityWithNoDataIndexedInArchiveScope() {
+		/* create schema for entity archival */
+		createSchemaForEntityArchiving(Scope.LIVE);
+
+		// upsert entities product depends on
+		createBrandAndCategoryEntities();
+
+		// create product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setScope(Scope.ARCHIVED)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.setReference(Entities.BRAND, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "123"))
+					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+
+				session.archiveEntity(Entities.BRAND, 1);
+				session.archiveEntity(Entities.CATEGORY, 2);
+			}
+		);
+
+		// check product entity is not in any of indexes
+		checkProductCannotBeLookedUpByIndexes(Scope.LIVE);
+
+		// check live indexes exist and previous indexes are removed
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
+			.orElseThrow();
+
+		assertNotNull(catalog.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
+		assertNull(getReferencedEntityIndex(productCollection, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection, Scope.LIVE, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection, Scope.LIVE, Entities.BRAND, 2));
+
+		assertNull(catalog.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
+		assertNotNull(getGlobalIndex(productCollection, Scope.ARCHIVED));
+		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 2));
+	}
+
 	@DisplayName("Entity reflected references should be removed when entity is archived")
 	@Test
 	void shouldDropReflectedReferencesOnEntityArchivingAndCreateWhenBeingRestored() {

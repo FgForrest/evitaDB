@@ -39,8 +39,7 @@ public class SetAttributeSchemaFilterableMutationSerializer_2024_11 extends Seri
 
 	@Override
 	public void write(Kryo kryo, Output output, SetAttributeSchemaFilterableMutation mutation) {
-		output.writeString(mutation.getName());
-		output.writeBoolean(mutation.isFilterable());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

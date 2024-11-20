@@ -36,7 +36,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Provides complete list of {@link AttributeSchemaContract#isSortable(Scope)}
+ * Provides complete list of {@link AttributeSchemaContract#isSortableInScope(Scope)}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
@@ -59,7 +59,7 @@ public class AttributeSchemaSortableDataFetcher implements DataFetcher<List<Scop
 	public List<Scope> get(DataFetchingEnvironment environment) throws Exception {
 		final AttributeSchemaContract attributeSchema = environment.getSource();
 		return Arrays.stream(Scope.values())
-			.filter(scope -> attributeSchema.isSortable(scope))
+			.filter(scope -> attributeSchema.isSortableInScope(scope))
 			.toList();
 	}
 }

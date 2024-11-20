@@ -448,7 +448,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	void shouldDeleteCatalog() throws IOException {
 		shouldSerializeAndDeserializeCatalogHeader();
 
-		final Path catalogDirectory = getStorageOptions().storageDirectoryOrDefault().resolve(TEST_CATALOG);
+		final Path catalogDirectory = getStorageOptions().storageDirectory().resolve(TEST_CATALOG);
 		try (
 			var cps = new DefaultCatalogPersistenceService(
 				Mockito.mock(CatalogContract.class),

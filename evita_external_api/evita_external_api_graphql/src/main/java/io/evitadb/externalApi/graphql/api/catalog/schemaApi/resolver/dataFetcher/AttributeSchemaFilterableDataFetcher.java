@@ -36,7 +36,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Provides complete list of {@link AttributeSchemaContract#isFilterable(Scope)}
+ * Provides complete list of {@link AttributeSchemaContract#isFilterableInScope(Scope)}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
@@ -59,7 +59,7 @@ public class AttributeSchemaFilterableDataFetcher implements DataFetcher<List<Sc
 	public List<Scope> get(DataFetchingEnvironment environment) throws Exception {
 		final AttributeSchemaContract attributeSchema = environment.getSource();
 		return Arrays.stream(Scope.values())
-			.filter(scope -> attributeSchema.isFilterable(scope))
+			.filter(scope -> attributeSchema.isFilterableInScope(scope))
 			.toList();
 	}
 }

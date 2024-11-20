@@ -40,7 +40,7 @@ public class SetEntitySchemaWithHierarchyMutationSerializer_2024_11 extends Seri
 
 	@Override
 	public void write(Kryo kryo, Output output, SetEntitySchemaWithHierarchyMutation object) {
-		output.writeBoolean(object.isWithHierarchy());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

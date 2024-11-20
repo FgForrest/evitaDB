@@ -81,7 +81,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @return true if attribute is unique in the default (i.e. {@link Scope#LIVE}) scope
 	 */
 	default boolean isUnique() {
-		return isUnique(Scope.DEFAULT_SCOPE);
+		return isUniqueInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -95,7 +95,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @return true if attribute is unique in any scope
 	 */
 	default boolean isUniqueInAnyScope() {
-		return Arrays.stream(Scope.values()).anyMatch(this::isUnique);
+		return Arrays.stream(Scope.values()).anyMatch(this::isUniqueInScope);
 	}
 
 	/**
@@ -109,7 +109,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @param scope to check attribute is unique in
 	 * @return true if attribute is unique in particular scope
 	 */
-	boolean isUnique(@Nonnull Scope scope);
+	boolean isUniqueInScope(@Nonnull Scope scope);
 
 	/**
 	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
@@ -125,7 +125,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @return true if attribute is unique in the default (i.e. {@link Scope#LIVE}) Scope
 	 */
 	default boolean isUniqueWithinLocale() {
-		return isUniqueWithinLocale(Scope.DEFAULT_SCOPE);
+		return isUniqueWithinLocaleInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -142,7 +142,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @return true if attribute is unique in any scope
 	 */
 	default boolean isUniqueWithinLocaleInAnyScope() {
-		return Arrays.stream(Scope.values()).anyMatch(this::isUniqueWithinLocale);
+		return Arrays.stream(Scope.values()).anyMatch(this::isUniqueWithinLocaleInScope);
 	}
 
 	/**
@@ -159,7 +159,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @param scope to check attribute is unique in
 	 * @return true if attribute is unique in particular scope
 	 */
-	boolean isUniqueWithinLocale(@Nonnull Scope scope);
+	boolean isUniqueWithinLocaleInScope(@Nonnull Scope scope);
 
 	/**
 	 * Returns type of uniqueness of the attribute. See {@link #isUnique()} and {@link #isUniqueWithinLocale()}.
@@ -172,8 +172,8 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	}
 
 	/**
-	 * Returns type of uniqueness of the attribute for particular scope. See {@link #isUnique(Scope)} and
-	 * {@link #isUniqueWithinLocale(Scope)}.
+	 * Returns type of uniqueness of the attribute for particular scope. See {@link #isUniqueInScope(Scope)} and
+	 * {@link #isUniqueWithinLocaleInScope(Scope)}.
 	 *
 	 * @param scope to check attribute is unique in
 	 * @return type of uniqueness for particular scope
@@ -203,7 +203,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @return true if attribute is filterable in the default (i.e. {@link Scope#LIVE}) scope
 	 */
 	default boolean isFilterable() {
-		return isFilterable(Scope.DEFAULT_SCOPE);
+		return isFilterableInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -218,7 +218,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @return true if attribute is filterable in any scope
 	 */
 	default boolean isFilterableInAnyScope() {
-		return Arrays.stream(Scope.values()).anyMatch(this::isFilterable);
+		return Arrays.stream(Scope.values()).anyMatch(this::isFilterableInScope);
 	}
 
 	/**
@@ -233,7 +233,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @param scope to check attribute is filterable in
 	 * @return true if attribute is filterable in particular scope
 	 */
-	boolean isFilterable(@Nonnull Scope scope);
+	boolean isFilterableInScope(@Nonnull Scope scope);
 
 	/**
 	 * Retrieves the set of scopes in which filtering by this attribute is possible.
@@ -252,7 +252,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @return true if attribute is sortable in any scope
 	 */
 	default boolean isSortableInAnyScope() {
-		return Arrays.stream(Scope.values()).anyMatch(this::isSortable);
+		return Arrays.stream(Scope.values()).anyMatch(this::isSortableInScope);
 	}
 
 	/**
@@ -266,7 +266,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @return true if attribute is sortable in the default (i.e. {@link Scope#LIVE}) scope
 	 */
 	default boolean isSortable() {
-		return isSortable(Scope.DEFAULT_SCOPE);
+		return isSortableInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -278,7 +278,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * @param scope to check attribute is filterable in
 	 * @return true if attribute is filterable in particular scope
 	 */
-	boolean isSortable(@Nonnull Scope scope);
+	boolean isSortableInScope(@Nonnull Scope scope);
 
 	/**
 	 * Retrieves the set of scopes in which sorting by this attribute is possible.

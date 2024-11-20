@@ -89,7 +89,7 @@ class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator 
 	protected Formula translateInternal(@Nonnull AbstractAttributeFilterComparisonConstraintLeaf attributeConstraint, @Nonnull FilterByVisitor filterByVisitor) {
 		final String attributeName = attributeConstraint.getAttributeName();
 		final Serializable attributeValue = attributeConstraint.getAttributeValue();
-		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
+		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema

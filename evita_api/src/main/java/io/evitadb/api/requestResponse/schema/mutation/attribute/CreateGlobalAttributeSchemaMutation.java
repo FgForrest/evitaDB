@@ -223,7 +223,7 @@ public class CreateGlobalAttributeSchemaMutation
 							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							schema -> Arrays.stream(Scope.values())
-								.filter(schema::isFilterable)
+								.filter(schema::isFilterableInScope)
 								.toArray(Scope[]::new),
 							newValue -> new SetAttributeSchemaFilterableMutation(this.name, newValue)
 						),
@@ -251,7 +251,7 @@ public class CreateGlobalAttributeSchemaMutation
 							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							schema -> Arrays.stream(Scope.values())
-								.filter(schema::isSortable)
+								.filter(schema::isSortableInScope)
 								.toArray(Scope[]::new),
 							newValue -> new SetAttributeSchemaSortableMutation(this.name, newValue)
 						),

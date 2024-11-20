@@ -28,6 +28,8 @@ import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
@@ -63,7 +65,7 @@ class AbstractAttributeTranslator {
 		final Set<Scope> scopes = filterByVisitor.getScopes();
 		Assert.isTrue(
 			!attributeDefinition.isLocalized() || filterByVisitor.getLocale() != null ||
-				(scopes.stream().anyMatch(scope -> attributeDefinition.isUnique(scope) && !attributeDefinition.isUniqueWithinLocale(scope))),
+				(scopes.stream().anyMatch(scope -> attributeDefinition.isUniqueInScope(scope) && !attributeDefinition.isUniqueWithinLocaleInScope(scope))),
 			() -> new EntityLocaleMissingException(attributeName)
 		);
 
@@ -84,10 +86,23 @@ class AbstractAttributeTranslator {
 	@Nonnull
 	protected static Optional<GlobalAttributeSchemaContract> getOptionalGlobalAttributeSchema(
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull String attributeName
+		@Nonnull String attributeName,
+		@Nonnull AttributeTrait... traits
 	) {
-		return filterByVisitor.getProcessingScope().getReferenceSchema() == null ?
+		final Optional<GlobalAttributeSchemaContract> result = filterByVisitor.getProcessingScope().getReferenceSchema() == null ?
 			filterByVisitor.getCatalogSchema().getAttribute(attributeName) : Optional.empty();
+		if (result.isPresent() && traits.length > 0) {
+			AttributeSchemaAccessor.verifyAndReturn(
+				attributeName,
+				filterByVisitor.getScopes(),
+				result.get(),
+				filterByVisitor.getCatalogSchema(),
+				filterByVisitor.isEntityTypeKnown() ? filterByVisitor.getSchema() : null,
+				filterByVisitor.getReferenceSchema().orElse(null),
+				traits
+			);
+		}
+		return result;
 	}
 
 }

@@ -42,27 +42,12 @@ import java.util.stream.Collectors;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageHeaderSerializer<EntityCollectionHeader> {
+@Deprecated
+public class EntityCollectionHeaderSerializer_2024_11 extends AbstractPersistentStorageHeaderSerializer<EntityCollectionHeader> {
 
 	@Override
 	public void write(Kryo kryo, Output output, EntityCollectionHeader object) {
-		output.writeString(object.entityType());
-		output.writeVarInt(object.entityTypePrimaryKey(), true);
-		output.writeVarInt(object.entityTypeFileIndex(), true);
-		output.writeVarLong(object.version(), true);
-		output.writeVarInt(object.lastPrimaryKey(), true);
-		output.writeVarInt(object.lastEntityIndexPrimaryKey(), true);
-		output.writeVarInt(object.lastInternalPriceId(), true);
-		output.writeVarInt(object.recordCount(), true);
-		output.writeDouble(object.activeRecordShare());
-
-		final FileLocation fileOffsetIndexLocation = object.fileLocation();
-		output.writeVarLong(fileOffsetIndexLocation.startingPosition(), true);
-		output.writeVarInt(fileOffsetIndexLocation.recordLength(), true);
-
-		serializeKeys(object.compressedKeys(), output, kryo);
-		kryo.writeObjectOrNull(output, object.globalEntityIndexId(), Integer.class);
-		serializeEntityIndexIds(output, object);
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
@@ -73,7 +58,6 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		final long version = input.readVarLong(true);
 		final int lastPrimaryKey = input.readVarInt(true);
 		final int lastEntityIndexPrimaryKey = input.readVarInt(true);
-		final int lastInternalPriceId = input.readVarInt(true);
 		final int entityCount = input.readVarInt(true);
 		final double activeRecordShare = input.readDouble();
 		final FileLocation fileOffsetIndexLocation = new FileLocation(
@@ -92,25 +76,11 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 			entityCount,
 			lastPrimaryKey,
 			lastEntityIndexPrimaryKey,
-			lastInternalPriceId,
+			-1,
 			activeRecordShare,
 			new PersistentStorageHeader(version, fileOffsetIndexLocation, keys),
 			globalIndexKey,
 			entityIndexIds
-		);
-	}
-
-	private static void serializeEntityIndexIds(@Nonnull Output output, @Nonnull EntityCollectionHeader catalogEntityHeader) {
-		final int entityIndexCount = catalogEntityHeader.usedEntityIndexIds().size();
-		output.writeVarInt(entityIndexCount, true);
-		output.writeInts(
-			catalogEntityHeader.usedEntityIndexIds()
-				.stream()
-				.mapToInt(it -> it)
-				.toArray(),
-			0,
-			entityIndexCount,
-			true
 		);
 	}
 

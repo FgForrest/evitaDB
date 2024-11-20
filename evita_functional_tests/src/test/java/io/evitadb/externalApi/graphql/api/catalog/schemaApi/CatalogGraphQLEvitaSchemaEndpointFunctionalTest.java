@@ -96,7 +96,7 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	@Nonnull
 	protected static List<String> createAttributeSortableDto(@Nonnull AttributeSchemaContract schema) {
 		return Arrays.stream(Scope.values())
-			.filter(schema::isSortable)
+			.filter(schema::isSortableInScope)
 			.map(Enum::name)
 			.toList();
 	}
@@ -104,7 +104,7 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	@Nonnull
 	protected static List<String> createAttributeFilterableDto(@Nonnull AttributeSchemaContract schema) {
 		return Arrays.stream(Scope.values())
-			.filter(schema::isFilterable)
+			.filter(schema::isFilterableInScope)
 			.map(Enum::name)
 			.toList();
 	}

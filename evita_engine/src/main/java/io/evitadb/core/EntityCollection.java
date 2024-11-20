@@ -120,6 +120,7 @@ import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
 import io.evitadb.index.reference.TransactionalReference;
+import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.entity.model.schema.EntitySchemaStoragePart;
 import io.evitadb.store.entity.serializer.EntitySchemaContext;
 import io.evitadb.store.model.StoragePart;
@@ -202,6 +203,12 @@ public final class EntityCollection implements
 	 * Contains sequence that allows assigning monotonic primary keys to the entity indexes.
 	 */
 	private final AtomicInteger indexPkSequence;
+	/**
+	 * Contains the sequence for assigning {@link PriceInternalIdContainer#getInternalPriceId()} to a newly encountered
+	 * prices in the input data. See {@link PriceInternalIdContainer} to see the reasons behind it. The price sequence
+	 * is shared among live and archive scope to avoid ambiguities.
+	 */
+	private final AtomicInteger pricePkSequence;
 	/**
 	 * Service allowing to recreate I/O collection service on-demand.
 	 */
@@ -312,6 +319,16 @@ public final class EntityCollection implements
 		this.indexPkSequence = sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.INDEX, entityType, entityHeader.lastEntityIndexPrimaryKey()
 		);
+		// we need to initialize the price sequence here, in order to initialize correctly the last internal price id
+		// from older storage format when it was stored as a part of the global index
+		this.pricePkSequence = sequenceService.getOrCreateSequence(
+			catalogName, SequenceType.PRICE, entityType,
+			entityHeader.lastInternalPriceId() == -1 && entityHeader.globalEntityIndexId() != null ?
+				entityCollectionPersistenceService.fetchLastAssignedInternalPriceIdFromGlobalIndex(
+					catalogVersion,
+					entityHeader.globalEntityIndexId()
+				).orElse(0) : entityHeader.lastInternalPriceId()
+		);
 
 		// initialize container buffer
 		final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
@@ -349,6 +366,7 @@ public final class EntityCollection implements
 		} else {
 			this.indexes = loadIndexes(catalogVersion, entityHeader);
 		}
+
 		// sanity check whether we deserialized the file offset index we expect to
 		Assert.isTrue(
 			entityHeader.entityType().equals(this.initialSchema.getName()),
@@ -370,6 +388,7 @@ public final class EntityCollection implements
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull AtomicInteger pkSequence,
 		@Nonnull AtomicInteger indexPkSequence,
+		@Nonnull AtomicInteger pricePkSequence,
 		@Nonnull CatalogPersistenceService catalogPersistenceService,
 		@Nonnull EntityCollectionPersistenceService persistenceService,
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
@@ -384,6 +403,7 @@ public final class EntityCollection implements
 		this.catalogPersistenceService = catalogPersistenceService;
 		this.persistenceService = persistenceService;
 		this.indexPkSequence = indexPkSequence;
+		this.pricePkSequence = pricePkSequence;
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
 			new WarmUpDataStoreMemoryBuffer(persistenceService.getStoragePartPersistenceService()) :
 			new TransactionalDataStoreMemoryBuffer(this, persistenceService.getStoragePartPersistenceService());
@@ -1375,6 +1395,7 @@ public final class EntityCollection implements
 					.orElseThrow(() -> new GenericEvitaInternalError("Schema was unexpectedly found null after transaction completion!")),
 				this.pkSequence,
 				this.indexPkSequence,
+				this.pricePkSequence,
 				this.catalogPersistenceService,
 				this.catalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
 					catalogVersion, this.entityType, this.entityTypePrimaryKey
@@ -1420,6 +1441,7 @@ public final class EntityCollection implements
 			this.getInternalSchema(),
 			this.pkSequence,
 			this.indexPkSequence,
+			this.pricePkSequence,
 			this.catalogPersistenceService,
 			newPersistenceService,
 			this.indexes,
@@ -1465,6 +1487,7 @@ public final class EntityCollection implements
 			this.getInternalSchema(),
 			this.pkSequence,
 			this.indexPkSequence,
+			this.pricePkSequence,
 			this.catalogPersistenceService,
 			this.persistenceService,
 			this.indexes.entrySet()
@@ -1953,6 +1976,7 @@ public final class EntityCollection implements
 			this.catalog::getInternalSchema,
 			this::getInternalSchema,
 			theEntityType -> this.catalog.getCollectionForEntityInternal(theEntityType).orElse(null),
+			this::nextInternalPriceId,
 			entityMutation instanceof EntityRemoveMutation
 		);
 		final EntityIndexLocalMutationExecutor entityIndexUpdater = new EntityIndexLocalMutationExecutor(
@@ -1961,7 +1985,7 @@ public final class EntityCollection implements
 			this.entityIndexCreator,
 			this.catalog.getCatalogIndexMaintainer(),
 			this::getInternalSchema,
-			theEntityType -> this.catalog.getCollectionForEntityOrThrowException(theEntityType).getInternalSchema(),
+			this::nextInternalPriceId,
 			undoOnError,
 			() -> localMutationExecutorCollector.getFullEntityContents(changeCollector).entity()
 		);
@@ -1977,6 +2001,14 @@ public final class EntityCollection implements
 			requestedType
 		);
 
+	}
+
+	/**
+	 * Returns new, unique {@link PriceInternalIdContainer#getInternalPriceId()} from the sequence.
+	 * See {@link PriceInternalIdContainer} to see the reasons behind it.
+	 */
+	private int nextInternalPriceId() {
+		return this.pricePkSequence.incrementAndGet();
 	}
 
 	/**
@@ -2203,7 +2235,12 @@ public final class EntityCollection implements
 			return EntityCollection.this.indexPkSequence.get();
 		}
 
-		@Nullable
+		@Override
+		public int getLastAssignedInternalPriceId() {
+			return EntityCollection.this.pricePkSequence.get();
+		}
+
+		@Nonnull
 		@Override
 		public OptionalInt getGlobalIndexKey() {
 			return ofNullable(EntityCollection.this.indexes.get(new EntityIndexKey(EntityIndexType.GLOBAL)))

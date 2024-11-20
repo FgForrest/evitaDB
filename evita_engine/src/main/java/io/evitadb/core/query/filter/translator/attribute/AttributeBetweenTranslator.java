@@ -412,7 +412,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 		final Serializable from = filterConstraint.getFrom();
 		final Serializable to = filterConstraint.getTo();
 
-		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
+		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)

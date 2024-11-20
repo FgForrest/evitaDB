@@ -40,7 +40,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
@@ -65,7 +64,7 @@ public interface PriceIndexMutator {
 		@Nonnull BigDecimal priceWithTax,
 		boolean indexed,
 		@Nonnull ExistingPriceSupplier existingPriceSupplier,
-		@Nonnull BiFunction<PriceKey, Integer, Integer> internalIdSupplier,
+		@Nonnull PriceInternalIdProvider internalIdSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final PriceWithInternalIds formerPrice = existingPriceSupplier.getPriceByKey(priceKey);
@@ -95,7 +94,7 @@ public interface PriceIndexMutator {
 		boolean indexed,
 		@Nullable PriceWithInternalIds formerPrice,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
-		@Nonnull BiFunction<PriceKey, Integer, Integer> internalIdSupplier,
+		@Nonnull PriceInternalIdProvider internalIdSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
@@ -105,7 +104,7 @@ public interface PriceIndexMutator {
 		if (entitySchema.isPriceIndexedInScope(scope)) {
 			// remove former price first
 			if (formerPrice != null && formerPrice.exists() && formerPrice.indexed()) {
-				final Integer formerInternalPriceId = Objects.requireNonNull(formerPrice.getInternalPriceId());
+				final int formerInternalPriceId = formerPrice.getInternalPriceId();
 				final Integer formerInnerRecordId = formerPrice.innerRecordId();
 				final DateTimeRange formerValidity = formerPrice.validity();
 				final int formerPriceWithoutTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithoutTax(), indexedPricePlaces);
@@ -133,7 +132,7 @@ public interface PriceIndexMutator {
 			}
 			// now insert new price
 			if (indexed) {
-				final Integer internalPriceId = internalIdSupplier.apply(priceKey, innerRecordId);
+				final int internalPriceId = internalIdSupplier.getInternalPriceId(priceKey, innerRecordId);
 				final int priceWithoutTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithoutTax, indexedPricePlaces);
 				final int priceWithTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithTax, indexedPricePlaces);
 				final int priceId = entityIndex.addPrice(
@@ -155,10 +154,6 @@ public interface PriceIndexMutator {
 							priceWithTaxAsInt
 						)
 					);
-				}
-				if (internalPriceId == null) {
-					executor.getContainerAccessor()
-						.registerAssignedPriceId(entityPrimaryKey, priceKey, priceId);
 				}
 			}
 		}
@@ -242,7 +237,7 @@ public interface PriceIndexMutator {
 	 * bi function arguments match the `price` identification and if not exception is thrown.
 	 */
 	@Nonnull
-	static BiFunction<PriceKey, Integer, Integer> createPriceProvider(@Nonnull PriceWithInternalIds price) {
+	static PriceInternalIdProvider createPriceProvider(@Nonnull PriceWithInternalIds price) {
 		return (priceKey, innerRecordId) -> {
 			Assert.isPremiseValid(
 				priceKey.equals(price.priceKey()) && Objects.equals(innerRecordId, price.innerRecordId()),
@@ -250,6 +245,22 @@ public interface PriceIndexMutator {
 			);
 			return price.internalPriceId();
 		};
+	}
+
+	/**
+	 * The PriceInternalIdProvider interface defines a method for retrieving the internal ID associated with a specific price.
+	 */
+	interface PriceInternalIdProvider {
+
+		/**
+		 * Retrieves the internal price ID associated with the provided {@link PriceKey} and optional inner record ID.
+		 *
+		 * @param priceKey the key identifying the price, which is a combination of price ID, price list, and currency.
+		 * @param innerRecordId an optional identifier that may provide additional context within an otherwise identified price.
+		 * @return the internal ID corresponding to the given price key and inner record ID.
+		 */
+		int getInternalPriceId(@Nonnull PriceKey priceKey, @Nullable Integer innerRecordId);
+
 	}
 
 }

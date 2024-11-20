@@ -346,7 +346,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	}
 
 	@Override
-	public boolean isUnique(@Nonnull Scope scope) {
+	public boolean isUniqueInScope(@Nonnull Scope scope) {
 		final AttributeUniquenessType attributeUniquenessType = this.uniquenessTypeInScopes.get(scope);
 		return attributeUniquenessType != null && attributeUniquenessType != AttributeUniquenessType.NOT_UNIQUE;
 	}
@@ -357,7 +357,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	}
 
 	@Override
-	public boolean isUniqueWithinLocale(@Nonnull Scope scope) {
+	public boolean isUniqueWithinLocaleInScope(@Nonnull Scope scope) {
 		final AttributeUniquenessType attributeUniquenessType = this.uniquenessTypeInScopes.get(scope);
 		return attributeUniquenessType == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
 	}
@@ -369,12 +369,12 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 	}
 
 	@Override
-	public boolean isFilterable(@Nonnull Scope scope) {
+	public boolean isFilterableInScope(@Nonnull Scope scope) {
 		return this.filterableInScopes.contains(scope);
 	}
 
 	@Override
-	public boolean isSortable(@Nonnull Scope scope) {
+	public boolean isSortableInScope(@Nonnull Scope scope) {
 		return this.sortableInScopes.contains(scope);
 	}
 

@@ -47,6 +47,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.zip.ZipEntry;
@@ -126,7 +127,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 	private void doRestore() {
 		// unzip contents of the stream
 		final TaskStatus<RestoreSettings, Void> status = getStatus();
-		final String catalogName = status.catalogName();
+		final String catalogName = Objects.requireNonNull(status.catalogName());
 
 		final Path inputFile = status.settings().pathToFile();
 		log.info("Restoring catalog `{}` from file `{}`.", catalogName, inputFile);
@@ -141,10 +142,10 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			);
 			final ZipInputStream zipInputStream = new ZipInputStream(cis)
 		) {
-			final Path storagePath = DefaultCatalogPersistenceService.pathForCatalog(catalogName, this.storageOptions.storageDirectoryOrDefault());
+			final Path storagePath = DefaultCatalogPersistenceService.pathForCatalog(catalogName, this.storageOptions.storageDirectory());
 			DefaultCatalogPersistenceService.verifyDirectory(storagePath, true);
 
-			ZipEntry entry = zipInputStream.getNextEntry();
+			ZipEntry entry = Objects.requireNonNull(zipInputStream.getNextEntry());
 			Assert.isPremiseValid(entry.isDirectory(), "First entry in the zip file must be a directory!");
 			// last character is always a slash
 			final String directoryName = entry.getName().substring(0, entry.getName().length() - 1);

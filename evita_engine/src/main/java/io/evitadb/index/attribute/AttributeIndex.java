@@ -185,7 +185,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		if (attributeSchema.isLocalized()) {
 			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
 		}
-		if (attributeSchema.isUniqueWithinLocale(scope)) {
+		if (attributeSchema.isUniqueWithinLocaleInScope(scope)) {
 			return new AttributeKey(attributeSchema.getName(), locale);
 		} else {
 			return new AttributeKey(attributeSchema.getName());
@@ -453,7 +453,7 @@ public class AttributeIndex implements AttributeIndexContract,
 	@Override
 	@Nullable
 	public UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Scope scope, @Nullable Locale locale) {
-		final boolean uniqueWithinLocale = attributeSchema.isUniqueWithinLocale(scope);
+		final boolean uniqueWithinLocale = attributeSchema.isUniqueWithinLocaleInScope(scope);
 		Assert.isTrue(
 			locale != null || !uniqueWithinLocale,
 			() -> new EntityLocaleMissingException(attributeSchema.getName())

@@ -82,8 +82,8 @@ public final class AttributeSchemaBuilder
 					// filter out default values
 					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedAttributeUniquenessType[]::new),
-				Arrays.stream(Scope.values()).filter(baseSchema::isFilterable).toArray(Scope[]::new),
-				Arrays.stream(Scope.values()).filter(baseSchema::isSortable).toArray(Scope[]::new),
+				Arrays.stream(Scope.values()).filter(baseSchema::isFilterableInScope).toArray(Scope[]::new),
+				Arrays.stream(Scope.values()).filter(baseSchema::isSortableInScope).toArray(Scope[]::new),
 				baseSchema.isLocalized(),
 				baseSchema.isNullable(),
 				false,

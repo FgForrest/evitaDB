@@ -675,19 +675,19 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		for (Scope scope : Scope.values()) {
 			if (!this.isIndexedInScope(scope)) {
 				for (AttributeSchemaContract attribute : attributes.values()) {
-					if (attribute.isFilterable(scope)) {
+					if (attribute.isFilterableInScope(scope)) {
 						attributeErrors = Stream.concat(
 							attributeErrors,
 							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is filterable but reference schema is not indexed!")
 						);
 					}
-					if (attribute.isSortable(scope)) {
+					if (attribute.isSortableInScope(scope)) {
 						attributeErrors = Stream.concat(
 							attributeErrors,
 							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is sortable but reference schema is not indexed!")
 						);
 					}
-					if (attribute.isUnique(scope)) {
+					if (attribute.isUniqueInScope(scope)) {
 						attributeErrors = Stream.concat(
 							attributeErrors,
 							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is unique but reference schema is not indexed!")

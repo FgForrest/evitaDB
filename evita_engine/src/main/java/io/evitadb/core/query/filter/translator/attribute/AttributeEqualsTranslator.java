@@ -156,7 +156,7 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 	public Formula translate(@Nonnull AttributeEquals attributeEquals, @Nonnull FilterByVisitor filterByVisitor) {
 		final String attributeName = attributeEquals.getAttributeName();
 		final Serializable attributeValue = attributeEquals.getAttributeValue();
-		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
+		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
 			final Set<Scope> scopes = filterByVisitor.getScopes();
@@ -174,7 +174,7 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 				return createGloballyUniqueAttributeFormula(
 					filterByVisitor, globalAttributeSchema, attributeKey, comparedValue
 				);
-			} else if (scopes.stream().anyMatch(attributeDefinition::isUnique)) {
+			} else if (scopes.stream().anyMatch(attributeDefinition::isUniqueInScope)) {
 				return createUniqueAttributeFormula(
 					filterByVisitor, attributeDefinition, attributeKey, comparedValue
 				);

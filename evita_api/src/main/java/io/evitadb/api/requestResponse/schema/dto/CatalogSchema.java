@@ -232,10 +232,10 @@ public final class CatalogSchema implements CatalogSchemaContract {
 					.filter(it -> it.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedGlobalAttributeUniquenessType[]::new),
 				Arrays.stream(Scope.values())
-					.filter(attributeSchemaContract::isFilterable)
+					.filter(attributeSchemaContract::isFilterableInScope)
 					.toArray(Scope[]::new),
 				Arrays.stream(Scope.values())
-					.filter(attributeSchemaContract::isSortable)
+					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
 				attributeSchemaContract.isLocalized(),
 				attributeSchemaContract.isNullable(),

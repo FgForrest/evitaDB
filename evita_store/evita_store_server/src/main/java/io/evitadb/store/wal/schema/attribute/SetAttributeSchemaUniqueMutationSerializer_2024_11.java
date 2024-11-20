@@ -40,8 +40,7 @@ public class SetAttributeSchemaUniqueMutationSerializer_2024_11 extends Serializ
 
 	@Override
 	public void write(Kryo kryo, Output output, SetAttributeSchemaUniqueMutation object) {
-		output.writeString(object.getName());
-		kryo.writeObject(output, object.getUnique());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

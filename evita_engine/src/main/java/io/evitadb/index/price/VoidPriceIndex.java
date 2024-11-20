@@ -65,7 +65,7 @@ public class VoidPriceIndex implements PriceIndexContract {
 	}
 
 	@Override
-	public int addPrice(int entityPrimaryKey, @Nullable Integer internalPriceId, @Nonnull PriceKey priceKey, @Nonnull PriceInnerRecordHandling innerRecordHandling, @Nullable Integer innerRecordId, @Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax) {
+	public int addPrice(int entityPrimaryKey, int internalPriceId, @Nonnull PriceKey priceKey, @Nonnull PriceInnerRecordHandling innerRecordHandling, @Nullable Integer innerRecordId, @Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax) {
 		throw new UnsupportedOperationException();
 	}
 

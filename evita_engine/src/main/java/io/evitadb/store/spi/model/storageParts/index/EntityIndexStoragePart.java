@@ -28,7 +28,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import lombok.Getter;
@@ -85,11 +84,6 @@ public class EntityIndexStoragePart implements StoragePart {
 	 * allows to translate itself to a unique key allowing to fetch {@link StoragePart} from persistent storage.
 	 */
 	@Getter private final Set<AttributeIndexStorageKey> attributeIndexes;
-	/**
-	 * Contains the last used id in the sequence for assigning {@link PriceInternalIdContainer#getInternalPriceId()} to
-	 * a newly encountered prices in the input data. See {@link PriceInternalIdContainer} to see the reasons behind it.
-	 */
-	@Getter private final Integer internalPriceIdSequence;
 	/**
 	 * Contains references to the {@link PriceListAndCurrencySuperIndexStoragePart} in the form of {@link PriceIndexKey} that
 	 * allows to translate itself to a unique key allowing to fetch {@link StoragePart} from persistent storage.

@@ -38,7 +38,6 @@ import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
 import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link AttributeSchema} from/to binary format.
@@ -51,38 +50,7 @@ public class EntityAttributeSchemaSerializer_2024_11 extends Serializer<EntityAt
 
 	@Override
 	public void write(Kryo kryo, Output output, EntityAttributeSchema attributeSchema) {
-		output.writeString(attributeSchema.getName());
-		output.writeVarInt(attributeSchema.getNameVariants().size(), true);
-		for (Entry<NamingConvention, String> entry : attributeSchema.getNameVariants().entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
-		kryo.writeClass(output, attributeSchema.getType());
-		if (attributeSchema.getDefaultValue() == null) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			kryo.writeClassAndObject(output, attributeSchema.getDefaultValue());
-		}
-		output.writeVarInt(attributeSchema.getUniquenessType().ordinal(), true);
-		output.writeBoolean(attributeSchema.isLocalized());
-		output.writeBoolean(attributeSchema.isFilterable());
-		output.writeBoolean(attributeSchema.isSortable());
-		output.writeBoolean(attributeSchema.isNullable());
-		output.writeBoolean(attributeSchema.isRepresentative());
-		output.writeInt(attributeSchema.getIndexedDecimalPlaces());
-		if (attributeSchema.getDescription() != null) {
-			output.writeBoolean(true);
-			output.writeString(attributeSchema.getDescription());
-		} else {
-			output.writeBoolean(false);
-		}
-		if (attributeSchema.getDeprecationNotice() != null) {
-			output.writeBoolean(true);
-			output.writeString(attributeSchema.getDeprecationNotice());
-		} else {
-			output.writeBoolean(false);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})

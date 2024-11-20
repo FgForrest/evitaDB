@@ -1,3 +1,4 @@
+
 /*
  *
  *                         _ _        ____  ____
@@ -33,7 +34,6 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import java.math.BigDecimal;
@@ -43,41 +43,21 @@ import java.math.BigDecimal;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Deprecated
 @RequiredArgsConstructor
-public class PriceWithInternalIdsSerializer extends Serializer<PriceWithInternalIds> {
+public class PriceWithInternalIdsSerializer_2024_11 extends Serializer<PriceWithInternalIds> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceWithInternalIds price) {
-		Assert.isPremiseValid(
-			price.getInternalPriceId() > 0,
-			"Internal price id must be positive, but was: " + price.getInternalPriceId()
-		);
-
-		output.writeVarInt(price.version(), true);
-		output.writeBoolean(price.indexed());
-		output.writeInt(price.getInternalPriceId());
-		output.writeInt(price.priceId());
-		output.writeVarInt(keyCompressor.getId(new CompressiblePriceKey(price.priceKey())), true);
-		final Integer innerRecordId = price.innerRecordId();
-		if (innerRecordId == null) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			output.writeInt(innerRecordId);
-		}
-		kryo.writeObject(output, price.priceWithoutTax());
-		kryo.writeObject(output, price.taxRate());
-		kryo.writeObject(output, price.priceWithTax());
-		kryo.writeObjectOrNull(output, price.validity(), DateTimeRange.class);
-		output.writeBoolean(price.dropped());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
 	public PriceWithInternalIds read(Kryo kryo, Input input, Class<? extends PriceWithInternalIds> type) {
 		final int version = input.readVarInt(true);
 		final boolean indexed = input.readBoolean();
-		final int internalPriceId = input.readInt();
+		final Integer internalPriceId = indexed ? input.readInt() : null;
 		final int priceId = input.readInt();
 		final CompressiblePriceKey priceKey = keyCompressor.getKeyForId(input.readVarInt(true));
 		final boolean innerIdExists = input.readBoolean();
@@ -101,7 +81,7 @@ public class PriceWithInternalIdsSerializer extends Serializer<PriceWithInternal
 				priceWithoutTax, taxRate, priceWithTax,
 				validity, indexed, dropped
 			),
-			internalPriceId
+			internalPriceId == null ? -1 : internalPriceId
 		);
 	}
 

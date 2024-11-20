@@ -49,12 +49,9 @@ import java.io.Serial;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.OptionalInt;
-import java.util.function.Function;
+import java.util.function.ToIntFunction;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
-
-import static java.util.Objects.requireNonNull;
-import static java.util.Optional.ofNullable;
 
 /**
  * This container class represents {@link Prices} of single {@link Entity}. Contains {@link PriceInnerRecordHandling}
@@ -170,7 +167,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	public void replaceOrAddPrice(
 		@Nonnull PriceKey priceKey,
 		@Nonnull UnaryOperator<PriceContract> mutator,
-		@Nonnull Function<PriceKey, Integer> internalPriceIdResolver
+		@Nonnull ToIntFunction<PriceKey> internalPriceIdResolver
 	) {
 		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			this.prices, priceKey,
@@ -181,26 +178,20 @@ public class PricesStoragePart implements EntityStoragePart {
 			final PriceWithInternalIds existingContract = this.prices[position];
 			final PriceContract updatedPriceContract = mutator.apply(existingContract);
 			if (this.prices[position].differsFrom(updatedPriceContract)) {
+				final int existingInternalPriceId = existingContract.getInternalPriceId();
 				this.prices[position] = new PriceWithInternalIds(
 					updatedPriceContract,
-					updatedPriceContract.indexed() ?
-						requireNonNull(
-							ofNullable(existingContract.getInternalPriceId())
-								.orElseGet(() -> internalPriceIdResolver.apply(priceKey))
-						) : null
+					// -1 value is used of old prices that were not indexed and thus do not have internal id
+					// now all prices have internal id, so we can safely use -1 as a marker for non-existing price id
+					existingInternalPriceId == -1 ?
+						internalPriceIdResolver.applyAsInt(priceKey) : existingInternalPriceId
 				);
 				this.dirty = true;
 			}
 		} else {
 			final PriceContract newPrice = mutator.apply(null);
-			final Integer internalPriceId;
-			if (newPrice.indexed()) {
-				internalPriceId = internalPriceIdResolver.apply(priceKey);
-			} else {
-				internalPriceId = null;
-			}
 			this.prices = ArrayUtils.insertRecordIntoArray(
-				new PriceWithInternalIds(newPrice, internalPriceId),
+				new PriceWithInternalIds(newPrice, internalPriceIdResolver.applyAsInt(priceKey)),
 				this.prices,
 				position
 			);
@@ -226,15 +217,12 @@ public class PricesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public OptionalInt findExistingInternalIds(@Nonnull PriceKey priceKey) {
-		OptionalInt internalPriceId = OptionalInt.empty();
 		for (PriceWithInternalIds price : this.prices) {
 			if (Objects.equals(priceKey, price.priceKey())) {
-				internalPriceId = price.getInternalPriceId() == null ?
-					OptionalInt.empty() : OptionalInt.of(price.getInternalPriceId());
-				break;
+				return OptionalInt.of(price.getInternalPriceId());
 			}
 		}
-		return internalPriceId;
+		return OptionalInt.empty();
 	}
 
 	/**

@@ -74,7 +74,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
 			final Set<Scope> scopes = filterByVisitor.getScopes();
-			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName)
+			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
@@ -87,7 +87,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 					createNullGloballyUniqueSubtractionFormula(globalAttributeSchema, filterByVisitor),
 					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
 				);
-			} else if (scopes.stream().anyMatch(attributeDefinition::isUnique)) {
+			} else if (scopes.stream().anyMatch(attributeDefinition::isUniqueInScope)) {
 				return FutureNotFormula.postProcess(
 					createNullUniqueSubtractionFormula(attributeDefinition, filterByVisitor),
 					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
@@ -230,7 +230,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
 			final Set<Scope> scopes = filterByVisitor.getScopes();
-			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName)
+			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
@@ -246,7 +246,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 						index -> new ConstantFormula(index.getRecordIds(filterByVisitor.getEntityType()))
 					)
 				);
-			} else if (scopes.stream().anyMatch(attributeDefinition::isUnique)) {
+			} else if (scopes.stream().anyMatch(attributeDefinition::isUniqueInScope)) {
 				return new AttributeFormula(
 					attributeDefinition instanceof GlobalAttributeSchemaContract,
 					attributeKey,

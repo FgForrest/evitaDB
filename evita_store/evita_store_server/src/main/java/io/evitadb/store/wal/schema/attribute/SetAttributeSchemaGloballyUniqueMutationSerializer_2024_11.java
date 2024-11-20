@@ -40,8 +40,7 @@ public class SetAttributeSchemaGloballyUniqueMutationSerializer_2024_11 extends 
 
 	@Override
 	public void write(Kryo kryo, Output output, SetAttributeSchemaGloballyUniqueMutation mutation) {
-		output.writeString(mutation.getName());
-		kryo.writeObject(output, mutation.getUniqueGlobally());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

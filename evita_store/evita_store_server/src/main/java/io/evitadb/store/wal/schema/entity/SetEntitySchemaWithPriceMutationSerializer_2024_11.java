@@ -40,8 +40,7 @@ public class SetEntitySchemaWithPriceMutationSerializer_2024_11 extends Serializ
 
 	@Override
 	public void write(Kryo kryo, Output output, SetEntitySchemaWithPriceMutation mutation) {
-		output.writeBoolean(mutation.isWithPrice());
-		output.writeVarInt(mutation.getIndexedPricePlaces(), true);
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

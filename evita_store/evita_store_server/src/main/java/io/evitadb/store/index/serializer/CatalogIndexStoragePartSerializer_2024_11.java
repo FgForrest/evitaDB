@@ -50,13 +50,7 @@ public class CatalogIndexStoragePartSerializer_2024_11 extends Serializer<Catalo
 
 	@Override
 	public void write(Kryo kryo, Output output, CatalogIndexStoragePart catalogIndex) {
-		output.writeVarInt(catalogIndex.getVersion(), true);
-
-		final Set<AttributeKey> attributeKeys = catalogIndex.getSharedAttributeUniqueIndexes();
-		output.writeVarInt(attributeKeys.size(), true);
-		for (AttributeKey attributeKey : attributeKeys) {
-			output.writeVarInt(keyCompressor.getId(attributeKey), true);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

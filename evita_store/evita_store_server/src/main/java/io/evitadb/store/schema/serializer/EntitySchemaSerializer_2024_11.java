@@ -44,7 +44,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 /**
@@ -58,41 +57,7 @@ public class EntitySchemaSerializer_2024_11 extends Serializer<EntitySchema> {
 
 	@Override
 	public void write(Kryo kryo, Output output, EntitySchema entitySchema) {
-		output.writeInt(entitySchema.version());
-		output.writeString(entitySchema.getName());
-		output.writeVarInt(entitySchema.getNameVariants().size(), true);
-		for (Entry<NamingConvention, String> entry : entitySchema.getNameVariants().entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
-		output.writeBoolean(entitySchema.isWithGeneratedPrimaryKey());
-		output.writeBoolean(entitySchema.isWithHierarchy());
-		output.writeBoolean(entitySchema.isWithPrice());
-		output.writeInt(entitySchema.getIndexedPricePlaces(), true);
-		kryo.writeObject(output, entitySchema.getLocales());
-		kryo.writeObject(output, entitySchema.getCurrencies());
-		kryo.writeObject(output, entitySchema.getAttributes(), heterogeneousSerializer);
-		kryo.writeObject(output, entitySchema.getAssociatedData());
-		kryo.writeObject(output, entitySchema.getReferences(), heterogeneousSerializer);
-		kryo.writeObject(output, entitySchema.getEvolutionMode());
-		if (entitySchema.getDescription() != null) {
-			output.writeBoolean(true);
-			output.writeString(entitySchema.getDescription());
-		} else {
-			output.writeBoolean(false);
-		}
-		if (entitySchema.getDeprecationNotice() != null) {
-			output.writeBoolean(true);
-			output.writeString(entitySchema.getDeprecationNotice());
-		} else {
-			output.writeBoolean(false);
-		}
-
-		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = entitySchema.getSortableAttributeCompounds();
-		output.writeVarInt(sortableAttributeCompounds.size(), true);
-		for (SortableAttributeCompoundSchemaContract sortableAttributeCompound : sortableAttributeCompounds.values()) {
-			kryo.writeObject(output, sortableAttributeCompound);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

@@ -76,7 +76,7 @@ public interface PriceIndexContract {
 	 */
 	int addPrice(
 		int entityPrimaryKey,
-		@Nullable Integer internalPriceId,
+		int internalPriceId,
 		@Nonnull PriceKey priceKey,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
 		@Nullable Integer innerRecordId,

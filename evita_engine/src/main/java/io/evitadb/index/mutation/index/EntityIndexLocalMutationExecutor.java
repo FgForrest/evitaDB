@@ -86,6 +86,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import java.util.stream.Stream;
@@ -128,9 +129,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private final Supplier<EntitySchema> schemaAccessor;
 	/**
-	 * The accessor that allows to retrieve schema of other entities.
+	 * The sequence service that assigns new price internal ids.
 	 */
-	private final Function<String, EntitySchema> otherEntitiesSchemaAccessor;
+	@Nonnull private final IntSupplier priceInternalIdSupplier;
 	/**
 	 * List of all undo actions that must be executed in case of (semi) rollback.
 	 */
@@ -173,7 +174,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor,
 		@Nonnull IndexMaintainer<CatalogIndexKey, CatalogIndex> catalogIndexCreatingAccessor,
 		@Nonnull Supplier<EntitySchema> schemaAccessor,
-		@Nonnull Function<String, EntitySchema> otherEntitiesSchemaAccessor,
+		@Nonnull IntSupplier priceInternalIdSupplier,
 		boolean undoOnError,
 		@Nonnull Supplier<Entity> fullEntitySupplier
 	) {
@@ -182,7 +183,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.entityIndexCreatingAccessor = entityIndexCreatingAccessor;
 		this.catalogIndexCreatingAccessor = catalogIndexCreatingAccessor;
 		this.schemaAccessor = schemaAccessor;
-		this.otherEntitiesSchemaAccessor = otherEntitiesSchemaAccessor;
+		this.priceInternalIdSupplier = priceInternalIdSupplier;
 		this.entityType = schemaAccessor.get().getName();
 		this.undoActions = undoOnError ? new LinkedList<>() : null;
 		this.undoActionsAppender = undoOnError ? undoActions::add : null;
@@ -1337,7 +1338,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					final OptionalInt existingInternalId = this.containerAccessor.findExistingInternalId(
 						this.entityType, theEntityPrimaryKey, thePriceKey
 					);
-					return existingInternalId.isPresent() ? existingInternalId.getAsInt() : null;
+					// -1 value is used of old prices that were not indexed and thus do not have internal id
+					// now all prices have internal id, so we can safely use -1 as a marker for non-existing price id
+					if (existingInternalId.isPresent() && existingInternalId.getAsInt() != -1) {
+						return existingInternalId.getAsInt();
+					} else {
+						final int newlyAssignedId = this.priceInternalIdSupplier.getAsInt();
+						this.containerAccessor.registerAssignedPriceId(theEntityPrimaryKey, thePriceKey, newlyAssignedId);
+						return newlyAssignedId;
+					}
 				},
 				this.undoActionsAppender
 			);

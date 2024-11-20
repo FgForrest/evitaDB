@@ -81,8 +81,8 @@ import static java.util.Optional.ofNullable;
  */
 public class ReferencedTypeEntityIndex extends EntityIndex implements
 	TransactionalLayerProducer<ReferencedTypeEntityIndexChanges, ReferencedTypeEntityIndex>,
-	IndexDataStructure,
-	Serializable {
+	IndexDataStructure {
+
 	/**
 	 * No prices are maintained in this index.
 	 */
@@ -158,7 +158,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Override
 	protected StoragePart createStoragePart(
 		boolean hierarchyIndexEmpty,
-		@Nullable Integer internalPriceIdSequence,
 		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
 		@Nonnull Set<PriceIndexKey> priceIndexKeys,
 		@Nonnull Set<String> facetIndexReferencedEntities
@@ -167,7 +166,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			primaryKey, version, indexKey,
 			entityIds, entityIdsByLanguage,
 			attributeIndexStorageKeys,
-			internalPriceIdSequence,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
 			facetIndexReferencedEntities,
@@ -233,7 +231,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	}
 
 	/**
-	 * This method delegates call to {@link #insertFilterAttribute(AttributeSchemaContract, Set, Locale, Object, int)}
+	 * This method delegates call to {@link EntityIndex#insertFilterAttribute(AttributeSchemaContract, Set, Locale, Object, int)}
 	 * but tracks the cardinality of the referenced primary key in {@link #cardinalityIndexes}.
 	 */
 	@Override

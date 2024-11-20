@@ -130,7 +130,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			"Attribute `" + attributeName + "` must be a number in order to compute histogram!"
 		);
 		Assert.isTrue(
-			scopes.stream().anyMatch(attributeSchema::isFilterable),
+			scopes.stream().anyMatch(attributeSchema::isFilterableInScope),
 			() -> new AttributeNotFilterableException(attributeName, "\"filterable\"", schema)
 		);
 		return attributeSchema;

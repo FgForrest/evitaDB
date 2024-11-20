@@ -108,6 +108,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -146,6 +147,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Nonnull private final Supplier<CatalogSchema> catalogSchemaAccessor;
 	@Nonnull private final Supplier<EntitySchema> schemaAccessor;
 	@Nonnull private final Function<String, DataStoreReader> dataStoreReaderAccessor;
+	@Nonnull private final IntSupplier priceInternalIdSupplier;
 	@Getter private final boolean entityRemovedEntirely;
 	private final DataStoreMemoryBuffer dataStoreUpdater;
 	@Getter @Setter private boolean trapChanges;
@@ -254,6 +256,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull Supplier<CatalogSchema> catalogSchemaAccessor,
 		@Nonnull Supplier<EntitySchema> schemaAccessor,
 		@Nonnull Function<String, DataStoreReader> dataStoreReaderAccessor,
+		@Nonnull IntSupplier priceInternalIdSupplier,
 		boolean entityRemovedEntirely
 	) {
 		super(catalogVersion, dataStoreReader);
@@ -261,6 +264,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		this.catalogSchemaAccessor = catalogSchemaAccessor;
 		this.schemaAccessor = schemaAccessor;
 		this.dataStoreReaderAccessor = dataStoreReaderAccessor;
+		this.priceInternalIdSupplier = priceInternalIdSupplier;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.entityType = schemaAccessor.get().getName();
 		this.entityContainer = getEntityStoragePart(this.entityType, entityPrimaryKey, requiresExisting);
@@ -301,12 +305,12 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		final BiConsumer<Long, StoragePart> remover = this.trapChanges ?
 			(catalogVersion, part) -> this.dataStoreUpdater.trapRemoveByPrimaryKey(
 				catalogVersion,
-				part.getStoragePartPK(),
+				part.getStoragePartPKOrElseThrowException(),
 				part.getClass()
 			)
 			: (catalogVersion, part) -> this.dataStoreUpdater.removeByPrimaryKey(
 			catalogVersion,
-			part.getStoragePartPK(),
+			part.getStoragePartPKOrElseThrowException(),
 			part.getClass()
 		);
 		final BiConsumer<Long, StoragePart> updater = this.trapChanges ?
@@ -731,6 +735,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				) : Collections.emptyMap();
 
 		final TriConsumer<Serializable, Boolean, AttributeKey> missingAttributeHandler = (defaultValue, nullable, attributeKey) -> {
+			Assert.isPremiseValid(attributeKey != null, "Attribute key must not be null!");
+			Assert.isPremiseValid(nullable != null, "Nullable flag must not be null!");
 			if (defaultValue == null) {
 				if (!nullable) {
 					missingMandatedAttributes.add(attributeKey);
@@ -1058,7 +1064,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param mutationCollector                   the mutation collector, must not be {@code null}
 	 * @param eachReferenceConsumer               consumer that is invoked with each created reference
 	 */
-	private void createAndRegisterReferencePropagationMutation(
+	private static void createAndRegisterReferencePropagationMutation(
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull ReducedEntityIndex referenceIndexWithPrimaryReferences,
 		@Nonnull MutationCollector mutationCollector,
@@ -1202,6 +1208,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					final Set<AttributeKey> availableAttributes = collectAttributeKeys(reference);
 					final List<AttributeKey> missingReferenceMandatedAttribute = new LinkedList<>();
 					final TriConsumer<Serializable, Boolean, AttributeKey> missingAttributeHandler = (defaultValue, nullable, attributeKey) -> {
+						Assert.isPremiseValid(attributeKey != null, "Attribute key must not be null!");
+						Assert.isPremiseValid(nullable != null, "Nullable flag must not be null!");
 						if (defaultValue == null) {
 							if (!nullable) {
 								missingReferenceMandatedAttribute.add(attributeKey);
@@ -1587,7 +1595,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		pricesStorageContainer.replaceOrAddPrice(
 			localMutation.getPriceKey(),
 			priceContract -> localMutation.mutateLocal(entitySchema, priceContract),
-			priceKey -> ofNullable(this.assignedInternalPriceIdIndex).map(it -> it.get(priceKey)).orElse(null)
+			priceKey -> ofNullable(this.assignedInternalPriceIdIndex)
+				.map(it -> it.get(priceKey))
+				.orElseGet(this.priceInternalIdSupplier::getAsInt)
 		);
 		// change in entity parts also change the entity itself (we need to update the version)
 		if (pricesStorageContainer.isDirty()) {

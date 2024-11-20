@@ -106,7 +106,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 		entitySchema.getAttributes()
 			.values()
 			.stream()
-			.filter(attribute -> Arrays.stream(comparableScopes).anyMatch(attribute::isUnique))
+			.filter(attribute -> Arrays.stream(comparableScopes).anyMatch(attribute::isUniqueInScope))
 			.map(attributeSchema -> attributeSchema.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
 			.forEach(name -> {
 				if (parameters.containsKey(name)) {

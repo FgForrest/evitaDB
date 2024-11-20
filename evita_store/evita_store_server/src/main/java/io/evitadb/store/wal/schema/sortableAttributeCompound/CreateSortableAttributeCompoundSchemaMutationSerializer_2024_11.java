@@ -43,16 +43,7 @@ public class CreateSortableAttributeCompoundSchemaMutationSerializer_2024_11 ext
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateSortableAttributeCompoundSchemaMutation mutation) {
-		output.writeString(mutation.getName());
-		output.writeString(mutation.getDescription());
-		output.writeString(mutation.getDeprecationNotice());
-		final AttributeElement[] attributeElements = mutation.getAttributeElements();
-		output.writeVarInt(attributeElements.length, true);
-		for (AttributeElement attributeElement : attributeElements) {
-			output.writeString(attributeElement.attributeName());
-			kryo.writeObject(output, attributeElement.direction());
-			kryo.writeObject(output, attributeElement.behaviour());
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

@@ -39,10 +39,7 @@ public class SetReferenceSchemaIndexedMutationSerializer_2024_11 extends Seriali
 
 	@Override
 	public void write(Kryo kryo, Output output, SetReferenceSchemaIndexedMutation mutation) {
-		output.writeString(mutation.getName());
-		final Boolean indexed = mutation.getIndexed();
-		output.writeBoolean(indexed != null);
-		output.writeBoolean(indexed);
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

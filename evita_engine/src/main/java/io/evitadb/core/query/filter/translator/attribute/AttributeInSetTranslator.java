@@ -183,7 +183,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		}
 
 		final String attributeName = attributeInSet.getAttributeName();
-		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
+		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
 			final Set<Scope> scopes = filterByVisitor.getScopes();
@@ -205,7 +205,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 				return createGloballyUniqueAttributeFormula(
 					filterByVisitor, globalAttributeSchema, attributeKey, theComparedValues
 				);
-			} else if (scopes.stream().anyMatch(attributeDefinition::isUnique)) {
+			} else if (scopes.stream().anyMatch(attributeDefinition::isUniqueInScope)) {
 				return createUniqueAttributeFormula(
 					filterByVisitor, attributeDefinition, attributeKey, theComparedValues
 				);

@@ -181,8 +181,9 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 
 	@Override
 	protected int addPrice(
-		@Nonnull PriceListAndCurrencyPriceRefIndex priceListIndex, int entityPrimaryKey,
-		@Nullable Integer internalPriceId,
+		@Nonnull PriceListAndCurrencyPriceRefIndex priceListIndex,
+		int entityPrimaryKey,
+		int internalPriceId,
 		int priceId,
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
@@ -218,15 +219,15 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		private final TransactionalContainerChanges<Void, PriceListAndCurrencyPriceRefIndex, PriceListAndCurrencyPriceRefIndex> collectedPriceIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull PriceListAndCurrencyPriceRefIndex priceIndex) {
-			collectedPriceIndexChanges.addCreatedItem(priceIndex);
+			this.collectedPriceIndexChanges.addCreatedItem(priceIndex);
 		}
 
 		public void addRemovedItem(@Nonnull PriceListAndCurrencyPriceRefIndex priceIndex) {
-			collectedPriceIndexChanges.addRemovedItem(priceIndex);
+			this.collectedPriceIndexChanges.addRemovedItem(priceIndex);
 		}
 
 		public void clean(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			collectedPriceIndexChanges.clean(transactionalLayer);
+			this.collectedPriceIndexChanges.clean(transactionalLayer);
 		}
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
