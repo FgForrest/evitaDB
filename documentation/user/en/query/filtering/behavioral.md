@@ -120,6 +120,10 @@ different or more complex queries (to target only the indexed data) when both li
 and the engine does the heavy lifting for them. On the other hand, if only a single area is targeted, the engine is
 strict and checks that all the constraints apply to that area (queries are expected to be tailored for that area).
 
+**Caution:** This behaviour also means that returned results may not respect constraints that are not applicable in this
+scope. In our example, if the archived entity with primary key `1` had a `code` attribute set to `null`, it would be
+returned in the result set, even though the constraint `attributeIs("code", NOT_NULL)` was used.
+
 </Note>
 
 There are a few archived entities in our demo dataset. Our schema is configured to index only the `URL` and `code`
