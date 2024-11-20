@@ -78,6 +78,7 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 		if (!Objects.equals(memoizedKey, attributeKey)) {
 			this.memoizedKey = attributeKey;
 			this.memoizedValue = getMemoizedReference()
+				.filter(Droppable::exists)
 				.flatMap(it -> it.getAttributeValue(attributeKey))
 				.filter(Droppable::exists);
 		}
@@ -88,6 +89,7 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 	@Override
 	public Stream<AttributeValue> getAttributeValues() {
 		return getMemoizedReference()
+			.filter(Droppable::exists)
 			.map(ReferenceContract::getAttributeValues)
 			.stream()
 			.flatMap(Collection::stream)
@@ -98,6 +100,7 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 	@Override
 	public Stream<AttributeValue> getAttributeValues(@Nonnull Locale locale) {
 		return getMemoizedReference()
+			.filter(Droppable::exists)
 			.map(ReferenceContract::getAttributeValues)
 			.stream()
 			.flatMap(Collection::stream)
