@@ -1723,12 +1723,10 @@ public final class EntityCollection implements
 		);
 		return new TransactionalMap<>(
 			// now join global index with all other reduced indexes into single key-value index
-			Stream.concat(
-					Stream.of(globalIndex),
-					entityHeader.usedEntityIndexIds()
-						.stream()
-						.map(eid -> this.persistenceService.readEntityIndex(catalogVersion, eid, this.initialSchema))
-				)
+			entityHeader.usedEntityIndexIds()
+				.stream()
+				.map(eid -> this.persistenceService.readEntityIndex(catalogVersion, eid, this.initialSchema))
+				.filter(Objects::nonNull)
 				.collect(
 					Collectors.toMap(
 						EntityIndex::getIndexKey,
