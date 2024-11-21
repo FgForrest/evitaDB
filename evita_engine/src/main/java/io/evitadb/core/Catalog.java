@@ -228,6 +228,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	/**
 	 * Contains reference to the archived catalog index that allows fast lookups for entities across all types.
 	 */
+	@Nullable
 	private CatalogIndex archiveCatalogIndex;
 	/**
 	 * Isolated sequence service for this catalog.
@@ -409,6 +410,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			.orElseGet(() -> new CatalogIndex(Scope.LIVE));
 		this.catalogIndex.attachToCatalog(null, this);
 		this.archiveCatalogIndex = this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
+			.filter(it -> !it.isEmpty())
 			.orElse(null);
 		if (this.archiveCatalogIndex != null) {
 			this.archiveCatalogIndex.attachToCatalog(null, this);
@@ -490,7 +492,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		long catalogVersion,
 		@Nonnull CatalogState catalogState,
 		@Nonnull CatalogIndex catalogIndex,
-		@Nonnull CatalogIndex archiveCatalogIndex,
+		@Nullable CatalogIndex archiveCatalogIndex,
 		@Nonnull Collection<EntityCollection> entityCollections,
 		@Nonnull Catalog previousCatalogVersion
 	) {
@@ -1378,13 +1380,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				)
 			);
 			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
-		}
-
-		if (this.archiveCatalogIndex != null && this.archiveCatalogIndex.isEmpty()) {
-			this.dataStoreBuffer.removeIndex(
-				this.archiveCatalogIndex.getIndexKey(),
-				catalogIndexKey -> this.archiveCatalogIndex = null
-			);
 		}
 
 		if (changeOccurred) {

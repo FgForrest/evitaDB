@@ -80,12 +80,12 @@ public class CatalogIndexStoragePart implements StoragePart {
 	@Nullable
 	@Override
 	public Long getStoragePartPK() {
-		return getStoragePartPKForScope(catalogIndexKey.scope());
+		return getStoragePartPKForScope(this.catalogIndexKey.scope());
 	}
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		return 1L;
+		return getStoragePartPKForScope(this.catalogIndexKey.scope());
 	}
 
 }
