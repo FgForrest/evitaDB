@@ -2247,7 +2247,7 @@ public final class EntityCollection implements
 		@Nonnull
 		@Override
 		public OptionalInt getGlobalIndexKey() {
-			return ofNullable(EntityCollection.this.indexes.get(new EntityIndexKey(EntityIndexType.GLOBAL)))
+			return ofNullable(EntityCollection.this.indexes.get(new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE)))
 				.map(it -> OptionalInt.of(it.getPrimaryKey()))
 				.orElseGet(OptionalInt::empty);
 		}
@@ -2258,7 +2258,7 @@ public final class EntityCollection implements
 			return EntityCollection.this.indexes
 				.values()
 				.stream()
-				.filter(it -> it.getIndexKey().type() != EntityIndexType.GLOBAL)
+				.filter(it -> it.getIndexKey().type() != EntityIndexType.GLOBAL && it.getIndexKey().scope() != Scope.LIVE)
 				.map(EntityIndex::getPrimaryKey)
 				.collect(Collectors.toList());
 		}
