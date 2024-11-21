@@ -231,7 +231,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 2));
 
-		assertNull(catalog2.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
+		assertNull(catalog2.getCatalogIndexIfExits(Scope.ARCHIVED).filter(it -> !it.isEmpty()).orElse(null));
 		/* primary key is always indexed in all scopes, no matter what */
 		assertNotNull(getGlobalIndex(productCollection2, Scope.ARCHIVED));
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 1));
@@ -261,7 +261,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNotNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 2));
 
-		assertNull(catalog3.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
+		assertNull(catalog3.getCatalogIndexIfExits(Scope.ARCHIVED).filter(it -> !it.isEmpty()).orElse(null));
 		assertNull(getGlobalIndex(productCollection3, Scope.ARCHIVED));
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 1));
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 2));
