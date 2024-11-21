@@ -24,6 +24,7 @@
 package io.evitadb.store.spi.model.storageParts.index;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
@@ -66,10 +67,20 @@ public class CatalogIndexStoragePart implements StoragePart {
 	 */
 	@Getter private final Set<AttributeKey> sharedAttributeUniqueIndexes;
 
+	/**
+	 * Returns the storage part primary key for the given scope.
+	 *
+	 * @param scope the scope for which the storage part primary key needs to be determined
+	 * @return the primary key (1L for LIVE scope, 2L for other scopes)
+	 */
+	public static long getStoragePartPKForScope(@Nonnull Scope scope) {
+		return scope == Scope.LIVE ? 1L : 2L;
+	}
+
 	@Nullable
 	@Override
 	public Long getStoragePartPK() {
-		return 1L;
+		return getStoragePartPKForScope(catalogIndexKey.scope());
 	}
 
 	@Override

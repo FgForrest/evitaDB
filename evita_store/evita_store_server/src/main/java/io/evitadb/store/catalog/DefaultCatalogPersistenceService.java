@@ -1189,7 +1189,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
 		final CatalogIndexStoragePart catalogIndexStoragePart = storagePartPersistenceService.getStoragePart(
 			catalogVersion,
-			scope == Scope.LIVE ? 1L : 2L,
+			CatalogIndexStoragePart.getStoragePartPKForScope(scope),
 			CatalogIndexStoragePart.class
 		);
 		if (catalogIndexStoragePart == null) {
