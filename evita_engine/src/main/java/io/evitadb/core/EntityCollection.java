@@ -2258,7 +2258,6 @@ public final class EntityCollection implements
 			return EntityCollection.this.indexes
 				.values()
 				.stream()
-				.filter(it -> it.getIndexKey().type() != EntityIndexType.GLOBAL && it.getIndexKey().scope() != Scope.LIVE)
 				.map(EntityIndex::getPrimaryKey)
 				.collect(Collectors.toList());
 		}
