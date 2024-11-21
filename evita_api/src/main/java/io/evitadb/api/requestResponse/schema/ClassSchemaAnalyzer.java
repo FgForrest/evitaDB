@@ -442,7 +442,7 @@ public class ClassSchemaAnalyzer {
 							.map(ScopeAttributeSettings::scope)
 							.toArray(Scope[]::new);
 						if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueGloballyWithinLocaleInScopes)) {
-							whichIs.uniqueGloballyWithinLocale(uniqueGloballyWithinLocaleInScopes);
+							whichIs.uniqueGloballyWithinLocaleInScope(uniqueGloballyWithinLocaleInScopes);
 						}
 					}
 				}

@@ -431,6 +431,175 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 2));
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 2));
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.goLiveAndClose();
+			}
+		);
+
+		// check live indexes exist and previous indexes are removed
+		final Catalog catalog5 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollectionContract productCollection5 = catalog5.getCollectionForEntity(Entities.PRODUCT)
+			.orElseThrow();
+
+		assertNotNull(catalog5.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
+		assertNull(getReferencedEntityIndex(productCollection5, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection5, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNotNull(getReferencedEntityIndex(productCollection5, Scope.LIVE, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection5, Scope.LIVE, Entities.BRAND, 2));
+
+		assertNull(catalog5.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
+		assertNull(getGlobalIndex(productCollection5, Scope.ARCHIVED));
+		assertNull(getReferencedEntityIndex(productCollection5, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection5, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection5, Scope.ARCHIVED, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection5, Scope.ARCHIVED, Entities.BRAND, 2));
+	}
+
+	@DisplayName("Entity should be moved to archive indexes when archived (in tx mode)")
+	@Test
+	void shouldArchiveEntityAndMoveToArchivedIndexesInTransactionalMode() {
+		/* create schema for entity archival */
+		createSchemaForEntityArchiving(Scope.LIVE, Scope.ARCHIVED);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.goLiveAndClose();
+			}
+		);
+
+		// upsert entities product depends on
+		createBrandAndCategoryEntities();
+
+		// create product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.setReference(Entities.BRAND, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "123"))
+					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+			}
+		);
+
+		// check product entity is in LIVE indexes
+		checkProductCanBeLookedUpByIndexes();
+		// check product entity is not in ARCHIVED indexes
+		checkProductCannotBeLookedUpByIndexes(Scope.ARCHIVED);
+
+		// check indexes exist
+		final Catalog catalog1 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollectionContract productCollection1 = catalog1.getCollectionForEntity(Entities.PRODUCT)
+			.orElseThrow();
+
+		assertNotNull(catalog1.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNotNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.LIVE, Entities.BRAND, 2));
+
+		assertNull(catalog1.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
+		assertNull(getGlobalIndex(productCollection1, Scope.ARCHIVED));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 2));
+
+		// archive product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 100);
+			}
+		);
+
+		// check product entity is in LIVE indexes
+		checkProductCannotBeLookedUpByIndexes();
+		// check product entity is in ARCHIVED indexes
+		checkProductCanBeLookedUpByIndexes(Scope.values());
+
+		// check archive indexes exist and previous indexes are removed
+		final Catalog catalog2 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollectionContract productCollection2 = catalog2.getCollectionForEntity(Entities.PRODUCT)
+			.orElseThrow();
+
+		assertNotNull(catalog2.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.LIVE, Entities.BRAND, 2));
+
+		assertNotNull(catalog2.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
+		assertNotNull(getGlobalIndex(productCollection2, Scope.ARCHIVED));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNotNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 2));
+
+		// restore product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.restoreEntity(Entities.PRODUCT, 100);
+			}
+		);
+
+		// check product entity is in LIVE indexes
+		checkProductCanBeLookedUpByIndexes();
+		// check product entity is not in ARCHIVED indexes
+		checkProductCannotBeLookedUpByIndexes(Scope.ARCHIVED);
+
+		// check live indexes exist and previous indexes are removed
+		final Catalog catalog3 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollectionContract productCollection3 = catalog3.getCollectionForEntity(Entities.PRODUCT)
+			.orElseThrow();
+
+		assertNotNull(catalog3.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNotNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.LIVE, Entities.BRAND, 2));
+
+		assertNull(catalog3.getCatalogIndexIfExits(Scope.ARCHIVED).filter(it -> !it.isEmpty()).orElse(null));
+		assertNull(getGlobalIndex(productCollection3, Scope.ARCHIVED));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 2));
+
+		// close evita and reload it from disk again
+		evita.close();
+		evita = new Evita(
+			getEvitaConfiguration()
+		);
+
+		// check product entity is in indexes
+		checkProductCanBeLookedUpByIndexes();
+
+		// check live indexes exist and previous indexes are removed
+		final Catalog catalog4 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollectionContract productCollection4 = catalog4.getCollectionForEntity(Entities.PRODUCT)
+			.orElseThrow();
+
+		assertNotNull(catalog4.getCatalogIndexIfExits(Scope.LIVE).orElse(null));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 1));
+		assertNotNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.CATEGORY, 2));
+		assertNotNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.LIVE, Entities.BRAND, 2));
+
+		assertNull(catalog4.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
+		assertNull(getGlobalIndex(productCollection4, Scope.ARCHIVED));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 1));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 1));
+		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 2));
 	}
 
 	@DisplayName("Entity could be created in already archived state")

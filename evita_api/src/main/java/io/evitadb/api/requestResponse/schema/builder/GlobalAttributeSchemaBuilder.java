@@ -146,7 +146,7 @@ public final class GlobalAttributeSchemaBuilder
 
 	@Override
 	@Nonnull
-	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocale(@Nonnull Scope... scope) {
+	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocaleInScope(@Nonnull Scope... scope) {
 		this.updatedSchemaDirty = addMutations(
 			new SetAttributeSchemaGloballyUniqueMutation(
 				toInstance().getName(),
@@ -160,7 +160,7 @@ public final class GlobalAttributeSchemaBuilder
 
 	@Nonnull
 	@Override
-	public GlobalAttributeSchemaBuilder nonUniqueGloballyWithinLocale(@Nonnull Scope... inScope) {
+	public GlobalAttributeSchemaBuilder nonUniqueGloballyWithinLocaleInScope(@Nonnull Scope... inScope) {
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,

@@ -128,7 +128,7 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 */
 	@Nonnull
 	default T uniqueGloballyWithinLocale() {
-		return uniqueGloballyWithinLocale(Scope.DEFAULT_SCOPE);
+		return uniqueGloballyWithinLocaleInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -145,12 +145,12 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 * locales.
 	 *
 	 * This method makes attribute unique only in the {@link Scope#LIVE} scope, archived entities will not be unique
-	 * by this attribute unless explicitly set via {@link #uniqueGloballyWithinLocale(Scope...)}.
+	 * by this attribute unless explicitly set via {@link #uniqueGloballyWithinLocaleInScope(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T uniqueGloballyWithinLocale(@Nonnull Scope... inScope);
+	T uniqueGloballyWithinLocaleInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -182,7 +182,7 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 */
 	@Nonnull
 	default T nonUniqueGloballyWithinLocale() {
-		return nonUniqueGloballyWithinLocale(Scope.values());
+		return nonUniqueGloballyWithinLocaleInScope(Scope.values());
 	}
 
 	/**
@@ -194,7 +194,7 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T nonUniqueGloballyWithinLocale(@Nonnull Scope... inScope);
+	T nonUniqueGloballyWithinLocaleInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * Interface that simply combines {@link GlobalAttributeSchemaEditor} and {@link GlobalAttributeSchemaContract}
