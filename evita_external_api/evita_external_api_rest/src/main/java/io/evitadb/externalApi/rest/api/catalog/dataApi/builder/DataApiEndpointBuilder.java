@@ -194,7 +194,7 @@ public class DataApiEndpointBuilder {
 			.to(operationQueryParameterBuilderTransformer)
 			.build());
 
-		final boolean localeArgumentNeeded = globallyUniqueAttributes.stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocaleInAnyScope);
+		final boolean localeArgumentNeeded = !buildingContext.getSupportedLocales().isEmpty();
 		queryParameters.addAll(buildFetchQueryParametersForUnknownEntity(!localized || localeArgumentNeeded));
 
 		return Optional.of(
@@ -239,7 +239,7 @@ public class DataApiEndpointBuilder {
 			.to(operationQueryParameterBuilderTransformer)
 			.build());
 
-		final boolean localeArgumentNeeded = globallyUniqueAttributes.stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocaleInAnyScope);
+		final boolean localeArgumentNeeded = !buildingContext.getSupportedLocales().isEmpty();
 		queryParameters.addAll(buildFetchQueryParametersForUnknownEntity(!localized || localeArgumentNeeded));
 
 		return Optional.of(

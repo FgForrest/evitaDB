@@ -320,7 +320,7 @@ public class EntityObjectBuilder {
 
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityPriceForSaleField() {
-		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICE_FOR_SALE
+		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLEntityDescriptor.PRICE_FOR_SALE
 			.to(fieldBuilderTransformer)
 			// TOBEDONE #538: deprecated, remove
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
@@ -333,13 +333,15 @@ public class EntityObjectBuilder {
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_IN
 				.to(argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_NOW
-				.to(argumentBuilderTransformer))
-			.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
-				.to(argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())))
-			.build();
+				.to(argumentBuilderTransformer));
 
-		return new BuiltFieldDescriptor(field, PriceForSaleDataFetcher.getInstance());
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
+			fieldBuilder.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
+		return new BuiltFieldDescriptor(fieldBuilder.build(), PriceForSaleDataFetcher.getInstance());
 	}
 
 	@Nonnull
@@ -363,7 +365,7 @@ public class EntityObjectBuilder {
 
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityAllPricesForSaleField() {
-		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE
+		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE
 			.to(fieldBuilderTransformer)
 			// TOBEDONE #538: deprecated, remove
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
@@ -376,48 +378,54 @@ public class EntityObjectBuilder {
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_IN
 				.to(argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_NOW
-				.to(argumentBuilderTransformer))
-			.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
-				.to(argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())))
-			.build();
+				.to(argumentBuilderTransformer));
 
-		return new BuiltFieldDescriptor(field, AllPricesForSaleDataFetcher.getInstance());
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
+			fieldBuilder.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
+		return new BuiltFieldDescriptor(fieldBuilder.build(), AllPricesForSaleDataFetcher.getInstance());
 	}
 
 	// TOBEDONE #538: deprecated, remove
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityPriceField() {
-		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICE
+		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLEntityDescriptor.PRICE
 			.to(fieldBuilderTransformer)
 			.argument(PriceFieldHeaderDescriptor.PRICE_LIST
 				.to(argumentBuilderTransformer))
 			.argument(PriceFieldHeaderDescriptor.CURRENCY
 				.to(argumentBuilderTransformer)
-				.type(typeRef(CURRENCY_ENUM.name())))
-			.argument(PriceFieldHeaderDescriptor.LOCALE
-				.to(argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())))
-			.build();
+				.type(typeRef(CURRENCY_ENUM.name())));
 
-		return new BuiltFieldDescriptor(field, PriceDataFetcher.getInstance());
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
+			fieldBuilder.argument(PriceFieldHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
+		return new BuiltFieldDescriptor(fieldBuilder.build(), PriceDataFetcher.getInstance());
 	}
 
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityPricesField() {
-		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICES
+		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLEntityDescriptor.PRICES
 			.to(fieldBuilderTransformer)
 			.argument(PricesFieldHeaderDescriptor.PRICE_LISTS
 				.to(argumentBuilderTransformer))
 			.argument(PricesFieldHeaderDescriptor.CURRENCY
 				.to(argumentBuilderTransformer)
-				.type(typeRef(CURRENCY_ENUM.name())))
-			.argument(PricesFieldHeaderDescriptor.LOCALE
-				.to(argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())))
-			.build();
+				.type(typeRef(CURRENCY_ENUM.name())));
 
-		return new BuiltFieldDescriptor(field, PricesDataFetcher.getInstance());
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
+			fieldBuilder.argument(PricesFieldHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
+		return new BuiltFieldDescriptor(fieldBuilder.build(), PricesDataFetcher.getInstance());
 	}
 
 	@Nonnull
