@@ -21,13 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,18 +45,23 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link RequireConstraintResolver}.
+ * Tests for {@link io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 
-	private RequireConstraintResolver resolver;
+	private io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver resolver;
 
 	@BeforeEach
 	void init() {
 		super.init();
-		resolver = new RequireConstraintResolver(catalogSchema, new AtomicReference<>(new FilterConstraintResolver(catalogSchema)));
+		final AtomicReference<FilterConstraintResolver> filterConstraintResolver = new AtomicReference<>(new FilterConstraintResolver(catalogSchema));
+		resolver = new RequireConstraintResolver(
+			catalogSchema,
+			filterConstraintResolver,
+			new AtomicReference<>(new OrderConstraintResolver(catalogSchema, filterConstraintResolver))
+		);
 	}
 
 	@Test

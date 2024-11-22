@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -265,7 +265,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 	protected OpenApiSimpleType buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                              @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                              @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                              @Nullable List<ChildParameterDescriptor> childParameters,
+	                                                              @Nonnull List<ChildParameterDescriptor> childParameters,
 	                                                              @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                              @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
