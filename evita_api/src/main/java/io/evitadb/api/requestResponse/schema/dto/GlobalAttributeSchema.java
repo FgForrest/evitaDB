@@ -382,7 +382,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 	}
 
 	@Override
-	public boolean isUniqueGloballyWithinLocale(@Nonnull Scope scope) {
+	public boolean isUniqueGloballyWithinLocaleInScope(@Nonnull Scope scope) {
 		return this.globalUniquenessTypeInScopes.get(scope) == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE;
 	}
 

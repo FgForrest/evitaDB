@@ -315,7 +315,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
                         globallyUniqueAttributes.keySet()
                             .stream()
                             .anyMatch(attribute ->
-                                attribute.isUniqueGloballyWithinLocale(scope)))) {
+                                attribute.isUniqueGloballyWithinLocaleInScope(scope)))) {
                 throw new GraphQLInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
             }
 

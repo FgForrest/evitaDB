@@ -219,7 +219,7 @@ public class CatalogIndex implements
 	 */
 	@Nullable
 	public GlobalUniqueIndex getGlobalUniqueIndex(@Nonnull GlobalAttributeSchemaContract attributeSchema, @Nullable Locale locale) {
-		final boolean uniqueGloballyWithinLocale = attributeSchema.isUniqueGloballyWithinLocale(getIndexKey().scope());
+		final boolean uniqueGloballyWithinLocale = attributeSchema.isUniqueGloballyWithinLocaleInScope(getIndexKey().scope());
 		Assert.isTrue(
 			locale != null || !uniqueGloballyWithinLocale,
 			() -> new EntityLocaleMissingException(attributeSchema.getName())
@@ -320,7 +320,7 @@ public class CatalogIndex implements
 		if (attributeSchema.isLocalized()) {
 			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
 		}
-		if (attributeSchema.isUniqueGloballyWithinLocale(scope)) {
+		if (attributeSchema.isUniqueGloballyWithinLocaleInScope(scope)) {
 			return new AttributeKey(attributeSchema.getName(), locale);
 		} else {
 			return new AttributeKey(attributeSchema.getName());

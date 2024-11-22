@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ public class TargetIndexes<T extends Index<?>> {
 	 * Returns true if the largest global index was selected.
 	 */
 	public boolean isGlobalIndex() {
-		return this.indexes.size() == 1 && this.indexes.get(0) instanceof GlobalEntityIndex;
+		return this.indexes.stream().allMatch(GlobalEntityIndex.class::isInstance);
 	}
 
 	/**

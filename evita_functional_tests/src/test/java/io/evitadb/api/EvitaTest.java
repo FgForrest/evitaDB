@@ -36,6 +36,7 @@ import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
 import io.evitadb.api.query.order.OrderDirection;
@@ -2466,6 +2467,93 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals(2, shortEntity.getReferences(Entities.BRAND).size());
 				assertEquals(1, shortEntity.getReferences(Entities.PARAMETER).size());
 			}
+		);
+	}
+
+	@Test
+	void shouldCorrectlyLocalizeGloballyUniqueAttribute() {
+		evita.defineCatalog(TEST_CATALOG)
+			.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+			.updateViaNewSession(evita);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withGlobalAttribute(ATTRIBUTE_URL)
+					.updateVia(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
+				);
+			}
+		);
+
+		assertThrows(
+			UniqueValueViolationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 2)
+							.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
+					);
+				}
+			)
+		);
+
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 1),
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(attributeEquals(ATTRIBUTE_URL, "/theProduct"))
+						),
+						EntityReference.class
+					).orElseThrow();
+				}
+			)
+		);
+
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 1),
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								attributeEquals(ATTRIBUTE_URL, "/theProduct"),
+								entityLocaleEquals(Locale.ENGLISH)
+							)
+						),
+						EntityReference.class
+					).orElseThrow();
+				}
+			)
+		);
+
+		assertNull(
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								attributeEquals(ATTRIBUTE_URL, "/theProduct"),
+								entityLocaleEquals(Locale.FRENCH)
+							)
+						),
+						EntityReference.class
+					).orElse(null);
+				}
+			)
 		);
 	}
 

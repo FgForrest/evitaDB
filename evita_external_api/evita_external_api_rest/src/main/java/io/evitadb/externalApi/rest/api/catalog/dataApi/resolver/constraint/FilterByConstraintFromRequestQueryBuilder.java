@@ -147,7 +147,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 				    uniqueAttributes.keySet()
 					    .stream()
 					    .anyMatch(attribute ->
-					        attribute.isUniqueGloballyWithinLocale(scope)))) {
+					        attribute.isUniqueGloballyWithinLocaleInScope(scope)))) {
 			throw new RestInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
 		}
 
@@ -216,7 +216,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 				    uniqueAttributes.keySet()
 					    .stream()
 					    .anyMatch(attribute ->
-						    attribute.isUniqueGloballyWithinLocale(scope)))) {
+						    attribute.isUniqueGloballyWithinLocaleInScope(scope)))) {
 			throw new RestInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
 		}
 

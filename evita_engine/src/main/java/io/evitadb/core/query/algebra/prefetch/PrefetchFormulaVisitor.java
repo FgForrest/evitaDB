@@ -135,9 +135,9 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 		EntityFetchRequire requirements = null;
 		Bitmap entitiesToPrefetch = null;
 		// are we forced to prefetch entities from catalog index?
-		if (!entityReferences.isEmpty()) {
+		if (!this.entityReferences.isEmpty()) {
 			requirements = getRequirements();
-			entitiesToPrefetch = entityReferences;
+			entitiesToPrefetch = this.entityReferences;
 		}
 		// do we know entity ids to prefetch?
 		if (isPrefetchPossible()) {
@@ -154,18 +154,18 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 						RoaringBitmap.or(roaringBitmapA, roaringBitmapB)
 					);
 				}
-				if (!(targetIndexes.isGlobalIndex() || targetIndexes.isCatalogIndex())) {
+				if (!(this.targetIndexes.isGlobalIndex() || this.targetIndexes.isCatalogIndex())) {
 					// when narrowed indexes were used we need to filter the prefetched primary keys to the ones that are
 					// present in the index
 					Assert.isPremiseValid(
-						ReducedEntityIndex.class.isAssignableFrom(targetIndexes.getIndexType()),
+						ReducedEntityIndex.class.isAssignableFrom(this.targetIndexes.getIndexType()),
 						"Only reduced entity indexes are supported"
 					);
 					entitiesToPrefetch = RoaringBitmapBackedBitmap.and(
 						new RoaringBitmap[]{
 							RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch),
 							RoaringBitmap.or(
-								targetIndexes.getIndexes().stream()
+								this.targetIndexes.getIndexes().stream()
 									.map(index -> ((ReducedEntityIndex) index).getAllPrimaryKeys())
 									.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 									.toArray(RoaringBitmap[]::new)

@@ -97,7 +97,7 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 	 * @return true if the attribute is unique globally within the default (i.e. {@link Scope#LIVE})} scope
 	 */
 	default boolean isUniqueGloballyWithinLocale() {
-		return isUniqueGloballyWithinLocale(Scope.DEFAULT_SCOPE);
+		return isUniqueGloballyWithinLocaleInScope(Scope.DEFAULT_SCOPE);
 	}
 
 	/**
@@ -115,7 +115,7 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 	 * @return true if the attribute is unique globally within any scope
 	 */
 	default boolean isUniqueGloballyWithinLocaleInAnyScope() {
-		return Arrays.stream(Scope.values()).anyMatch(this::isUniqueGloballyWithinLocale);
+		return Arrays.stream(Scope.values()).anyMatch(this::isUniqueGloballyWithinLocaleInScope);
 	}
 
 	/**
@@ -133,7 +133,7 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 	 * @param scope scope to check uniqueness in
 	 * @return true if the attribute is unique globally within particular scope
 	 */
-	boolean isUniqueGloballyWithinLocale(@Nonnull Scope scope);
+	boolean isUniqueGloballyWithinLocaleInScope(@Nonnull Scope scope);
 
 	/**
 	 * Returns type of uniqueness of the attribute. See {@link #isUniqueGlobally()} and {@link #isUniqueGloballyWithinLocale()}.
@@ -143,6 +143,7 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 	default GlobalAttributeUniquenessType getGlobalUniquenessType() {
 		return getGlobalUniquenessType(Scope.DEFAULT_SCOPE);
 	}
+
 	/**
 	 * Returns type of uniqueness of the attribute. See {@link #isUniqueGlobally()} and {@link #isUniqueGloballyWithinLocale()}.
 	 * @return type of uniqueness in the particular scope
@@ -157,5 +158,4 @@ public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaCont
 	 */
 	@Nonnull
 	Map<Scope, GlobalAttributeUniquenessType> getGlobalUniquenessTypeInScopes();
-
 }
