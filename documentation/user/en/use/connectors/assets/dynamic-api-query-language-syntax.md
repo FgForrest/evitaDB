@@ -18,14 +18,15 @@ reasons for this: the first one is that we want to help the user as much as poss
 with code completion, so we use dynamically generated queries, the second one is due to the limitations of JSON
 objects, mainly that JSON objects don't have names to reference them by.
 
-Therefore, we have come up with the following syntax for constraints: each constraint consists of:
+Therefore, we had come up with the following syntax for constraints: each constraint consists of:
 
 - `key` - basically a property of a parent JSON object
     - defines targeted property type
     - possible classifier of targeted data
-    - a constraint name
+    - and a constraint name
 - `value` - an object/value of that property
-    - a scalar, an array or an object of arguments
+	- defines arguments for a constraint
+	- can be a scalar, an array or an object of arguments
 
 Thanks to the API schemas, you don't have to worry about the details of each part of the syntax, because the API schema
 will provide you only with those constraint that are valid.
@@ -37,15 +38,14 @@ will provide you only with those constraint that are valid.
 ##### Constraint key syntax in detail
 </NoteTitle>
 
-However, if you want to know more about the underlying syntax, read on.
+If you want to know more about the underlying syntax, read on.
 Each key consists of 3 parts as mentioned above:
 
 - a property type
 - a classifier of data
 - a constraint name
 
-Only the constraint name is required for all the supported constraints, the rest depends on the context and the type of constraint.
-
+Only the **constraint name** is required for all the supported constraints, the rest depends on the context and the type of constraint.
 
 The **property type** defines where the query processor will look for data to compare. There is a finite set of possible property types:
 
@@ -118,13 +118,13 @@ and they can look like this:
 ```
 
 Unfortunately, this means that you can define multiple constraints in one go in such a container, and we need to somehow define
-relational logic between these child constraints. In filter containers, we chose to have all these 
-<Term name="implicit container">implicit containers</Term> define logical [`AND`](https://en.wikipedia.org/wiki/Logical_conjunction) between passed child constraints, 
-ultimately resulting in the `and` constraint under the hood. In order containers, the children behaves the same as they would 
+relational logic between these child constraints. In filter containers, we chose to have all these
+<Term name="implicit container">implicit containers</Term> define logical [`AND`](https://en.wikipedia.org/wiki/Logical_conjunction) between passed child constraints,
+ultimately resulting in the `and` constraint under the hood. In order containers, the children behaves the same as they would
 if they were passed separately as an array of <Term name="implicit container">implicit containers</Term>, however,
-if multiple constraints are passed into a single container, there is no guarantee that the order of the constraints will 
-be preserved. This is a "limitation" JSON objects, which don't have a defined order of properties. Therefore, you should 
-_always_ wrap each order constraint into a separate <Term name="implicit container">implicit container</Term> and pass 
+if multiple constraints are passed into a single container, there is no guarantee that the order of the constraints will
+be preserved. This is a "limitation" of JSON objects, which don't have a defined order of properties. Therefore, you should
+_always_ wrap each order constraint into a separate <Term name="implicit container">implicit container</Term> and pass
 them like array to the parent order constraint.
 
 Unfortunately, there is another small drawback if you need to define the same constraint multiple times in a single list
@@ -135,7 +135,7 @@ array to the parent constraint, like so:
 ```json
 or: [
   {
-    attributeCodeStartsWith: "ipho"       
+    attributeCodeStartsWith: "ipho"
   },
   {
     attributeCodeStartsWith: "sams"
@@ -170,6 +170,53 @@ filterBy: {
          priceBetween: ["100.0", "250.0"]
       }
    ]
+}
+```
+
+</Note>
+
+#### Handling null values
+
+Each constraint value is defined as nullable, and passing `null` as a constraint value has special meaning. Such 
+a constraint is excluded from the query as if it were never there. So if you write the following query:
+
+```json
+filterBy: {
+  entityPrimaryKeyInSet: [100, 200],
+  attributeCodeEquals: null
+}
+```
+
+evitaDB will exclude the `atributeCodeEquals` from the query because it doesn't make sense, and will use the following 
+modified query instead:
+
+```json
+filterBy: {
+  entityPrimaryKeyInSet: [100, 200]
+}
+```
+
+This is supported for all constraint value types: scalars, containers, and wrapper objects.
+
+_Note: inner properties of wrapper objects that aren't nested constraint container don't behave this way. Instead,
+they are defined with proper nullability based on a constraint definition in the evitaDB core._
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Why is this useful?
+</NoteTitle>
+
+Imagine you construct queries dynamically in a JavaScript application and passing them as variables into
+GraphQL queries. Typically there are some constraints which should be in a final query only if some application-specific
+conditions are met. Thanks to this null behavior, you can easily turn on and off individual constraints in a query without
+having to specify multiple separate queries:
+
+```js
+let filterBy = {
+  entityPrimaryKeyInSet: [100, 200],
+  priceBetween: (desiredPriceRange != undefined ? desiredPriceRange : null)
 }
 ```
 
