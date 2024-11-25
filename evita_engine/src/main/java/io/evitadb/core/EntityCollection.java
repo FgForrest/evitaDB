@@ -1723,10 +1723,16 @@ public final class EntityCollection implements
 		);
 		return new TransactionalMap<>(
 			// now join global index with all other reduced indexes into single key-value index
-			entityHeader.usedEntityIndexIds()
-				.stream()
-				.map(eid -> this.persistenceService.readEntityIndex(catalogVersion, eid, this.initialSchema))
-				.filter(Objects::nonNull)
+			// this is only for backward compatibility with versions 2024.11 and older
+			// TOBEDONE #538 - remove, in future versions global index is standard part of index map
+			Stream.concat(
+					Stream.of(globalIndex),
+					entityHeader.usedEntityIndexIds()
+						.stream()
+						// we skip global index, as it was already loaded
+						.filter(it -> !it.equals(entityHeader.globalEntityIndexId()))
+						.map(eid -> this.persistenceService.readEntityIndex(catalogVersion, eid, this.initialSchema))
+				)
 				.collect(
 					Collectors.toMap(
 						EntityIndex::getIndexKey,
