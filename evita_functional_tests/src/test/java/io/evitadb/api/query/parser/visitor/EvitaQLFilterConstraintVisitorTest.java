@@ -1377,6 +1377,39 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("scope('a','b')"));
     }
 
+    @Test
+    void shouldParseInScopeConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("inScope(LIVE, entityPrimaryKeyInSet(1))");
+        assertEquals(inScope(Scope.LIVE, entityPrimaryKeyInSet(1)), constraint1);
+
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("inScope ( LIVE , entityPrimaryKeyInSet(1))");
+        assertEquals(inScope(Scope.LIVE, entityPrimaryKeyInSet(1)), constraint2);
+
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("inScope ( LIVE , entityPrimaryKeyInSet(1), entityLocaleEquals('en'))");
+        assertEquals(inScope(Scope.LIVE, entityPrimaryKeyInSet(1), entityLocaleEquals(Locale.ENGLISH)), constraint3);
+
+        final FilterConstraint constraint4 = parseFilterConstraint("inScope ( ?,    entityPrimaryKeyInSet( ? ) )", Scope.ARCHIVED, 1);
+        assertEquals(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(1)), constraint4);
+
+        final FilterConstraint constraint5 = parseFilterConstraint("inScope ( ?,    entityPrimaryKeyInSet( ? ), entityLocaleEquals(?) )", Scope.ARCHIVED, 1, "en");
+        assertEquals(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(1), entityLocaleEquals(Locale.ENGLISH)), constraint5);
+
+        final FilterConstraint constraint6 = parseFilterConstraint("inScope ( @a,  entityPrimaryKeyInSet(  @b) )", Map.of("a", Scope.ARCHIVED, "b", 1));
+        assertEquals(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(1)), constraint6);
+
+        final FilterConstraint constraint7 = parseFilterConstraint("inScope ( @a,   entityPrimaryKeyInSet( @b ), entityLocaleEquals(@c) )", Map.of("a", Scope.ARCHIVED, "b", 1, "c", "en"));
+        assertEquals(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(1), entityLocaleEquals(Locale.ENGLISH)), constraint7);
+    }
+
+    @Test
+    void shouldNotParseInScopeConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("inScope"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("inScope(LIVE)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inScope(LIVE)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inScope('LIVE', entityPrimaryKeyInSet(1))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inScope('a','b')"));
+    }
+
     /**
      * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"
      *

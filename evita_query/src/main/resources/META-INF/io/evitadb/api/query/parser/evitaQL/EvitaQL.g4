@@ -81,6 +81,7 @@ filterConstraint
     | 'excludingRoot'                       emptyArgs                                                       # hierarchyExcludingRootConstraint
     | 'excluding'                           args = filterConstraintListArgs                                 # hierarchyExcludingConstraint
     | 'entityHaving'                        args = filterConstraintArgs                                     # entityHavingConstraint
+    | 'inScope'                             args = inScopeFilterArgs                                        # inScopeConstraint
     | 'scope'                               args = valueListArgs                                            # entityScopeConstraint
     ;
 
@@ -208,6 +209,8 @@ emptyArgs :                                         argsOpening argsClosing ;
 filterConstraintListArgs :                          argsOpening constraints += filterConstraint (ARGS_DELIMITER constraints += filterConstraint)* argsClosing ;
 
 filterConstraintArgs :                              argsOpening filter = filterConstraint argsClosing ;
+
+inScopeFilterArgs:                                  argsOpening scope = valueToken (ARGS_DELIMITER filterConstraints += filterConstraint)* argsClosing ;
 
 orderConstraintListArgs :                           argsOpening constraints += orderConstraint (ARGS_DELIMITER constraints += orderConstraint)* argsClosing ;
 

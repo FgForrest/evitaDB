@@ -21,30 +21,27 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.indexSelection;
+package io.evitadb.core.exception;
 
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.Index;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
-import java.util.List;
+import java.io.Serial;
 
 /**
- * This simple DTO object encapsulates set of {@link TargetIndexes}.
+ * Exception is thrown when there is attempt to filter by a price that is not marked as `indexed`.
  *
- * @param targetIndexes Collection contains all alternative {@link TargetIndexes} sets that might already contain precalculated information
- *                      related to {@link EntityIndex} that can be used to partially resolve input filter although the target index set
- *                      is not used to resolve entire query filter.
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public record IndexSelectionResult<T extends Index<?>>(
-	@Nonnull List<TargetIndexes<T>> targetIndexes
-) {
-	/**
-	 * Returns true if this DTO contains NO reference to the target indexes.
-	 */
-	public boolean isEmpty() {
-		return targetIndexes.isEmpty() || targetIndexes.stream().anyMatch(TargetIndexes::isEmpty);
+public class PriceNotIndexedException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = -1692217894269873621L;
+
+	public PriceNotIndexedException(@Nonnull EntitySchemaContract entitySchema) {
+		super(
+			"Entity `" + entitySchema.getName() + "` has not " +
+				"indexed prices and cannot be filtered by them. Filtering by without index would be slow."
+		);
 	}
 
 }

@@ -40,6 +40,7 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
@@ -93,10 +94,15 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	@Nullable
 	static IntPredicate createFacetGroupPredicate(
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
-		@Nullable FilterGroupBy filterGroupBy,
+		@Nonnull FilterGroupBy filterGroupBy,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		boolean required
 	) {
+		Assert.isTrue(
+			referenceSchema.getReferencedGroupType() != null,
+			() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be filtered because they relate to " +
+				"non-grouped entity type `" + referenceSchema.getReferencedEntityType() + "`."
+		);
 		if (required) {
 			Assert.isTrue(
 				referenceSchema.isReferencedGroupTypeManaged(),
@@ -106,8 +112,10 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		} else if (!referenceSchema.isReferencedGroupTypeManaged()) {
 			return null;
 		}
+		final QueryPlanningContext queryContext = extraResultPlanningVisitor.getQueryContext();
 		return new FilteringFormulaPredicate(
-			extraResultPlanningVisitor.getQueryContext(),
+			queryContext,
+			queryContext.getScopes(),
 			new FilterBy(filterGroupBy.getChildren()),
 			referenceSchema.getReferencedGroupType(),
 			() -> "Facet summary of `" + referenceSchema.getName() + "` group filter: " + filterGroupBy
@@ -123,7 +131,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	 * @param required                   Indicates if the facet is required.
 	 * @return The created facet predicate.
 	 */
-	@Nullable
+	@Nonnull
 	static IntPredicate createFacetPredicate(
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
 		@Nonnull FilterBy filterBy,
@@ -140,8 +148,10 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			return pk -> false;
 		}
 
+		final QueryPlanningContext queryContext = extraResultPlanningVisitor.getQueryContext();
 		return new FilteringFormulaPredicate(
-			extraResultPlanningVisitor.getQueryContext(),
+			queryContext,
+			queryContext.getScopes(),
 			filterBy,
 			referenceSchema.getReferencedEntityType(),
 			() -> "Facet summary of `" + referenceSchema.getName() + "` facet filter: " + filterBy
@@ -203,12 +213,17 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	@Nullable
 	static NestedContextSorter createFacetGroupSorter(
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
-		@Nullable OrderGroupBy orderBy,
+		@Nonnull OrderGroupBy orderBy,
 		@Nullable Locale locale,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		boolean required
 	) {
+		Assert.isTrue(
+			referenceSchema.getReferencedGroupType() != null,
+			() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+				"non-grouped entity type `" + referenceSchema.getReferencedEntityType() + "`."
+		);
 		if (required) {
 			Assert.isTrue(
 				referenceSchema.isReferencedGroupTypeManaged(),
@@ -279,7 +294,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
 		isTrue(
-			extraResultPlanner.getScopes().stream().anyMatch(referenceSchema::isFacetedInScope),
+			extraResultPlanner.getScopes().stream().allMatch(referenceSchema::isFacetedInScope),
 			() -> new ReferenceNotFacetedException(referenceName, entitySchema)
 		);
 

@@ -41,6 +41,7 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -51,6 +52,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
 
@@ -69,6 +71,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	protected static HierarchyFilteringPredicate createAndStoreHavingPredicate(
 		@Nullable int[] parentId,
 		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Set<Scope> requestedScopes,
 		@Nullable FilterBy havingFilter,
 		@Nullable FilterBy exclusionFilter,
 		@Nullable ReferenceSchemaContract referenceSchema
@@ -88,6 +91,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 				predicate = new FilteringFormulaHierarchyEntityPredicate(
 					parentId, false,
 					queryContext,
+					requestedScopes,
 					exclusionFilter,
 					referenceSchema
 				).negate();
@@ -95,6 +99,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 				predicate = new FilteringFormulaHierarchyEntityPredicate(
 					parentId, true,
 					queryContext,
+					requestedScopes,
 					havingFilter,
 					referenceSchema
 				);

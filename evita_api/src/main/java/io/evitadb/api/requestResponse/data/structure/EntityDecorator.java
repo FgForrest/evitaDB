@@ -56,6 +56,7 @@ import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
 
@@ -263,7 +264,7 @@ public class EntityDecorator implements SealedEntity {
 		this.referencePredicate = referencePredicate;
 		this.pricePredicate = pricePredicate;
 		this.alignedNow = alignedNow;
-		this.filteredReferences = decorator.referencesAvailable() ?
+		final Map<ReferenceKey, ReferenceContract> theFilteredReferences = decorator.referencesAvailable() ?
 			decorator.getReferences()
 				.stream()
 				.filter(referencePredicate)
@@ -284,6 +285,7 @@ public class EntityDecorator implements SealedEntity {
 						LinkedHashMap::new
 					)
 				) : Collections.emptyMap();
+		this.filteredReferences = CollectionUtils.toUnmodifiableMap(theFilteredReferences);
 	}
 
 	/**
@@ -410,7 +412,7 @@ public class EntityDecorator implements SealedEntity {
 			);
 		}
 
-		this.filteredReferences = Arrays.stream(fetchedAndFilteredReferences)
+		final LinkedHashMap<ReferenceKey, ReferenceContract> theFilteredReferences = Arrays.stream(fetchedAndFilteredReferences)
 			.filter(Objects::nonNull)
 			.collect(
 				Collectors.toMap(
@@ -422,6 +424,7 @@ public class EntityDecorator implements SealedEntity {
 					LinkedHashMap::new
 				)
 			);
+		this.filteredReferences = CollectionUtils.toUnmodifiableMap(theFilteredReferences);
 	}
 
 	/**
@@ -1281,7 +1284,7 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	private Map<ReferenceKey, ReferenceContract> getFilteredReferences() {
 		if (this.filteredReferences == null) {
-			this.filteredReferences = this.delegate.getReferences()
+			final LinkedHashMap<ReferenceKey, ReferenceContract> theFilteredReferences = this.delegate.getReferences()
 				.stream()
 				.filter(this.referencePredicate)
 				.map(
@@ -1299,6 +1302,7 @@ public class EntityDecorator implements SealedEntity {
 						LinkedHashMap::new
 					)
 				);
+			this.filteredReferences = CollectionUtils.toUnmodifiableMap(theFilteredReferences);
 		}
 		return this.filteredReferences;
 	}

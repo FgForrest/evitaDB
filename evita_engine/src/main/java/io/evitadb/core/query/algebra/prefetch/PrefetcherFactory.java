@@ -23,8 +23,6 @@
 
 package io.evitadb.core.query.algebra.prefetch;
 
-import io.evitadb.core.query.QueryExecutionContext;
-
 import javax.annotation.Nonnull;
 import java.util.Optional;
 
@@ -34,11 +32,11 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface PrefetchFactory {
+public interface PrefetcherFactory {
 	/**
 	 * Implementation that always returns empty optional (avoids prefetching).
 	 */
-	PrefetchFactory NO_OP = queryContext -> Optional.empty();
+	PrefetcherFactory NO_OP = Optional::empty;
 
 	/**
 	 * Method will prefetch the entities identified in {@link PrefetchFormulaVisitor} but only in case the prefetch
@@ -46,6 +44,6 @@ public interface PrefetchFactory {
 	 * filtering logic, the prefetch is not executed.
 	 */
 	@Nonnull
-	Optional<Runnable> createPrefetchLambdaIfNeededOrWorthwhile(@Nonnull QueryExecutionContext queryContext);
+	Optional<PrefetchOrder> createPrefetcherIfNeededOrWorthwhile();
 
 }

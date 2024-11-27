@@ -58,6 +58,7 @@ import org.roaringbitmap.RoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -135,7 +136,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull EntityHaving entityHaving, @Nonnull FilterByVisitor filterByVisitor) {
-		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchema();
+		final EntitySchemaContract entitySchema = Objects.requireNonNull(filterByVisitor.getProcessingScope().getEntitySchema());
 		final ReferenceSchemaContract referenceSchema = filterByVisitor.getReferenceSchema()
 			.orElseThrow(() -> new EvitaInvalidUsageException(
 					"Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
@@ -170,6 +171,9 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 						processingScope.getIndexes(),
 						filterConstraint,
 						() -> {
+							if (nestedResult.globalIndex() == null) {
+								return EmptyFormula.INSTANCE;
+							}
 							final ReferenceOwnerTranslatingFormula outputFormula = new ReferenceOwnerTranslatingFormula(
 								nestedResult.globalIndex(),
 								nestedResult.filter(),

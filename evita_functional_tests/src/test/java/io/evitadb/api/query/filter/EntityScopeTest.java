@@ -21,9 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.require;
+package io.evitadb.api.query.filter;
 
-import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 

@@ -37,7 +37,6 @@ import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -111,36 +110,39 @@ public class AttributeSchemaAccessor {
 		);
 		EvitaInvalidUsageException exception = null;
 		for (AttributeTrait attributeTrait : requiredTrait) {
-			Assert.isTrue(
-				referenceSchema == null || requestedScopes.stream().allMatch(referenceSchema::isIndexedInScope),
-				() -> new ReferenceNotIndexedException(referenceSchema.getName(), entitySchema)
-			);
+			if (referenceSchema != null) {
+				for (Scope scope : requestedScopes) {
+					if (!referenceSchema.isIndexedInScope(scope)) {
+						throw new ReferenceNotIndexedException(referenceSchema.getName(), entitySchema, scope);
+					}
+				}
+			}
 			switch (attributeTrait) {
 				case UNIQUE ->
-					exception = requestedScopes.stream().anyMatch(attributeSchema::isUniqueInScope) ?
+					exception = requestedScopes.stream().allMatch(attributeSchema::isUniqueInScope) ?
 						null :
 						ofNullable(referenceSchema)
-							.map(it -> new AttributeNotFilterableException(attributeName, it, entitySchema))
+							.map(it -> new AttributeNotFilterableException(attributeName, it, Objects.requireNonNull(entitySchema)))
 							.orElseGet(
 								() -> ofNullable(entitySchema)
 									.map(it -> new AttributeNotFilterableException(attributeName, it))
 									.orElseGet(() -> new AttributeNotFilterableException(attributeName, catalogSchema))
 							);
 				case FILTERABLE ->
-					exception = requestedScopes.stream().anyMatch(attributeSchema::isFilterableInScope) || requestedScopes.stream().anyMatch(attributeSchema::isUniqueInScope) ?
+					exception = requestedScopes.stream().allMatch(attributeSchema::isFilterableInScope) || requestedScopes.stream().allMatch(attributeSchema::isUniqueInScope) ?
 						null :
 						ofNullable(referenceSchema)
-							.map(it -> new AttributeNotFilterableException(attributeName, it, entitySchema))
+							.map(it -> new AttributeNotFilterableException(attributeName, it, Objects.requireNonNull(entitySchema)))
 							.orElseGet(
 								() -> ofNullable(entitySchema)
 									.map(it -> new AttributeNotFilterableException(attributeName, it))
 									.orElseGet(() -> new AttributeNotFilterableException(attributeName, catalogSchema))
 							);
 				case SORTABLE ->
-					exception = requestedScopes.stream().anyMatch(attributeSchema::isSortableInScope) ?
+					exception = requestedScopes.stream().allMatch(attributeSchema::isSortableInScope) ?
 						null :
 						ofNullable(referenceSchema)
-							.map(it -> new AttributeNotSortableException(attributeName, it, entitySchema))
+							.map(it -> new AttributeNotSortableException(attributeName, it, Objects.requireNonNull(entitySchema)))
 							.orElseGet(
 								() -> ofNullable(entitySchema)
 									.map(it -> new AttributeNotSortableException(attributeName, it))
@@ -189,17 +191,17 @@ public class AttributeSchemaAccessor {
 		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull AttributeTrait... requiredTrait
 	) {
-		if (entitySchema == null && referenceSchemaAccessor == null) {
+		if (this.entitySchema == null && this.referenceSchemaAccessor == null) {
 			return verifyAndReturn(
-				attributeName, requestedScopes, catalogSchema.getAttribute(attributeName).orElse(null),
-				catalogSchema, null, null, requiredTrait
+				attributeName, requestedScopes, this.catalogSchema.getAttribute(attributeName).orElse(null),
+				this.catalogSchema, null, null, requiredTrait
 			);
 		} else {
-			final ReferenceSchemaContract referenceSchema = referenceSchemaAccessor == null ? null : referenceSchemaAccessor.apply(this.entitySchema);
-			final AttributeSchemaProvider<?> attributeSchemaProvider = referenceSchema == null ? entitySchema : referenceSchema;
+			final ReferenceSchemaContract referenceSchema = this.referenceSchemaAccessor == null ? null : this.referenceSchemaAccessor.apply(this.entitySchema);
+			final AttributeSchemaProvider<?> attributeSchemaProvider = Objects.requireNonNull(referenceSchema == null ? this.entitySchema : referenceSchema);
 			return verifyAndReturn(
 				attributeName, requestedScopes, attributeSchemaProvider.getAttribute(attributeName).orElse(null),
-				catalogSchema, this.entitySchema,
+				this.catalogSchema, this.entitySchema,
 				referenceSchema,
 				requiredTrait
 			);
@@ -225,11 +227,11 @@ public class AttributeSchemaAccessor {
 		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull AttributeTrait... requiredTrait
 	) {
-		final ReferenceSchemaContract referenceSchema = ofNullable(referenceSchemaAccessor)
+		final ReferenceSchemaContract referenceSchema = ofNullable(this.referenceSchemaAccessor)
 			.map(it -> it.apply(entitySchema))
 			.orElse(null);
 		final AttributeSchemaContract attributeSchema;
-		final Optional<GlobalAttributeSchemaContract> globalAttributeSchema = catalogSchema.getAttribute(attributeName);
+		final Optional<GlobalAttributeSchemaContract> globalAttributeSchema = this.catalogSchema.getAttribute(attributeName);
 		if (globalAttributeSchema.isPresent()) {
 			attributeSchema = globalAttributeSchema.get();
 		} else {
@@ -238,7 +240,7 @@ public class AttributeSchemaAccessor {
 				.orElse(null);
 		}
 		return verifyAndReturn(
-			attributeName, requestedScopes, attributeSchema, catalogSchema, entitySchema, referenceSchema, requiredTrait
+			attributeName, requestedScopes, attributeSchema, this.catalogSchema, entitySchema, referenceSchema, requiredTrait
 		);
 	}
 
@@ -258,12 +260,12 @@ public class AttributeSchemaAccessor {
 		@Nonnull String attributeName,
 		@Nonnull Set<Scope> requestedScopes
 	) {
-		if (entitySchema != null) {
+		if (this.entitySchema != null) {
 			return getAttributeSchemaOrSortableAttributeCompound(this.entitySchema, attributeName, requestedScopes);
 		} else {
 			return verifyAndReturn(
-				attributeName, requestedScopes, catalogSchema.getAttribute(attributeName).orElse(null),
-				catalogSchema, null, null, new AttributeTrait[] {AttributeTrait.SORTABLE}
+				attributeName, requestedScopes, this.catalogSchema.getAttribute(attributeName).orElse(null),
+				this.catalogSchema, null, null, new AttributeTrait[] {AttributeTrait.SORTABLE}
 			);
 		}
 	}
@@ -285,7 +287,7 @@ public class AttributeSchemaAccessor {
 		@Nonnull String attributeName,
 		@Nonnull Set<Scope> requestedScopes
 	) {
-		final ReferenceSchemaContract referenceSchema = ofNullable(referenceSchemaAccessor)
+		final ReferenceSchemaContract referenceSchema = ofNullable(this.referenceSchemaAccessor)
 			.map(it -> it.apply(entitySchema))
 			.orElse(null);
 		final SortableAttributeCompoundSchemaContract compoundSchema;
@@ -298,7 +300,7 @@ public class AttributeSchemaAccessor {
 		}
 
 		final AttributeSchemaContract resultSchema;
-		final Optional<GlobalAttributeSchemaContract> globalAttributeSchema = catalogSchema.getAttribute(attributeName);
+		final Optional<GlobalAttributeSchemaContract> globalAttributeSchema = this.catalogSchema.getAttribute(attributeName);
 		if (globalAttributeSchema.isPresent()) {
 			resultSchema = globalAttributeSchema.get();
 		} else {
@@ -307,7 +309,7 @@ public class AttributeSchemaAccessor {
 				.orElse(null);
 		}
 		return verifyAndReturn(
-			attributeName, requestedScopes, resultSchema, catalogSchema, entitySchema, referenceSchema,
+			attributeName, requestedScopes, resultSchema, this.catalogSchema, entitySchema, referenceSchema,
 			new AttributeTrait[] {AttributeTrait.SORTABLE}
 		);
 	}

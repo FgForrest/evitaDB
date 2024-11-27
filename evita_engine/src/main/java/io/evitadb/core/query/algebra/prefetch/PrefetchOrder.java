@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,26 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index;
+package io.evitadb.core.query.algebra.prefetch;
 
-import io.evitadb.dataType.Scope;
 
-import javax.annotation.Nonnull;
-import java.io.Serializable;
+import io.evitadb.api.query.require.EntityFetchRequire;
+import io.evitadb.index.bitmap.Bitmap;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
- * Interface is a marker interface for classes that represents a unique key to a {@link Index} structure.
+ * PrefetchOrder is a container with information that are used to prefetch entities for particular query context.
+ * All the entities will be fetched from underlying storage upfront of the query execution and will participate in
+ * query execution.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface IndexKey extends Serializable {
-
-	/**
-	 * Returns the scope where the entities reside. It could be live data set or archived.
-	 *
-	 * @return The scope of the entities.
-	 */
-	@Nonnull
-	Scope scope();
+@RequiredArgsConstructor
+public class PrefetchOrder {
+	@Getter private final boolean prefetchedEntitiesSuitableForFiltering;
+	@Getter private final Bitmap entitiesToPrefetch;
+	@Getter private final EntityFetchRequire entityRequirements;
 
 }

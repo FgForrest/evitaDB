@@ -49,10 +49,12 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -78,7 +80,7 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 					return false;
 				} else {
 					final Predicate<DateTimeRange> predicate = attrValue -> attrValue != null && attrValue.isValidFor(theMoment);
-					final Serializable attrValue = attr.get().value();
+					final Serializable attrValue = Objects.requireNonNull(attr.get().value());
 					if (attrValue.getClass().isArray()) {
 						return Arrays.stream((Object[]) attrValue).map(DateTimeRange.class::cast).anyMatch(predicate);
 					} else {
@@ -105,7 +107,7 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 					return false;
 				} else {
 					final Predicate<BigDecimalNumberRange> predicate = attrValue -> attrValue != null && attrValue.isWithin(theValue);
-					final Serializable attrValue = attr.get().value();
+					final Serializable attrValue = Objects.requireNonNull(attr.get().value());
 					if (attrValue.getClass().isArray()) {
 						return Arrays.stream((Object[]) attrValue).map(BigDecimalNumberRange.class::cast).anyMatch(predicate);
 					} else {
@@ -132,7 +134,7 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 					return false;
 				} else {
 					final Predicate<NumberRange<Number>> predicate = attrValue -> attrValue != null && attrValue.isWithin(theValue);
-					final Serializable attrValue = attr.get().value();
+					final Serializable attrValue = Objects.requireNonNull(attr.get().value());
 					if (attrValue.getClass().isArray()) {
 						//noinspection unchecked
 						return Arrays.stream((Object[]) attrValue).anyMatch(it -> predicate.test((NumberRange<Number>) it));
@@ -162,7 +164,7 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
-			processingScope.getRequirements(),
+			attributeContent(attributeName),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> {

@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.PrefetchStrategyResolver;
@@ -54,6 +53,7 @@ import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
@@ -61,8 +61,9 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.translator.FilterByTranslator;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
-import io.evitadb.core.query.filter.translator.UserFilterTranslator;
 import io.evitadb.core.query.filter.translator.attribute.*;
+import io.evitadb.core.query.filter.translator.behavioral.InScopeTranslator;
+import io.evitadb.core.query.filter.translator.behavioral.UserFilterTranslator;
 import io.evitadb.core.query.filter.translator.bool.AndTranslator;
 import io.evitadb.core.query.filter.translator.bool.NotTranslator;
 import io.evitadb.core.query.filter.translator.bool.OrTranslator;
@@ -106,6 +107,7 @@ import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -113,7 +115,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
-import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
 
@@ -138,6 +139,16 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Contains set of formulas that are considered conjunctive for purpose of this visitor.
 	 */
 	private static final Set<Class<? extends Formula>> CONJUNCTIVE_FORMULAS;
+	/**
+	 * A no-operation (no-op) implementation of a {@link BiFunction} that returns {@code null} for any input value combination.
+	 */
+	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> THROWING_MISSING_RTEI_SUPPLIER =
+		(entitySchema, entityIndexKey) -> ReferencedTypeEntityIndex.createThrowingStub(entitySchema, entityIndexKey);
+	/**
+	 * A no-operation (no-op) implementation of a {@link BiFunction} that returns {@code null} for any input value combination.
+	 */
+	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex> NO_OP_MISSING_REI_SUPPLIER =
+		(entitySchema, entityIndexKey) -> null;
 
 	/* initialize list of all FilterableConstraint handlers once for a lifetime */
 	static {
@@ -170,6 +181,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		TRANSLATORS.put(HierarchyWithinRoot.class, new HierarchyWithinRootTranslator());
 		TRANSLATORS.put(FacetHaving.class, new FacetHavingTranslator());
 		TRANSLATORS.put(UserFilter.class, new UserFilterTranslator());
+		TRANSLATORS.put(InScope.class, new InScopeTranslator());
 		TRANSLATORS.put(EntityScope.class, FilteringConstraintTranslator.noOpTranslator());
 
 		CONJUNCTIVE_FORMULAS = new HashSet<>();
@@ -177,10 +189,12 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		CONJUNCTIVE_FORMULAS.add(UserFilterFormula.class);
 		CONJUNCTIVE_FORMULAS.add(SelectionFormula.class);
 		CONJUNCTIVE_FORMULAS.add(AttributeFormula.class);
+		CONJUNCTIVE_FORMULAS.add(ScopeContainerFormula.class);
 
 		CONJUNCTIVE_CONSTRAINTS = new HashSet<>();
 		CONJUNCTIVE_CONSTRAINTS.add(And.class);
 		CONJUNCTIVE_CONSTRAINTS.add(UserFilter.class);
+		CONJUNCTIVE_CONSTRAINTS.add(InScope.class);
 		CONJUNCTIVE_CONSTRAINTS.add(FilterBy.class);
 	}
 
@@ -246,12 +260,14 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	@Nonnull
 	public static Formula createFormulaForTheFilter(
 		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull FilterBy filterBy,
 		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		return createFormulaForTheFilter(
 			queryContext,
+			requestedScopes,
 			filterBy,
 			null,
 			entityType,
@@ -272,6 +288,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	@Nonnull
 	public static Formula createFormulaForTheFilter(
 		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull FilterBy filterBy,
 		@Nullable FilterBy rootFilterBy,
 		@Nonnull String entityType,
@@ -291,7 +308,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			);
 
 			// now analyze the filter by in a nested context with exchanged primary entity index
-			final List<GlobalEntityIndex> globalIndexesToUse = queryContext.getScopes()
+			final List<GlobalEntityIndex> globalIndexesToUse = requestedScopes
 				.stream()
 				.flatMap(scope -> queryContext.getGlobalEntityIndexIfExists(entityType, scope).stream())
 				.toList();
@@ -371,9 +388,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Returns the computed formula that represents the filter query visited by this implementation.
 	 */
 	@Nonnull
-	public Formula getFormula() {
+	public Formula getFormula(@Nonnull FormulaPostProcessor... additionalPostProcessors) {
 		return ofNullable(this.computedFormula)
-			.map(this::constructFinalFormula)
+			.map(formula -> this.constructFinalFormula(formula, additionalPostProcessors))
 			.orElseGet(this::getSuperSetFormula);
 	}
 
@@ -419,7 +436,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	) {
 		return getProcessingScope()
 			.getAttributeSchemaAccessor()
-			.getAttributeSchema(attributeName, this.getScopes(), requiredTrait);
+			.getAttributeSchema(attributeName, this.getProcessingScope().getScopes(), requiredTrait);
 	}
 
 	/**
@@ -433,7 +450,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	) {
 		return getProcessingScope()
 			.getAttributeSchemaAccessor()
-			.getAttributeSchema(entitySchema, attributeName, this.getScopes(), requiredTrait);
+			.getAttributeSchema(entitySchema, attributeName, this.getProcessingScope().getScopes(), requiredTrait);
 	}
 
 	/**
@@ -513,7 +530,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			if (filterConstraint instanceof ConstraintContainer) {
 				@SuppressWarnings("unchecked") final ConstraintContainer<FilterConstraint> container = (ConstraintContainer<FilterConstraint>) filterConstraint;
 				// initialize new level of the query
-				stack.push(new LinkedList<>());
+				this.stack.push(new LinkedList<>());
 				if (!(translator instanceof SelfTraversingTranslator)) {
 					// process children constraints
 					for (FilterConstraint subConstraint : container) {
@@ -523,7 +540,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				// process the container query itself
 				constraintFormula = translator.translate(filterConstraint, this);
 				// close the level
-				stack.pop();
+				this.stack.pop();
 			} else if (filterConstraint instanceof ConstraintLeaf) {
 				// process the leaf query
 				constraintFormula = translator.translate(filterConstraint, this);
@@ -607,17 +624,51 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * @return entity indexes that contains parts of indexed data
 	 */
 	@Nonnull
-	public List<ReducedEntityIndex> getReferencedRecordEntityIndexes(@Nonnull ReferenceHaving referenceHaving) {
+	public List<ReducedEntityIndex> getReferencedRecordEntityIndexes(
+		@Nonnull ReferenceHaving referenceHaving,
+		@Nonnull Set<Scope> scopes
+	) {
+		return getReferencedRecordEntityIndexes(
+			referenceHaving,
+			scopes,
+			THROWING_MISSING_RTEI_SUPPLIER,
+			NO_OP_MISSING_REI_SUPPLIER
+		);
+	}
+
+	/**
+	 * Method returns all {@link EntityIndex} that contain subset of data that satisfy the passed filtering constraint.
+	 *
+	 * @return entity indexes that contains parts of indexed data
+	 */
+	@Nonnull
+	public List<ReducedEntityIndex> getReferencedRecordEntityIndexes(
+		@Nonnull ReferenceHaving referenceHaving,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedIndexSupplier,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex> missingReducedIndexSupplier
+	) {
 		final String referenceName = referenceHaving.getReferenceName();
-		final EntitySchemaContract entitySchema = getProcessingScope().getEntitySchema();
+		final ProcessingScope<? extends Index<?>> processingScope = getProcessingScope();
+		final EntitySchemaContract entitySchema = processingScope.getEntitySchema();
 		final ReferenceSchemaContract referenceSchema = ofNullable(entitySchema)
 			.flatMap(it -> it.getReference(referenceName))
 			.orElseThrow(() -> entitySchema == null ? new ReferenceNotFoundException(referenceName) : new ReferenceNotFoundException(referenceName, entitySchema));
-		final Formula referencedRecordIdFormula = getReferencedRecordIdFormula(entitySchema, referenceSchema, new FilterBy(referenceHaving.getChildren()));
+
+		final Formula referencedRecordIdFormula = processingScope.doWithScope(
+			scopes,
+			() -> getReferencedRecordIdFormula(
+				entitySchema,
+				referenceSchema,
+				new FilterBy(referenceHaving.getChildren()),
+				missingReferencedIndexSupplier
+			)
+		);
+
 		final Bitmap referencedRecordIds = referencedRecordIdFormula.compute();
 		final List<ReducedEntityIndex> result = new ArrayList<>(referencedRecordIds.size());
 		for (Integer referencedRecordId : referencedRecordIds) {
-			getReferencedEntityIndex(entitySchema, referenceName, referencedRecordId)
+			getReferencedEntityIndex(entitySchema, referenceName, referencedRecordId, missingReducedIndexSupplier)
 				.forEach(result::add);
 		}
 		return result;
@@ -638,29 +689,68 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy
 	) {
-		final String referenceName = referenceSchema.getName();
-		final Set<Scope> scopesToLookUp = this.getScopes();
-		isTrue(
-			scopesToLookUp.stream().anyMatch(referenceSchema::isIndexedInScope),
-			() -> new ReferenceNotIndexedException(referenceName, entitySchema)
+		return getReferencedRecordIdFormula(
+			entitySchema,
+			referenceSchema,
+			filterBy,
+			THROWING_MISSING_RTEI_SUPPLIER
 		);
+	}
 
+	/**
+	 * Returns bitmap of primary keys ({@link EntityContract#getPrimaryKey()}) of referenced entities that satisfy
+	 * the passed filtering constraint.
+	 *
+	 * @param entitySchema                       that identifies the examined entities
+	 * @param referenceSchema                    that identifies the examined entities
+	 * @param filterBy                           the filtering constraint to satisfy
+	 * @param missingReferencedTypeIndexSupplier supplier that will produce missing {@link ReferencedTypeEntityIndex}
+	 *                                           index or NULL
+	 * @return bitmap with referenced entity ids
+	 */
+	@Nonnull
+	public Formula getReferencedRecordIdFormula(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull FilterBy filterBy,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedTypeIndexSupplier
+	) {
+		final String referenceName = referenceSchema.getName();
+		final Set<Scope> scopesToLookUp = this.getProcessingScope().getScopes();
 		final Formula resultFormula = FormulaFactory.or(
 			scopesToLookUp
 				.stream()
 				.map(scope -> {
+					final EntityIndexKey entityIndexKey = new EntityIndexKey(
+						EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
+					);
 					final Optional<ReferencedTypeEntityIndex> entityIndex = getIndex(
 						entitySchema.getName(),
-						new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName),
+						entityIndexKey,
 						ReferencedTypeEntityIndex.class
 					);
+
+					ReferencedTypeEntityIndex targetReferencedTypeIndex;
 					if (entityIndex.isEmpty()) {
-						return EmptyFormula.INSTANCE;
+						if (referenceSchema.isIndexedInScope(scope)) {
+							return EmptyFormula.INSTANCE;
+						} else {
+							// we need to behave like if the index existed - we never know where in the filtering
+							// constraint the client might have used InScope container limiting the scope of the query
+							final ReferencedTypeEntityIndex missingIndexStub = missingReferencedTypeIndexSupplier.apply(entitySchema, entityIndexKey);
+							if (missingIndexStub == null) {
+								return EmptyFormula.INSTANCE;
+							} else {
+								targetReferencedTypeIndex = missingIndexStub;
+							}
+						}
+					} else {
+						targetReferencedTypeIndex = entityIndex.get();
 					}
 
 					return executeInContextAndIsolatedFormulaStack(
 						ReferencedTypeEntityIndex.class,
-						() -> Collections.singletonList(entityIndex.get()),
+						() -> Collections.singletonList(targetReferencedTypeIndex),
 						ReferenceContent.ALL_REFERENCES,
 						entitySchema,
 						referenceSchema,
@@ -689,10 +779,12 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	@Nonnull
 	public Stream<EntityIndex> getEntityIndexStream() {
 		final Deque<ProcessingScope<? extends Index<?>>> scope = getScope();
+		final Set<Scope> scopes = getProcessingScope().getScopes();
 		return scope.isEmpty() ?
 			Stream.empty() :
 			scope.peek()
 				.getIndexStream()
+				.filter(index -> scopes.contains(index.getIndexKey().scope()))
 				.filter(EntityIndex.class::isInstance)
 				.map(EntityIndex.class::cast);
 	}
@@ -719,7 +811,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		return getReferencedEntityIndex(
 			entitySchema,
 			referenceSchema.getName(),
-			referencedEntityId
+			referencedEntityId,
+			NO_OP_MISSING_REI_SUPPLIER
 		);
 	}
 
@@ -730,32 +823,69 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	public Stream<ReducedEntityIndex> getReferencedEntityIndex(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String referenceName,
-		int referencedEntityId
+		int referencedEntityId,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex> missingIndexSupplier
 	) {
 		return getEvitaRequest()
 			.getScopes()
 			.stream()
-			.map(scope -> getQueryContext().getIndex(
-					entitySchema.getName(),
-					new EntityIndexKey(
+			.map(
+				scope -> {
+					final EntityIndexKey entityIndexKey = new EntityIndexKey(
 						EntityIndexType.REFERENCED_ENTITY,
 						scope,
 						new ReferenceKey(referenceName, referencedEntityId)
-					),
-					ReducedEntityIndex.class
-				)
+					);
+					return getQueryContext().getIndex(
+						entitySchema.getName(), entityIndexKey, ReducedEntityIndex.class
+					)
+					.orElseGet(
+						() -> missingIndexSupplier.apply(entitySchema, entityIndexKey)
+					);
+				}
 			)
-			.filter(Optional::isPresent)
-			.map(Optional::get);
+			.filter(Objects::nonNull);
 	}
 
 	/**
 	 * Returns super-set formula - i.e. formula that contains all record ids from the filter visitor chooses the result
 	 * from.
+	 *
+	 * @return super-set formula
 	 */
 	@Nonnull
 	public Formula getSuperSetFormula() {
 		return getProcessingScope().getSuperSetFormula();
+	}
+
+	/**
+	 * Generates a superset formula containing all relevant primary keys for the indices that fall within the specified
+	 * scope. This method tries to find first {@link TargetIndexes} set that contain at least one index that falls within
+	 * the specified scope, combines all primary keys from this set of indexes and returns the resulting formula.
+	 *
+	 * It tries to optimize formula in a way, that it uses the formula with the lowest estimated cost.
+	 *
+	 * @param scope the scope within which to filter and compute the superset formula
+	 * @return the resulting superset formula combining primary keys of the relevant indices;
+	 *         returns an EmptyFormula instance if no relevant indices are found.
+	 */
+	@Nonnull
+	public Formula getSuperSetFormula(@Nonnull Scope scope) {
+		return this.targetIndexes.stream()
+			.filter(it -> it.getIndexes().stream().anyMatch(index -> index.getIndexKey().scope().equals(scope)))
+			.map(
+				it -> FormulaFactory.or(
+					it.getIndexes()
+						.stream()
+						.filter(EntityIndex.class::isInstance)
+						.map(EntityIndex.class::cast)
+						.map(EntityIndex::getAllPrimaryKeysFormula)
+						.filter(formula -> !(formula instanceof EmptyFormula))
+						.toArray(Formula[]::new)
+				)
+			)
+			.min(Comparator.comparingLong(Formula::getEstimatedCost))
+			.orElse(EmptyFormula.INSTANCE);
 	}
 
 	/**
@@ -801,6 +931,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	public boolean isPrefetchPossible() {
 		// when we are in lower scopes, the indexes are exchanged and we cannot use the top-level prefetched entities
 		// and always prefer the provided indexes
+		// the prefetch is also possible only in conjunctive scope
 		return this.scope.size() == 1 && this.queryContext.isPrefetchPossible();
 	}
 
@@ -826,8 +957,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				new ProcessingScope<>(
 					indexType,
 					targetIndexes,
-					// the requested scopes never change
-					this.getScopes(),
+					this.getProcessingScope().getScopes(),
 					requirements,
 					entitySchema,
 					referenceSchema,
@@ -866,8 +996,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				new ProcessingScope<>(
 					indexType,
 					targetIndexSupplier,
-					// the requested scopes never change
-					this.getScopes(),
+					this.getProcessingScope().getScopes(),
 					requirements,
 					entitySchema,
 					referenceSchema,
@@ -917,7 +1046,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
 		return joinFormulas(
-			getScopes()
+			getProcessingScope()
+				.getScopes()
 				.stream()
 				.map(CatalogIndexKey::new)
 				.map(this::getIndex)
@@ -940,7 +1070,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
-		final Set<Scope> allowedScopes = getScopes();
+		final Set<Scope> allowedScopes = getProcessingScope().getScopes();
 		if (allowedScopes.size() == 1) {
 			return getIndex(new CatalogIndexKey(allowedScopes.iterator().next()))
 				.map(index -> {
@@ -993,7 +1123,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull AttributeSchemaContract attributeDefinition,
 		@Nonnull Function<UniqueIndex, Formula> formulaFunction
 	) {
-		final Set<Scope> allowedScopes = getScopes();
+		final Set<Scope> allowedScopes = getProcessingScope().getScopes();
 		if (allowedScopes.size() == 1) {
 			return joinFormulas(
 				getEntityIndexStream()
@@ -1115,7 +1245,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	private void addFormula(@Nonnull Formula formula) {
 		final List<Formula> peekFormulas = stack.peek();
 		isPremiseValid(peekFormulas != null, "Top formulas unexpectedly empty!");
-		peekFormulas.add(formula);
+		if (!(formula instanceof SkipFormula)) {
+			peekFormulas.add(formula);
+		}
 	}
 
 	/**
@@ -1124,17 +1256,29 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * executed.
 	 */
 	@Nonnull
-	private Formula constructFinalFormula(@Nonnull Formula constraintFormula) {
+	private Formula constructFinalFormula(
+		@Nonnull Formula constraintFormula,
+		@Nonnull FormulaPostProcessor... additionalPostProcessors
+	) {
 		Formula finalFormula = constraintFormula;
 		final LinkedHashMap<Class<? extends FormulaPostProcessor>, FormulaPostProcessor> thePostProcessors = getPostProcessors();
+		final Set<FormulaPostProcessor> executedProcessors;
 		if (!thePostProcessors.isEmpty()) {
-			final Set<FormulaPostProcessor> executedProcessors = CollectionUtils.createHashSet(thePostProcessors.size());
+			executedProcessors = CollectionUtils.createHashSet(thePostProcessors.size());
 			for (FormulaPostProcessor postProcessor : thePostProcessors.values()) {
 				if (!executedProcessors.contains(postProcessor)) {
 					postProcessor.visit(finalFormula);
 					finalFormula = postProcessor.getPostProcessedFormula();
 					executedProcessors.add(postProcessor);
 				}
+			}
+		} else {
+			executedProcessors = Collections.emptySet();
+		}
+		for (FormulaPostProcessor postProcessor : additionalPostProcessors) {
+			if (!executedProcessors.contains(postProcessor)) {
+				postProcessor.visit(finalFormula);
+				finalFormula = postProcessor.getPostProcessedFormula();
 			}
 		}
 		final FormulaDeduplicator deduplicator = new FormulaDeduplicator(finalFormula);
@@ -1164,7 +1308,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		/**
 		 * Set of scopes requested in {@link EvitaRequest#getScopes()}.
 		 */
-		private final Set<Scope> requiredScopes;
+		private final Deque<Set<Scope>> requiredScopes;
 		/**
 		 * Suppressed constraints contains set of {@link FilterConstraint} that will not be evaluated by this visitor
 		 * in current scope.
@@ -1293,7 +1437,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
 		) {
 			this.indexType = indexType;
-			this.requiredScopes = requiredScopes;
+			this.requiredScopes = new LinkedList<>();
+			this.requiredScopes.push(requiredScopes);
 			this.attributeSchemaAccessor = attributeSchemaAccessor;
 			this.attributeValueAccessor = attributeValueAccessor;
 			if (suppressedConstraints.length > 0) {
@@ -1326,7 +1471,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
 		) {
 			this.indexType = indexType;
-			this.requiredScopes = requiredScopes;
+			this.requiredScopes = new LinkedList<>();
+			this.requiredScopes.push(requiredScopes);
 			this.attributeSchemaAccessor = attributeSchemaAccessor;
 			this.attributeValueAccessor = attributeValueAccessor;
 			if (suppressedConstraints.length > 0) {
@@ -1425,7 +1571,30 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 */
 		@Nullable
 		public EntityContentRequire getRequirements() {
-			return requirements;
+			return this.requirements;
+		}
+
+		/**
+		 * Retrieves the set of requested scopes from the processing context.
+		 *
+		 * @return A non-null set of {@link Scope} that are required for the current processing context.
+		 */
+		@Nonnull
+		public Set<Scope> getScopes() {
+			return Objects.requireNonNull(this.requiredScopes.peek());
+		}
+
+		/**
+		 * Retrieves the entity schema for the current processing scope.
+		 * This method will throw an exception if the entity schema is not set.
+		 *
+		 * @return The entity schema for the current processing scope.
+		 * @throws IllegalStateException if the entity schema is not set.
+		 */
+		@Nonnull
+		public EntitySchemaContract getEntitySchemaOrThrowException() {
+			Assert.isTrue(this.entitySchema != null, "Entity schema is not set in the processing scope!");
+			return this.entitySchema;
 		}
 
 		/**
@@ -1436,7 +1605,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			@Nonnull String attributeName,
 			@Nonnull AttributeTrait... attributeTraits
 		) {
-			return attributeSchemaAccessor.getAttributeSchema(attributeName, this.requiredScopes, attributeTraits);
+			return this.attributeSchemaAccessor.getAttributeSchema(attributeName, getScopes(), attributeTraits);
 		}
 
 		/**
@@ -1444,7 +1613,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 */
 		@Nonnull
 		public AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract entitySchema, @Nonnull String attributeName, @Nonnull AttributeTrait... attributeTraits) {
-			return attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, this.requiredScopes, attributeTraits);
+			return this.attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, getScopes(), attributeTraits);
 		}
 
 		/**
@@ -1453,7 +1622,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 */
 		@Nonnull
 		public AttributeSchemaAccessor withReferenceSchemaAccessor(@Nonnull String referenceName) {
-			return attributeSchemaAccessor.withReferenceSchemaAccessor(referenceName);
+			return this.attributeSchemaAccessor.withReferenceSchemaAccessor(referenceName);
 		}
 
 		/**
@@ -1466,7 +1635,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			@Nullable Locale locale
 		) {
 			//noinspection DataFlowIssue
-			return attributeValueAccessor.apply(entitySchema, attributeName, locale);
+			return this.attributeValueAccessor.apply(entitySchema, attributeName, locale);
 		}
 
 		/**
@@ -1489,6 +1658,25 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			}
 			return this.superSetFormula;
 		}
+
+		/**
+		 * Executes the given supplier within the context of the specified scope. This method ensures that
+		 * the specified scope is applied for the duration of the supplier's execution and then restores
+		 * the previous scope afterwards.
+		 *
+		 * @param scopeToUse the scope to be applied during the execution of the supplier
+		 * @param lambda the supplier function to be executed within the specified scope
+		 * @return the result produced by the supplier
+		 */
+		public <S> S doWithScope(@Nonnull Set<Scope> scopeToUse, @Nonnull Supplier<S> lambda) {
+			try {
+				this.requiredScopes.push(scopeToUse);
+				return lambda.get();
+			} finally {
+				this.requiredScopes.pop();
+			}
+		}
+
 	}
 
 }

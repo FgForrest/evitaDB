@@ -31,7 +31,9 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.Index;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -89,12 +91,13 @@ class AbstractAttributeTranslator {
 		@Nonnull String attributeName,
 		@Nonnull AttributeTrait... traits
 	) {
-		final Optional<GlobalAttributeSchemaContract> result = filterByVisitor.getProcessingScope().getReferenceSchema() == null ?
+		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+		final Optional<GlobalAttributeSchemaContract> result = processingScope.getReferenceSchema() == null ?
 			filterByVisitor.getCatalogSchema().getAttribute(attributeName) : Optional.empty();
 		if (result.isPresent() && traits.length > 0) {
 			AttributeSchemaAccessor.verifyAndReturn(
 				attributeName,
-				filterByVisitor.getScopes(),
+				processingScope.getScopes(),
 				result.get(),
 				filterByVisitor.getCatalogSchema(),
 				filterByVisitor.isEntityTypeKnown() ? filterByVisitor.getSchema() : null,

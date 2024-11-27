@@ -378,6 +378,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitEntityHavingConstraint(EvitaQLParser.EntityHavingConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code inScopeConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitInScopeConstraint(EvitaQLParser.InScopeConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code entityScopeConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
@@ -1102,6 +1109,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitFilterConstraintArgs(EvitaQLParser.FilterConstraintArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#inScopeFilterArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitInScopeFilterArgs(EvitaQLParser.InScopeFilterArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#orderConstraintListArgs}.
 	 * @param ctx the parse tree

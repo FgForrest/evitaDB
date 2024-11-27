@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 	/**
 	 * Array of positions (indexes) in delegate array where insertions are expected to occur.
 	 */
-	private int[] insertions = new int[0];
+	private int[] insertions = ArrayUtils.EMPTY_INT_ARRAY;
 	/**
 	 * Two-dimensional array where there are recordIds (in second dimension) expected to be inserted at particular
 	 * position in delegate. The position is retrieved from {@link #insertions} on the same index as index of first
@@ -61,7 +61,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 	/**
 	 * Array of positions (indexes) in delegate array where removals are expected to occur.
 	 */
-	private int[] removals = new int[0];
+	private int[] removals = ArrayUtils.EMPTY_INT_ARRAY;
 	/**
 	 * Temporary intermediate result of the last {@link #getMergedArray()} operation. Nullified immediately with next
 	 * change.

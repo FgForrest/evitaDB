@@ -1862,7 +1862,33 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `scope` require constraint can be used to control the scope of the entity search. It has single vararg argument
+	 * This `inScope` filter container can be used to enclose set of filtering constraints that should be applied only when
+	 * searching for entities in specific scope. It has single argument of type {@link Scope} that defines the scope where
+	 * the enclosed filtering constraints should be applied. Consider following example:
+	 *
+	 * ```
+	 * filterBy(
+	 *    attributeEquals("code", "123"),
+	 *    inScope(LIVE, entityLocaleEquals(Locale.ENGLISH), attributeName("name", "LED TV")),
+	 *    scope(LIVE, ARCHIVED),
+	 * )
+	 * ```
+	 *
+	 * Query looks for matching entities in multiple scopes, but in archived scope the "name" attribute is indexed and
+	 * cannot be used for filtering. If it's not enclosed in `inScope` container, the query would fail with exception that
+	 * the attribute is not indexed in ARCHIVED scope. To avoid this problem, the `inScope` container is used to limit the
+	 * filtering to LIVE scope only. Attribute "code" is indexed in both scopes and can be used for filtering without any
+	 * restrictions in this example.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#in-scope">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static InScope inScope(@Nullable Scope scope, @Nullable FilterConstraint... constraints) {
+		return scope == null || ArrayUtils.isEmptyOrItsValuesNull(constraints) ? null : new InScope(scope, constraints);
+	}
+
+	/**
+	 * This `scope` filter constraint can be used to control the scope of the entity search. It has single vararg argument
 	 * that accepts one or more scopes where the entity should be searched. The following scopes are supported:
 	 *
 	 * - LIVE: entities that are currently active and reside in the live data set indexes
@@ -1879,8 +1905,8 @@ public interface QueryConstraints {
 	 * scope(LIVE,ARCHIVED)
 	 * ```
 	 *
-	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#scope">Visit detailed user documentation</a></p>
-	 */
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#scope">Visit detailed user documentation</a></p>
+	*/
 	@Nullable
 	static EntityScope scope(@Nullable Scope... scope) {
 		return ArrayUtils.isEmptyOrItsValuesNull(scope) ? null : new EntityScope(scope);

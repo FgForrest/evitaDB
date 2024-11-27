@@ -30,6 +30,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -85,7 +86,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 			.orElse(entitySchema);
 
 		// we use only the first applicable scope here - if LIVE scope is present it always takes precedence
-		final Set<Scope> scopesToLookup = queryContext.getScopes();
+		final Set<Scope> scopesToLookup = filterByVisitor.getProcessingScope().getScopes();
 		return Arrays.stream(Scope.values())
 			.filter(scopesToLookup::contains)
 			.map(scope -> queryContext.getIndex(targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class))
@@ -104,9 +105,15 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 							)
 						);
 
+						Assert.isTrue(
+							scopesToLookup.stream().allMatch(targetEntitySchema::isHierarchyIndexedInScope),
+							() -> new HierarchyNotIndexedException(targetEntitySchema)
+						);
+
 						final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();
 						final Formula hierarchyParentFormula = createFormulaForTheFilter(
 							queryContext,
+							scopesToLookup,
 							createFilter(queryContext, parentFilter),
 							targetEntitySchema.getName(),
 							() -> "Finding hierarchy parent node: " + parentFilter
@@ -124,6 +131,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 								createAndStoreHavingPredicate(
 									nodeIds,
 									queryContext,
+									scopesToLookup,
 									of(new FilterBy(hierarchyWithin.getHavingChildrenFilter()))
 										.filter(ConstraintContainer::isApplicable)
 										.orElse(null),

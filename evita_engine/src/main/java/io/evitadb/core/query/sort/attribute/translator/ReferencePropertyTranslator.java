@@ -53,8 +53,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static io.evitadb.utils.Assert.isTrue;
-
 /**
  * This implementation of {@link OrderingConstraintTranslator} converts {@link ReferenceProperty} to {@link Sorter}.
  *
@@ -184,10 +182,11 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		final String referenceName = orderConstraint.getReferenceName();
 		final EntitySchemaContract entitySchema = orderByVisitor.getSchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-		isTrue(
-			orderByVisitor.getScopes().stream().anyMatch(referenceSchema::isIndexedInScope),
-			() -> new ReferenceNotIndexedException(referenceName, entitySchema)
-		);
+		for (Scope scope : orderByVisitor.getScopes()) {
+			if (!referenceSchema.isIndexedInScope(scope)) {
+				throw new ReferenceNotIndexedException(referenceName, entitySchema, scope);
+			}
+		}
 		final boolean referencedEntityHierarchical = referenceSchema.isReferencedEntityTypeManaged() &&
 			orderByVisitor.getSchema(referenceSchema.getReferencedEntityType()).isWithHierarchy();
 

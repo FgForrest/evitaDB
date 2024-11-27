@@ -269,6 +269,12 @@ public interface EntitySchemaContract extends
 	}
 
 	/**
+	 * Returns true if schema contains at least one localized attribute or associated data.
+	 * @return true if schema contains at least one localized attribute or associated data
+	 */
+	boolean isLocalized();
+
+	/**
 	 * Returns set of all {@link Currency} that could be used for {@link PriceContract prices} in entities of this type.
 	 */
 	@Nonnull

@@ -641,6 +641,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterInScopeConstraint(EvitaQLParser.InScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitInScopeConstraint(EvitaQLParser.InScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterEntityScopeConstraint(EvitaQLParser.EntityScopeConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1896,6 +1908,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitFilterConstraintArgs(EvitaQLParser.FilterConstraintArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterInScopeFilterArgs(EvitaQLParser.InScopeFilterArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitInScopeFilterArgs(EvitaQLParser.InScopeFilterArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

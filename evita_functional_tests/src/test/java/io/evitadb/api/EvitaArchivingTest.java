@@ -35,10 +35,15 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
+import io.evitadb.core.exception.AttributeNotFilterableException;
+import io.evitadb.core.exception.PriceNotIndexedException;
+import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -60,10 +65,7 @@ import static io.evitadb.api.EvitaIndexingTest.getGlobalIndex;
 import static io.evitadb.api.EvitaIndexingTest.getReferencedEntityIndex;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies archiving (changing scope) of the entities.
@@ -218,7 +220,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check product entity is not in any of indexes
-		checkProductCannotBeLookedUpByIndexes(Scope.values());
+		checkProductCannotBeLookedUpByIndexes(Scope.LIVE);
+		checkProductCannotBeLookedUpByIndexes(Scope.ARCHIVED);
 
 		// check archive indexes exist and previous indexes are removed
 		final Catalog catalog2 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
@@ -352,7 +355,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check product entity is in LIVE indexes
-		checkProductCannotBeLookedUpByIndexes();
+		checkProductCannotBeLookedUpByIndexes(Scope.LIVE);
 		// check product entity is in ARCHIVED indexes
 		checkProductCanBeLookedUpByIndexes(Scope.values());
 
@@ -521,7 +524,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check product entity is in LIVE indexes
-		checkProductCannotBeLookedUpByIndexes();
+		checkProductCannotBeLookedUpByIndexes(Scope.LIVE);
 		// check product entity is in ARCHIVED indexes
 		checkProductCanBeLookedUpByIndexes(Scope.values());
 
@@ -683,6 +686,191 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.CATEGORY, 2));
 		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 2));
+	}
+
+	@DisplayName("Results should be merged from both scopes when querying and fetching contents")
+	@Test
+	void shouldCombineArchivedAndNonArchiveDataInQueryAndFetch() {
+		/* create schema for entity archival */
+		createSchemaForEntityArchiving(Scope.LIVE);
+
+		// upsert entities product depends on
+		createBrandAndCategoryEntities();
+
+		// create product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+					.setReference(Entities.BRAND, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "123"))
+					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 101)
+					.setAttribute(ATTRIBUTE_CODE, "TV-456")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Radio")
+					.setReference(Entities.BRAND, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "456"))
+					.setReference(Entities.CATEGORY, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
+					.setPrice(2, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.setPrice(2, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
+					.upsertVia(session);
+			}
+		);
+
+		final Query complexQuery = query(
+			collection(Entities.PRODUCT),
+			filterBy(
+				entityPrimaryKeyInSet(100, 101),
+				inScope(
+					Scope.LIVE,
+					entityLocaleEquals(Locale.ENGLISH),
+					attributeInSet(ATTRIBUTE_NAME, "TV", "Radio"),
+					attributeInSet(ATTRIBUTE_CODE, "TV-123", "TV-456"),
+					referenceHaving(
+						Entities.BRAND,
+						attributeInSet(ATTRIBUTE_BRAND_EAN, "123", "456")
+					),
+					referenceHaving(
+						Entities.CATEGORY,
+						attributeInSet(ATTRIBUTE_CATEGORY_MARKET, "EU", "US")
+					),
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_CZK)
+				),
+				scope(Scope.LIVE, Scope.ARCHIVED)
+			),
+			require(
+				entityFetch(
+					attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_NAME),
+					referenceContentWithAttributes(Entities.BRAND, filterBy(inScope(Scope.LIVE, entityPrimaryKeyInSet(1, 2))), entityFetchAll()),
+					referenceContentWithAttributes(Entities.CATEGORY, filterBy(inScope(Scope.LIVE, entityHaving(attributeInSet(ATTRIBUTE_CODE, "electronics", "TV")))), entityFetchAll()),
+					priceContentRespectingFilter()
+				)
+			)
+		);
+
+		// find products with complex query - there are no archived data at the moment
+		final List<SealedEntity> liveProducts = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryList(complexQuery, SealedEntity.class);
+			}
+		);
+		assertArrayEquals(
+			new int[] {100, 101},
+			liveProducts.stream()
+				.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
+				.toArray()
+		);
+
+		for (SealedEntity liveProduct : liveProducts) {
+			assertEquals(1, liveProduct.getReferences(Entities.BRAND).size());
+			assertEquals(1, liveProduct.getReferences(Entities.CATEGORY).size());
+			// all bodies are fetched
+			for (ReferenceContract reference : liveProduct.getReferences()) {
+				assertNotNull(reference.getReferencedEntity());
+			}
+		}
+
+		// archive product entity and all brands
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 100);
+				session.archiveEntity(Entities.BRAND, 1);
+				session.archiveEntity(Entities.BRAND, 2);
+			}
+		);
+
+		// find products with complex query - both live and archived (combination)
+		final List<SealedEntity> liveAndArchiveProductsTogether = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryList(complexQuery, SealedEntity.class);
+			}
+		);
+		assertArrayEquals(
+			new int[] {100, 101},
+			liveAndArchiveProductsTogether.stream()
+				.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
+				.toArray()
+		);
+
+		for (SealedEntity liveProduct : liveAndArchiveProductsTogether) {
+			assertEquals(1, liveProduct.getReferences(Entities.BRAND).size());
+			assertEquals(1, liveProduct.getReferences(Entities.CATEGORY).size());
+			// all bodies are fetched
+			for (ReferenceContract reference : liveProduct.getReferences()) {
+				assertNotNull(reference.getReferencedEntity());
+			}
+		}
+
+		assertThrows(
+			ReferenceNotIndexedException.class,
+			() -> evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(100, 101),
+								entityLocaleEquals(Locale.ENGLISH),
+								attributeInSet(ATTRIBUTE_NAME, "TV", "Radio"),
+								attributeInSet(ATTRIBUTE_CODE, "TV-123", "TV-456"),
+								referenceHaving(
+									Entities.BRAND,
+									attributeInSet(ATTRIBUTE_BRAND_EAN, "123", "456")
+								),
+								referenceHaving(
+									Entities.CATEGORY,
+									attributeInSet(ATTRIBUTE_CATEGORY_MARKET, "EU", "US")
+								),
+								priceInPriceLists(PRICE_LIST_BASIC),
+								priceInCurrency(CURRENCY_CZK),
+								scope(Scope.LIVE, Scope.ARCHIVED)
+							),
+							require(
+								entityFetchAllContent()
+							)
+						),
+						SealedEntity.class
+					);
+				}
+			)
+		);
+
+		assertThrows(
+			ReferenceNotIndexedException.class,
+			() -> evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(100, 101),
+								entityLocaleEquals(Locale.ENGLISH),
+								scope(Scope.LIVE, Scope.ARCHIVED)
+							),
+							require(
+								entityFetch(
+									attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_NAME),
+									referenceContentWithAttributes(Entities.BRAND, filterBy(attributeInSet(ATTRIBUTE_BRAND_EAN, "123", "456"))),
+									referenceContentWithAttributes(Entities.CATEGORY, filterBy(attributeInSet(ATTRIBUTE_CATEGORY_MARKET, "EU", "US"))),
+									priceContentRespectingFilter()
+								)
+							)
+						),
+						SealedEntity.class
+					);
+				}
+			)
+		);
 	}
 
 	@DisplayName("Entity reflected references should be removed when entity is archived")
@@ -1176,7 +1364,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check entity can't be found in any scope
-		checkProductCannotBeLookedUpByIndexes(Scope.values());
+		checkProductCannotBeLookedUpByIndexes(Scope.LIVE);
+		checkProductCannotBeLookedUpByIndexes(Scope.ARCHIVED);
 	}
 
 	@Test
@@ -1373,18 +1562,59 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 	}
 
-	private void checkProductCannotBeLookedUpByIndexes(Scope... scope) {
+	private void checkProductCannotBeLookedUpByIndexes(Scope scope) {
+		final SealedEntitySchema schema = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchema(Entities.PRODUCT).orElseThrow();
+			}
+		);
 		// global attribute
-		assertNull(queryProductReferenceBy(scope, attributeEquals(ATTRIBUTE_CODE, "TV-123")));
+		final EntityAttributeSchemaContract codeSchema = schema.getAttribute(ATTRIBUTE_CODE).orElseThrow();
+		if (codeSchema.isFilterableInScope(scope) || codeSchema.isUniqueInScope(scope)) {
+			assertNull(queryProductReferenceBy(new Scope[] {scope}, attributeEquals(ATTRIBUTE_CODE, "TV-123")));
+		} else {
+			assertThrows(
+				AttributeNotFilterableException.class,
+				() -> queryProductReferenceBy(new Scope[] {scope}, attributeEquals(ATTRIBUTE_CODE, "TV-123"))
+			);
+		}
 		// entity attribute
-		assertNull(queryProductReferenceBy(scope, attributeEquals(ATTRIBUTE_NAME, "TV"), entityLocaleEquals(Locale.ENGLISH)));
+		if (schema.getAttribute(ATTRIBUTE_NAME).orElseThrow().isFilterableInScope(scope)) {
+			assertNull(queryProductReferenceBy(new Scope[] {scope}, attributeEquals(ATTRIBUTE_NAME, "TV"), entityLocaleEquals(Locale.ENGLISH)));
+		} else {
+			assertThrows(
+				AttributeNotFilterableException.class,
+				() -> queryProductReferenceBy(new Scope[] {scope}, attributeEquals(ATTRIBUTE_NAME, "TV"), entityLocaleEquals(Locale.ENGLISH))
+			);
+		}
 		// references
-		assertNull(queryProductReferenceBy(scope, referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1))));
+		if (schema.getReference(Entities.BRAND).orElseThrow().isIndexedInScope(scope)) {
+			assertNull(queryProductReferenceBy(new Scope[] {scope}, referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1))));
+		} else {
+			assertThrows(
+				ReferenceNotIndexedException.class,
+				() -> queryProductReferenceBy(new Scope[] {scope}, referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1)))
+			);
+		}
 		// hierarchy
-		assertNull(queryProductReferenceBy(scope, hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))));
-		assertNull(queryProductReferenceBy(scope, hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))));
+		if (schema.getReference(Entities.CATEGORY).orElseThrow().isIndexedInScope(scope)) {
+			assertNull(queryProductReferenceBy(new Scope[] {scope}, hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))));
+		} else {
+			assertThrows(
+				ReferenceNotIndexedException.class,
+				() -> queryProductReferenceBy(new Scope[] {scope}, hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)))
+			);
+		}
 		// price
-		assertNull(queryProductReferenceBy(scope, priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC)));
+		if (schema.isPriceIndexedInScope(scope)) {
+			assertNull(queryProductReferenceBy(new Scope[] {scope}, priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC)));
+		} else {
+			assertThrows(
+				PriceNotIndexedException.class,
+				() -> queryProductReferenceBy(new Scope[] {scope}, priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC))
+			);
+		}
 	}
 
 	@Nullable

@@ -106,6 +106,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		@Nullable int[] parent,
 		boolean parentResult,
 		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull FilterBy filterBy,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
@@ -129,14 +130,13 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			);
 			final Formula theFormula;
 			if (referenceSchema == null) {
-				final Set<Scope> scopes = queryContext.getScopes();
 				Assert.isTrue(
-					scopes.size() == 1,
+					requestedScopes.size() == 1,
 					() -> "The query contains multiple scopes: " +
-						scopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ". " +
+						requestedScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ". " +
 						"The hierarchy filter can't be resolved - hierarchy tree is maintained separately for each scope and multiple trees cannot be merged."
 				);
-				final Scope scope = scopes.iterator().next();
+				final Scope scope = requestedScopes.iterator().next();
 
 				theFormula = queryContext.analyse(
 					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
@@ -158,7 +158,8 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 				);
 			} else {
 				theFormula = FilterByVisitor.createFormulaForTheFilter(
-					queryContext, filterBy, referenceSchema.getReferencedEntityType(), stepDescriptionSupplier
+					queryContext, requestedScopes, filterBy,
+					referenceSchema.getReferencedEntityType(), stepDescriptionSupplier
 				);
 			}
 			// create a deferred formula that will log the execution time to query telemetry
