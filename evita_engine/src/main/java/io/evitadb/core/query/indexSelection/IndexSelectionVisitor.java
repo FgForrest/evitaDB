@@ -31,10 +31,10 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
-import io.evitadb.api.query.filter.InScope;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -128,7 +128,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 			for (FilterConstraint subConstraint : subConstraints) {
 				subConstraint.accept(this);
 			}
-		} else if (filterConstraint instanceof InScope inScope) {
+		} else if (filterConstraint instanceof FilterInScope inScope) {
 			this.scopes.push(EnumSet.of(inScope.getScope()));
 			try {
 				for (FilterConstraint subConstraint : inScope.getChildren()) {

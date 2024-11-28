@@ -47,6 +47,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
+import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FacetSummaryProducer;
@@ -55,6 +56,7 @@ import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTransla
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.NoSorter;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.collection.BitmapIntoBitmapCollector;
@@ -287,14 +289,19 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		return requirement;
 	}
 
+	@Nullable
 	@Override
-	public ExtraResultProducer apply(FacetSummaryOfReference facetSummaryOfReference, ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer createProducer(@Nonnull FacetSummaryOfReference facetSummaryOfReference, @Nonnull ExtraResultPlanningVisitor extraResultPlanner) {
 		final String referenceName = facetSummaryOfReference.getReferenceName();
 		final EntitySchemaContract entitySchema = extraResultPlanner.getSchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
+
+		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
+		final Set<Scope> scopes = processingScope.getScopes();
+
 		isTrue(
-			extraResultPlanner.getScopes().stream().allMatch(referenceSchema::isFacetedInScope),
+			scopes.stream().allMatch(referenceSchema::isFacetedInScope),
 			() -> new ReferenceNotFacetedException(referenceName, entitySchema)
 		);
 

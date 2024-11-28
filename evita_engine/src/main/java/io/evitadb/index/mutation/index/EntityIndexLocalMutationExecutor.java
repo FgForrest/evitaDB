@@ -474,24 +474,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		if (targetIndex.upsertLanguage(locale, recordId, entitySchema)) {
-			if (targetIndex.getIndexKey().discriminator() instanceof ReferenceKey) {
-				ReferenceIndexMutator.indexAllCompounds(
-					this,
-					targetIndex,
-					locale,
-					existingDataSupplierFactory,
-					undoActionConsumer
-				);
-			} else {
-				AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-					this,
-					targetIndex,
-					locale,
-					getEntitySchema(),
-					existingDataSupplierFactory.getEntityAttributeValueSupplier(),
-					undoActionConsumer
-				);
-			}
+			insertInitialSuiteOfSortableAttributeCompounds(locale, targetIndex, existingDataSupplierFactory, undoActionConsumer);
 			if (undoActionConsumer != null) {
 				undoActionConsumer.accept(
 					() -> removeEntityLanguageInTargetIndex(
@@ -503,10 +486,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			}
 		}
 	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	/**
 	 * Remove the language for the specified record in the target index.
@@ -526,24 +505,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		if (targetIndex.removeLanguage(locale, recordId)) {
-			if (targetIndex.getIndexKey().discriminator() instanceof ReferenceKey) {
-				ReferenceIndexMutator.removeAllCompounds(
-					this,
-					targetIndex,
-					locale,
-					existingDataSupplierFactory,
-					undoActionConsumer
-				);
-			} else {
-				AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-					this,
-					targetIndex,
-					locale,
-					getEntitySchema(),
-					existingDataSupplierFactory.getEntityAttributeValueSupplier(),
-					undoActionConsumer
-				);
-			}
+			removeEntireSuiteOfSortableAttributeCompounds(locale, targetIndex, existingDataSupplierFactory, undoActionConsumer);
 			if (undoActionConsumer != null) {
 				undoActionConsumer.accept(
 					() -> upsertEntityLanguageInTargetIndex(
@@ -551,6 +513,86 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					)
 				);
 			}
+		}
+	}
+
+	/*
+		PRIVATE METHODS
+	 */
+
+	/**
+	 * Inserts an initial suite of sortable attribute compounds into the specified target index.
+	 *
+	 * This method determines whether the target index is associated with a reference key or not
+	 * and delegates to the appropriate mutator. It utilizes the existing data supplier factory
+	 * to source any required pre-existing data and optionally records undo actions.
+	 *
+	 * @param locale the locale context for the operation, which may be null;
+	 *               if null, the operation is performed without locale-specific considerations
+	 * @param targetIndex the target entity index where the sortable attribute compounds will be inserted;
+	 *                    it must not be null
+	 * @param existingDataSupplierFactory the factory to create suppliers that provide existing data used during the insert;
+	 *                                    it must not be null
+	 * @param undoActionConsumer an optional consumer to store runnable actions for undoing changes;
+	 *                           may be null if undo actions are not required
+	 */
+	private void insertInitialSuiteOfSortableAttributeCompounds(
+		@Nullable Locale locale,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		if (targetIndex.getIndexKey().discriminator() instanceof ReferenceKey) {
+			ReferenceIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+				this,
+				targetIndex,
+				locale,
+				existingDataSupplierFactory,
+				undoActionConsumer
+			);
+		} else {
+			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+				this,
+				targetIndex,
+				locale,
+				getEntitySchema(),
+				existingDataSupplierFactory.getEntityAttributeValueSupplier(),
+				undoActionConsumer
+			);
+		}
+	}
+
+	/**
+	 * Removes an entire suite of sortable attribute compounds from the specified entity index.
+	 *
+	 * @param locale The locale for which the attribute compounds should be removed. This may be null if locale-specific processing is not required.
+	 * @param targetIndex The target entity index from which the sortable attribute compounds will be removed. Must not be null.
+	 * @param existingDataSupplierFactory A factory for creating suppliers of existing data that may be used to assist in the removal process. Must not be null.
+	 * @param undoActionConsumer An optional consumer that can accept a Runnable to perform undo actions, if needed. This may be null if undo functionality is not required.
+	 */
+	private void removeEntireSuiteOfSortableAttributeCompounds(
+		@Nullable Locale locale,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		if (targetIndex.getIndexKey().discriminator() instanceof ReferenceKey) {
+			ReferenceIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+				this,
+				targetIndex,
+				locale,
+				existingDataSupplierFactory,
+				undoActionConsumer
+			);
+		} else {
+			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+				this,
+				targetIndex,
+				locale,
+				getEntitySchema(),
+				existingDataSupplierFactory.getEntityAttributeValueSupplier(),
+				undoActionConsumer
+			);
 		}
 	}
 
@@ -709,6 +751,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		final Function<String, AttributeSchema> attributeSchemaRetriever = attributeName -> entitySchema.getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null);
 		final Function<String, Stream<SortableAttributeCompoundSchema>> compoundSchemaRetriever = attributeName -> entitySchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
+
+		// index all non-localized attribute compounds
+		removeEntireSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender);
+		applyOnReducedIndexes(
+			scope,
+			existingDataSupplierFactory.getReferenceSupplier(),
+			index -> removeEntireSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender)
+		);
+
 		entity.getAttributeValues()
 			.stream()
 			.filter(Droppable::exists)
@@ -724,7 +775,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							index,
 							key,
 							updateGlobalIndex,
-							true,
+							false,
 							this.undoActionsAppender
 						);
 					removalOperation.accept(globalIndex, true);
@@ -901,13 +952,24 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		final Function<String, AttributeSchema> attributeSchemaRetriever = attributeName -> entitySchema.getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null);
 		final Function<String, Stream<SortableAttributeCompoundSchema>> compoundSchemaRetriever = attributeName -> entitySchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
+
+		// index all non-localized attribute compounds
+		insertInitialSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender);
+		applyOnReducedIndexes(
+			scope,
+			existingDataSupplierFactory.getReferenceSupplier(),
+			index -> insertInitialSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender)
+		);
+
+		// now index all attributes
 		entity.getAttributeValues()
 			.stream()
 			.filter(Droppable::exists)
 			.forEach(
 				attributeValue -> {
 					final AttributeKey key = attributeValue.key();
-					final BiConsumer<EntityIndex, Boolean> upsertOperation = (index, updateGlobalIndex) -> AttributeIndexMutator.executeAttributeUpsert(
+					final BiConsumer<EntityIndex, Boolean> upsertOperation =
+						(index, updateGlobalIndex) -> AttributeIndexMutator.executeAttributeUpsert(
 						this,
 						attributeSchemaRetriever,
 						compoundSchemaRetriever,
@@ -916,7 +978,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						key,
 						attributeValue.valueOrThrowException(),
 						updateGlobalIndex,
-						true,
+						false,
 						this.undoActionsAppender
 					);
 					upsertOperation.accept(globalIndex, true);

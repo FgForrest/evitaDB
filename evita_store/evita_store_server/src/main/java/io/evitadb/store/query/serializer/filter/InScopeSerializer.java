@@ -29,20 +29,20 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.InScope;
+import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.dataType.Scope;
 import lombok.RequiredArgsConstructor;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link InScope} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link FilterInScope} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-public class InScopeSerializer extends Serializer<InScope> {
+public class InScopeSerializer extends Serializer<FilterInScope> {
 
 	@Override
-	public void write(Kryo kryo, Output output, InScope inScope) {
+	public void write(Kryo kryo, Output output, FilterInScope inScope) {
 		final Scope scope = inScope.getScope();
 		kryo.writeObject(output, scope);
 		final FilterConstraint[] filtering = inScope.getFiltering();
@@ -53,14 +53,14 @@ public class InScopeSerializer extends Serializer<InScope> {
 	}
 
 	@Override
-	public InScope read(Kryo kryo, Input input, Class<? extends InScope> type) {
+	public FilterInScope read(Kryo kryo, Input input, Class<? extends FilterInScope> type) {
 		final Scope scope = kryo.readObject(input, Scope.class);
 		final int filteringLength = input.readVarInt(true);
 		final FilterConstraint[] filtering = new FilterConstraint[filteringLength];
 		for (int i = 0; i < filteringLength; i++) {
 			filtering[i] = kryo.readObject(input, FilterConstraint.class);
 		}
-		return new InScope(scope, filtering);
+		return new FilterInScope(scope, filtering);
 	}
 
 }

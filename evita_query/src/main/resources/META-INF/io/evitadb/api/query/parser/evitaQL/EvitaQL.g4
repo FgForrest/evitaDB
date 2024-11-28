@@ -81,7 +81,7 @@ filterConstraint
     | 'excludingRoot'                       emptyArgs                                                       # hierarchyExcludingRootConstraint
     | 'excluding'                           args = filterConstraintListArgs                                 # hierarchyExcludingConstraint
     | 'entityHaving'                        args = filterConstraintArgs                                     # entityHavingConstraint
-    | 'inScope'                             args = inScopeFilterArgs                                        # inScopeConstraint
+    | 'inScope'                             args = inScopeFilterArgs                                        # filterInScopeConstraint
     | 'scope'                               args = valueListArgs                                            # entityScopeConstraint
     ;
 
@@ -104,6 +104,7 @@ orderConstraint
     | 'segments'                            args = orderConstraintListArgs                                  # segmentsConstraint
     | 'segment'                             args = segmentArgs                                              # segmentConstraint
     | 'limit'                               args = valueArgs                                                # segmentLimitConstraint
+    | 'inScope'                             args = inScopeOrderArgs                                         # orderInScopeConstraint
     ;
 
 requireConstraint
@@ -185,6 +186,7 @@ requireConstraint
     | 'hierarchyOfReference'                args = fullHierarchyOfReferenceArgs                             # fullHierarchyOfReferenceConstraint
     | 'hierarchyOfReference'                args = fullHierarchyOfReferenceWithBehaviourArgs                # fullHierarchyOfReferenceWithBehaviourConstraint
     | 'queryTelemetry'                      emptyArgs                                                       # queryTelemetryConstraint
+    | 'inScope'                             args = inScopeRequireArgs                                       # requireInScopeConstraint
     ;
 
 headConstraintList : constraints += headConstraint (ARGS_DELIMITER constraints += headConstraint)* ;
@@ -209,8 +211,6 @@ emptyArgs :                                         argsOpening argsClosing ;
 filterConstraintListArgs :                          argsOpening constraints += filterConstraint (ARGS_DELIMITER constraints += filterConstraint)* argsClosing ;
 
 filterConstraintArgs :                              argsOpening filter = filterConstraint argsClosing ;
-
-inScopeFilterArgs:                                  argsOpening scope = valueToken (ARGS_DELIMITER filterConstraints += filterConstraint)* argsClosing ;
 
 orderConstraintListArgs :                           argsOpening constraints += orderConstraint (ARGS_DELIMITER constraints += orderConstraint)* argsClosing ;
 
@@ -368,6 +368,12 @@ spacingRequireConstraintArgs :                      argsOpening constraints += r
 gapRequireConstraintArgs :                          argsOpening size = valueToken ARGS_DELIMITER expression = valueToken argsClosing ;
 
 segmentArgs:                                        argsOpening (entityHaving = filterConstraint ARGS_DELIMITER)? orderBy = orderConstraint (ARGS_DELIMITER limit = orderConstraint)? argsClosing ;
+
+inScopeFilterArgs:                                  argsOpening scope = valueToken (ARGS_DELIMITER filterConstraints += filterConstraint)* argsClosing ;
+
+inScopeOrderArgs:                                   argsOpening scope = valueToken (ARGS_DELIMITER orderConstraints += orderConstraint)* argsClosing ;
+
+inScopeRequireArgs:                                 argsOpening scope = valueToken (ARGS_DELIMITER requireConstraints += requireConstraint)* argsClosing ;
 
 /**
  * Parameters values

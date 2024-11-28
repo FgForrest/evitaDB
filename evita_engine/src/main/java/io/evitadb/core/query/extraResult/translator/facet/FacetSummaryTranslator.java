@@ -42,12 +42,14 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
+import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FacetSummaryProducer;
 import io.evitadb.core.query.extraResult.translator.reference.AssociatedDataContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.AttributeContentTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.collection.BitmapIntoBitmapCollector;
@@ -55,6 +57,7 @@ import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -73,8 +76,9 @@ import static io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfR
  */
 public class FacetSummaryTranslator implements RequireConstraintTranslator<FacetSummary>, SelfTraversingTranslator {
 
+	@Nullable
 	@Override
-	public ExtraResultProducer apply(FacetSummary facetSummary, ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer createProducer(@Nonnull FacetSummary facetSummary, @Nonnull ExtraResultPlanningVisitor extraResultPlanner) {
 		// find user filters that enclose variable user defined part
 		final Set<Formula> formulaScope = extraResultPlanner.getUserFilteringFormula().isEmpty() ?
 			Set.of(extraResultPlanner.getFilteringFormula()) :
@@ -92,9 +96,15 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 					)
 				)
 			);
+
+		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
+		final Set<Scope> scopes = processingScope.getScopes();
+		final EntitySchemaContract entitySchema = processingScope.getEntitySchema().orElseThrow();
+
 		// collect all facet statistics
 		final TargetIndexes<?> indexSetToUse = extraResultPlanner.getIndexSetToUse();
 		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexStream(EntityIndex.class)
+			.filter(index -> scopes.contains(index.getIndexKey().scope()))
 			.map(EntityIndex::getFacetingEntities)
 			.collect(Collectors.toList());
 
@@ -112,7 +122,6 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 			);
 		}
 
-		final EntitySchemaContract entitySchema = extraResultPlanner.getSchema();
 		final EntityFetch facetEntityRequirement = facetSummary.getFacetEntityRequirement()
 			.map(it -> verifyFetch(entitySchema, referenceSchema -> referenceSchema.isReferencedEntityTypeManaged() ? referenceSchema.getReferencedEntityType() : null, it, extraResultPlanner))
 			.orElse(null);

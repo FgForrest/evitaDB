@@ -36,11 +36,11 @@ import static io.evitadb.api.query.QueryConstraints.inScope;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link InScope} query.
+ * This tests verifies basic properties of {@link FilterInScope} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-class InScopeTest {
+class FilterInScopeTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
@@ -54,8 +54,8 @@ class InScopeTest {
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertThrows(EvitaInvalidUsageException.class, () -> new InScope(null));
-		assertThrows(EvitaInvalidUsageException.class, () -> new InScope(Scope.LIVE));
+		assertThrows(EvitaInvalidUsageException.class, () -> new FilterInScope(null));
+		assertThrows(EvitaInvalidUsageException.class, () -> new FilterInScope(Scope.LIVE));
 		assertTrue(inScope(Scope.LIVE, entityPrimaryKeyInSet(1)).isApplicable());
 		assertTrue(inScope(Scope.ARCHIVED, entityLocaleEquals(Locale.ENGLISH), entityPrimaryKeyInSet(1)).isApplicable());
 	}

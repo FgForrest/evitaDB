@@ -120,7 +120,7 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 
 	@Nullable
 	@Override
-	public ExtraResultProducer apply(AttributeContent attributeContent, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer createProducer(@Nonnull AttributeContent attributeContent, @Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		if (extraResultPlanningVisitor.isEntityTypeKnown()) {
 			final Optional<ReferenceSchemaContract> referenceSchema = extraResultPlanningVisitor.getCurrentReferenceSchema();
 			final Optional<EntitySchemaContract> entitySchema = extraResultPlanningVisitor.getCurrentEntitySchema();

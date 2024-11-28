@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -44,22 +45,41 @@ abstract class AbstractOrderConstraintContainer extends ConstraintContainer<Orde
 		super(arguments, children, additionalChildren);
 	}
 
+	protected AbstractOrderConstraintContainer(@Nullable String name, @Nonnull Serializable[] arguments, @Nonnull OrderConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+		super(name, arguments, children, additionalChildren);
+	}
+
 	protected AbstractOrderConstraintContainer(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
 		super(children, additionalChildren);
+	}
+
+	protected AbstractOrderConstraintContainer(@Nullable String name, @Nonnull OrderConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+		super(name, NO_ARGS, children, additionalChildren);
 	}
 
 	protected AbstractOrderConstraintContainer(Serializable[] arguments, OrderConstraint... children) {
 		super(arguments, children);
 	}
 
+	protected AbstractOrderConstraintContainer(@Nullable String name, Serializable[] arguments, OrderConstraint... children) {
+		super(name, arguments, children);
+	}
+
 	protected AbstractOrderConstraintContainer(Serializable argument, OrderConstraint... children) {
 		super(new Serializable[] {argument}, children);
+	}
+
+	protected AbstractOrderConstraintContainer(@Nullable String name, Serializable argument, OrderConstraint... children) {
+		super(name, new Serializable[] {argument}, children);
 	}
 
 	protected AbstractOrderConstraintContainer(OrderConstraint... children) {
 		super(children);
 	}
 
+	protected AbstractOrderConstraintContainer(@Nullable String name, OrderConstraint... children) {
+		super(name, children);
+	}
 	@Nonnull
 	@Override
 	public Class<OrderConstraint> getType() {

@@ -62,7 +62,7 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.translator.FilterByTranslator;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.*;
-import io.evitadb.core.query.filter.translator.behavioral.InScopeTranslator;
+import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator;
 import io.evitadb.core.query.filter.translator.behavioral.UserFilterTranslator;
 import io.evitadb.core.query.filter.translator.bool.AndTranslator;
 import io.evitadb.core.query.filter.translator.bool.NotTranslator;
@@ -181,7 +181,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		TRANSLATORS.put(HierarchyWithinRoot.class, new HierarchyWithinRootTranslator());
 		TRANSLATORS.put(FacetHaving.class, new FacetHavingTranslator());
 		TRANSLATORS.put(UserFilter.class, new UserFilterTranslator());
-		TRANSLATORS.put(InScope.class, new InScopeTranslator());
+		TRANSLATORS.put(FilterInScope.class, new FilterInScopeTranslator());
 		TRANSLATORS.put(EntityScope.class, FilteringConstraintTranslator.noOpTranslator());
 
 		CONJUNCTIVE_FORMULAS = new HashSet<>();
@@ -194,7 +194,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		CONJUNCTIVE_CONSTRAINTS = new HashSet<>();
 		CONJUNCTIVE_CONSTRAINTS.add(And.class);
 		CONJUNCTIVE_CONSTRAINTS.add(UserFilter.class);
-		CONJUNCTIVE_CONSTRAINTS.add(InScope.class);
+		CONJUNCTIVE_CONSTRAINTS.add(FilterInScope.class);
 		CONJUNCTIVE_CONSTRAINTS.add(FilterBy.class);
 	}
 

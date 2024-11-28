@@ -24,6 +24,7 @@
 package io.evitadb.core.exception;
 
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
@@ -41,6 +42,13 @@ public class PriceNotIndexedException extends EvitaInvalidUsageException {
 		super(
 			"Entity `" + entitySchema.getName() + "` has not " +
 				"indexed prices and cannot be filtered by them. Filtering by without index would be slow."
+		);
+	}
+
+	public PriceNotIndexedException(@Nonnull EntitySchemaContract entitySchema, @Nonnull Scope scope) {
+		super(
+			"Entity `" + entitySchema.getName() + "` has not " +
+				"indexed prices in scope `" + scope + "` and cannot be filtered by them. Filtering by without index would be slow."
 		);
 	}
 

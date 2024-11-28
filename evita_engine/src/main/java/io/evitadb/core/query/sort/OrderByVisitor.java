@@ -58,6 +58,7 @@ import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalT
 import io.evitadb.core.query.sort.random.translator.RandomTranslator;
 import io.evitadb.core.query.sort.segment.SegmentsTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
+import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -101,6 +102,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		TRANSLATORS.put(AttributeSetInFilter.class, new AttributeSetInFilterTranslator());
 		TRANSLATORS.put(AttributeSetExact.class, new AttributeSetExactTranslator());
 		TRANSLATORS.put(Segments.class, new SegmentsTranslator());
+		TRANSLATORS.put(OrderInScope.class, new OrderInScopeTranslator());
 	}
 
 	/**

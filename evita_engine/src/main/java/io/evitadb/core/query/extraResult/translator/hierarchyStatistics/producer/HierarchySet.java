@@ -74,7 +74,7 @@ public class HierarchySet {
 	 */
 	private static void collect(@Nonnull List<LevelInfo> unsortedResult, @Nonnull RoaringBitmapWriter<RoaringBitmap> writer) {
 		for (LevelInfo levelInfo : unsortedResult) {
-			writer.add(levelInfo.entity().getPrimaryKey());
+			writer.add(levelInfo.entity().getPrimaryKeyOrThrowException());
 			collect(levelInfo.children(), writer);
 		}
 	}
@@ -100,7 +100,7 @@ public class HierarchySet {
 				ArrayUtils.sortAlong(
 					sortedEntities,
 					levelInfoToSort,
-					it -> it.entity().getPrimaryKey()
+					it -> it.entity().getPrimaryKeyOrThrowException()
 				)
 			);
 		} else if (result.isEmpty()) {
@@ -133,7 +133,7 @@ public class HierarchySet {
 	@Nonnull
 	public Map<String, List<LevelInfo>> createStatistics(@Nonnull QueryExecutionContext context, @Nullable Locale language) {
 		// invoke computers and register their output using `outputName`
-		final Map<String, List<LevelInfo>> unsortedResult = computers
+		final Map<String, List<LevelInfo>> unsortedResult = this.computers
 			.stream()
 			.collect(
 				Collectors.toMap(

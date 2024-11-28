@@ -24,7 +24,7 @@
 package io.evitadb.core.query.filter.translator.behavioral;
 
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.InScope;
+import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
@@ -46,15 +46,15 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * This implementation of {@link FilteringConstraintTranslator} converts {@link InScope} to {@link AbstractFormula}.
+ * This implementation of {@link FilteringConstraintTranslator} converts {@link FilterInScope} to {@link AbstractFormula}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class InScopeTranslator implements FilteringConstraintTranslator<InScope>, SelfTraversingTranslator {
+public class FilterInScopeTranslator implements FilteringConstraintTranslator<FilterInScope>, SelfTraversingTranslator {
 
 	@Nonnull
 	@Override
-	public Formula translate(@Nonnull InScope inScope, @Nonnull FilterByVisitor filterByVisitor) {
+	public Formula translate(@Nonnull FilterInScope inScope, @Nonnull FilterByVisitor filterByVisitor) {
 		final Set<Scope> requestedScopes = filterByVisitor.getScopes();
 		final Scope scopeToUse = inScope.getScope();
 		Assert.isTrue(
@@ -131,7 +131,7 @@ public class InScopeTranslator implements FilteringConstraintTranslator<InScope>
 	 * @see FormulaPostProcessor
 	 */
 	@RequiredArgsConstructor
-	private static final class InScopeFormulaPostProcessor implements FormulaPostProcessor {
+	public static final class InScopeFormulaPostProcessor implements FormulaPostProcessor {
 		/**
 		 * The set of scopes that were requested by the input query.
 		 */

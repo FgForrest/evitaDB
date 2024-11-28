@@ -68,7 +68,7 @@ class RegisteredConstraintProvider {
 		Or.class,
 		UserFilter.class,
 		EntityScope.class,
-		InScope.class,
+		FilterInScope.class,
 		// entity
 		EntityPrimaryKeyInSet.class,
 		EntityLocaleEquals.class,
@@ -108,6 +108,7 @@ class RegisteredConstraintProvider {
 		OrderBy.class,
 		OrderGroupBy.class,
 		Random.class,
+		OrderInScope.class,
 		// entity
 		EntityPrimaryKeyExact.class,
 		EntityPrimaryKeyInFilter.class,
@@ -135,6 +136,7 @@ class RegisteredConstraintProvider {
 		Strip.class,
 		DataInLocales.class,
 		QueryTelemetry.class,
+		RequireInScope.class,
 		// spacing,
 		Spacing.class,
 		SpacingGap.class,

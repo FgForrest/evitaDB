@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.core.exception;
 
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
@@ -41,6 +42,13 @@ public class ReferenceNotFacetedException extends EvitaInvalidUsageException {
 		super(
 			"Reference with name `" + referenceName + "` in entity `" + entitySchema.getName() + "` is not " +
 				"faceted and cannot be part of the facet summary."
+		);
+	}
+
+	public ReferenceNotFacetedException(@Nonnull String referenceName, @Nonnull EntitySchemaContract entitySchema, @Nonnull Scope scope) {
+		super(
+			"Reference with name `" + referenceName + "` in entity `" + entitySchema.getName() + "` is not " +
+				"faceted in scope `" + scope.name() + "` and cannot be part of the facet summary."
 		);
 	}
 

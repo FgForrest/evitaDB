@@ -24,6 +24,7 @@
 package io.evitadb.core.exception;
 
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
@@ -41,6 +42,13 @@ public class HierarchyNotIndexedException extends EvitaInvalidUsageException {
 		super(
 			"Entity `" + entitySchema.getName() + "` has not " +
 				"indexed hierarchy and cannot be filtered by it. Filtering by without index would be slow."
+		);
+	}
+
+	public HierarchyNotIndexedException(@Nonnull EntitySchemaContract entitySchema, @Nonnull Scope scope) {
+		super(
+			"Entity `" + entitySchema.getName() + "` has not " +
+				"indexed hierarchy in scope `" + scope.name() + "` and cannot be filtered by it. Filtering by without index would be slow."
 		);
 	}
 

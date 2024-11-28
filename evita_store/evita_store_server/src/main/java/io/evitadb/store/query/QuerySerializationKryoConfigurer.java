@@ -99,7 +99,7 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(HierarchyWithin.class, new HierarchyWithinSerializer(), index++);
 		kryo.register(HierarchyWithinRoot.class, new HierarchyWithinRootSerializer(), index++);
 		kryo.register(EntityScope.class, new EntityScopeSerializer(), index++);
-		kryo.register(InScope.class, new InScopeSerializer(), index++);
+		kryo.register(RequireInScope.class, new InScopeSerializer(), index++);
 
 		kryo.register(AttributeNatural.class, new AttributeNaturalSerializer(), index++);
 		kryo.register(AttributeSetInFilter.class, new AttributeSetInFilterSerializer(), index++);

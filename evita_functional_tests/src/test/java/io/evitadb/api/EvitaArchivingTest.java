@@ -31,9 +31,15 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
@@ -42,9 +48,13 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.AttributeNotFilterableException;
+import io.evitadb.core.exception.AttributeNotSortableException;
+import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.exception.PriceNotIndexedException;
+import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ArrayUtils;
@@ -76,7 +86,11 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	private static final String DIR_EVITA_ARCHIVING_TEST = "evitaArchivingTest";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_NAME = "name";
+	private static final String ATTRIBUTE_DESCRIPTION = "description";
+	private static final String ATTRIBUTE_EAN = "ean";
+	private static final String ATTRIBUTE_WIDTH = "width";
 	private static final String ATTRIBUTE_CODE_NAME = "codeName";
+	private static final String ATTRIBUTE_CODE_EAN = "codeEan";
 	private static final String ATTRIBUTE_CATEGORY_OPEN = "open";
 	private static final String ATTRIBUTE_CATEGORY_MARKET_OPEN = "marketOpen";
 	private static final String ATTRIBUTE_BRAND_EAN = "brandEan";
@@ -1320,6 +1334,656 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 				assertNotNull(queryOne(session, "TV-578", Scope.LIVE, Scope.ARCHIVED));
 				assertEquals(List.of(100, 101), queryList(session, Scope.LIVE, Scope.ARCHIVED));
 				assertEquals(List.of(100, 101), queryPage(session, Scope.LIVE, Scope.ARCHIVED));
+			}
+		);
+	}
+
+	@DisplayName("Entity sorting in multiple scopes")
+	@Test
+	void shouldOrderInAllScopes() {
+		evita.defineCatalog(TEST_CATALOG)
+			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.sortableInScope(Scope.values()))
+			.updateViaNewSession(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_CODE)
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().sortableInScope(Scope.LIVE).nullable())
+					.withAttribute(ATTRIBUTE_DESCRIPTION, String.class, thatIs -> thatIs.localized().nullable())
+					.withSortableAttributeCompound(
+						ATTRIBUTE_CODE_NAME,
+						new AttributeElement[]{
+							new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+							new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+						},
+						whichIs -> whichIs.indexedInScope(Scope.LIVE)
+					)
+					.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.sortableInScope(Scope.ARCHIVED).nullable())
+					.withSortableAttributeCompound(
+						ATTRIBUTE_CODE_EAN,
+						new AttributeElement[]{
+							new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+							new AttributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+						},
+						whichIs -> whichIs.indexedInScope(Scope.ARCHIVED)
+					)
+					.updateVia(session);
+			}
+		);
+
+		// create product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_CODE, "TV-123")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "LG TV, 24\"")
+					.setAttribute(ATTRIBUTE_EAN, "A099")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 101)
+					.setAttribute(ATTRIBUTE_CODE, "TV-456")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Philips TV, 32\"")
+					.setAttribute(ATTRIBUTE_EAN, "A041")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 102)
+					.setAttribute(ATTRIBUTE_CODE, "Radio-123")
+					.setAttribute(ATTRIBUTE_DESCRIPTION, Locale.ENGLISH, "Whatever")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 110)
+					.setAttribute(ATTRIBUTE_CODE, "TV-023")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "LG TV, 24\", rev. 2020")
+					.setAttribute(ATTRIBUTE_EAN, "A098")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 111)
+					.setAttribute(ATTRIBUTE_CODE, "TV-056")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Philips TV, 32\", rev. 2020")
+					.setAttribute(ATTRIBUTE_EAN, "A040")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 112)
+					.setAttribute(ATTRIBUTE_CODE, "Radio-023")
+					.setAttribute(ATTRIBUTE_DESCRIPTION, Locale.ENGLISH, "Whatever")
+					.upsertVia(session);
+			}
+		);
+
+		// archive product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 110);
+				session.archiveEntity(Entities.PRODUCT, 111);
+				session.archiveEntity(Entities.PRODUCT, 112);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final int[] sortedProductsBySharedAttribute = session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED)
+							),
+							orderBy(
+								attributeNatural(ATTRIBUTE_CODE, OrderDirection.DESC)
+							)
+						),
+						EntityReference.class
+					).stream()
+					.mapToInt(EntityReference::getPrimaryKeyOrThrowException)
+					.toArray();
+
+				assertArrayEquals(
+					// first live by code, then archived by code
+					new int[] { 101, 100, 102, 111, 110, 112 },
+					sortedProductsBySharedAttribute
+				);
+
+				final int[] sortedProductsByAttributes = session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED),
+								entityLocaleEquals(Locale.ENGLISH)
+							),
+							orderBy(
+								inScope(Scope.LIVE, attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)),
+								inScope(Scope.ARCHIVED, attributeNatural(ATTRIBUTE_EAN, OrderDirection.DESC)),
+								attributeNatural(ATTRIBUTE_CODE, OrderDirection.ASC)
+							)
+						),
+						EntityReference.class
+					).stream()
+					.mapToInt(EntityReference::getPrimaryKeyOrThrowException)
+					.toArray();
+
+				assertArrayEquals(
+					// first live by name, then archived by EAN, then live by code, then archived by code
+					new int[] { 101, 100, 110, 111, 102, 112 },
+					sortedProductsByAttributes
+				);
+
+				final int[] sortedProductsByCompounds = session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED),
+								entityLocaleEquals(Locale.ENGLISH)
+							),
+							orderBy(
+								inScope(Scope.LIVE, attributeNatural(ATTRIBUTE_CODE_NAME, OrderDirection.DESC)),
+								inScope(Scope.ARCHIVED, attributeNatural(ATTRIBUTE_CODE_EAN, OrderDirection.DESC)),
+								attributeNatural(ATTRIBUTE_CODE, OrderDirection.ASC)
+							)
+						),
+						EntityReference.class
+					).stream()
+					.mapToInt(EntityReference::getPrimaryKeyOrThrowException)
+					.toArray();
+
+				assertArrayEquals(
+					// first live by code name, then archived by code EAN, then live by code, then archived by code
+					new int[] { 101, 100, 111, 110, 102, 112 },
+					sortedProductsByCompounds
+				);
+
+				assertThrows(
+					AttributeNotSortableException.class,
+					() -> session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED),
+								entityLocaleEquals(Locale.ENGLISH)
+							),
+							orderBy(
+								attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+							)
+						),
+						EntityReference.class
+					)
+				);
+
+				assertThrows(
+					AttributeNotSortableException.class,
+					() -> session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED),
+								entityLocaleEquals(Locale.ENGLISH)
+							),
+							orderBy(
+								attributeNatural(ATTRIBUTE_EAN, OrderDirection.DESC)
+							)
+						),
+						EntityReference.class
+					)
+				);
+
+				assertThrows(
+					AttributeNotSortableException.class,
+					() -> session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.LIVE)
+							),
+							orderBy(
+								attributeNatural(ATTRIBUTE_EAN, OrderDirection.DESC)
+							)
+						),
+						EntityReference.class
+					)
+				);
+
+				assertThrows(
+					AttributeNotSortableException.class,
+					() -> session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.ARCHIVED),
+								entityLocaleEquals(Locale.ENGLISH)
+							),
+							orderBy(
+								attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+							)
+						),
+						EntityReference.class
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Entity extra result generation in multiple scopes")
+	@Test
+	void shouldGenerateResultsInMultipleScopes() {
+		evita.defineCatalog(TEST_CATALOG);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.BRAND)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withHierarchyIndexedInScope(Scope.LIVE)
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withPriceIndexedInScope(Scope.ARCHIVED)
+					.withAttribute(ATTRIBUTE_WIDTH, int.class, thatIs -> thatIs.filterableInScope(Scope.ARCHIVED))
+					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.indexedInScope(Scope.LIVE).facetedInScope(Scope.LIVE))
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, thatIs -> thatIs.indexedInScope(Scope.LIVE))
+					.updateVia(session);
+			}
+		);
+
+		// create product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.BRAND, 1).upsertVia(session);
+				session.createNewEntity(Entities.BRAND, 2).upsertVia(session);
+				session.createNewEntity(Entities.BRAND, 3).upsertVia(session);
+
+				session.createNewEntity(Entities.CATEGORY, 1).upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 2).upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 3).setParent(1).upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 4).setParent(1).upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 5).setParent(2).upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_WIDTH, 623)
+					.setReference(Entities.BRAND, 1)
+					.setReference(Entities.CATEGORY, 3)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("600"), new BigDecimal("21"), new BigDecimal("621"), true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 101)
+					.setAttribute(ATTRIBUTE_WIDTH, 756)
+					.setReference(Entities.BRAND, 2)
+					.setReference(Entities.CATEGORY, 4)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("700"), new BigDecimal("21"), new BigDecimal("721"), true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 102)
+					.setAttribute(ATTRIBUTE_WIDTH, 989)
+					.setReference(Entities.BRAND, 3)
+					.setReference(Entities.CATEGORY, 5)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("900"), new BigDecimal("21"), new BigDecimal("821"), true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 110)
+					.setAttribute(ATTRIBUTE_WIDTH, 123)
+					.setReference(Entities.BRAND, 1)
+					.setReference(Entities.CATEGORY, 2)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 111)
+					.setAttribute(ATTRIBUTE_WIDTH, 456)
+					.setReference(Entities.BRAND, 2)
+					.setReference(Entities.CATEGORY, 1)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("200"), new BigDecimal("21"), new BigDecimal("221"), true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 112)
+					.setAttribute(ATTRIBUTE_WIDTH, 789)
+					.setReference(Entities.BRAND, 2)
+					.setReference(Entities.CATEGORY, 2)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("300"), new BigDecimal("21"), new BigDecimal("321"), true)
+					.upsertVia(session);
+			}
+		);
+
+		// archive product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 110);
+				session.archiveEntity(Entities.PRODUCT, 111);
+				session.archiveEntity(Entities.PRODUCT, 112);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							scope(Scope.LIVE, Scope.ARCHIVED),
+							inScope(
+								Scope.ARCHIVED,
+								priceInPriceLists(PRICE_LIST_BASIC),
+								priceInCurrency(CURRENCY_CZK)
+							)
+						),
+						require(
+							inScope(
+								Scope.LIVE,
+								facetSummaryOfReference(Entities.BRAND),
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									children("menu", statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT))
+								)
+							),
+							inScope(
+								Scope.ARCHIVED,
+								attributeHistogram(10, ATTRIBUTE_WIDTH),
+								priceHistogram(10)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertNotNull(result);
+
+				assertNotNull(result.getExtraResult(AttributeHistogram.class));
+				assertNotNull(result.getExtraResult(AttributeHistogram.class).getHistogram(ATTRIBUTE_WIDTH));
+				assertEquals(3, result.getExtraResult(AttributeHistogram.class).getHistogram(ATTRIBUTE_WIDTH).getOverallCount());
+
+				assertNotNull(result.getExtraResult(PriceHistogram.class));
+				assertEquals(3, result.getExtraResult(PriceHistogram.class).getOverallCount());
+
+				assertNotNull(result.getExtraResult(FacetSummary.class));
+				assertEquals(
+					"""
+						Facet summary:
+							BRAND: non-grouped [3]:
+								[ ] 1 (1)
+								[ ] 2 (1)
+								[ ] 3 (1)""",
+					result.getExtraResult(FacetSummary.class).prettyPrint()
+				);
+
+				assertNotNull(result.getExtraResult(Hierarchy.class));
+				assertEquals(
+					"""
+						CATEGORY
+						    menu
+						        [2:2] CATEGORY: 1
+						            [1:0] CATEGORY: 3
+						            [1:0] CATEGORY: 4
+						        [1:1] CATEGORY: 2
+						            [1:0] CATEGORY: 5
+						""",
+					result.getExtraResult(Hierarchy.class).toString()
+				);
+
+				assertThrows(
+					ReferenceNotFacetedException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED)
+							),
+							require(
+								facetSummaryOfReference(Entities.BRAND)
+							)
+						),
+						EntityReference.class
+					)
+				);
+
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED)
+							),
+							require(
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									children("menu", statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT))
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+
+				assertThrows(
+					HierarchyNotIndexedException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.ARCHIVED)
+							),
+							require(
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									children("menu", statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT))
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+
+				assertThrows(
+					AttributeNotFilterableException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED)
+							),
+							require(
+								attributeHistogram(10, ATTRIBUTE_WIDTH)
+							)
+						),
+						EntityReference.class
+					)
+				);
+
+				assertThrows(
+					PriceNotIndexedException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED),
+								inScope(
+									Scope.ARCHIVED,
+									priceInPriceLists(PRICE_LIST_BASIC),
+									priceInCurrency(CURRENCY_CZK)
+								)
+							),
+							require(
+								priceHistogram(10)
+							)
+						),
+						EntityReference.class
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Entity extra result generation over multiple scopes")
+	@Test
+	void shouldGenerateResultsInOverMultipleScopes() {
+		evita.defineCatalog(TEST_CATALOG);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.BRAND)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withHierarchyIndexedInScope(Scope.values())
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withPriceIndexedInScope(Scope.values())
+					.withAttribute(ATTRIBUTE_WIDTH, int.class, thatIs -> thatIs.filterableInScope(Scope.values()))
+					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.indexedInScope(Scope.values()).facetedInScope(Scope.values()))
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, thatIs -> thatIs.indexedInScope(Scope.values()))
+					.updateVia(session);
+			}
+		);
+
+		// create product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.BRAND, 1).upsertVia(session);
+				session.createNewEntity(Entities.BRAND, 2).upsertVia(session);
+				session.createNewEntity(Entities.BRAND, 3).upsertVia(session);
+
+				session.createNewEntity(Entities.CATEGORY, 1).upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 2).upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 3).setParent(1).upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 4).setParent(1).upsertVia(session);
+				session.createNewEntity(Entities.CATEGORY, 5).setParent(2).upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 100)
+					.setAttribute(ATTRIBUTE_WIDTH, 623)
+					.setReference(Entities.BRAND, 1)
+					.setReference(Entities.CATEGORY, 3)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("600"), new BigDecimal("21"), new BigDecimal("621"), true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 101)
+					.setAttribute(ATTRIBUTE_WIDTH, 756)
+					.setReference(Entities.BRAND, 2)
+					.setReference(Entities.CATEGORY, 4)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("700"), new BigDecimal("21"), new BigDecimal("721"), true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 102)
+					.setAttribute(ATTRIBUTE_WIDTH, 989)
+					.setReference(Entities.BRAND, 3)
+					.setReference(Entities.CATEGORY, 5)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("900"), new BigDecimal("21"), new BigDecimal("821"), true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 110)
+					.setAttribute(ATTRIBUTE_WIDTH, 123)
+					.setReference(Entities.BRAND, 1)
+					.setReference(Entities.CATEGORY, 2)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 111)
+					.setAttribute(ATTRIBUTE_WIDTH, 456)
+					.setReference(Entities.BRAND, 2)
+					.setReference(Entities.CATEGORY, 1)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("200"), new BigDecimal("21"), new BigDecimal("221"), true)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 112)
+					.setAttribute(ATTRIBUTE_WIDTH, 789)
+					.setReference(Entities.BRAND, 2)
+					.setReference(Entities.CATEGORY, 2)
+					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("300"), new BigDecimal("21"), new BigDecimal("321"), true)
+					.upsertVia(session);
+			}
+		);
+
+		// archive product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 110);
+				session.archiveEntity(Entities.PRODUCT, 111);
+				session.archiveEntity(Entities.PRODUCT, 112);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							scope(Scope.LIVE, Scope.ARCHIVED),
+							priceInPriceLists(PRICE_LIST_BASIC),
+							priceInCurrency(CURRENCY_CZK)
+						),
+						require(
+							facetSummaryOfReference(Entities.BRAND),
+							inScope(
+								Scope.LIVE,
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									children("liveMenu", statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT))
+								)
+							),
+							inScope(
+								Scope.ARCHIVED,
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									children("archiveMenu", statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT))
+								)
+							),
+							attributeHistogram(10, ATTRIBUTE_WIDTH),
+							priceHistogram(10)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertNotNull(result);
+
+				assertNotNull(result.getExtraResult(AttributeHistogram.class));
+				assertNotNull(result.getExtraResult(AttributeHistogram.class).getHistogram(ATTRIBUTE_WIDTH));
+				assertEquals(6, result.getExtraResult(AttributeHistogram.class).getHistogram(ATTRIBUTE_WIDTH).getOverallCount());
+
+				assertNotNull(result.getExtraResult(PriceHistogram.class));
+				assertEquals(6, result.getExtraResult(PriceHistogram.class).getOverallCount());
+
+				assertNotNull(result.getExtraResult(FacetSummary.class));
+				assertEquals(
+					"""
+						Facet summary:
+							BRAND: non-grouped [6]:
+								[ ] 1 (2)
+								[ ] 2 (3)
+								[ ] 3 (1)""",
+					result.getExtraResult(FacetSummary.class).prettyPrint()
+				);
+
+				assertNotNull(result.getExtraResult(Hierarchy.class));
+				assertEquals(
+					"""
+						CATEGORY
+						    liveMenu
+						        [2:2] CATEGORY: 1
+						            [1:0] CATEGORY: 3
+						            [1:0] CATEGORY: 4
+						        [1:1] CATEGORY: 2
+						            [1:0] CATEGORY: 5
+						""",
+					result.getExtraResult(Hierarchy.class).toString()
+				);
 			}
 		);
 	}

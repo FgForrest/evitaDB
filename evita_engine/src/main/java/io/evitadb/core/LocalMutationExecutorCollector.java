@@ -315,7 +315,7 @@ class LocalMutationExecutorCollector {
 		// we need to clean partially applied changes in his isolated indexes so that he doesn't see them
 		// each operation must behave atomically - either all local mutations are applied or none of them - it's
 		// something like a transaction within a transaction
-		for (LocalMutationExecutor executor : executors) {
+		for (LocalMutationExecutor executor : this.executors) {
 			try {
 				executor.rollback();
 			} catch (RuntimeException rollbackEx) {

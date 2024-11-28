@@ -28,6 +28,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.NonCacheableFormulaScope;
 import io.evitadb.core.query.algebra.base.AndFormula;
+import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator.InScopeFormulaPostProcessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
@@ -38,7 +39,8 @@ import javax.annotation.Nonnull;
 /**
  * This formula has almost identical implementation as {@link AndFormula} but it accepts only set of
  * {@link Formula} as a children and allows containing even single child (on the contrary to the {@link AndFormula}).
- * The formula envelopes part with scope focused on single {@link Scope} ... TODO JNO - finish this
+ * The formula envelopes part with scope focused on single {@link Scope} and is used by {@link InScopeFormulaPostProcessor}
+ * to create final formula tree consisting of multiple formula tree varants specific to selected scopes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

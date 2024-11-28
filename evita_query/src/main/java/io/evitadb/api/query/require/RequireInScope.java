@@ -21,10 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.filter;
+package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -38,43 +38,42 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `inScope` filter container can be used to enclose set of filtering constraints that should be applied only when
+ * This `inScope` require container can be used to enclose set of require constraints that should be applied only when
  * searching for entities in specific scope. It has single argument of type {@link Scope} that defines the scope where
- * the enclosed filtering constraints should be applied. Consider following example:
+ * the enclosed require constraints should be applied. Consider following example:
  *
  * ```
  * filterBy(
- *    attributeEquals("code", "123"),
- *    inScope(LIVE, entityLocaleEquals(Locale.ENGLISH), attributeName("name", "LED TV")),
  *    scope(LIVE, ARCHIVED),
+ * ),
+ * require(
+ *    inScope(LIVE, facetSummary())
  * )
  * ```
  *
- * Query looks for matching entities in multiple scopes, but in archived scope the "name" attribute is indexed and
- * cannot be used for filtering. If it's not enclosed in `inScope` container, the query would fail with exception that
- * the attribute is not indexed in ARCHIVED scope. To avoid this problem, the `inScope` container is used to limit the
- * filtering to LIVE scope only. Attribute "code" is indexed in both scopes and can be used for filtering without any
- * restrictions in this example.
+ * Query looks for matching entities in multiple scopes, but in archived scope facet index is not maintained. If it's
+ * not enclosed in `inScope` container, the query would fail with exception that the facets are not available in ARCHIVED
+ * scope. To avoid this problem, the `inScope` container is used to limit the require to LIVE scope only.
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#in-scope">Visit detailed user documentation</a></p>
+ * <p><a href="https://evitadb.io/documentation/query/require/behavioral#in-scope">Visit detailed user documentation</a></p>
  *
  * @see Scope
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "inScope",
-	shortDescription = "Limits enclosed filtering constraints to be applied only when searching for entities in named scope.",
-	userDocsLink = "/documentation/query/filtering/behavioral#in-scope"
+	shortDescription = "Limits enclosed require constraints to be applied only for entities in named scope.",
+	userDocsLink = "/documentation/query/require/behavioral#in-scope"
 )
-public class InScope extends AbstractFilterConstraintContainer {
-	@Serial private static final long serialVersionUID = -2943395408560139656L;
+public class RequireInScope extends AbstractRequireConstraintContainer {
+	@Serial private static final long serialVersionUID = 6118312763849285407L;
 	private static final String CONSTRAINT_NAME = "inScope";
 
 	@Creator
-	public InScope(@Nonnull Scope scope, @Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint... filtering) {
-		super(CONSTRAINT_NAME, new Serializable[] { scope }, filtering);
+	public RequireInScope(@Nonnull Scope scope, @Nonnull @Child(domain = ConstraintDomain.ENTITY) RequireConstraint... require) {
+		super(CONSTRAINT_NAME, new Serializable[] { scope }, require);
 		Assert.isTrue(scope != null, "Scope must be provided!");
-		Assert.isTrue(!ArrayUtils.isEmptyOrItsValuesNull(filtering), "At least one filtering constraint must be provided!");
+		Assert.isTrue(!ArrayUtils.isEmptyOrItsValuesNull(require), "At least one require constraint must be provided!");
 	}
 
 	/**
@@ -86,11 +85,10 @@ public class InScope extends AbstractFilterConstraintContainer {
 	}
 
 	/**
-	 * Returns filtering constraints that return entities whose trees should be excluded from {@link HierarchyWithin}
-	 * query.
+	 * Returns require constraints that should be applied when searching executed in the requested scope.
 	 */
 	@Nonnull
-	public FilterConstraint[] getFiltering() {
+	public RequireConstraint[] getRequire() {
 		return getChildren();
 	}
 
@@ -106,7 +104,7 @@ public class InScope extends AbstractFilterConstraintContainer {
 
 	@Nonnull
 	@Override
-	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		Assert.isTrue(
 			newArguments.length == 1 && newArguments[0] instanceof Scope,
 			"Constraint InScope requires exactly one argument of type Scope!"
@@ -116,11 +114,11 @@ public class InScope extends AbstractFilterConstraintContainer {
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		Assert.isTrue(
 			ArrayUtils.isEmpty(additionalChildren),
-			"Constraint InScope doesn't accept other than filtering constraints!"
+			"Constraint InScope doesn't accept other than require constraints!"
 		);
-		return new InScope(getScope(), children);
+		return new RequireInScope(getScope(), children);
 	}
 }
