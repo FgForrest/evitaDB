@@ -68,6 +68,7 @@ class RegisteredConstraintProvider {
 		Or.class,
 		UserFilter.class,
 		EntityScope.class,
+		InScope.class,
 		// entity
 		EntityPrimaryKeyInSet.class,
 		EntityLocaleEquals.class,
