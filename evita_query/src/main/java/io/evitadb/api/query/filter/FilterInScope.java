@@ -25,8 +25,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.Scope;
@@ -66,12 +65,12 @@ import java.io.Serializable;
 	shortDescription = "Limits enclosed filtering constraints to be applied only when searching for entities in named scope.",
 	userDocsLink = "/documentation/query/filtering/behavioral#in-scope"
 )
-public class FilterInScope extends AbstractFilterConstraintContainer {
+public class FilterInScope extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -2943395408560139656L;
 	private static final String CONSTRAINT_NAME = "inScope";
 
 	@Creator
-	public FilterInScope(@Nonnull Scope scope, @Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint... filtering) {
+	public FilterInScope(@Nonnull Scope scope, @Nonnull FilterConstraint... filtering) {
 		super(CONSTRAINT_NAME, new Serializable[] { scope }, filtering);
 		Assert.isTrue(scope != null, "Scope must be provided!");
 		Assert.isTrue(!ArrayUtils.isEmptyOrItsValuesNull(filtering), "At least one filtering constraint must be provided!");

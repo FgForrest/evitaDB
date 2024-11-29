@@ -24,9 +24,8 @@
 package io.evitadb.api.query.order;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
-import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.Scope;
@@ -68,12 +67,12 @@ import java.io.Serializable;
 	shortDescription = "Limits enclosed ordering constraints to be applied only when sorting entities in named scope.",
 	userDocsLink = "/documentation/query/ordering/behavioral#in-scope"
 )
-public class OrderInScope extends AbstractOrderConstraintContainer {
+public class OrderInScope extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 9023638910417966280L;
 	private static final String CONSTRAINT_NAME = "inScope";
 
 	@Creator
-	public OrderInScope(@Nonnull Scope scope, @Nonnull @Child(domain = ConstraintDomain.ENTITY) OrderConstraint... ordering) {
+	public OrderInScope(@Nonnull Scope scope, @Nonnull OrderConstraint... ordering) {
 		super(CONSTRAINT_NAME, new Serializable[] { scope }, ordering);
 		Assert.isTrue(scope != null, "Scope must be provided!");
 		Assert.isTrue(!ArrayUtils.isEmptyOrItsValuesNull(ordering), "At least one ordering constraint must be provided!");

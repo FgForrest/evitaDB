@@ -24,8 +24,8 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -65,12 +65,12 @@ import java.io.Serializable;
 	shortDescription = "Limits enclosed require constraints to be applied only for entities in named scope.",
 	userDocsLink = "/documentation/query/require/behavioral#in-scope"
 )
-public class RequireInScope extends AbstractRequireConstraintContainer {
+public class RequireInScope extends AbstractRequireConstraintContainer implements GenericConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = 6118312763849285407L;
 	private static final String CONSTRAINT_NAME = "inScope";
 
 	@Creator
-	public RequireInScope(@Nonnull Scope scope, @Nonnull @Child(domain = ConstraintDomain.ENTITY) RequireConstraint... require) {
+	public RequireInScope(@Nonnull Scope scope, @Nonnull @Child(uniqueChildren = true) RequireConstraint... require) {
 		super(CONSTRAINT_NAME, new Serializable[] { scope }, require);
 		Assert.isTrue(scope != null, "Scope must be provided!");
 		Assert.isTrue(!ArrayUtils.isEmptyOrItsValuesNull(require), "At least one require constraint must be provided!");
