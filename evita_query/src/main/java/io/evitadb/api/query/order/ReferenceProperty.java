@@ -131,7 +131,7 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 	@Creator
 	public ReferenceProperty(@Nonnull @Classifier String referenceName,
 	                         @Nonnull @Child OrderConstraint... children) {
-		super(referenceName, children);
+		super(new Serializable[] {referenceName}, children);
 	}
 
 	/**

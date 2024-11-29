@@ -66,7 +66,6 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
-
 		final Optional<String> referenceName = hierarchyWithinRoot.getReferenceName();
 
 		final EntitySchemaContract entitySchema = filterByVisitor.getSchema();
@@ -85,7 +84,7 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		);
 
 		// we use only the first applicable scope here - if LIVE scope is present it always takes precedence
-		final Set<Scope> scopesToLookup = queryContext.getScopes();
+		final Set<Scope> scopesToLookup = filterByVisitor.getProcessingScope().getScopes();
 		return Arrays.stream(Scope.values())
 			.filter(scopesToLookup::contains)
 			.map(scope -> queryContext.getIndex(targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class))
@@ -100,6 +99,7 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 							createAndStoreHavingPredicate(
 								null,
 								queryContext,
+								scopesToLookup,
 								of(new FilterBy(hierarchyWithinRoot.getHavingChildrenFilter()))
 									.filter(ConstraintContainer::isApplicable)
 									.orElse(null),

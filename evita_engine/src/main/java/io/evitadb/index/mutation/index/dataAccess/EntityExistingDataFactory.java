@@ -62,6 +62,13 @@ public final class EntityExistingDataFactory implements ExistingDataSupplierFact
 		this.entityAttributeValueSupplier.registerRemoval(key);
 	}
 
+	/**
+	 * Clears the information about attribute removals.
+	 */
+	public void clearAttributeRemovalInformation() {
+		this.entityAttributeValueSupplier.clearAttributeRemovalInformation();
+	}
+
 	@Nonnull
 	@Override
 	public ExistingAttributeValueSupplier getEntityAttributeValueSupplier() {
@@ -110,5 +117,4 @@ public final class EntityExistingDataFactory implements ExistingDataSupplierFact
 		}
 		return this.entityPriceSupplier;
 	}
-
 }

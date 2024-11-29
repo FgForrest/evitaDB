@@ -474,7 +474,7 @@ public interface ReferenceIndexMutator {
 	 * not null, only the compounds for the given locale are created. Otherwise, all compounds that don't contain
 	 * localized attribute value are created.
 	 */
-	static void indexAllCompounds(
+	static void insertInitialSuiteOfSortableAttributeCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
 		@Nullable Locale locale,
@@ -518,7 +518,7 @@ public interface ReferenceIndexMutator {
 	/**
 	 * Method removes all sortable attribute compounds of the entity from passed index.
 	 */
-	static void removeAllCompounds(
+	static void removeEntireSuiteOfSortableAttributeCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex targetIndex,
 		@Nullable Locale locale,
@@ -585,7 +585,7 @@ public interface ReferenceIndexMutator {
 
 		indexAllPrices(executor, targetIndex, existingDataSupplierFactory.getPriceSupplier(), undoActionConsumer);
 		indexAllAttributes(executor, targetIndex, existingDataSupplierFactory, undoActionConsumer);
-		indexAllCompounds(executor, targetIndex, null, existingDataSupplierFactory, undoActionConsumer);
+		insertInitialSuiteOfSortableAttributeCompounds(executor, targetIndex, null, existingDataSupplierFactory, undoActionConsumer);
 	}
 
 	/**
@@ -734,7 +734,7 @@ public interface ReferenceIndexMutator {
 
 		removeAllPrices(executor, targetIndex, existingDataSupplierFactory.getPriceSupplier(), undoActionConsumer);
 		removeAllAttributes(executor, targetIndex, existingDataSupplierFactory, undoActionConsumer);
-		removeAllCompounds(executor, targetIndex, null, existingDataSupplierFactory, undoActionConsumer);
+		removeEntireSuiteOfSortableAttributeCompounds(executor, targetIndex, null, existingDataSupplierFactory, undoActionConsumer);
 
 		// if target index is empty, remove it completely
 		if (targetIndex.isEmpty()) {

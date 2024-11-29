@@ -71,7 +71,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull FacetHaving facetHaving, @Nonnull FilterByVisitor filterByVisitor) {
-		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchema();
+		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchemaOrThrowException();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(facetHaving.getReferenceName());
 		isTrue(
 			filterByVisitor.getScopes().stream().anyMatch(referenceSchema::isFacetedInScope),

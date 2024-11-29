@@ -170,6 +170,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	private final boolean prefetchPossible;
 	/**
+	 * Internal execution context used for execution of formulas evaluated in planning phase.
+	 */
+	@Getter @Nonnull
+	private final QueryExecutionContext internalExecutionContext;
+	/**
 	 * Contains sequence of already assigned virtual entity primary keys.
 	 * If set to zero - no virtual entity primary key was assigned, if greater than zero it represents the last assigned
 	 * virtual entity primary key.
@@ -205,11 +210,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * to mark the group id involved in special relation handling.
 	 */
 	private Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples;
-	/**
-	 * Internal execution context used for execution of formulas evaluated in planning phase.
-	 */
-	@Getter @Nonnull
-	private final QueryExecutionContext internalExecutionContext;
 	/**
 	 * Internal cache currently server sor caching the computed formulas of nested queries.
 	 *
@@ -352,7 +352,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Checks if any of the keys in the indexes map are instances of EntityIndexKey.
 	 *
 	 * @return true if at least one key in the indexes map is an instance of EntityIndexKey;
-	 *         false otherwise.
+	 * false otherwise.
 	 */
 	public boolean hasEntityGlobalIndex() {
 		return this.indexes.keySet().stream().anyMatch(it -> it instanceof EntityIndexKey);
@@ -656,7 +656,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * Formulas are expected to be invoked in planning phase and share the same {@link #internalExecutionContext}.
 	 *
-	 *
 	 * @param constraint      caching key for which the lambda should be invoked only once
 	 * @param formulaSupplier the lambda that creates the formula
 	 * @return created formula
@@ -827,6 +826,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 								);
 								return new FilteringFormulaPredicate(
 									this,
+									getScopes(),
 									filterBy,
 									referencedGroupType,
 									() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
@@ -861,12 +861,14 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 						new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
 						refName -> {
 							final String referencedGroupType = referenceSchema.getReferencedGroupType();
-								Assert.isTrue(
-									referencedGroupType != null,
-									() -> "Referenced group type must be defined for facet group disjunction of `" + referenceName + "`!"
-								);
+							Assert.isTrue(
+								referencedGroupType != null,
+								() -> "Referenced group type must be defined for facet group disjunction of `" + referenceName + "`!"
+							);
 							return new FilteringFormulaPredicate(
-								this, filterBy,
+								this,
+								getScopes(),
+								filterBy,
 								referencedGroupType,
 								() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
 							);
@@ -899,12 +901,14 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 						new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
 						refName -> {
 							final String referencedGroupType = referenceSchema.getReferencedGroupType();
-								Assert.isTrue(
-									referencedGroupType != null,
-									() -> "Referenced group type must be defined for facet group negation of `" + referenceName + "`!"
-								);
+							Assert.isTrue(
+								referencedGroupType != null,
+								() -> "Referenced group type must be defined for facet group negation of `" + referenceName + "`!"
+							);
 							return new FilteringFormulaPredicate(
-								this, filterBy,
+								this,
+								getScopes(),
+								filterBy,
 								referencedGroupType,
 								() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
 							);
@@ -936,19 +940,22 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public QueryExecutionContext createExecutionContext() {
-		return this.createExecutionContext(null);
+		return this.createExecutionContext(false, null);
 	}
 
 	/**
 	 * Creates new {@link QueryExecutionContext} that can be used to execute the query plan.
 	 * This overload allows to pass frozen random bytes that will be used for the query execution.
 	 *
+	 * @param prefetchExecution flag that signalizes if the prefetching was executed and filtering should occur on
+	 *                          prefetched entities
+	 * @param frozenRandom      frozen random bytes to be used for the query execution
 	 * @return new query execution context
 	 */
 	@Nonnull
-	public QueryExecutionContext createExecutionContext(@Nullable byte[] frozenRandom) {
+	public QueryExecutionContext createExecutionContext(boolean prefetchExecution, @Nullable byte[] frozenRandom) {
 		return new QueryExecutionContext(
-			this, frozenRandom, this.evitaSession::createEntityProxy
+			this, prefetchExecution, frozenRandom, this.evitaSession::createEntityProxy
 		);
 	}
 

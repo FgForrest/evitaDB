@@ -28,7 +28,6 @@ import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.prefetch.PrefetchFactory;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -104,7 +103,9 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	public static QueryPlan empty(@Nonnull QueryPlanningContext queryContext) {
 		return new QueryPlan(
 			queryContext,
-			"None", EmptyFormula.INSTANCE, PrefetchFactory.NO_OP,
+			"None",
+			EmptyFormula.INSTANCE,
+			null,
 			NoSorter.INSTANCE,
 			DefaultSlicer.INSTANCE,
 			Collections.emptyList()
@@ -187,8 +188,8 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 			this.queryContext,
 			this.targetIndexes.getIndexDescription(),
 			this.filterFormula,
-			this.prefetchFormulaVisitor,
-			this.sorter,
+			this.prefetchFormulaVisitor.createPrefetcherIfNeededOrWorthwhile().orElse(null),
+			this.sorter == null ? NoSorter.INSTANCE : this.sorter,
 			this.slicer,
 			this.extraResultProducers
 		);

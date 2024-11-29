@@ -151,6 +151,11 @@ public final class EntitySchema implements EntitySchemaContract {
 	 * to a key of this index.
 	 */
 	@Nonnull private final Map<String, Collection<SortableAttributeCompoundSchemaContract>> attributeToSortableAttributeCompoundIndex;
+	/**
+	 * Memoized value that reflects whether entity has at least one localized attribute or associated data. Since
+	 * the calculation is expensive, it is memoized.
+	 */
+	private Boolean memoizedLocalized;
 
 	/**
 	 * Method generates name variant index used for quickly looking up for schemas by name in specific name convention.
@@ -667,6 +672,19 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Override
 	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
 		return this.nameVariants.get(namingConvention);
+	}
+
+	@Override
+	public boolean isLocalized() {
+		if (this.memoizedLocalized == null) {
+			this.memoizedLocalized = this.attributes.values().stream().anyMatch(AttributeSchemaContract::isLocalized) ||
+				this.associatedData.values().stream().anyMatch(AssociatedDataSchemaContract::isLocalized) ||
+				this.references.values()
+					.stream()
+					.flatMap(it -> it.getAttributes().values().stream())
+					.anyMatch(AttributeSchemaContract::isLocalized);
+		}
+		return this.memoizedLocalized;
 	}
 
 	@Override

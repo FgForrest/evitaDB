@@ -262,10 +262,9 @@ public class QueryPlanner {
 						targetIndex
 					);
 
-					final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(targetIndex);
-					filterByVisitor.registerFormulaPostProcessor(PrefetchFormulaVisitor.class, () -> prefetchFormulaVisitor);
+					final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(queryContext, targetIndex);
 					ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
-					adeptFormula = queryContext.analyse(filterByVisitor.getFormula());
+					adeptFormula = queryContext.analyse(filterByVisitor.getFormula(prefetchFormulaVisitor));
 
 					final QueryPlanBuilder queryPlanBuilder = new QueryPlanBuilder(
 						queryContext, adeptFormula, filterByVisitor, targetIndex, prefetchFormulaVisitor

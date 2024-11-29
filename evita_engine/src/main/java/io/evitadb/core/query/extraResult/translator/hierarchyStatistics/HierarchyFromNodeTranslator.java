@@ -36,6 +36,8 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.NodeRelativeStatisticsComputer;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.Optional;
 
@@ -52,8 +54,9 @@ public class HierarchyFromNodeTranslator
 	extends AbstractHierarchyTranslator
 	implements RequireConstraintTranslator<HierarchyFromNode>, SelfTraversingTranslator {
 
+	@Nullable
 	@Override
-	public ExtraResultProducer apply(HierarchyFromNode fromNode, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer createProducer(@Nonnull HierarchyFromNode fromNode, @Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		final HierarchyStatisticsProducer producer = getHierarchyStatisticsProducer(extraResultPlanningVisitor);
 		final Optional<HierarchyStatistics> statistics = fromNode.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(fromNode.getName());

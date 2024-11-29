@@ -132,6 +132,7 @@ import io.evitadb.store.spi.EntityCollectionPersistenceService.EntityWithFetchCo
 import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -535,7 +536,7 @@ public final class EntityCollection implements
 			);
 
 		return applyReferenceFetcher(
-			enrichEntity(entity, evitaRequest),
+			enrichEntityInternal(entity, evitaRequest),
 			referenceFetcher
 		);
 	}
@@ -543,39 +544,7 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public SealedEntity limitEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final ServerEntityDecorator widerEntity = (ServerEntityDecorator) entity;
-		final LocaleSerializablePredicate newLocalePredicate = new LocaleSerializablePredicate(evitaRequest, widerEntity.getLocalePredicate());
-		final HierarchySerializablePredicate newHierarchyPredicate = new HierarchySerializablePredicate(evitaRequest, widerEntity.getHierarchyPredicate());
-		final AttributeValueSerializablePredicate newAttributePredicate = new AttributeValueSerializablePredicate(evitaRequest, widerEntity.getAttributePredicate());
-		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = new AssociatedDataValueSerializablePredicate(evitaRequest, widerEntity.getAssociatedDataPredicate());
-		final ReferenceContractSerializablePredicate newReferenceContractPredicate = new ReferenceContractSerializablePredicate(evitaRequest, widerEntity.getReferencePredicate());
-		final PriceContractSerializablePredicate newPricePredicate = new PriceContractSerializablePredicate(evitaRequest, widerEntity.getPricePredicate());
-		return ServerEntityDecorator.decorate(
-			widerEntity.getDelegate(),
-			// use original schema
-			getInternalSchema(),
-			// show / hide parent entity
-			widerEntity.parentAvailable() && evitaRequest.isRequiresParent() ?
-				widerEntity.getParentEntity().orElse(null) : null,
-			// show / hide locales the entity is fetched in
-			newLocalePredicate,
-			// show / hide parent information
-			newHierarchyPredicate,
-			// show / hide attributes information
-			newAttributePredicate,
-			// show / hide associated data information
-			newAssociatedDataPredicate,
-			// show / hide references information
-			newReferenceContractPredicate,
-			// show / hide price information
-			newPricePredicate,
-			// propagate original date time
-			widerEntity.getAlignedNow(),
-			// propagate original I/O fetch count
-			widerEntity.getIoFetchCount(),
-			// propagate original I/O fetched bytes
-			widerEntity.getIoFetchedBytes()
-		);
+		return limitEntityInternal((ServerEntityDecorator) entity, evitaRequest);
 	}
 
 	@Nonnull
@@ -600,7 +569,9 @@ public final class EntityCollection implements
 		).orElseThrow(
 			() -> new EntityMissingException(
 				getEntityType(),
-				entityMutation.getEntityPrimaryKey() == null ? new int[0] : new int[]{entityMutation.getEntityPrimaryKey()},
+				entityMutation.getEntityPrimaryKey() == null ?
+					ArrayUtils.EMPTY_INT_ARRAY :
+					new int[]{entityMutation.getEntityPrimaryKey()},
 				null
 			)
 		);
@@ -616,7 +587,9 @@ public final class EntityCollection implements
 					.orElseThrow(
 						() -> new EntityMissingException(
 							getEntityType(),
-							entityMutation.getEntityPrimaryKey() == null ? new int[0] : new int[]{entityMutation.getEntityPrimaryKey()},
+							entityMutation.getEntityPrimaryKey() == null ?
+								ArrayUtils.EMPTY_INT_ARRAY :
+								new int[]{entityMutation.getEntityPrimaryKey()},
 							null
 						)
 					),
@@ -1043,16 +1016,50 @@ public final class EntityCollection implements
 		}
 	}
 
+	/**
+	 * Retrieves a single `SealedEntity` objects based on the given primary key, request parameters,
+	 * session context, and reference fetcher. This method ensures that each entity is retrieved
+	 * in its current version and applies any necessary limitations and reference fetching specified
+	 * by the request.
+	 *
+	 * @param primaryKey the unique identifier for the entity.
+	 * @param evitaRequest the request object containing parameters for the Evita system.
+	 * @param session the session context for executing the request.
+	 * @param referenceFetcher the object responsible for fetching additional references related to the entity.
+	 * @return an Optional containing the SealedEntity if found; otherwise, an empty Optional.
+	 */
 	@Nonnull
-	public Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session, @Nonnull ReferenceFetcher referenceFetcher) {
+	public Optional<SealedEntity> getEntity(
+		int primaryKey,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) {
 		// retrieve current version of entity
 		return getEntityDecorator(primaryKey, evitaRequest, session)
 			.map(it -> limitEntity(it, evitaRequest, session))
 			.map(it -> applyReferenceFetcher(it, referenceFetcher));
 	}
 
+	/**
+	 * Retrieves a list of `SealedEntity` objects based on the given primary keys, request parameters,
+	 * session context, and reference fetcher. This method ensures that each entity is retrieved
+	 * in its current version and applies any necessary limitations and reference fetching specified
+	 * by the request.
+	 *
+	 * @param primaryKeys An array of primary keys used to identify the entities to be retrieved.
+	 * @param evitaRequest An object containing the request parameters and options for retrieving the entities.
+	 * @param session The session context in which the entities are being retrieved.
+	 * @param referenceFetcher A utility for fetching additional references associated with the entities.
+	 * @return A list of `SealedEntity` objects that have been retrieved according to the specified parameters.
+	 */
 	@Nonnull
-	public List<SealedEntity> getEntities(@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session, @Nonnull ReferenceFetcher referenceFetcher) {
+	public List<SealedEntity> getEntities(
+		@Nonnull int[] primaryKeys,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) {
 		// retrieve current version of entity
 		final List<ServerEntityDecorator> entityDecorators = Arrays.stream(primaryKeys)
 			.mapToObj(it -> getEntityDecorator(it, evitaRequest, session))
@@ -1065,12 +1072,28 @@ public final class EntityCollection implements
 		);
 	}
 
+	/**
+	 * Returns the entity body that reflects input request object using provided session and primary key.
+	 * The method will try to fetch the entity from cache if possible, otherwise it will fetch it from the underlying
+	 * storage and registers it as an cache adept.
+	 *
+	 * @param primaryKey the primary key of the entity to retrieve
+	 * @param evitaRequest the request context containing parameters required for fetching the entity
+	 * @param session the current session associated with the request
+	 * @return an {@link Optional} containing the {@link ServerEntityDecorator} if the entity is found and meets
+	 * the criteria, otherwise an empty {@link Optional}
+	 */
 	@Nonnull
-	public Optional<ServerEntityDecorator> getEntityDecorator(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+	public Optional<ServerEntityDecorator> getEntityDecorator(
+		int primaryKey,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EvitaSessionContract session
+	) {
+		final SealedEntitySchema theSchema = getSchema();
 		return cacheSupervisor.analyse(
 			session,
 			primaryKey,
-			getSchema().getName(),
+			theSchema.getName(),
 			evitaRequest.getAlignedNow(),
 			evitaRequest.getEntityRequirement(),
 			() -> {
@@ -1079,7 +1102,7 @@ public final class EntityCollection implements
 					return null;
 				} else if (
 					!ofNullable(evitaRequest.getRequiredOrImplicitLocale())
-						.map(it -> internalEntity.entity().getLocales().contains(it))
+						.map(it -> !theSchema.isLocalized() || internalEntity.entity().getLocales().contains(it))
 						.orElse(true)
 				) {
 					return null;
@@ -1087,66 +1110,18 @@ public final class EntityCollection implements
 					return wrapToDecorator(evitaRequest, internalEntity, null);
 				}
 			},
-			theEntity -> enrichEntity(theEntity, evitaRequest)
+			theEntity -> enrichEntityInternal(theEntity, evitaRequest)
 		);
 	}
 
-	@Nonnull
-	public ServerEntityDecorator enrichEntity(
-		@Nonnull EntityContract sealedEntity,
-		@Nonnull EvitaRequest evitaRequest
-	) throws EntityAlreadyRemovedException {
-		final ServerEntityDecorator partiallyLoadedEntity = (ServerEntityDecorator) sealedEntity;
-		// return decorator that hides information not requested by original query
-		final LocaleSerializablePredicate newLocalePredicate = partiallyLoadedEntity.createLocalePredicateRicherCopyWith(evitaRequest);
-		final HierarchySerializablePredicate newHierarchyPredicate = partiallyLoadedEntity.createHierarchyPredicateRicherCopyWith(evitaRequest);
-		final AttributeValueSerializablePredicate newAttributePredicate = partiallyLoadedEntity.createAttributePredicateRicherCopyWith(evitaRequest);
-		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = partiallyLoadedEntity.createAssociatedDataPredicateRicherCopyWith(evitaRequest);
-		final ReferenceContractSerializablePredicate newReferenceContractPredicate = partiallyLoadedEntity.createReferencePredicateRicherCopyWith(evitaRequest);
-		final PriceContractSerializablePredicate newPriceContractPredicate = partiallyLoadedEntity.createPricePredicateRicherCopyWith(evitaRequest);
-		final EntitySchema internalSchema = getInternalSchema();
-
-		final EntityWithFetchCount entityWithFetchCount = this.persistenceService.enrichEntity(
-			this.catalog.getVersion(),
-			// use all data from existing entity
-			partiallyLoadedEntity,
-			newHierarchyPredicate,
-			newAttributePredicate,
-			newAssociatedDataPredicate,
-			newReferenceContractPredicate,
-			newPriceContractPredicate,
-			this.dataStoreReader
-		);
-		return ServerEntityDecorator.decorate(
-			// load all missing data according to current evita request
-			entityWithFetchCount.entity(),
-			// use original schema
-			internalSchema,
-			// fetch parents if requested
-			null,
-			// show / hide locales the entity is fetched in
-			newLocalePredicate,
-			// show / hide parent information
-			newHierarchyPredicate,
-			// show / hide attributes information
-			newAttributePredicate,
-			// show / hide associated data information
-			newAssociatedDataPredicate,
-			// show / hide references information
-			newReferenceContractPredicate,
-			// show / hide price information
-			newPriceContractPredicate,
-			// propagate original date time
-			partiallyLoadedEntity.getAlignedNow(),
-			// propagate information about I/O fetch count
-			entityWithFetchCount.ioFetchCount(),
-			// propagate information about I/O fetched bytes
-			entityWithFetchCount.ioFetchedBytes(),
-			// recursive entity loader
-			ReferenceFetcher.NO_IMPLEMENTATION
-		);
-	}
-
+	/**
+	 * Applies a reference fetcher to a sealed entity, potentially enriching entity references with complex entity objects.
+	 *
+	 * @param sealedEntity the entity to which the reference fetcher will be applied
+	 * @param referenceFetcher an instance of ReferenceFetcher used to initialize references in the entity
+	 * @return a server entity decorator with the reference fetcher's modifications applied
+	 * @throws EntityAlreadyRemovedException if the entity has already been removed
+	 */
 	@Nonnull
 	public ServerEntityDecorator applyReferenceFetcher(
 		@Nonnull SealedEntity sealedEntity,
@@ -1160,6 +1135,15 @@ public final class EntityCollection implements
 		}
 	}
 
+	/**
+	 * Applies the provided {@link ReferenceFetcher} to a list of {@link SealedEntity} objects,
+	 * potentially enriching its references with complex entity objects.
+	 *
+	 * @param sealedEntities the list of sealed entities to which the reference fetcher will be applied
+	 * @param referenceFetcher the reference fetcher to be applied to the list of sealed entities
+	 * @return a transformed list of sealed entities after applying the reference fetcher
+	 * @throws EntityAlreadyRemovedException if an entity has already been removed
+	 */
 	@Nonnull
 	public List<SealedEntity> applyReferenceFetcher(
 		@Nonnull List<SealedEntity> sealedEntities,
@@ -1427,6 +1411,32 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Applies limit & enrich logic on provided collection of entities fetched in unknown richness so that they conform
+	 * to passed fetch request. For deep fetching of references, the reference fetcher is used.
+	 *
+	 * @param entities The collection of sealed entities to be processed.
+	 * @param fetchRequest The request containing the parameters for fetching and limiting the entities.
+	 * @param referenceFetcher The reference fetcher used to apply additional processing to the entities.
+	 * @return A list of sealed entities that have been limited and processed according to the given fetch request and reference fetcher.
+	 */
+	@Nonnull
+	public List<SealedEntity> limitAndFetchExistingEntities(
+		@Nonnull Collection<? extends SealedEntity> entities,
+		@Nonnull EvitaRequest fetchRequest,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) {
+		return applyReferenceFetcher(
+			entities
+				.stream()
+				.map(it -> enrichEntityInternal(it, fetchRequest))
+				.map(it -> limitEntityInternal(it, fetchRequest))
+				.map(SealedEntity.class::cast)
+				.toList(),
+			referenceFetcher
+		);
+	}
+
+	/**
 	 * Creates a new copy of the EntityCollection object with a new persistence service.
 	 *
 	 * @param newPersistenceService the new persistence service to be set
@@ -1535,6 +1545,10 @@ public final class EntityCollection implements
 			.map(EntityCollectionPersistenceService::getEntityCollectionHeader)
 			.orElseGet(this::getEntityCollectionHeader);
 	}
+
+	/*
+		PRIVATE METHODS
+	 */
 
 	/**
 	 * Deletes passed entity both from indexes and the storage.
@@ -1690,9 +1704,120 @@ public final class EntityCollection implements
 		this.catalog.entitySchemaUpdated(updatedSchema);
 	}
 
-	/*
-		PRIVATE METHODS
+	/**
+	 * Limits the server entity based on the specified request requirements. This method applies or extends various
+	 * predicates to the server entity to ensure that only the required information is included in the response.
+	 * The data present in the internal entity are not modified in any way.
+	 *
+	 * @param entity The server entity to be limited.
+	 * @param evitaRequest The request containing parameters that define the limitation criteria.
+	 *
+	 * @return A decorated ServerEntity with applied limitations as per the EvitaRequest.
 	 */
+	@Nonnull
+	private ServerEntityDecorator limitEntityInternal(
+		@Nonnull ServerEntityDecorator entity,
+		@Nonnull EvitaRequest evitaRequest
+	) {
+		final LocaleSerializablePredicate newLocalePredicate = new LocaleSerializablePredicate(evitaRequest, entity.getLocalePredicate());
+		final HierarchySerializablePredicate newHierarchyPredicate = new HierarchySerializablePredicate(evitaRequest, entity.getHierarchyPredicate());
+		final AttributeValueSerializablePredicate newAttributePredicate = new AttributeValueSerializablePredicate(evitaRequest, entity.getAttributePredicate());
+		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = new AssociatedDataValueSerializablePredicate(evitaRequest, entity.getAssociatedDataPredicate());
+		final ReferenceContractSerializablePredicate newReferenceContractPredicate = new ReferenceContractSerializablePredicate(evitaRequest, entity.getReferencePredicate());
+		final PriceContractSerializablePredicate newPricePredicate = new PriceContractSerializablePredicate(evitaRequest, entity.getPricePredicate());
+		return ServerEntityDecorator.decorate(
+			entity.getDelegate(),
+			// use original schema
+			getInternalSchema(),
+			// show / hide parent entity
+			entity.parentAvailable() && evitaRequest.isRequiresParent() ?
+				entity.getParentEntity().orElse(null) : null,
+			// show / hide locales the entity is fetched in
+			newLocalePredicate,
+			// show / hide parent information
+			newHierarchyPredicate,
+			// show / hide attributes information
+			newAttributePredicate,
+			// show / hide associated data information
+			newAssociatedDataPredicate,
+			// show / hide references information
+			newReferenceContractPredicate,
+			// show / hide price information
+			newPricePredicate,
+			// propagate original date time
+			entity.getAlignedNow(),
+			// propagate original I/O fetch count
+			entity.getIoFetchCount(),
+			// propagate original I/O fetched bytes
+			entity.getIoFetchedBytes()
+		);
+	}
+
+	/**
+	 * Enriches a given entity based on the specified request parameters. The method fetches additional data if they
+	 * are missing, but are known to exist in the underlying storage. Or it simply widens the predicate scope, if
+	 * the data are present, but are hidden by predicates.
+	 *
+	 * @param sealedEntity the entity to be enriched
+	 * @param evitaRequest the request containing parameters for enriching the entity
+	 * @return an enriched ServerEntityDecorator instance based on the provided entity and request
+	 * @throws EntityAlreadyRemovedException if the entity has been removed
+	 */
+	@Nonnull
+	private ServerEntityDecorator enrichEntityInternal(
+		@Nonnull EntityContract sealedEntity,
+		@Nonnull EvitaRequest evitaRequest
+	) throws EntityAlreadyRemovedException {
+		final ServerEntityDecorator partiallyLoadedEntity = (ServerEntityDecorator) sealedEntity;
+		// return decorator that hides information not requested by original query
+		final LocaleSerializablePredicate newLocalePredicate = partiallyLoadedEntity.createLocalePredicateRicherCopyWith(evitaRequest);
+		final HierarchySerializablePredicate newHierarchyPredicate = partiallyLoadedEntity.createHierarchyPredicateRicherCopyWith(evitaRequest);
+		final AttributeValueSerializablePredicate newAttributePredicate = partiallyLoadedEntity.createAttributePredicateRicherCopyWith(evitaRequest);
+		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = partiallyLoadedEntity.createAssociatedDataPredicateRicherCopyWith(evitaRequest);
+		final ReferenceContractSerializablePredicate newReferenceContractPredicate = partiallyLoadedEntity.createReferencePredicateRicherCopyWith(evitaRequest);
+		final PriceContractSerializablePredicate newPriceContractPredicate = partiallyLoadedEntity.createPricePredicateRicherCopyWith(evitaRequest);
+		final EntitySchema internalSchema = getInternalSchema();
+
+		final EntityWithFetchCount entityWithFetchCount = this.persistenceService.enrichEntity(
+			this.catalog.getVersion(),
+			// use all data from existing entity
+			partiallyLoadedEntity,
+			newHierarchyPredicate,
+			newAttributePredicate,
+			newAssociatedDataPredicate,
+			newReferenceContractPredicate,
+			newPriceContractPredicate,
+			this.dataStoreReader
+		);
+		return ServerEntityDecorator.decorate(
+			// load all missing data according to current evita request
+			entityWithFetchCount.entity(),
+			// use original schema
+			internalSchema,
+			// fetch parents if requested
+			null,
+			// show / hide locales the entity is fetched in
+			newLocalePredicate,
+			// show / hide parent information
+			newHierarchyPredicate,
+			// show / hide attributes information
+			newAttributePredicate,
+			// show / hide associated data information
+			newAssociatedDataPredicate,
+			// show / hide references information
+			newReferenceContractPredicate,
+			// show / hide price information
+			newPriceContractPredicate,
+			// propagate original date time
+			partiallyLoadedEntity.getAlignedNow(),
+			// propagate information about I/O fetch count
+			entityWithFetchCount.ioFetchCount(),
+			// propagate information about I/O fetched bytes
+			entityWithFetchCount.ioFetchedBytes(),
+			// recursive entity loader
+			ReferenceFetcher.NO_IMPLEMENTATION
+		);
+	}
 
 	/**
 	 * Generates new UNIQUE primary key for the entity. Calling this
@@ -1721,26 +1846,22 @@ public final class EntityCollection implements
 			globalIndex != null,
 			() -> "Global index must never be null for entity type `" + this.initialSchema.getName() + "`!"
 		);
-		return new TransactionalMap<>(
-			// now join global index with all other reduced indexes into single key-value index
-			// this is only for backward compatibility with versions 2024.11 and older
-			// TOBEDONE #538 - remove, in future versions global index is standard part of index map
-			Stream.concat(
-					Stream.of(globalIndex),
-					entityHeader.usedEntityIndexIds()
-						.stream()
-						// we skip global index, as it was already loaded
-						.filter(it -> !it.equals(entityHeader.globalEntityIndexId()))
-						.map(eid -> this.persistenceService.readEntityIndex(catalogVersion, eid, this.initialSchema))
+		final Map<EntityIndexKey, EntityIndex> fetchedIndexes = entityHeader.usedEntityIndexIds()
+			.stream()
+			.map(eid -> this.persistenceService.readEntityIndex(catalogVersion, eid, this.initialSchema))
+			.filter(Objects::nonNull)
+			.collect(
+				Collectors.toMap(
+					EntityIndex::getIndexKey,
+					Function.identity()
 				)
-				.collect(
-					Collectors.toMap(
-						EntityIndex::getIndexKey,
-						Function.identity()
-					)
-				),
-			it -> (EntityIndex) it
-		);
+			);
+		// in older versions the global index was not included in the used indexes
+		final EntityIndexKey globalIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL);
+		if (!fetchedIndexes.containsKey(globalIndexKey)) {
+			fetchedIndexes.put(globalIndexKey, globalIndex);
+		}
+		return new TransactionalMap<>(fetchedIndexes, it -> (EntityIndex) it);
 	}
 
 	/**
@@ -1750,7 +1871,7 @@ public final class EntityCollection implements
 	@Nullable
 	private EntityWithFetchCount getEntityById(int primaryKey, @Nonnull EvitaRequest evitaRequest) {
 		final Optional<GlobalEntityIndex> globalArchiveIndex = this.getGlobalArchiveIndexIfExists();
-		final EnumSet<Scope> requestedScopes = evitaRequest.getScopes();
+		final Set<Scope> requestedScopes = evitaRequest.getScopes();
 		final boolean canReadWithoutConsultingIndexes = (globalArchiveIndex.isEmpty() && requestedScopes.contains(Scope.LIVE))
 			|| requestedScopes.containsAll(Arrays.asList(Scope.values()));
 		if (!canReadWithoutConsultingIndexes) {

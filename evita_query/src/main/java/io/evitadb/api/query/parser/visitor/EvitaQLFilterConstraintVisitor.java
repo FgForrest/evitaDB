@@ -30,6 +30,7 @@ import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeInRangeNowConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityScopeConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.FilterInScopeConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 
@@ -626,6 +627,20 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new EntityScope(ctx.args.variadicValueTokens().accept(scopeValueTokenVisitor).asEnumArray(Scope.class))
+		);
+	}
+
+	@Override
+	public FilterConstraint visitFilterInScopeConstraint(FilterInScopeConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new FilterInScope(
+				ctx.args.scope.accept(scopeValueTokenVisitor).asEnum(Scope.class),
+				ctx.args.filterConstraints
+					.stream()
+					.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
+					.toArray(FilterConstraint[]::new)
+			)
 		);
 	}
 }

@@ -1,6 +1,6 @@
 ---
 title: Behavioral filtering containers
-date: '7.11.2023'
+date: '29.11.2024'
 perex: |
   Special behavioural filter constraint containers are used to define a filter constraint scope, which has a different 
   treatment in calculations, or to define a scope in which the entities are searched. 
@@ -8,6 +8,52 @@ author: 'Ing. Jan Novotný'
 proofreading: 'done'
 preferredLang: 'evitaql'
 ---
+
+## In Scope
+
+```evitaql-syntax
+scope(
+    argument:enum(LIVE|ARCHIVED)
+    filterConstraint:any+
+)
+```
+
+<dl>
+    <dt>argument:enum(LIVE|ARCHIVED)</dt>
+    <dd>
+        mandatory enum argument representing the scope to which the filter constraints in the second and subsequent
+        arguments are applied
+    </dd>
+    <dt>filterConstraint:any+</dt>
+    <dd>
+        one or more mandatory filter conditions, combined by a logical link, used to filter entities only in 
+        a specific scope
+    </dd>
+</dl>
+
+The `inScope` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filtering/FilterInScope.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/Queries/Filtering/FilterInScope.cs</SourceClass></LS>) filter container is used 
+to restrict filter conditions so that they only apply to a specific scope.
+
+The evitaDB query engine is strict about indexes and does not allow you to filter or sort on data (attributes, references,
+etc.) for which no index has been prepared in advance (it tries to avoid situations where a full scan would degrade query 
+performance). Scopes, on the other hand, allows us to get rid of unnecessary indexes when we know we will not need them 
+(archived data is not expected to be queried as extensively as live data) and free up some resources for more important
+tasks.
+
+The [scope](#scope) filter constraint allows us to query entities in both scopes at once, which would be impossible if 
+we couldn't tell which filter constraint to apply to which scope. The `inScope` container is designed to handle this 
+situation.
+
+For example, in our demo dataset we have only a few attributes indexed in the archive - namely `url` and `code` and 
+a few others. We don't index references, hierarchy or prices. If we want to search for entities in both scopes and use 
+appropriate filter constraints, we can use the `inScope` container in the following way:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Disginguishing filters in different scopes](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.evitaql)
+
+</SourceCodeTabs>
 
 ## Scope
 
@@ -58,81 +104,13 @@ etc.).
 
 </Note>
 
-<Note type="warning">
-
-<NoteTitle toggles="true">
-
-##### Specific behaviour when indexed and non-indexed data in different scopes are queried
-
-</NoteTitle>
-
-Another important aspect of the `scope` filter is the way it handles indexed and non-indexed data. This change in 
-behaviour stems from practical reasons and situations encountered in the field. Imagine you have a schema with 
-an attribute `code` that is indexed in the live scope and not indexed in the archived scope. If you query the entities 
-by the `code` attribute in both scopes in the following way
-
-```evitaql
-query(
-    collection("entity"),
-    filterBy(
-        entityPrimaryKeyInSet(1, 2, 3),
-        attributeIs("code", NOT_NULL),
-        scope(LIVE)
-    )
-)
-```
-
-You'd expect to get the entities with primary keys 1, 2 and 3 from the live scope. However, if you archive some of these 
-entities, say 1 and 2, and repeat the same query using the `scope(LIVE, ARCHIVED)` filter, you'd only get the entity 
-with primary key 3. This is because the `code` attribute is not indexed in the archived scope and the query would be 
-translated into a conjunction of `1`, `2`, `3` and non-null keys from the live scope - which is only the entity with 
-primary key `3` - and this would result in a result set containing only the entity with primary key `3`.
-
-This is not what developers expect when working with archived entities - they expect the query to return all 
-the entities that match all the constraints that are applicable (indexed) for a particular scope, and to ignore 
-the constraints that cannot be computed for that scope. So, in practice, they expect the query to be translated:
-
-```
-OR(
-    AND(                 // SCOPE(ARCHIVED)
-        [1, 2],          // SUPER SET OF ALL ARCHIVED ENTITIES
-        [1, 2, 3]        // CONSTANT: ENTITY_PRIMARY_KEY_IN_SET(1, 2, 3)
-    ),            
-    AND(                  // SCOPE(LIVE)
-        [3],              // SUPER SET OF ALL LIVE ENTITIES
-        [1, 2, 3],        // CONSTANT: ENTITY_PRIMARY_KEY_IN_SET(1, 2, 3)
-        [3]               // NOT_NULL("code"),
-    )
-)
-```
-
-This means that when both scopes are queried, the engine constructs two complement queries, each containing only 
-the constraints that apply to that scope, and ignoring other constraints. If there is no constraint left for 
-a particular scope, the whole scope is omitted so that the result isn't polluted with all the entities from the scope 
-(super set).
-
-In the case of the same query used with only the `scope(ARCHIVED)`, you'd get the exception informing you that the used
-attribute `code` is not indexed in the archived scope, and you'd have to reformulate the query to target only indexed 
-data in that scope.
-
-This hybrid behaviour makes it much easier for applications to use, because the application doesn't have to construct 
-different or more complex queries (to target only the indexed data) when both live and archived data are being queried,
-and the engine does the heavy lifting for them. On the other hand, if only a single area is targeted, the engine is
-strict and checks that all the constraints apply to that area (queries are expected to be tailored for that area).
-
-**Caution:** This behaviour also means that returned results may not respect constraints that are not applicable in this
-scope. In our example, if the archived entity with primary key `1` had a `code` attribute set to `null`, it would be
-returned in the result set, even though the constraint `attributeIs("code", NOT_NULL)` was used.
-
-</Note>
-
 There are a few archived entities in our demo dataset. Our schema is configured to index only the `URL` and `code`
 attributes in the archived scope, so we can search for archived entities using only these attributes and, of course, 
 the primary key.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Accessing archived entities example](/documentation/user/en/query/filtering/examples/fetching/archived-entities-listing.evitaql)
+[Accessing archived entities example](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-listing.evitaql)
 
 </SourceCodeTabs>
 

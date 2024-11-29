@@ -34,10 +34,12 @@ import io.evitadb.dataType.Scope;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Set;
 
 /**
- * This `scope` require constraint can be used to control the scope of the entity search. It has single vararg argument
+ * This `scope` filter constraint can be used to control the scope of the entity search. It has single vararg argument
  * that accepts one or more scopes where the entity should be searched. The following scopes are supported:
  *
  * - LIVE: entities that are currently active and reside in the live data set indexes
@@ -54,7 +56,7 @@ import java.util.EnumSet;
  * scope(LIVE,ARCHIVED)
  * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#scop">Visit detailed user documentation</a></p>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#scope">Visit detailed user documentation</a></p>
  *
  * @see Scope
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -68,7 +70,7 @@ import java.util.EnumSet;
 public class EntityScope extends AbstractFilterConstraintLeaf implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -7172389493449298316L;
 	public static final String CONSTRAINT_NAME = "scope";
-	private final EnumSet<Scope> theScope;
+	private final Set<Scope> theScope;
 
 	private EntityScope(Serializable[] arguments) {
 		super(arguments);
@@ -85,7 +87,7 @@ public class EntityScope extends AbstractFilterConstraintLeaf implements Generic
 	 * Returns requested scopes.
 	 */
 	@Nonnull
-	public EnumSet<Scope> getScope() {
+	public Set<Scope> getScope() {
 		if (this.theScope == null) {
 			final EnumSet<Scope> result = EnumSet.noneOf(Scope.class);
 			for (Serializable argument : getArguments()) {
@@ -93,7 +95,7 @@ public class EntityScope extends AbstractFilterConstraintLeaf implements Generic
 					result.add(scope);
 				}
 			}
-			return result;
+			return Collections.unmodifiableSet(result);
 		} else {
 			return this.theScope;
 		}

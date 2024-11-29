@@ -31,7 +31,6 @@ import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.OrFormula;
@@ -40,15 +39,18 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
-import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
@@ -63,16 +65,19 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 	@Override
 	public Formula translate(@Nonnull ReferenceHaving referenceHaving, @Nonnull FilterByVisitor filterByVisitor) {
 		final String referenceName = referenceHaving.getReferenceName();
-		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchema();
-		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
-			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
-		isTrue(
-			filterByVisitor.getScopes().stream().anyMatch(referenceSchema::isIndexedInScope),
-			() -> new ReferenceNotIndexedException(referenceName, entitySchema)
+		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+		final EntitySchemaContract entitySchema = processingScope.getEntitySchema();
+
+		Assert.isTrue(
+			entitySchema != null,
+			() -> "Entity type must be known when filtering by `referenceHaving`."
 		);
 
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
+			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
+
 		final Supplier<List<ReducedEntityIndex>> referencedEntityIndexesSupplier = () -> getTargetIndexes(
-			filterByVisitor, referenceHaving
+			filterByVisitor, referenceHaving, processingScope.getScopes()
 		);
 
 		// the reference content needs to be prefetched in order to bea able to apply the filter on prefetched data
@@ -137,12 +142,13 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 	@Nonnull
 	private static List<ReducedEntityIndex> getTargetIndexes(
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull ReferenceHaving referenceHaving
-	) {
+		@Nonnull ReferenceHaving referenceHaving,
+		@Nonnull Set<Scope> scopes
+		) {
 		final TargetIndexes<?> targetIndexes = filterByVisitor.findTargetIndexSet(referenceHaving);
 		final List<ReducedEntityIndex> referencedEntityIndexes;
 		if (targetIndexes == null) {
-			referencedEntityIndexes = filterByVisitor.getReferencedRecordEntityIndexes(referenceHaving);
+			referencedEntityIndexes = filterByVisitor.getReferencedRecordEntityIndexes(referenceHaving, scopes);
 		} else {
 			//noinspection unchecked
 			referencedEntityIndexes = (List<ReducedEntityIndex>) targetIndexes.getIndexes();

@@ -33,23 +33,32 @@ import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
+import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.sort.NestedContextSorter;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyOfSelf} to
@@ -63,8 +72,9 @@ public class HierarchyOfSelfTranslator
 	extends AbstractHierarchyTranslator
 	implements RequireConstraintTranslator<HierarchyOfSelf>, SelfTraversingTranslator {
 
+	@Nullable
 	@Override
-	public ExtraResultProducer apply(HierarchyOfSelf hierarchyOfSelf, ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer createProducer(@Nonnull HierarchyOfSelf hierarchyOfSelf, @Nonnull ExtraResultPlanningVisitor extraResultPlanner) {
 		final EntitySchemaContract queriedSchema = extraResultPlanner.getSchema();
 		final String queriedEntityType = queriedSchema.getName();
 		// verify that requested entityType is hierarchical
@@ -83,8 +93,28 @@ public class HierarchyOfSelfTranslator
 		// we need to register producer prematurely
 		extraResultPlanner.registerProducer(hierarchyStatisticsProducer);
 
+		// verify that the reference has hierarchy index in requested scopes
+		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
+		final Set<Scope> scopes = processingScope.getScopes();
+		// hierarchy cannot be produced from multiple scopes
+		if (scopes.size() > 1) {
+			throw new EvitaInvalidUsageException(
+				"Hierarchies of `" + queriedSchema.getName() + "` from multiple scopes cannot be combined. " +
+					"They represent two distinct trees."
+			);
+		}
+		// so, there would be only single scope to check for hierarchy index
+		final Scope scope = scopes.iterator().next();
+		Assert.isTrue(
+			queriedSchema.isHierarchyIndexedInScope(scope),
+			() -> new HierarchyNotIndexedException(queriedSchema, scope)
+		);
+
 		final Optional<EntityCollection> targetCollectionRef = extraResultPlanner.getEntityCollection(queriedEntityType);
-		final GlobalEntityIndex globalIndex = targetCollectionRef.flatMap(EntityCollection::getGlobalIndexIfExists).orElse(null);
+		final GlobalEntityIndex globalIndex = targetCollectionRef
+			.map(entityCollection -> entityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
+			.map(GlobalEntityIndex.class::cast)
+			.orElse(null);
 		if (globalIndex != null) {
 			final NestedContextSorter sorter = hierarchyOfSelf.getOrderBy()
 				.map(

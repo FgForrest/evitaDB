@@ -44,11 +44,14 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
 
 /**
  * AbstractAttributeStringSearchTranslator is an abstract class that extends the AbstractAttributeTranslator.
@@ -106,7 +109,7 @@ class AbstractAttributeStringSearchTranslator extends AbstractAttributeTranslato
 				if (attr.isEmpty()) {
 					return false;
 				} else {
-					final Serializable theValue = attr.get().value();
+					final Serializable theValue = Objects.requireNonNull(attr.get().value());
 					if (theValue.getClass().isArray()) {
 						return Arrays.stream((Object[]) theValue).map(String.class::cast).anyMatch(predicate);
 					} else {
@@ -136,7 +139,7 @@ class AbstractAttributeStringSearchTranslator extends AbstractAttributeTranslato
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
-			processingScope.getRequirements(),
+			attributeContent(attributeName),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> {

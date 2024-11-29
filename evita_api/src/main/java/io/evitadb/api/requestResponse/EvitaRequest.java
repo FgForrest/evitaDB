@@ -44,6 +44,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -71,10 +72,9 @@ import static java.util.Optional.ofNullable;
  * @see EvitaResponse examples in super class
  */
 public class EvitaRequest {
-	private static final int[] EMPTY_INTS = new int[0];
 	private static final ConditionalGap[] EMPTY_GAPS = new ConditionalGap[0];
 	private static final String[] EMPTY_PRICE_LISTS = new String[0];
-	private static final EnumSet<Scope> DEFAULT_SCOPES = EnumSet.of(Scope.DEFAULT_SCOPE);
+	private static final Set<Scope> DEFAULT_SCOPES = CollectionUtils.toUnmodifiableSet(EnumSet.of(Scope.DEFAULT_SCOPE));
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
 	private final String entityType;
@@ -116,7 +116,7 @@ public class EvitaRequest {
 	private Map<String, FacetFilterBy> facetGroupNegation;
 	private Boolean queryTelemetryRequested;
 	private EnumSet<DebugMode> debugModes;
-	private EnumSet<Scope> scopes;
+	private Set<Scope> scopes;
 	private Map<String, RequirementContext> entityFetchRequirements;
 	private RequirementContext defaultReferenceRequirement;
 
@@ -439,7 +439,7 @@ public class EvitaRequest {
 		if (primaryKeys == null) {
 			primaryKeys = ofNullable(QueryUtils.findFilter(query, EntityPrimaryKeyInSet.class, SeparateEntityContentRequireContainer.class))
 				.map(EntityPrimaryKeyInSet::getPrimaryKeys)
-				.orElse(EMPTY_INTS);
+				.orElse(ArrayUtils.EMPTY_INT_ARRAY);
 		}
 		return primaryKeys;
 	}
@@ -931,7 +931,7 @@ public class EvitaRequest {
 	 * @return an EnumSet of Scope objects representing the scopes for the current query
 	 */
 	@Nonnull
-	public EnumSet<Scope> getScopes() {
+	public Set<Scope> getScopes() {
 		if (this.scopes == null) {
 			this.scopes = ofNullable(QueryUtils.findFilter(this.query, EntityScope.class))
 				.map(EntityScope::getScope)

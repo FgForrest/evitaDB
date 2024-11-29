@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.base.NotFormula;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
@@ -77,7 +78,7 @@ public class FormulaCloner implements FormulaVisitor {
 	 * Preferred way of invoking this visitor. Accepts formula (tree) and produces mutated clone of this formula in
 	 * response. The result shares memoized results that can be shared.
 	 */
-	@Nonnull
+	@Nullable
 	public static Formula clone(@Nonnull Formula formulaToClone, @Nonnull UnaryOperator<Formula> mutator) {
 		final FormulaCloner visitor = new FormulaCloner(mutator);
 		formulaToClone.accept(visitor);
@@ -88,7 +89,7 @@ public class FormulaCloner implements FormulaVisitor {
 	 * Preferred way of invoking this visitor. Accepts formula (tree) and produces mutated clone of this formula in
 	 * response. The result shares memoized results that can be shared.
 	 */
-	@Nonnull
+	@Nullable
 	public static Formula clone(@Nonnull Formula formulaToClone, @Nonnull BiFunction<FormulaCloner, Formula, Formula> mutator) {
 		final FormulaCloner visitor = new FormulaCloner(mutator);
 		formulaToClone.accept(visitor);

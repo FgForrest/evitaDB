@@ -30,6 +30,7 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -488,6 +489,39 @@ class EvitaQLOrderConstraintVisitorTest {
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()), random()))"));
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("orderBy(segments(segment(orderBy(random()), limit(?))))"));
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("orderBy(segments(segment(orderBy(random()), limit(5))))"));
+    }
+
+    @Test
+    void shouldParseInScopeConstraint() {
+        final OrderConstraint constraint1 = parseOrderConstraintUnsafe("inScope(LIVE, attributeNatural('code', ASC))");
+        assertEquals(inScope(Scope.LIVE, attributeNatural("code", ASC)), constraint1);
+
+        final OrderConstraint constraint2 = parseOrderConstraintUnsafe("inScope ( LIVE , attributeNatural('code', ASC))");
+        assertEquals(inScope(Scope.LIVE, attributeNatural("code", ASC)), constraint2);
+
+        final OrderConstraint constraint3 = parseOrderConstraintUnsafe("inScope ( LIVE , attributeNatural('code', ASC), attributeNatural('name', DESC))");
+        assertEquals(inScope(Scope.LIVE, attributeNatural("code", ASC), attributeNatural("name", DESC)), constraint3);
+
+        final OrderConstraint constraint4 = parseOrderConstraint("inScope ( ?,    attributeNatural( ?  , ?) )", Scope.ARCHIVED, "code", ASC);
+        assertEquals(inScope(Scope.ARCHIVED, attributeNatural("code", ASC)), constraint4);
+
+        final OrderConstraint constraint5 = parseOrderConstraint("inScope ( ?,    attributeNatural( ? , ?), attributeNatural(?, ?) )", Scope.ARCHIVED, "code", ASC, "name", DESC);
+        assertEquals(inScope(Scope.ARCHIVED, attributeNatural("code", ASC), attributeNatural("name", DESC)), constraint5);
+
+        final OrderConstraint constraint6 = parseOrderConstraint("inScope ( @a,  attributeNatural(  @b,@c) )", Map.of("a", Scope.ARCHIVED, "b", "code", "c", ASC));
+        assertEquals(inScope(Scope.ARCHIVED, attributeNatural("code", ASC)), constraint6);
+
+        final OrderConstraint constraint7 = parseOrderConstraint("inScope ( @a,   attributeNatural( @b , @c), attributeNatural(@d, @e) )", Map.of("a", Scope.ARCHIVED, "b", "code", "c", ASC, "d", "name", "e", DESC));
+        assertEquals(inScope(Scope.ARCHIVED, attributeNatural("code", ASC), attributeNatural("name", DESC)), constraint7);
+    }
+
+    @Test
+    void shouldNotParseInScopeConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("inScope"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("inScope(LIVE)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("inScope(LIVE)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("inScope('LIVE', attributeNatural('code', ASC))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("inScope('a','b')"));
     }
 
     /**

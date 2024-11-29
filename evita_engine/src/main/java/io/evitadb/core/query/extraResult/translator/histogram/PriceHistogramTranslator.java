@@ -26,18 +26,24 @@ package io.evitadb.core.query.extraResult.translator.histogram;
 import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.core.exception.PriceNotIndexedException;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
+import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
 import io.evitadb.core.query.sort.price.FilteredPricesSorter;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
 
 import static java.util.Optional.ofNullable;
 
@@ -52,17 +58,30 @@ import static java.util.Optional.ofNullable;
  */
 public class PriceHistogramTranslator implements RequireConstraintTranslator<PriceHistogram> {
 
+	@Nullable
 	@Override
-	public ExtraResultProducer apply(PriceHistogram priceHistogram, ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer createProducer(@Nonnull PriceHistogram priceHistogram, @Nonnull ExtraResultPlanningVisitor extraResultPlanner) {
 		final EntitySchemaContract schema = extraResultPlanner.getSchema();
 		Assert.isTrue(
 			schema.isWithPrice(),
 			() -> new EntityHasNoPricesException(schema.getName())
 		);
+
+		// get scopes the histogram will be created from
+		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
+		final Set<Scope> scopes = processingScope.getScopes();
+		for (Scope scope : scopes) {
+			Assert.isTrue(
+				schema.isPriceIndexedInScope(scope),
+				() -> new PriceNotIndexedException(schema, scope)
+			);
+		}
+
 		// collect all FilteredPriceRecordAccessor formulas in filtering formula tree
 		final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.find(
 			extraResultPlanner.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
 		);
+
 		// find FilteredPricesSorter among the sorters (if any)
 		final Optional<FilteredPricesSorter> filteredPricesSorter = ofNullable(
 			extraResultPlanner.findSorter(FilteredPricesSorter.class)

@@ -23,8 +23,11 @@
 
 package io.evitadb.core.query.filter.translator.price;
 
+import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.core.exception.PriceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
@@ -37,10 +40,14 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaLocator;
+import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.function.TriFunction;
+import io.evitadb.index.Index;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -121,6 +128,29 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 		}
 
 		return formulas;
+	}
+
+	/**
+	 * Verifies that the prices for the entities being processed by the given FilterByVisitor are indexed.
+	 * If the entity type is known, the method checks if the schema allows prices and ensures that
+	 * all the processing scopes are indexed for prices in the schema.
+	 *
+	 * @param filterByVisitor the visitor that processes the filter by which entities are being filtered
+	 *                        and checked for price indexing
+	 */
+	protected static void verifyEntityPricesAreIndexed(@Nonnull FilterByVisitor filterByVisitor) {
+		if (filterByVisitor.isEntityTypeKnown()) {
+			final EntitySchemaContract schema = filterByVisitor.getSchema();
+			Assert.isTrue(
+				schema.isWithPrice(),
+				() -> new EntityHasNoPricesException(schema.getName())
+			);
+			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			Assert.isTrue(
+				processingScope.getScopes().stream().allMatch(schema::isPriceIndexedInScope),
+				() -> new PriceNotIndexedException(schema)
+			);
+		}
 	}
 
 	/**

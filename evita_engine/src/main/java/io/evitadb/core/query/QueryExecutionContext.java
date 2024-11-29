@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
@@ -90,6 +91,12 @@ public class QueryExecutionContext implements Closeable {
 	 */
 	@Nonnull @Getter
 	private final QueryPlanningContext queryContext;
+	/**
+	 * Contains true if the execution is based on prefetched entities. I.e. it was "worthwhile" to optimistically
+	 * prefetch entities with contents from the disk and perform filtration analysis on their contents instead of
+	 * indexes.
+	 */
+	@Getter private final boolean prefetchExecution;
 	/**
 	 * This field is used only for debugging purposes when we need to compute results for different variants of
 	 * query plan. In case random function is used in the evaluation process, the variants would ultimately produce
@@ -201,13 +208,7 @@ public class QueryExecutionContext implements Closeable {
 				(entityCollection, entityPrimaryKeys, requestToUse) ->
 					entityCollection.getEntities(entityPrimaryKeys, evitaRequest, evitaSession),
 				(entityCollection, prefetchedEntities, requestToUse) ->
-					entityCollection.applyReferenceFetcher(
-						prefetchedEntities.stream()
-							.map(it -> entityCollection.enrichEntity(it, requestToUse, evitaSession))
-							.map(it -> entityCollection.limitEntity(it, requestToUse, evitaSession))
-							.toList(),
-						entityFetcher
-					)
+					entityCollection.limitAndFetchExistingEntities(prefetchedEntities, requestToUse, entityFetcher)
 			);
 		}
 	}
@@ -258,7 +259,9 @@ public class QueryExecutionContext implements Closeable {
 	 * Method will prefetch all entities mentioned in `entitiesToPrefetch` and loads them with the scope of `requirements`.
 	 * The entities will reveal only the scope to the `requirements` - no less, no more data.
 	 */
-	public void prefetchEntities(@Nonnull Bitmap entitiesToPrefetch, @Nonnull EntityFetchRequire requirements) {
+	public void prefetchEntities(@Nonnull PrefetchOrder prefetcher) {
+		final Bitmap entitiesToPrefetch = prefetcher.getEntitiesToPrefetch();
+		final EntityFetchRequire requirements = prefetcher.getEntityRequirements();
 		if (this.queryContext.isAtLeastOneMaskedPrimaryAssigned()) {
 			prefetchEntities(
 				Arrays.stream(entitiesToPrefetch.getArray())
@@ -459,10 +462,6 @@ public class QueryExecutionContext implements Closeable {
 	@Nonnull
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
 		return this.queryContext.analyse(computer);
-	}
-
-	public long estimatePrefetchCost(int prefetchEntityCount, @Nonnull EntityFetchRequire requirements) {
-		return this.queryContext.estimatePrefetchCost(prefetchEntityCount, requirements);
 	}
 
 	@Nonnull

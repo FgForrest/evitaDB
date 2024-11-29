@@ -641,6 +641,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterFilterInScopeConstraint(EvitaQLParser.FilterInScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFilterInScopeConstraint(EvitaQLParser.FilterInScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterEntityScopeConstraint(EvitaQLParser.EntityScopeConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -864,6 +876,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitSegmentLimitConstraint(EvitaQLParser.SegmentLimitConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterOrderInScopeConstraint(EvitaQLParser.OrderInScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitOrderInScopeConstraint(EvitaQLParser.OrderInScopeConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1776,6 +1800,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitQueryTelemetryConstraint(EvitaQLParser.QueryTelemetryConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterRequireInScopeConstraint(EvitaQLParser.RequireInScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitRequireInScopeConstraint(EvitaQLParser.RequireInScopeConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -2760,6 +2796,42 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitSegmentArgs(EvitaQLParser.SegmentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterInScopeFilterArgs(EvitaQLParser.InScopeFilterArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitInScopeFilterArgs(EvitaQLParser.InScopeFilterArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterInScopeOrderArgs(EvitaQLParser.InScopeOrderArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitInScopeOrderArgs(EvitaQLParser.InScopeOrderArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterInScopeRequireArgs(EvitaQLParser.InScopeRequireArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitInScopeRequireArgs(EvitaQLParser.InScopeRequireArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

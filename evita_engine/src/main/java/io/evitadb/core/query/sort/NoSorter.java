@@ -39,7 +39,6 @@ import java.util.function.IntConsumer;
  */
 public class NoSorter implements Sorter {
 	public static final NoSorter INSTANCE = new NoSorter();
-	private static final int[] EMPTY_RESULT = new int[0];
 
 	private NoSorter() {
 	}
