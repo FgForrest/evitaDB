@@ -1,6 +1,6 @@
 ---
 title: Behavioral filtering containers
-date: '7.11.2023'
+date: '29.11.2024'
 perex: |
   Special behavioural filter constraint containers are used to define a filter constraint scope, which has a different 
   treatment in calculations, or to define a scope in which the entities are searched. 
@@ -8,6 +8,52 @@ author: 'Ing. Jan Novotný'
 proofreading: 'done'
 preferredLang: 'evitaql'
 ---
+
+## In Scope
+
+```evitaql-syntax
+scope(
+    argument:enum(LIVE|ARCHIVED)
+    filterConstraint:any+
+)
+```
+
+<dl>
+    <dt>argument:enum(LIVE|ARCHIVED)</dt>
+    <dd>
+        mandatory enum argument representing the scope to which the filter constraints in the second and subsequent
+        arguments are applied
+    </dd>
+    <dt>filterConstraint:any+</dt>
+    <dd>
+        one or more mandatory filter conditions, combined by a logical link, used to filter entities only in 
+        a specific scope
+    </dd>
+</dl>
+
+The `inScope` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filtering/FilterInScope.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/Queries/Filtering/FilterInScope.cs</SourceClass></LS>) filter container is used 
+to restrict filter conditions so that they only apply to a specific scope.
+
+The evitaDB query engine is strict about indexes and does not allow you to filter or sort on data (attributes, references,
+etc.) for which no index has been prepared in advance (it tries to avoid situations where a full scan would degrade query 
+performance). Scopes, on the other hand, allows us to get rid of unnecessary indexes when we know we will not need them 
+(archived data is not expected to be queried as extensively as live data) and free up some resources for more important
+tasks.
+
+The [scope](#scope) filter constraint allows us to query entities in both scopes at once, which would be impossible if 
+we couldn't tell which filter constraint to apply to which scope. The `inScope` container is designed to handle this 
+situation.
+
+For example, in our demo dataset we have only a few attributes indexed in the archive - namely `url` and `code` and 
+a few others. We don't index references, hierarchy or prices. If we want to search for entities in both scopes and use 
+appropriate filter constraints, we can use the `inScope` container in the following way:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Disginguishing filters in different scopes](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.evitaql)
+
+</SourceCodeTabs>
 
 ## Scope
 
@@ -64,7 +110,7 @@ the primary key.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Accessing archived entities example](/documentation/user/en/query/filtering/examples/fetching/archived-entities-listing.evitaql)
+[Accessing archived entities example](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-listing.evitaql)
 
 </SourceCodeTabs>
 
