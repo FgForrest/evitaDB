@@ -54,7 +54,8 @@ class EntityStoragePartAccessorAttributeValueSupplier implements ExistingAttribu
 	private final String entityType;
 	private final int entityPrimaryKey;
 	private final MemoizedLocalesObsoleteChecker memoizedLocalesObsoleteChecker;
-	private Set<Locale> memoizedLocales;
+	private Set<Locale> memoizedOriginalLocales;
+	private Set<Locale> memoizedCurrentLocales;
 
 	public EntityStoragePartAccessorAttributeValueSupplier(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -69,15 +70,9 @@ class EntityStoragePartAccessorAttributeValueSupplier implements ExistingAttribu
 
 	@Nonnull
 	@Override
-	public Set<Locale> getEntityAttributeLocales() {
-		if (this.memoizedLocalesObsoleteChecker.isLocalesObsolete()) {
-			this.memoizedLocales = this.memoizedLocalesObsoleteChecker.produceNewMemoizedLocales(
-				this.containerAccessor.getEntityStoragePart(
-					this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
-				).getAttributeLocales()
-			);
-		}
-		return this.memoizedLocales;
+	public Set<Locale> getEntityExistingAttributeLocales() {
+		memoizeLocales();
+		return this.memoizedOriginalLocales;
 	}
 
 	@Nonnull
@@ -88,8 +83,8 @@ class EntityStoragePartAccessorAttributeValueSupplier implements ExistingAttribu
 			.orElseGet(() -> this.containerAccessor.getAttributeStoragePart(this.entityType, this.entityPrimaryKey));
 
 		return Optional.of(currentAttributes)
-				.map(it -> it.findAttribute(attributeKey))
-				.filter(Droppable::exists);
+			.map(it -> it.findAttribute(attributeKey))
+			.filter(Droppable::exists);
 	}
 
 	@Override
@@ -104,7 +99,7 @@ class EntityStoragePartAccessorAttributeValueSupplier implements ExistingAttribu
 					)
 				),
 				// with all locale-specific attributes
-				getEntityAttributeLocales()
+				getMemoizedLocalesWithAppliedChanges()
 					.stream()
 					.map(
 						locale -> Arrays.stream(this.containerAccessor.getAttributeStoragePart(this.entityType, this.entityPrimaryKey, locale)
@@ -121,6 +116,38 @@ class EntityStoragePartAccessorAttributeValueSupplier implements ExistingAttribu
 		return Arrays.stream(
 			this.containerAccessor.getAttributeStoragePart(this.entityType, this.entityPrimaryKey, locale).getAttributes()
 		).filter(Droppable::exists);
+	}
+
+	/**
+	 * Retrieves a set of locales for the entity with any recent changes applied. This method first checks
+	 * if the current memoized locales are obsolete. If they are, it recalculates the current locales by
+	 * accessing the entity storage and applying changes. The recalculated locales are then memoized
+	 * for later use.
+	 *
+	 * @return a set of locales representing the current state with applied changes, ensuring that the information
+	 * is up-to-date with the entity storage.
+	 */
+	@Nonnull
+	private Set<Locale> getMemoizedLocalesWithAppliedChanges() {
+		memoizeLocales();
+		return this.memoizedCurrentLocales;
+	}
+
+	/**
+	 * Memoizes the locales associated with an entity if the current memoized locales are detected to be obsolete.
+	 * The method first checks for obsolescence of locales using the provided checker. If locales are obsolete,
+	 * it retrieves the entity storage part to access the attribute locales. These locales are then used to
+	 * generate new memoized locales before and after applying changes. The newly calculated locales are stored
+	 * for future use to ensure efficient retrieval without redundant recalculation.
+	 */
+	private void memoizeLocales() {
+		if (this.memoizedLocalesObsoleteChecker.isLocalesObsolete()) {
+			final Set<Locale> storagePart = this.containerAccessor.getEntityStoragePart(
+				this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
+			).getAttributeLocales();
+			this.memoizedOriginalLocales = this.memoizedLocalesObsoleteChecker.produceNewMemoizedLocalesBeforeChangesAreApplied(storagePart);
+			this.memoizedCurrentLocales = this.memoizedLocalesObsoleteChecker.produceNewMemoizedLocalesAfterChangesApplied(storagePart);
+		}
 	}
 
 	/**
@@ -172,10 +199,29 @@ class EntityStoragePartAccessorAttributeValueSupplier implements ExistingAttribu
 		 * @return a set of updated locales reflecting the addition and removal of memoized locales
 		 */
 		@Nonnull
-		public Set<Locale> produceNewMemoizedLocales(@Nonnull Set<Locale> entityLocales) {
+		public Set<Locale> produceNewMemoizedLocalesBeforeChangesAreApplied(@Nonnull Set<Locale> entityLocales) {
 			final HashSet<Locale> updatedLocales = new HashSet<>(entityLocales);
 			updatedLocales.removeAll(this.memoizedAddedLocales);
 			updatedLocales.addAll(this.memoizedRemovedLocales);
+			return updatedLocales;
+		}
+
+		/**
+		 * Produces a new set of memoized locales based on the provided set of entity locales.
+		 * This method updates the provided set by adding any locales that have been memoized as added
+		 * and removing any locales that have been memoized as removed.
+		 *
+		 * It's expected that {@link #isLocalesObsolete()} has been called before this method to ensure
+		 * that the memoized locales are up-to-date.
+		 *
+		 * @param entityLocales the set of entity locales to be updated
+		 * @return a set of updated locales reflecting the addition and removal of memoized locales
+		 */
+		@Nonnull
+		public Set<Locale> produceNewMemoizedLocalesAfterChangesApplied(@Nonnull Set<Locale> entityLocales) {
+			final HashSet<Locale> updatedLocales = new HashSet<>(entityLocales);
+			updatedLocales.addAll(this.memoizedAddedLocales);
+			updatedLocales.removeAll(this.memoizedRemovedLocales);
 			return updatedLocales;
 		}
 	}

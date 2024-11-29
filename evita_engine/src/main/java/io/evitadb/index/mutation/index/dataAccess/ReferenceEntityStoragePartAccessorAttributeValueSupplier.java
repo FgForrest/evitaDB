@@ -63,7 +63,7 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 
 	@Nonnull
 	@Override
-	public Set<Locale> getEntityAttributeLocales() {
+	public Set<Locale> getEntityExistingAttributeLocales() {
 		if (memoizedLocales == null) {
 			this.memoizedLocales = containerAccessor.getEntityStoragePart(
 				entityType, entityPrimaryKey, EntityExistence.MUST_EXIST
