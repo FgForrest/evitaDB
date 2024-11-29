@@ -35,8 +35,8 @@ import lombok.NoArgsConstructor;
 import java.util.Set;
 
 /**
- * Simple class to gather all registered query classes.
- * To register new query, simply put its class into a list of registered classes.
+ * Simple class to gather all registered constraint classes.
+ * To register new constraint, simply put its class into a list of registered classes.
  * Actual processing and serving of registered classes is done in {@link ConstraintDescriptorProvider}.
  * <p>
  * <b>Note:</b> This exists because Java reflection does not support listing classes annotated by some annotation and
@@ -47,7 +47,7 @@ import java.util.Set;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-class RegisteredConstraintProvider {
+class ConstraintRegistry {
 
 	/**
 	 * List to register annotated constraints for later descriptor processing.
@@ -108,8 +108,7 @@ class RegisteredConstraintProvider {
 		OrderBy.class,
 		OrderGroupBy.class,
 		Random.class,
-		/* TODO LHO - uncomment this */
-		//OrderInScope.class,
+		OrderInScope.class,
 		// entity
 		EntityPrimaryKeyExact.class,
 		EntityPrimaryKeyInFilter.class,
@@ -137,8 +136,7 @@ class RegisteredConstraintProvider {
 		Strip.class,
 		DataInLocales.class,
 		QueryTelemetry.class,
-		/* TODO LHO - uncomment this */
-		//RequireInScope.class,
+		RequireInScope.class,
 		// spacing,
 		Spacing.class,
 		SpacingGap.class,
