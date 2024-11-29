@@ -76,6 +76,10 @@ public class FilterInScope extends AbstractFilterConstraintContainer implements 
 		Assert.isTrue(!ArrayUtils.isEmptyOrItsValuesNull(filtering), "At least one filtering constraint must be provided!");
 	}
 
+	private FilterInScope(@Nonnull Serializable[] arguments, @Nonnull FilterConstraint... children) {
+		super(CONSTRAINT_NAME, arguments, children);
+	}
+
 	/**
 	 * Returns requested scope.
 	 */
@@ -119,6 +123,6 @@ public class FilterInScope extends AbstractFilterConstraintContainer implements 
 			ArrayUtils.isEmpty(additionalChildren),
 			"Constraint InScope doesn't accept other than filtering constraints!"
 		);
-		return new FilterInScope(getScope(), children);
+		return new FilterInScope(new Serializable[] { getScope() }, children);
 	}
 }

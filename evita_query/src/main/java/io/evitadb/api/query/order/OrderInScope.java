@@ -78,6 +78,10 @@ public class OrderInScope extends AbstractOrderConstraintContainer implements Ge
 		Assert.isTrue(!ArrayUtils.isEmptyOrItsValuesNull(ordering), "At least one ordering constraint must be provided!");
 	}
 
+	private OrderInScope(@Nonnull Serializable[] arguments, @Nonnull OrderConstraint... children) {
+		super(CONSTRAINT_NAME, arguments, children);
+	}
+
 	/**
 	 * Returns requested scope.
 	 */
@@ -121,6 +125,6 @@ public class OrderInScope extends AbstractOrderConstraintContainer implements Ge
 			ArrayUtils.isEmpty(additionalChildren),
 			"Constraint InScope doesn't accept other than ordering constraints!"
 		);
-		return new OrderInScope(getScope(), children);
+		return new OrderInScope(new Serializable[] { getScope() }, children);
 	}
 }

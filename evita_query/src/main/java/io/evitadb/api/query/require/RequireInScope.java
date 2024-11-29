@@ -76,6 +76,10 @@ public class RequireInScope extends AbstractRequireConstraintContainer implement
 		Assert.isTrue(!ArrayUtils.isEmptyOrItsValuesNull(require), "At least one require constraint must be provided!");
 	}
 
+	private RequireInScope(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint... children) {
+		super(CONSTRAINT_NAME, arguments, children);
+	}
+
 	/**
 	 * Returns requested scope.
 	 */
@@ -119,6 +123,6 @@ public class RequireInScope extends AbstractRequireConstraintContainer implement
 			ArrayUtils.isEmpty(additionalChildren),
 			"Constraint InScope doesn't accept other than require constraints!"
 		);
-		return new RequireInScope(getScope(), children);
+		return new RequireInScope(new Serializable[] {getScope()}, children);
 	}
 }
