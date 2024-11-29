@@ -35,7 +35,6 @@ import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 
-import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -49,34 +48,7 @@ public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHe
 
 	@Override
 	public void write(Kryo kryo, Output output, CatalogHeader object) {
-		output.writeVarInt(object.storageProtocolVersion(), true);
-		output.writeString(object.catalogName());
-		output.writeVarLong(object.version(), true);
-		output.writeVarInt(object.lastEntityCollectionPrimaryKey(), true);
-
-		final WalFileReference walFileReference = object.walFileReference();
-		if (walFileReference != null) {
-			output.writeBoolean(true);
-			output.writeVarInt(walFileReference.fileIndex(), true);
-			output.writeVarLong(walFileReference.fileLocation().startingPosition(), true);
-			output.writeVarInt(walFileReference.fileLocation().recordLength(), true);
-		} else {
-			output.writeBoolean(false);
-		}
-
-		final Collection<CollectionFileReference> entityTypeFileIndexes = object.getEntityTypeFileIndexes();
-		output.writeVarInt(entityTypeFileIndexes.size(), true);
-		for (CollectionFileReference entityTypeFileIndex : entityTypeFileIndexes) {
-			output.writeString(entityTypeFileIndex.entityType());
-			output.writeVarInt(entityTypeFileIndex.entityTypePrimaryKey(), true);
-			output.writeVarInt(entityTypeFileIndex.fileIndex(), true);
-			output.writeVarLong(entityTypeFileIndex.fileLocation().startingPosition(), true);
-			output.writeVarInt(entityTypeFileIndex.fileLocation().recordLength(), true);
-		}
-
-		serializeKeys(object.compressedKeys(), output, kryo);
-
-		kryo.writeObject(output, object.catalogState());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override

@@ -34,14 +34,19 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
+import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.sort.NestedContextSorter;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
@@ -49,7 +54,9 @@ import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyOfSelf} to
@@ -65,33 +72,57 @@ public class HierarchyOfReferenceTranslator
 
 	@Nonnull
 	private static EntityIndexKey createReferencedHierarchyIndexKey(@Nonnull String referenceName, int hierarchyNodeId) {
-		return new EntityIndexKey(EntityIndexType.REFERENCED_HIERARCHY_NODE, new ReferenceKey(referenceName, hierarchyNodeId));
+		return new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, new ReferenceKey(referenceName, hierarchyNodeId));
 	}
 
+	@Nullable
 	@Override
-	public ExtraResultProducer apply(HierarchyOfReference hierarchyOfReference, ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer createProducer(@Nonnull HierarchyOfReference hierarchyOfReference, @Nonnull ExtraResultPlanningVisitor extraResultPlanner) {
 		// prepare shared data from the context
 		final EvitaRequest evitaRequest = extraResultPlanner.getEvitaRequest();
-		final String queriedEntityType = extraResultPlanner.getSchema().getName();
+		final EntitySchema entitySchema = extraResultPlanner.getSchema();
+		final String queriedEntityType = entitySchema.getName();
+
 		// retrieve existing producer or create new one
 		final HierarchyStatisticsProducer hierarchyStatisticsProducer = getHierarchyStatisticsProducer(extraResultPlanner);
 		// we need to register producer prematurely
 		extraResultPlanner.registerProducer(hierarchyStatisticsProducer);
 
 		for (String referenceName : hierarchyOfReference.getReferenceNames()) {
-			final ReferenceSchemaContract referenceSchema = extraResultPlanner.getSchema()
+			final ReferenceSchemaContract referenceSchema = entitySchema
 				.getReferenceOrThrowException(referenceName);
 			final String entityType = referenceSchema.getReferencedEntityType();
 
 			// verify that requested entityType is hierarchical
-			final EntitySchemaContract entitySchema = extraResultPlanner.getSchema(entityType);
+			final EntitySchemaContract referencedEntitySchema = extraResultPlanner.getSchema(entityType);
 			Assert.isTrue(
-				entitySchema.isWithHierarchy(),
+				referencedEntitySchema.isWithHierarchy(),
 				() -> new EntityIsNotHierarchicalException(referenceName, entityType));
+
+			// verify that the reference has hierarchy index in requested scopes
+			final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
+			final Set<Scope> scopes = processingScope.getScopes();
+			// hierarchy cannot be produced from multiple scopes
+			if (scopes.size() > 1) {
+				throw new EvitaInvalidUsageException(
+					"Hierarchies of `" + referencedEntitySchema.getName() + "` from multiple scopes cannot be combined. " +
+						"They represent two distinct trees."
+				);
+			}
+			// so, there would be only single scope to check for hierarchy index
+			final Scope scope = scopes.iterator().next();
+			Assert.isTrue(
+				referencedEntitySchema.isHierarchyIndexedInScope(scope),
+				() -> new HierarchyNotIndexedException(entitySchema, scope)
+			);
 
 			final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(referenceName);
 			final Optional<EntityCollection> targetCollectionRef = extraResultPlanner.getEntityCollection(entityType);
-			final GlobalEntityIndex globalIndex = targetCollectionRef.flatMap(EntityCollection::getGlobalIndexIfExists).orElse(null);
+			final GlobalEntityIndex globalIndex = targetCollectionRef
+				.map(entityCollection -> entityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
+				.map(GlobalEntityIndex.class::cast)
+				.orElse(null);
+
 			if (globalIndex != null) {
 				final NestedContextSorter sorter = hierarchyOfReference.getOrderBy()
 					.map(
@@ -100,7 +131,7 @@ public class HierarchyOfReferenceTranslator
 							null,
 							targetCollectionRef.get(),
 							entityType,
-							() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
+							() -> "Hierarchy statistics of `" + referencedEntitySchema.getName() + "`: " + it
 						)
 					)
 					.orElse(null);
@@ -108,7 +139,7 @@ public class HierarchyOfReferenceTranslator
 				// the request is more complex
 				hierarchyStatisticsProducer.interpret(
 					extraResultPlanner.getQueryContext()::getRootHierarchyNodes,
-					entitySchema,
+					referencedEntitySchema,
 					referenceSchema,
 					extraResultPlanner.getAttributeSchemaAccessor().withReferenceSchemaAccessor(referenceName),
 					hierarchyWithin,

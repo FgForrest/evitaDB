@@ -42,7 +42,9 @@ import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.*;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.experimental.Delegate;
 
@@ -53,6 +55,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -94,7 +97,9 @@ public final class ReferenceSchemaBuilder
 		this.entitySchema = entitySchema;
 		this.baseSchema = existingSchema == null ?
 			ReferenceSchema._internalBuild(
-				name, entityType, referencedEntityTypeManaged, cardinality, null, false, false, false
+				name, entityType, referencedEntityTypeManaged, cardinality,
+				null, false,
+				Scope.NO_SCOPE, Scope.NO_SCOPE
 			) :
 			existingSchema;
 		if (createNew) {
@@ -108,8 +113,8 @@ public final class ReferenceSchemaBuilder
 					referencedEntityTypeManaged,
 					baseSchema.getReferencedGroupType(),
 					baseSchema.isReferencedGroupTypeManaged(),
-					baseSchema.isIndexed(),
-					baseSchema.isFaceted()
+					Arrays.stream(Scope.values()).filter(baseSchema::isIndexedInScope).toArray(Scope[]::new),
+					Arrays.stream(Scope.values()).filter(baseSchema::isFacetedInScope).toArray(Scope[]::new)
 				)
 			);
 		} else {
@@ -180,6 +185,7 @@ public final class ReferenceSchemaBuilder
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public ReferenceSchemaBuilder withGroupType(@Nonnull String groupType) {
 		this.updatedSchemaDirty = updateMutationImpact(
@@ -192,6 +198,7 @@ public final class ReferenceSchemaBuilder
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public ReferenceSchemaBuilder withGroupTypeRelatedToEntity(@Nonnull String groupType) {
 		this.updatedSchemaDirty = updateMutationImpact(
@@ -204,6 +211,7 @@ public final class ReferenceSchemaBuilder
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public ReferenceSchemaBuilder withoutGroupType() {
 		this.updatedSchemaDirty = updateMutationImpact(
@@ -216,60 +224,86 @@ public final class ReferenceSchemaBuilder
 		return this;
 	}
 
+	@Nonnull
 	@Override
-	public ReferenceSchemaBuilder indexed() {
+	public ReferenceSchemaBuilder indexedInScope(@Nullable Scope... inScope) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaIndexedMutation(getName(), true)
+				new SetReferenceSchemaIndexedMutation(getName(), inScope)
 			)
 		);
 		return this;
 	}
 
+	@Nonnull
 	@Override
-	public ReferenceSchemaBuilder nonIndexed() {
+	public ReferenceSchemaBuilder nonIndexed(@Nullable Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaIndexedMutation(getName(), false)
+				new SetReferenceSchemaIndexedMutation(
+					getName(),
+					Arrays.stream(Scope.values())
+						.filter(this::isIndexedInScope)
+						.filter(it -> !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
+				)
 			)
 		);
 		return this;
 	}
 
+	@Nonnull
 	@Override
-	public ReferenceSchemaBuilder faceted() {
-		if (toInstanceInternal().isIndexed()) {
+	public ReferenceSchemaBuilder facetedInScope(@Nonnull Scope... inScope) {
+		if (Arrays.stream(inScope).allMatch(this::isIndexedInScope)) {
+			// just update the faceted scopes
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
 				addMutations(
 					this.catalogSchema, this.entitySchema, this.mutations,
-					new SetReferenceSchemaFacetedMutation(getName(), true)
+					new SetReferenceSchemaFacetedMutation(getName(), inScope)
 				)
 			);
 		} else {
+			// update both indexed and faceted scopes
+			final EnumSet<Scope> includedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
 				addMutations(
 					this.catalogSchema, this.entitySchema, this.mutations,
-					new SetReferenceSchemaIndexedMutation(getName(), true),
-					new SetReferenceSchemaFacetedMutation(getName(), true)
+					new SetReferenceSchemaIndexedMutation(
+						getName(),
+						Arrays.stream(Scope.values())
+							.filter(scope -> includedScopes.contains(scope) || this.isIndexedInScope(scope))
+							.toArray(Scope[]::new)
+					),
+					new SetReferenceSchemaFacetedMutation(getName(), inScope)
 				)
 			);
 		}
 		return this;
 	}
 
+	@Nonnull
 	@Override
-	public ReferenceSchemaBuilder nonFaceted() {
+	public ReferenceSchemaBuilder nonFaceted(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaFacetedMutation(getName(), false)
+				new SetReferenceSchemaFacetedMutation(
+					getName(),
+					Arrays.stream(Scope.values())
+						.filter(this::isFacetedInScope)
+						.filter(it -> !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
+				)
 			)
 		);
 		return this;
@@ -360,6 +394,7 @@ public final class ReferenceSchemaBuilder
 		);
 	}
 
+	@Nonnull
 	@Override
 	public ReferenceSchemaBuilder withSortableAttributeCompound(
 		@Nonnull String name,

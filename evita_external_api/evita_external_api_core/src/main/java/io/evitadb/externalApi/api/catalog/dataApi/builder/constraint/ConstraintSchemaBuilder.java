@@ -540,7 +540,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		fields.addAll(
 			referenceSchemas
 				.stream()
-				.filter(ReferenceSchemaContract::isIndexed)
+				.filter(ReferenceSchemaContract::isIndexedInAnyScope)
 				.flatMap(referenceSchema -> {
 					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
 						buildContext.switchToChildContext(new ReferenceDataLocator(
@@ -694,7 +694,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		fields.addAll(
 			referenceSchemas
 				.stream()
-				.filter(ReferenceSchemaContract::isFaceted)
+				.filter(ReferenceSchemaContract::isFacetedInAnyScope)
 				.flatMap(facetSchema -> {
 					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder =
 						constraintDescriptor -> buildFieldFromConstraintDescriptor(
@@ -885,7 +885,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	@Nonnull
 	protected SIMPLE_TYPE obtainWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                         @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                         @Nullable List<ChildParameterDescriptor> childParameters,
+	                                                         @Nonnull List<ChildParameterDescriptor> childParameters,
 	                                                         @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                         @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final WrapperObjectKey wrapperObjectKey = new WrapperObjectKey(
@@ -923,7 +923,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	protected abstract SIMPLE_TYPE buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                                 @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                                 @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                                 @Nullable List<ChildParameterDescriptor> childParameters,
+	                                                                 @Nonnull List<ChildParameterDescriptor> childParameters,
 	                                                                 @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                                 @Nullable ValueTypeSupplier valueTypeSupplier);
 

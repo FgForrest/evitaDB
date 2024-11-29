@@ -33,7 +33,6 @@ import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -115,7 +114,7 @@ public class Segments extends AbstractOrderConstraintContainer implements Generi
 	 *
 	 * @return array of segments
 	 */
-	@Nullable
+	@Nonnull
 	public Segment[] getSegments() {
 		return Arrays.stream(getChildren())
 			.map(Segment.class::cast)

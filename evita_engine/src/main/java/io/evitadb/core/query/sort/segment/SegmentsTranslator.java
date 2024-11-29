@@ -69,6 +69,7 @@ public class SegmentsTranslator implements OrderingConstraintTranslator<Segments
 						it,
 						() -> FilterByVisitor.createFormulaForTheFilter(
 							queryContext,
+							orderByVisitor.getScopes(),
 							new FilterBy(it.getChildren()),
 							queryContext.getFilterBy(),
 							orderByVisitor.getSchema().getName(),

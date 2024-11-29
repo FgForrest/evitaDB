@@ -165,10 +165,10 @@ public class CShell {
     }
 
     /**
-     * Method for unzipping downloaded C# query validator executable archive.
+     * Method for unzipping downloaded C# query validator executable scope.
      * @param zipPath path to the zip file that should be unzipped
      * @param destDir path to the destination directory where the zip file should be unzipped
-     * @throws IOException if the archive cannot be unzipped
+     * @throws IOException if the scope cannot be unzipped
      */
     private static void unzip(@Nonnull String zipPath, @Nonnull String destDir) throws IOException {
         final File dir = new File(destDir);

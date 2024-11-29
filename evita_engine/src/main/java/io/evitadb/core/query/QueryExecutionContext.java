@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
@@ -90,6 +91,12 @@ public class QueryExecutionContext implements Closeable {
 	 */
 	@Nonnull @Getter
 	private final QueryPlanningContext queryContext;
+	/**
+	 * Contains true if the execution is based on prefetched entities. I.e. it was "worthwhile" to optimistically
+	 * prefetch entities with contents from the disk and perform filtration analysis on their contents instead of
+	 * indexes.
+	 */
+	@Getter private final boolean prefetchExecution;
 	/**
 	 * This field is used only for debugging purposes when we need to compute results for different variants of
 	 * query plan. In case random function is used in the evaluation process, the variants would ultimately produce
@@ -167,7 +174,7 @@ public class QueryExecutionContext implements Closeable {
 	 * real {@link EntityContract#getPrimaryKey()} or it may represent key masked by {@link QueryPlanningContext#translateEntityReference(EntityReferenceContract[])}
 	 * method.
 	 */
-	@Nullable
+	@Nonnull
 	public List<SealedEntity> fetchEntities(int... entityPrimaryKey) {
 		if (ArrayUtils.isEmpty(entityPrimaryKey)) {
 			return Collections.emptyList();
@@ -201,13 +208,7 @@ public class QueryExecutionContext implements Closeable {
 				(entityCollection, entityPrimaryKeys, requestToUse) ->
 					entityCollection.getEntities(entityPrimaryKeys, evitaRequest, evitaSession),
 				(entityCollection, prefetchedEntities, requestToUse) ->
-					entityCollection.applyReferenceFetcher(
-						prefetchedEntities.stream()
-							.map(it -> entityCollection.enrichEntity(it, requestToUse, evitaSession))
-							.map(it -> entityCollection.limitEntity(it, requestToUse, evitaSession))
-							.toList(),
-						entityFetcher
-					)
+					entityCollection.limitAndFetchExistingEntities(prefetchedEntities, requestToUse, entityFetcher)
 			);
 		}
 	}
@@ -217,7 +218,7 @@ public class QueryExecutionContext implements Closeable {
 	 * real {@link EntityContract#getPrimaryKey()} or it may represent key masked by {@link QueryPlanningContext#translateEntityReference(EntityReferenceContract[])}
 	 * method.
 	 */
-	@Nullable
+	@Nonnull
 	public List<BinaryEntity> fetchBinaryEntities(int... entityPrimaryKey) {
 		final String entityType = this.queryContext.getEntityType();
 		final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
@@ -234,7 +235,7 @@ public class QueryExecutionContext implements Closeable {
 					entityCollection.getBinaryEntities(entityPrimaryKeys, evitaRequest, evitaSession),
 				(entityCollection, prefetchedEntities, requestToUse) -> entityCollection.getBinaryEntities(
 					prefetchedEntities.stream()
-						.mapToInt(EntityDecorator::getPrimaryKey)
+						.mapToInt(EntityDecorator::getPrimaryKeyOrThrowException)
 						.toArray(),
 					evitaRequest, evitaSession
 				)
@@ -258,7 +259,9 @@ public class QueryExecutionContext implements Closeable {
 	 * Method will prefetch all entities mentioned in `entitiesToPrefetch` and loads them with the scope of `requirements`.
 	 * The entities will reveal only the scope to the `requirements` - no less, no more data.
 	 */
-	public void prefetchEntities(@Nonnull Bitmap entitiesToPrefetch, @Nonnull EntityFetchRequire requirements) {
+	public void prefetchEntities(@Nonnull PrefetchOrder prefetcher) {
+		final Bitmap entitiesToPrefetch = prefetcher.getEntitiesToPrefetch();
+		final EntityFetchRequire requirements = prefetcher.getEntityRequirements();
 		if (this.queryContext.isAtLeastOneMaskedPrimaryAssigned()) {
 			prefetchEntities(
 				Arrays.stream(entitiesToPrefetch.getArray())
@@ -461,10 +464,6 @@ public class QueryExecutionContext implements Closeable {
 		return this.queryContext.analyse(computer);
 	}
 
-	public long estimatePrefetchCost(int prefetchEntityCount, @Nonnull EntityFetchRequire requirements) {
-		return this.queryContext.estimatePrefetchCost(prefetchEntityCount, requirements);
-	}
-
 	@Nonnull
 	public EntityCollection getEntityCollectionOrThrowException(@Nonnull String entityType, @Nonnull String fetchReferences) {
 		return this.queryContext.getEntityCollectionOrThrowException(entityType, fetchReferences);
@@ -519,7 +518,7 @@ public class QueryExecutionContext implements Closeable {
 					.forEach(
 						it -> index.put(
 							ofNullable(remappingIndex.get())
-								.map(ix -> ix.get(new EntityReference(it.getType(), it.getPrimaryKey())))
+								.map(ix -> ix.get(new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException())))
 								.orElse(it.getPrimaryKey()),
 							it
 						)
@@ -562,7 +561,7 @@ public class QueryExecutionContext implements Closeable {
 				dataCollector.run();
 				requestToUse.set(evitaRequest);
 				lastImplicitLocale = null;
-			} else if (!Objects.equals(lastImplicitLocale, implicitLocale)) {
+			} else if (implicitLocale != null && !Objects.equals(lastImplicitLocale, implicitLocale)) {
 				dataCollector.run();
 				// when implicit locale is found we need to fabricate new request for that particular entity
 				// that will use such implicit locale as if it would have been part of the original request
@@ -583,12 +582,12 @@ public class QueryExecutionContext implements Closeable {
 				primaryKeysToFetch[primaryKeyPeek.getAndIncrement()] = epk;
 			} else {
 				prefetchedEntities[prefetchedEntitiesPeek.getAndIncrement()] = prefetchedEntity;
-				if (epk != prefetchedEntity.getPrimaryKey()) {
+				if (epk != prefetchedEntity.getPrimaryKeyOrThrowException()) {
 					if (remappingIndex.get() == null) {
 						remappingIndex.set(CollectionUtils.createHashMap(inputPrimaryKeys.length));
 					}
 					remappingIndex.get().put(
-						new EntityReference(prefetchedEntity.getType(), prefetchedEntity.getPrimaryKey()),
+						new EntityReference(prefetchedEntity.getType(), prefetchedEntity.getPrimaryKeyOrThrowException()),
 						epk
 					);
 				}

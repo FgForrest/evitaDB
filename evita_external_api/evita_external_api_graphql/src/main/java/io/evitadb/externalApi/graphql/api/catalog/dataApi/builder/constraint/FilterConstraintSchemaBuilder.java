@@ -81,6 +81,6 @@ public class FilterConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilde
 	@Nonnull
 	@Override
 	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {
-		return attributeSchema -> attributeSchema.isUnique() || attributeSchema.isFilterable();
+		return attributeSchema -> attributeSchema.isUniqueInAnyScope() || attributeSchema.isFilterableInAnyScope();
 	}
 }

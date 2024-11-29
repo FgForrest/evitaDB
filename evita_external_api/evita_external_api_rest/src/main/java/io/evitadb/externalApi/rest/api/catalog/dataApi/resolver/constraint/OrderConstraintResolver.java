@@ -28,6 +28,7 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
@@ -53,18 +54,18 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class OrderConstraintResolver extends RestConstraintResolver<OrderConstraint> {
 
-	public OrderConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext,
+	public OrderConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
 	                               @Nonnull AtomicReference<FilterConstraintResolver> filterConstraintResolver) {
 		super(
-			restHandlingContext,
+			catalogSchema,
 			Map.of(ConstraintType.FILTER, filterConstraintResolver)
 		);
 	}
 
 	@Nullable
-	public OrderConstraint resolve(@Nonnull String key, @Nullable Object value) {
+	public OrderConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
 		return resolve(
-			new EntityDataLocator(new ManagedEntityTypePointer(restHandlingContext.getEntityType())),
+			new EntityDataLocator(new ManagedEntityTypePointer(rootEntityType)),
 			key,
 			value
 		);

@@ -41,7 +41,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.prefetch.PrefetchFactory;
+import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.response.EntityFetchAwareDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
@@ -53,6 +53,7 @@ import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -100,11 +101,11 @@ public class QueryPlan {
 	@Nonnull
 	private final Formula filter;
 	/**
-	 * Optional visitor that collected information about target entities so that they can
-	 * be fetched upfront and filtered/ordered by their properties.
+	 * Optional prefetcher that can be used to load entities in advance to speed up the filtering process or to
+	 * retrieve data, that cannot be located in the entity indexes.
 	 */
-	@Nonnull
-	private final PrefetchFactory prefetchFactory;
+	@Nullable
+	private final PrefetchOrder prefetcher;
 	/**
 	 * Contains prepared sorter implementation that takes output of the filtering process and sorts the entity
 	 * primary keys according to {@link OrderConstraint} in {@link EvitaRequest}.
@@ -131,11 +132,6 @@ public class QueryPlan {
 	 */
 	@Getter
 	private int[] primaryKeys;
-	/**
-	 * Contains TRUE if the entities were prefetched when the query plan was executed.
-	 */
-	@Getter
-	private boolean prefetched;
 
 	/**
 	 * Creates slice of entity primary keys that respect filtering query, specified sorting and is sliced according
@@ -150,6 +146,7 @@ public class QueryPlan {
 		@Nonnull OffsetAndLimit offsetAndLimit
 	) {
 		sorter = ConditionalSorter.getFirstApplicableSorter(queryContext, sorter);
+		Assert.isPremiseValid(sorter != null, "No applicable sorter found for the query.");
 		final int[] result = new int[Math.min(totalRecordCount, offsetAndLimit.limit())];
 		final int peak = sorter.sortAndSlice(
 			queryContext, filteringFormula,
@@ -179,21 +176,24 @@ public class QueryPlan {
 	 */
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute(@Nullable byte[] frozenRandom) {
-		try (final QueryExecutionContext executionContext = this.queryContext.createExecutionContext(frozenRandom)) {
-			executionContext.pushStep(QueryPhase.EXECUTION);
-
+		final boolean prefetchedDataSuitableForFiltering = this.prefetcher != null && this.prefetcher.isPrefetchedEntitiesSuitableForFiltering();
+		try (
+			final QueryExecutionContext executionContext = this.queryContext.createExecutionContext(
+				prefetchedDataSuitableForFiltering,
+				frozenRandom
+			)
+		) {
+			this.queryContext.pushStep(QueryPhase.EXECUTION);
 			try {
 				// prefetch the entities to allow using them in filtering / sorting in next step
-				this.prefetchFactory.createPrefetchLambdaIfNeededOrWorthwhile(executionContext)
-					.ifPresent(prefetchLambda -> {
+				if (this.prefetcher != null) {
+					try {
 						executionContext.pushStep(QueryPhase.EXECUTION_PREFETCH);
-						try {
-							this.prefetched = true;
-							prefetchLambda.run();
-						} finally {
-							executionContext.popStep();
-						}
-					});
+						executionContext.prefetchEntities(this.prefetcher);
+					} finally {
+						executionContext.popStep();
+					}
+				}
 
 				executionContext.pushStep(QueryPhase.EXECUTION_FILTER);
 				try {
@@ -313,7 +313,7 @@ public class QueryPlan {
 							}
 						}
 						it.finish(
-							this.prefetched,
+							prefetchedDataSuitableForFiltering,
 							this.filter.getEstimatedCardinality(),
 							this.primaryKeys == null ? 0 : this.primaryKeys.length,
 							this.totalRecordCount,
@@ -408,20 +408,24 @@ public class QueryPlan {
 	public SpanAttribute[] getSpanAttributes() {
 		final Query query = this.getEvitaRequest().getQuery();
 		final FinishedEvent queryFinishedEvent = queryContext.getQueryFinishedEvent();
-		return new SpanAttribute[] {
-			new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
-			new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
-			new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
-			new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
-			new SpanAttribute("prefetch", queryFinishedEvent.getPrefetched()),
-			new SpanAttribute("scannedRecords", queryFinishedEvent.getScanned()),
-			new SpanAttribute("totalRecordCount", queryFinishedEvent.getFound()),
-			new SpanAttribute("returnedRecordCount", queryFinishedEvent.getReturned()),
-			new SpanAttribute("fetchedRecordCount", queryFinishedEvent.getFetched()),
-			new SpanAttribute("fetchedRecordSizeBytes", queryFinishedEvent.getFetchedSizeBytes()),
-			new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
-			new SpanAttribute("complexity", queryFinishedEvent.getRealComplexity())
-		};
+		if (queryFinishedEvent == null) {
+			return SpanAttribute.EMPTY_ARRAY;
+		} else {
+			return new SpanAttribute[]{
+				new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
+				new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
+				new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
+				new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
+				new SpanAttribute("prefetch", queryFinishedEvent.getPrefetched() == null ? "<NONE>" : queryFinishedEvent.getPrefetched()),
+				new SpanAttribute("scannedRecords", queryFinishedEvent.getScanned()),
+				new SpanAttribute("totalRecordCount", queryFinishedEvent.getFound()),
+				new SpanAttribute("returnedRecordCount", queryFinishedEvent.getReturned()),
+				new SpanAttribute("fetchedRecordCount", queryFinishedEvent.getFetched()),
+				new SpanAttribute("fetchedRecordSizeBytes", queryFinishedEvent.getFetchedSizeBytes()),
+				new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
+				new SpanAttribute("complexity", queryFinishedEvent.getRealComplexity())
+			};
+		}
 	}
 
 	/**

@@ -28,11 +28,17 @@ import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.Index;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The AbstractAttributeTranslator class provides utility methods for handling attribute keys within
@@ -58,10 +64,11 @@ class AbstractAttributeTranslator {
 		@Nonnull AttributeSchemaContract attributeDefinition
 	) {
 		final String attributeName = attributeDefinition.getName();
+		final Set<Scope> scopes = filterByVisitor.getScopes();
 		Assert.isTrue(
 			!attributeDefinition.isLocalized() || filterByVisitor.getLocale() != null ||
-				(attributeDefinition.isUnique() && !attributeDefinition.isUniqueWithinLocale()),
-			() -> new EntityLocaleMissingException("Localized attribute `" + attributeName + "` requires locale specification in the input query!")
+				(scopes.stream().anyMatch(scope -> attributeDefinition.isUniqueInScope(scope) && !attributeDefinition.isUniqueWithinLocaleInScope(scope))),
+			() -> new EntityLocaleMissingException(attributeName)
 		);
 
 		return attributeDefinition.isLocalized() ?
@@ -81,10 +88,24 @@ class AbstractAttributeTranslator {
 	@Nonnull
 	protected static Optional<GlobalAttributeSchemaContract> getOptionalGlobalAttributeSchema(
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull String attributeName
+		@Nonnull String attributeName,
+		@Nonnull AttributeTrait... traits
 	) {
-		return filterByVisitor.getProcessingScope().getReferenceSchema() == null ?
+		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+		final Optional<GlobalAttributeSchemaContract> result = processingScope.getReferenceSchema() == null ?
 			filterByVisitor.getCatalogSchema().getAttribute(attributeName) : Optional.empty();
+		if (result.isPresent() && traits.length > 0) {
+			AttributeSchemaAccessor.verifyAndReturn(
+				attributeName,
+				processingScope.getScopes(),
+				result.get(),
+				filterByVisitor.getCatalogSchema(),
+				filterByVisitor.isEntityTypeKnown() ? filterByVisitor.getSchema() : null,
+				filterByVisitor.getReferenceSchema().orElse(null),
+				traits
+			);
+		}
+		return result;
 	}
 
 }

@@ -2505,7 +2505,17 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					final Set<Integer> filteredStoreIds = storeIds.stream()
 						.filter(it -> Arrays.asList(randomStores).contains(it))
 						.collect(Collectors.toSet());
-					assertEquals(filteredStoreIds.size(), references.size(), "Product `" + product.getPrimaryKey() +"` has references to stores that are not in the filtered set: `"+product.getReferences(Entities.STORE).stream().map(ReferenceContract::getReferencedPrimaryKey).collect(Collectors.toSet())+"` vs. `"+ filteredStoreIds);
+					assertEquals(
+						filteredStoreIds.size(),
+						references.size(),
+						"Product `" + product.getPrimaryKey() +"` has references to stores that are not " +
+							"in the filtered set: `" +
+							product.getReferences(Entities.STORE)
+								.stream()
+								.map(ReferenceContract::getReferencedPrimaryKey)
+								.collect(Collectors.toSet()) +
+							"` vs. expected `"+ filteredStoreIds
+					);
 
 					// references should be ordered by name
 					final String[] receivedOrderedNames = references.stream()

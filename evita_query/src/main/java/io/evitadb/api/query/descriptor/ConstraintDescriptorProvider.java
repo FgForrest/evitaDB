@@ -60,7 +60,7 @@ public class ConstraintDescriptorProvider {
 	private static final Map<Class<?>, Set<ConstraintDescriptor>> CONSTRAINT_DESCRIPTORS_TO_CLASS;
 	private static final Map<ConstraintReconstructionLookupKey, Set<ConstraintDescriptor>> CONSTRAINT_DESCRIPTOR_RECONSTRUCTION_LOOKUP_INDEX;
 	static {
-		CONSTRAINT_DESCRIPTORS = new ConstraintProcessor().process(RegisteredConstraintProvider.REGISTERED_CONSTRAINTS);
+		CONSTRAINT_DESCRIPTORS = new ConstraintProcessor().process(ConstraintRegistry.REGISTERED_CONSTRAINTS);
 
 		final Map<Class<?>, Set<ConstraintDescriptor>> constraintDescriptorsToClass = createHashMap(CONSTRAINT_DESCRIPTORS.size());
 		CONSTRAINT_DESCRIPTORS.forEach(descriptor -> {

@@ -1,7 +1,7 @@
 # GraphQL API
 
 evitaDB's GraphQL API is dynamically built based on evitaDB's internal data schemas, thus GraphQL API schema of different
-catalogs can be quite different. This way was chosen to simplify life for end-users as much as possible by providing 
+catalogs can be quite different. This way was chosen to simplify life for end-users as much as possible by providing
 API specific to their domains. This helps with intuitiveness and fewer errors.
 
 For general overview of GraphQL API principles, read the [user documentation](../../user/en/use/connectors/graphql.md).
@@ -14,7 +14,7 @@ schema and URL path. This is mainly to separate contexts as designed by evitaDB.
 ## Initialization
 
 Initialization of GraphQL API is done by `io.evitadb.externalApi.graphql.GraphQLManager` executed by the
-`io.evitadb.externalApi.graphql.GraphQLProviderRegistrar`. This manager handles initializing of new GraphQL instances for 
+`io.evitadb.externalApi.graphql.GraphQLProviderRegistrar`. This manager handles initializing of new GraphQL instances for
 catalogs, catalog updates, as well as maintaining the HTTP path router for all of those initialized GraphQL instances.
 Actual GraphQL instance building for specific catalog is delegated to `io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLBuilder`
 that further delegates schema building to `io.evitadb.externalApi.graphql.api.catalog.builder.CatalogSchemaBuilder`.
@@ -23,7 +23,7 @@ that further delegates schema building to `io.evitadb.externalApi.graphql.api.ca
 
 As mentioned above, `io.evitadb.externalApi.graphql.api.catalog.builder.CatalogSchemaBuilder` is the root of the GraphQL schema
 building process. This builder delegates different parts of schema to different `io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuilder`s
-for better code readability. 
+for better code readability.
 Each implementation of the partial schema builder is structured in following way:
 
 - first, common types are built and registered
@@ -32,12 +32,12 @@ Each implementation of the partial schema builder is structured in following way
 
 The idea is to structure building methods to reflect an order of actual schema fields and objects for better orientation.
 
-Anyway, to add/remove/modify new field or object simply build and register it using the provided 
-`io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext` or 
+Anyway, to add/remove/modify new field or object simply build and register it, use the provided
+`io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext` or
 `io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGraphQLSchemaBuildingContext`. Usually, when new
-fields/objects are being added, [descriptors in code module](external-apis.md#describing-model-entity) must be added too.
+fields/objects are being added, [descriptors in core module](external-apis.md#describing-model-entity) must be added too.
 
-The GraphQL API tries to automate building the schema as much as possible using the descriptor transformers which can 
+The GraphQL API tries to automate building the schema as much as possible using the descriptor transformers which can
 automatically build whole objects if those objects have static structure. The only things that is needed in such case is
 to call the transformers in schema builders.
 
@@ -45,11 +45,39 @@ To make the API alive, [data fetchers](https://www.graphql-java.com/documentatio
 the root fields as well. All data fetchers are placed in `io.evitadb.externalApi.graphql.api.catalog.resolver` and must
 be registered during the schema building process to respective fields.
 
+### Descriptor transformers
+
+Each descriptor (object, property, ...) has its own transformer:
+
+- `io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQL*Transformer`
+- `io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQL*Transformer`
+- `io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer`
+- `io.evitadb.externalApi.graphql.api.model.PropertyDataTypeDescriptorToGraphQLTypeTransformer`
+
+instances of these are available in `io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuilder` to easily
+transform descriptor into GraphQL Schema data structures like so:
+
+```java
+buildingContext.registerType(
+	AllowCurrencyInEntitySchemaMutationDescriptor.THIS
+		.to(inputObjectBuilderTransformer)
+		.build()
+);
+```
+
+Each transformer transform only statically defines data in a passed descriptor, that's why each transformer usually returns
+builder so that the created data structure can be easily enhanced with dynamically generated data.
+
+### Mutations
+
+Data and schema mutations are usually converted into core structure within mutation data fetchers like `io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataFetcher.UpsertEntityMutatingDataFetcher`
+and use external API's core converters.
+
 ### Query constraint schema
 
 The GraphQL API uses the [query constraint schema support](external-apis.md#query-constraint-schema) from core module
-and combines it with the GraphQL library capabilities. All implementations of those builders are placed at 
-`io.evitadb.externalApi.graphql.api.catalog.builder.data.constraint` and respective resolvers are placed at 
+and combines it with the GraphQL library capabilities. All implementations of those builders are placed at
+`io.evitadb.externalApi.graphql.api.catalog.builder.data.constraint` and respective resolvers are placed at
 `io.evitadb.externalApi.graphql.api.catalog.resolver.data.constraint`. Usually, mild changes to the core support
 shouldn't break the implementations, but bigger structural changes may require reimplementation of API's side of things as
 well. More details about the core builder and resolver is described [here](constraint-schema-api-subsystem.md).
@@ -57,12 +85,12 @@ well. More details about the core builder and resolver is described [here](const
 ## Data types support
 
 evitaDB has wide range of custom data types. All these data types are supported by GraphQL in some form and are defined
-as GraphQL scalars in the `io.evitadb.externalApi.graphql.dataType.GraphQLScalars`. For conversion between evitaDB classes 
+as GraphQL scalars in the `io.evitadb.externalApi.graphql.dataType.GraphQLScalars`. For conversion between evitaDB classes
 and scalars of GraphQL, there is the `io.evitadb.externalApi.graphql.dataType.DataTypesConverter`.
 
 ## Exceptions
 
 The GraphQL API extends the base evitaDB internal and client exceptions with specific exceptions for different GraphQL
 processes. All custom exceptions can be found at `io.evitadb.externalApi.graphql.exception` and it is highly recommended
-to use them across the GraphQL API because there is custom `io.evitadb.externalApi.graphql.io.GraphQLExceptionHandler` 
+to use them across the GraphQL API because there is custom `io.evitadb.externalApi.graphql.io.GraphQLExceptionHandler`
 catching all exceptions thrown during GraphQL query handling to correctly handle such exceptions.

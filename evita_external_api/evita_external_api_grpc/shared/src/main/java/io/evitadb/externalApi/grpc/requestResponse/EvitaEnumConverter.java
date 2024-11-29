@@ -57,6 +57,7 @@ import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -1122,6 +1123,37 @@ public class EvitaEnumConverter {
 			case ASSOCIATED_DATA -> GrpcClassifierType.CLASSIFIER_TYPE_ASSOCIATED_DATA;
 			case REFERENCE -> GrpcClassifierType.CLASSIFIER_TYPE_REFERENCE;
 			case REFERENCE_ATTRIBUTE -> GrpcClassifierType.CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE;
+		};
+	}
+
+	/**
+	 * Converts an {@link Scope} to a {@link GrpcEntityScope}.
+	 *
+	 * @param scope the scope to convert.
+	 * @return the corresponding gRPC scope.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static GrpcEntityScope toGrpcScope(@Nonnull Scope scope) {
+		return switch (scope) {
+			case LIVE -> GrpcEntityScope.SCOPE_LIVE;
+			case ARCHIVED -> GrpcEntityScope.SCOPE_ARCHIVED;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcEntityScope} to an {@link Scope}.
+	 *
+	 * @param grpcScope the gRPC scope to convert.
+	 * @return the corresponding scope.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static Scope toScope(@Nonnull GrpcEntityScope grpcScope) {
+		return switch (grpcScope) {
+			case SCOPE_LIVE -> Scope.LIVE;
+			case SCOPE_ARCHIVED -> Scope.ARCHIVED;
+			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized gRPC scope: " + grpcScope);
 		};
 	}
 

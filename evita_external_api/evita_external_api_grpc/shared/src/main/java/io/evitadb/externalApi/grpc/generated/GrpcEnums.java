@@ -178,7 +178,9 @@ public final class GrpcEnums {
       "ASSIFIER_TYPE_ATTRIBUTE\020\003\022#\n\037CLASSIFIER_" +
       "TYPE_ASSOCIATED_DATA\020\004\022\035\n\031CLASSIFIER_TYP" +
       "E_REFERENCE\020\005\022\'\n#CLASSIFIER_TYPE_REFEREN" +
-      "CE_ATTRIBUTE\020\006B\014P\001\252\002\007EvitaDBb\006proto3"
+      "CE_ATTRIBUTE\020\006*5\n\017GrpcEntityScope\022\016\n\nSCO" +
+      "PE_LIVE\020\000\022\022\n\016SCOPE_ARCHIVED\020\001B\014P\001\252\002\007Evit" +
+      "aDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

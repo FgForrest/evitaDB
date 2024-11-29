@@ -65,6 +65,7 @@ import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
 import io.evitadb.core.query.policy.DefaultPolicy;
 import io.evitadb.core.query.policy.PlanningPolicy;
 import io.evitadb.core.query.policy.PlanningPolicy.PrefetchPolicy;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
@@ -83,15 +84,7 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
-import java.util.Arrays;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
@@ -104,7 +97,12 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyResolver {
-	private static final EntityIndexKey GLOBAL_INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL);
+	private static final EnumMap<Scope, EntityIndexKey> GLOBAL_INDEX_KEY = new EnumMap<>(
+		Map.of(
+			Scope.LIVE, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE),
+			Scope.ARCHIVED, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.ARCHIVED)
+		)
+	);
 
 	/**
 	 * Contains reference to the parent context of this one. The reference is not NULL only for sub-queries.
@@ -172,6 +170,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	private final boolean prefetchPossible;
 	/**
+	 * Internal execution context used for execution of formulas evaluated in planning phase.
+	 */
+	@Getter @Nonnull
+	private final QueryExecutionContext internalExecutionContext;
+	/**
 	 * Contains sequence of already assigned virtual entity primary keys.
 	 * If set to zero - no virtual entity primary key was assigned, if greater than zero it represents the last assigned
 	 * virtual entity primary key.
@@ -207,11 +210,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * to mark the group id involved in special relation handling.
 	 */
 	private Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples;
-	/**
-	 * Internal execution context used for execution of formulas evaluated in planning phase.
-	 */
-	@Getter @Nonnull
-	private final QueryExecutionContext internalExecutionContext;
 	/**
 	 * Internal cache currently server sor caching the computed formulas of nested queries.
 	 *
@@ -297,6 +295,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Shortcut for {@link EvitaRequest#getScopes()}.
+	 *
+	 * @return set of requested scopes in the query
+	 */
+	@Nonnull
+	public Set<Scope> getScopes() {
+		return this.evitaRequest.getScopes();
+	}
+
+	/**
 	 * Delegates method to {@link FetchRequirementCollector#addRequirementsToPrefetch(EntityContentRequire...)}.
 	 *
 	 * @param require the requirement to prefetch
@@ -341,6 +349,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Checks if any of the keys in the indexes map are instances of EntityIndexKey.
+	 *
+	 * @return true if at least one key in the indexes map is an instance of EntityIndexKey;
+	 * false otherwise.
+	 */
+	public boolean hasEntityGlobalIndex() {
+		return this.indexes.keySet().stream().anyMatch(it -> it instanceof EntityIndexKey);
+	}
+
+	/**
 	 * Returns {@link EntityIndex} of external entity type by its key and entity type.
 	 */
 	@Nonnull
@@ -349,7 +367,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			.getIndexByKeyIfExists(entityIndexKey);
 		Assert.isPremiseValid(
 			entityIndex == null || indexType.isInstance(entityIndex),
-			() -> "Expected index of type " + indexType + " but got " + entityIndex.getClass() + "!"
+			() -> "Expected index of type " + indexType + " but got " + (entityIndex == null ? "NULL" : entityIndex.getClass()) + "!"
 		);
 		//noinspection unchecked
 		return ofNullable((T) entityIndex);
@@ -359,13 +377,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns {@link EntityIndex} by its key.
 	 */
 	@Nonnull
-	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndex(@Nonnull S entityIndexKey) {
-		if (entityIndexKey instanceof CatalogIndexKey) {
+	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndex(@Nonnull S indexKey) {
+		if (indexKey instanceof CatalogIndexKey cik) {
 			//noinspection unchecked
-			return ofNullable((T) catalog.getCatalogIndex());
+			return ofNullable((T) this.catalog.getCatalogIndex(cik.scope()));
 		} else {
 			//noinspection unchecked
-			return ofNullable((T) indexes.get(entityIndexKey));
+			return ofNullable((T) this.indexes.get(indexKey));
 		}
 	}
 
@@ -528,17 +546,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns global {@link GlobalEntityIndex} of the collection if the target entity collection is known.
 	 */
 	@Nonnull
-	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists() {
-		return getIndex(GLOBAL_INDEX_KEY);
+	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull Scope scope) {
+		return getIndex(GLOBAL_INDEX_KEY.get(scope));
 	}
 
 	/**
 	 * Returns global {@link GlobalEntityIndex} of the collection or throws an exception.
 	 */
 	@Nonnull
-	public GlobalEntityIndex getGlobalEntityIndex() {
-		return getGlobalEntityIndexIfExists()
-			.map(GlobalEntityIndex.class::cast)
+	public GlobalEntityIndex getGlobalEntityIndex(@Nonnull Scope scope) {
+		return getGlobalEntityIndexIfExists(scope)
 			.orElseThrow(() -> new GenericEvitaInternalError("Global index of entity unexpectedly not found!"));
 	}
 
@@ -546,8 +563,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns {@link EntityIndex} by its key and entity type.
 	 */
 	@Nonnull
-	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType) {
-		return getIndex(entityType, GLOBAL_INDEX_KEY, GlobalEntityIndex.class);
+	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType, @Nonnull Scope scope) {
+		return getIndex(entityType, GLOBAL_INDEX_KEY.get(scope), GlobalEntityIndex.class);
 	}
 
 	/**
@@ -626,7 +643,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * {@link EntityCollection#enrichEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  methods.
 	 */
 	@Nonnull
-	public EvitaRequest fabricateFetchRequest(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {
+	public EvitaRequest fabricateFetchRequest(@Nullable String entityType, @Nonnull EntityFetchRequire requirements) {
 		return evitaRequest.deriveCopyWith(entityType, requirements);
 	}
 
@@ -638,7 +655,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * of the exactly same nested query formula tree.
 	 *
 	 * Formulas are expected to be invoked in planning phase and share the same {@link #internalExecutionContext}.
-	 *
 	 *
 	 * @param constraint      caching key for which the lambda should be invoked only once
 	 * @param formulaSupplier the lambda that creates the formula
@@ -792,21 +808,36 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		final Optional<FacetFilterBy> facetGroupConjunction = getEvitaRequest().getFacetGroupConjunction(referenceName);
 		if (facetGroupConjunction.isEmpty()) {
 			return false;
-		} else if (facetGroupConjunction.get().isFilterDefined()) {
-			if (groupId == null) {
-				return false;
-			} else {
-				return getFacetRelationTuples().computeIfAbsent(
-					new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
-					refName -> new FilteringFormulaPredicate(
-						this, facetGroupConjunction.get().filterBy(),
-						referenceSchema.getReferencedGroupType(),
-						() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupConjunction.get()
-					)
-				).test(groupId);
-			}
 		} else {
-			return true;
+			final FacetFilterBy facetFilterBy = facetGroupConjunction.get();
+			final FilterBy filterBy = facetFilterBy.filterBy();
+			if (filterBy != null) {
+				if (groupId == null) {
+					return false;
+				} else {
+					return getFacetRelationTuples()
+						.computeIfAbsent(
+							new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
+							refName -> {
+								final String referencedGroupType = referenceSchema.getReferencedGroupType();
+								Assert.isTrue(
+									referencedGroupType != null,
+									() -> "Referenced group type must be defined for facet group conjunction of `" + referenceName + "`!"
+								);
+								return new FilteringFormulaPredicate(
+									this,
+									getScopes(),
+									filterBy,
+									referencedGroupType,
+									() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+								);
+							}
+						)
+						.test(groupId);
+				}
+			} else {
+				return true;
+			}
 		}
 	}
 
@@ -819,21 +850,34 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		final Optional<FacetFilterBy> facetGroupDisjunction = getEvitaRequest().getFacetGroupDisjunction(referenceName);
 		if (facetGroupDisjunction.isEmpty()) {
 			return false;
-		} else if (facetGroupDisjunction.get().isFilterDefined()) {
-			if (groupId == null) {
-				return false;
-			} else {
-				return getFacetRelationTuples().computeIfAbsent(
-					new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
-					refName -> new FilteringFormulaPredicate(
-						this, facetGroupDisjunction.get().filterBy(),
-						referenceSchema.getReferencedGroupType(),
-						() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupDisjunction.get()
-					)
-				).test(groupId);
-			}
 		} else {
-			return true;
+			final FacetFilterBy facetFilterBy = facetGroupDisjunction.get();
+			final FilterBy filterBy = facetFilterBy.filterBy();
+			if (filterBy != null) {
+				if (groupId == null) {
+					return false;
+				} else {
+					return getFacetRelationTuples().computeIfAbsent(
+						new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
+						refName -> {
+							final String referencedGroupType = referenceSchema.getReferencedGroupType();
+							Assert.isTrue(
+								referencedGroupType != null,
+								() -> "Referenced group type must be defined for facet group disjunction of `" + referenceName + "`!"
+							);
+							return new FilteringFormulaPredicate(
+								this,
+								getScopes(),
+								filterBy,
+								referencedGroupType,
+								() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+							);
+						}
+					).test(groupId);
+				}
+			} else {
+				return true;
+			}
 		}
 	}
 
@@ -846,21 +890,34 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		final Optional<FacetFilterBy> facetGroupNegation = getEvitaRequest().getFacetGroupNegation(referenceName);
 		if (facetGroupNegation.isEmpty()) {
 			return false;
-		} else if (facetGroupNegation.get().isFilterDefined()) {
-			if (groupId == null) {
-				return false;
-			} else {
-				return getFacetRelationTuples().computeIfAbsent(
-					new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
-					refName -> new FilteringFormulaPredicate(
-						this, facetGroupNegation.get().filterBy(),
-						referenceSchema.getReferencedGroupType(),
-						() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetGroupNegation.get()
-					)
-				).test(groupId);
-			}
 		} else {
-			return true;
+			final FacetFilterBy facetFilterBy = facetGroupNegation.get();
+			final FilterBy filterBy = facetFilterBy.filterBy();
+			if (filterBy != null) {
+				if (groupId == null) {
+					return false;
+				} else {
+					return getFacetRelationTuples().computeIfAbsent(
+						new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
+						refName -> {
+							final String referencedGroupType = referenceSchema.getReferencedGroupType();
+							Assert.isTrue(
+								referencedGroupType != null,
+								() -> "Referenced group type must be defined for facet group negation of `" + referenceName + "`!"
+							);
+							return new FilteringFormulaPredicate(
+								this,
+								getScopes(),
+								filterBy,
+								referencedGroupType,
+								() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+							);
+						}
+					).test(groupId);
+				}
+			} else {
+				return true;
+			}
 		}
 	}
 
@@ -883,19 +940,22 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public QueryExecutionContext createExecutionContext() {
-		return this.createExecutionContext(null);
+		return this.createExecutionContext(false, null);
 	}
 
 	/**
 	 * Creates new {@link QueryExecutionContext} that can be used to execute the query plan.
 	 * This overload allows to pass frozen random bytes that will be used for the query execution.
 	 *
+	 * @param prefetchExecution flag that signalizes if the prefetching was executed and filtering should occur on
+	 *                          prefetched entities
+	 * @param frozenRandom      frozen random bytes to be used for the query execution
 	 * @return new query execution context
 	 */
 	@Nonnull
-	public QueryExecutionContext createExecutionContext(@Nullable byte[] frozenRandom) {
+	public QueryExecutionContext createExecutionContext(boolean prefetchExecution, @Nullable byte[] frozenRandom) {
 		return new QueryExecutionContext(
-			this, frozenRandom, this.evitaSession::createEntityProxy
+			this, prefetchExecution, frozenRandom, this.evitaSession::createEntityProxy
 		);
 	}
 

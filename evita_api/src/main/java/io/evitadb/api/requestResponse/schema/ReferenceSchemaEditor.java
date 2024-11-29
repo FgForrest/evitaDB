@@ -31,8 +31,10 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 
 /**
@@ -41,44 +43,91 @@ import java.util.Collection;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>> extends
+public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> extends
 	ReferenceSchemaContract,
-	NamedSchemaWithDeprecationEditor<S>,
-	AttributeProviderSchemaEditor<S, AttributeSchemaContract, AttributeSchemaEditor.AttributeSchemaBuilder>,
-	SortableAttributeCompoundSchemaProviderEditor<S, AttributeSchemaContract>
+	NamedSchemaWithDeprecationEditor<T>,
+	AttributeProviderSchemaEditor<T, AttributeSchemaContract, AttributeSchemaEditor.AttributeSchemaBuilder>,
+	SortableAttributeCompoundSchemaProviderEditor<T, AttributeSchemaContract>
 {
 
 	/**
 	 * Specifies that reference of this type will be related to external entity not maintained in Evita.
+	 *
+	 * @return builder to continue with configuration
 	 */
-	S withGroupType(@Nonnull String groupType);
+	@Nonnull
+	T withGroupType(@Nonnull String groupType);
 
 	/**
 	 * Specifies that reference of this type will be related to another entity maintained in Evita ({@link Entity#getType()}).
+	 *
+	 * @return builder to continue with configuration
 	 */
-	S withGroupTypeRelatedToEntity(@Nonnull String groupType);
+	@Nonnull
+	T withGroupTypeRelatedToEntity(@Nonnull String groupType);
 
 	/**
 	 * Specifies that this reference will not be grouped to a specific groups. This is default setting for the reference.
+	 *
+	 * @return builder to continue with configuration
 	 */
-	S withoutGroupType();
+	@Nonnull
+	T withoutGroupType();
 
 	/**
-	 * Contains TRUE if evitaDB should create and maintain searchable index for this reference allowing to filter by
+	 * Makes evitaDB create and maintain searchable index for this reference allowing to filter by
 	 * {@link ReferenceHaving} filtering constraints. Index is also required when reference is {@link #faceted()}.
 	 *
 	 * Do not mark reference as indexed unless you know that you'll need to filter / sort entities by this reference.
 	 * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
 	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
 	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
+	 *
+	 * This method makes reference indexed only in the default (e.g. {@link Scope#LIVE}) scope, archived entities will not be indexed
+	 * by this reference unless explicitly set via {@link #facetedInScope(Scope...)}.
+	 *
+	 * @return builder to continue with configuration
 	 */
-	S indexed();
+	@Nonnull
+	default T indexed() {
+		return indexedInScope(Scope.DEFAULT_SCOPE);
+	}
 
 	/**
-	 * Makes reference as non-faceted. This means reference information will be available on entity when loaded but
-	 * cannot be used in filtering.
+	 * Makes evitaDB create and maintain searchable index for this reference allowing to filter by
+	 * {@link ReferenceHaving} filtering constraints. Index is also required when reference is {@link #faceted()}.
+	 *
+	 * Do not mark reference as indexed unless you know that you'll need to filter / sort entities by this reference.
+	 * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
+	 *
+	 * @param inScope one or more scopes where the reference should be indexed
+	 * @return builder to continue with configuration
 	 */
-	S nonIndexed();
+	@Nonnull
+	T indexedInScope(@Nullable Scope... inScope);
+
+	/**
+	 * Makes reference as non-faceted in all scopes. This means reference information will be available on entity when
+	 * loaded but cannot be used in filtering.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonIndexed() {
+		return nonIndexed(Scope.values());
+	}
+
+	/**
+	 * Makes reference as non-indexed in particular scope(s). This means reference information will be available on
+	 * entity when loaded but cannot be used in filtering.
+	 *
+	 * @param inScope one or more scopes where the reference should be non-indexed
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonIndexed(@Nullable Scope... inScope);
 
 	/**
 	 * Makes reference faceted. That means that statistics data for this reference should be maintained and this
@@ -87,16 +136,51 @@ public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>> exten
 	 *
 	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
 	 * indexed reference occupies (memory/disk) space in the form of index.
-	 */
-	S faceted();
-
-	/**
-	 * Makes reference as non-faceted. This means reference information will be available on entity when loaded but
-	 * cannot be part of the computed facet statistics and filtering by facet query.
+	 *
+	 * This method makes reference faceted only in the default (e.g. {@link Scope#LIVE}) scope, archived entities will not be faceted
+	 * by this reference unless explicitly set via {@link #facetedInScope(Scope...)}.
 	 *
 	 * @return builder to continue with configuration
 	 */
-	S nonFaceted();
+	@Nonnull
+	default T faceted() {
+		return facetedInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Makes reference faceted. That means that statistics data for this reference should be maintained and this
+	 * allowing to get {@link FacetStatistics} for this reference or use {@link FacetHaving} filtering query. When
+	 * reference is faceted it is also automatically made {@link #indexed()} as well.
+	 *
+	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
+	 * indexed reference occupies (memory/disk) space in the form of index.
+	 *
+	 * @param inScope one or more scopes where the reference should be faceted
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T facetedInScope(@Nonnull Scope... inScope);
+
+	/**
+	 * Makes reference as non-faceted in all scopes. This means reference information will be available on entity when
+	 * loaded but cannot be part of the computed facet statistics and filtering by facet query.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonFaceted() {
+		return nonFaceted(Scope.values());
+	}
+
+	/**
+	 * Makes reference as non-faceted in particular scope(s). This means reference information will be available on
+	 * entity when loaded but cannot be part of the computed facet statistics and filtering by facet query.
+	 *
+	 * @param inScope one or more scopes where the reference should be non-faceted
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonFaceted(@Nonnull Scope... inScope);
 
 	/**
 	 * Interface that simply combines {@link ReferenceSchemaEditor} and {@link ReferenceSchemaContract} entity contracts

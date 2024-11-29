@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.MutationCase;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutationConverter;
@@ -48,6 +49,7 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.attribute.Apply
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.attribute.RemoveAttributeMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.attribute.UpsertAttributeMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity.RemoveParentMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity.SetEntityScopeMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity.SetParentMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.price.RemovePriceMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutationConverter;
@@ -100,6 +102,7 @@ public class DelegatingLocalMutationConverter implements LocalMutationConverter<
 		TO_GRPC_CONVERTERS.put(SetReferenceGroupMutation.class, new ToGrpc((b, m) -> b.setSetReferenceGroupMutation((GrpcSetReferenceGroupMutation) m), SetReferenceGroupMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(RemoveReferenceGroupMutation.class, new ToGrpc((b, m) -> b.setRemoveReferenceGroupMutation((GrpcRemoveReferenceGroupMutation) m), RemoveReferenceGroupMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(ReferenceAttributeMutation.class, new ToGrpc((b, m) -> b.setReferenceAttributeMutation((GrpcReferenceAttributeMutation) m), ReferenceAttributeMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(SetEntityScopeMutation.class, new ToGrpc((b, m) -> b.setSetEntityScopeMutation((GrpcSetEntityScopeMutation) m), SetEntityScopeMutationConverter.INSTANCE));
 
 		TO_JAVA_CONVERTERS = createHashMap(20);
 		TO_JAVA_CONVERTERS.put(MutationCase.APPLYDELTAATTRIBUTEMUTATION, new ToJava(GrpcLocalMutation::getApplyDeltaAttributeMutation, ApplyDeltaAttributeMutationConverter.INSTANCE));
@@ -117,6 +120,7 @@ public class DelegatingLocalMutationConverter implements LocalMutationConverter<
 		TO_JAVA_CONVERTERS.put(MutationCase.SETREFERENCEGROUPMUTATION, new ToJava(GrpcLocalMutation::getSetReferenceGroupMutation, SetReferenceGroupMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(MutationCase.REMOVEREFERENCEGROUPMUTATION, new ToJava(GrpcLocalMutation::getRemoveReferenceGroupMutation, RemoveReferenceGroupMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(MutationCase.REFERENCEATTRIBUTEMUTATION, new ToJava(GrpcLocalMutation::getReferenceAttributeMutation, ReferenceAttributeMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MutationCase.SETENTITYSCOPEMUTATION, new ToJava(GrpcLocalMutation::getSetEntityScopeMutation, SetEntityScopeMutationConverter.INSTANCE));
 	}
 
 	@SuppressWarnings("unchecked")

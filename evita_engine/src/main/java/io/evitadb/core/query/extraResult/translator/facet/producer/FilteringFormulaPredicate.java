@@ -29,10 +29,12 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Set;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
@@ -57,6 +59,7 @@ public class FilteringFormulaPredicate implements IntPredicate {
 
 	public FilteringFormulaPredicate(
 		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull FilterBy filterBy,
 		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
@@ -67,6 +70,7 @@ public class FilteringFormulaPredicate implements IntPredicate {
 			new FormulaWrapper(
 				createFormulaForTheFilter(
 					queryContext,
+					requestedScopes,
 					filterBy,
 					entityType,
 					stepDescriptionSupplier

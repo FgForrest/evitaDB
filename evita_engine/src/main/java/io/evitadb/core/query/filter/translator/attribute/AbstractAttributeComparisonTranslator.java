@@ -48,12 +48,15 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
 
 /**
  * An abstract class designed to translate attribute comparison constraints into specific filtering formulas.
@@ -89,7 +92,7 @@ class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator 
 	protected Formula translateInternal(@Nonnull AbstractAttributeFilterComparisonConstraintLeaf attributeConstraint, @Nonnull FilterByVisitor filterByVisitor) {
 		final String attributeName = attributeConstraint.getAttributeName();
 		final Serializable attributeValue = attributeConstraint.getAttributeValue();
-		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
+		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
@@ -105,7 +108,7 @@ class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator 
 				filterByVisitor.applyOnFilterIndexes(
 					attributeDefinition, index -> this.filterIndexResolver.apply(index, comparableValue)
 				),
-				createHistogramRequestedPredicate(attributeType, comparableValue, this.comparisonResultPredicate)
+				createHistogramRequestedPredicate(attributeType, Objects.requireNonNull(comparableValue), this.comparisonResultPredicate)
 			);
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
@@ -143,7 +146,7 @@ class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator 
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
-			processingScope.getRequirements(),
+			attributeContent(attributeName),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> {
@@ -198,7 +201,7 @@ class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator 
 				if (attr.isEmpty()) {
 					return false;
 				} else {
-					final Serializable theValue = attr.get().value();
+					final Serializable theValue = Objects.requireNonNull(attr.get().value());
 					if (theValue.getClass().isArray()) {
 						return Arrays.stream((Object[])theValue).map(normalizer).map(Comparable.class::cast).anyMatch(predicate);
 					} else {

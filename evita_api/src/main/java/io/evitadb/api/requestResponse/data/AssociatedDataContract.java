@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.IncompleteDeserializationException;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.ReflectionLookup;
@@ -68,9 +69,9 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 				.anyMatch(it -> {
 					final AssociatedDataKey key = it.key();
 					final Serializable thisValue = it.value();
-					final Serializable otherValue = second.getAssociatedData(
-						key.associatedDataName(), key.locale()
-					);
+					final Serializable otherValue = key.locale() == null ?
+						second.getAssociatedData(key.associatedDataName()) :
+						second.getAssociatedData(key.associatedDataName(), key.localeOrThrowException());
 					return QueryUtils.valueDiffers(thisValue, otherValue);
 				});
 		}
@@ -238,6 +239,22 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 			return locale != null;
 		}
 
+		/**
+		 * Retrieves the locale associated with the instance.
+		 * Throws an exception if the locale is not present.
+		 *
+		 * @return the associated Locale
+		 * @throws EvitaInvalidUsageException if the locale is not present
+		 */
+		@Nonnull
+		public Locale localeOrThrowException() {
+			Assert.isTrue(
+				this.locale != null,
+				"Associated data key " + this.associatedDataName + " is not accompanied by locale identifier!"
+			);
+			return this.locale;
+		}
+
 		@Override
 		public int compareTo(@Nonnull AssociatedDataKey o) {
 			return compareLocale(locale, o.locale, () -> associatedDataName.compareTo(o.associatedDataName));
@@ -289,6 +306,22 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 
 		public AssociatedDataValue(int version, @Nonnull AssociatedDataKey key, @Nullable Serializable value) {
 			this(version, key, value, false);
+		}
+
+		/**
+		 * Retrieves the value associated with this instance if it is not null.
+		 * If the value is null, an {@link EvitaInvalidUsageException} is thrown.
+		 *
+		 * @return the associated value as a {@link Serializable} object
+		 * @throws EvitaInvalidUsageException if the value is null
+		 */
+		@Nonnull
+		public Serializable valueOrThrowException() {
+			Assert.isTrue(
+				this.value != null,
+				"Associated data value for key " + this.key.associatedDataName() + " is null!"
+			);
+			return this.value;
 		}
 
 		@Override

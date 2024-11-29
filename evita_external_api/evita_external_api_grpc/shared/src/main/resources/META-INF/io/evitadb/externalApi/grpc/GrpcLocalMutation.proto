@@ -49,5 +49,7 @@ message GrpcLocalMutation {
     GrpcRemoveReferenceGroupMutation removeReferenceGroupMutation = 14;
     // This mutation allows to create / update / remove attribute of the reference.
     GrpcReferenceAttributeMutation referenceAttributeMutation = 15;
+    // This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+    GrpcSetEntityScopeMutation setEntityScopeMutation = 16;
   }
 }

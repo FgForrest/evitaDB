@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -179,19 +180,19 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 		assertTrue(names.contains("greetings"));
 
 		assertEquals(
-			EntityAttributeSchema._internalBuild("abc", null, false, false, false, false, false, Integer.class, null),
+			EntityAttributeSchema._internalBuild("abc", null, Scope.NO_SCOPE, Scope.NO_SCOPE, false, false, false, Integer.class, null),
 			attributes.getAttributeSchema("abc").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("def", null, false, false, false, false, false, IntegerNumberRange.class, null),
+			EntityAttributeSchema._internalBuild("def", null, Scope.NO_SCOPE, Scope.NO_SCOPE, false, false, false, IntegerNumberRange.class, null),
 			attributes.getAttributeSchema("def").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("dd", null, false, false, false, false, false, BigDecimal.class, null),
+			EntityAttributeSchema._internalBuild("dd", null, Scope.NO_SCOPE, Scope.NO_SCOPE, false, false, false, BigDecimal.class, null),
 			attributes.getAttributeSchema("dd").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("greetings", null, false, false, true, false, false, String.class, null),
+			EntityAttributeSchema._internalBuild("greetings", null, Scope.NO_SCOPE, Scope.NO_SCOPE, true, false, false, String.class, null),
 			attributes.getAttributeSchema("greetings").orElse(null)
 		);
 	}

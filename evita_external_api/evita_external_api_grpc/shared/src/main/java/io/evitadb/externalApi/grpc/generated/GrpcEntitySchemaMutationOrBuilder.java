@@ -1278,7 +1278,7 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
    * Mutation can be used for altering also the existing `ReferenceSchema` alone.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
    * @return Whether the setReferenceSchemaIndexedMutation field is set.
    */
   boolean hasSetReferenceSchemaIndexedMutation();
@@ -1288,19 +1288,19 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
    * Mutation can be used for altering also the existing `ReferenceSchema` alone.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
    * @return The setReferenceSchemaIndexedMutation.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation getSetReferenceSchemaIndexedMutation();
+  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation getSetReferenceSchemaIndexedMutation();
   /**
    * <pre>
    * Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
    * Mutation can be used for altering also the existing `ReferenceSchema` alone.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation setReferenceSchemaIndexedMutation = 90;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFilterableMutationOrBuilder getSetReferenceSchemaIndexedMutationOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutationOrBuilder getSetReferenceSchemaIndexedMutationOrBuilder();
 
   /**
    * <pre>
@@ -1364,6 +1364,207 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutation modifyReflectedReferenceAttributeInheritanceSchemaMutation = 92;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder getModifyReflectedReferenceAttributeInheritanceSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+   * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+   * @return Whether the modifyReferenceSortableAttributeCompoundSchemaMutation field is set.
+   */
+  boolean hasModifyReferenceSortableAttributeCompoundSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+   * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+   * @return The modifyReferenceSortableAttributeCompoundSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation getModifyReferenceSortableAttributeCompoundSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any of
+   * `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation ModifyReferenceSortableAttributeCompoundSchemaMutation = 93;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutationOrBuilder getModifyReferenceSortableAttributeCompoundSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+   * @return Whether the createSortableAttributeCompoundSchemaMutation field is set.
+   */
+  boolean hasCreateSortableAttributeCompoundSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+   * @return The createSortableAttributeCompoundSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation getCreateSortableAttributeCompoundSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 120;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder getCreateSortableAttributeCompoundSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+   * or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+   * @return Whether the modifySortableAttributeCompoundSchemaDeprecationNoticeMutation field is set.
+   */
+  boolean hasModifySortableAttributeCompoundSchemaDeprecationNoticeMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+   * or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+   * @return The modifySortableAttributeCompoundSchemaDeprecationNoticeMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation getModifySortableAttributeCompoundSchemaDeprecationNoticeMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice` in `EntitySchema`
+   * or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 121;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder getModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+   * `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+   * @return Whether the modifySortableAttributeCompoundSchemaDescriptionMutation field is set.
+   */
+  boolean hasModifySortableAttributeCompoundSchemaDescriptionMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+   * `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+   * @return The modifySortableAttributeCompoundSchemaDescriptionMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation getModifySortableAttributeCompoundSchemaDescriptionMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.description` in `EntitySchema` or
+   * `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 122;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder getModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+   * @return Whether the modifySortableAttributeCompoundSchemaNameMutation field is set.
+   */
+  boolean hasModifySortableAttributeCompoundSchemaNameMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+   * @return The modifySortableAttributeCompoundSchemaNameMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation getModifySortableAttributeCompoundSchemaNameMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 123;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutationOrBuilder getModifySortableAttributeCompoundSchemaNameMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+   * @return Whether the removeSortableAttributeCompoundSchemaMutation field is set.
+   */
+  boolean hasRemoveSortableAttributeCompoundSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+   * @return The removeSortableAttributeCompoundSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation getRemoveSortableAttributeCompoundSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompound` in the `EntitySchema` or `ReferenceSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 124;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutationOrBuilder getRemoveSortableAttributeCompoundSchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+   * @return Whether the setSortableAttributeCompoundIndexedMutation field is set.
+   */
+  boolean hasSetSortableAttributeCompoundIndexedMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+   * @return The setSortableAttributeCompoundIndexedMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation getSetSortableAttributeCompoundIndexedMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 125;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder getSetSortableAttributeCompoundIndexedMutationOrBuilder();
 
   public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.MutationCase getMutationCase();
 }

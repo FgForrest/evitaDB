@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -45,6 +46,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 			"code",
 			"desc",
 			"depr",
+			new Scope[] { Scope.LIVE },
 			attributeElement("code"),
 			attributeElement("name")
 		);
@@ -54,6 +56,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 			"code",
 			null,
 			null,
+			new Scope[] { Scope.LIVE },
 			attributeElement("code"),
 			attributeElement("name")
 		);

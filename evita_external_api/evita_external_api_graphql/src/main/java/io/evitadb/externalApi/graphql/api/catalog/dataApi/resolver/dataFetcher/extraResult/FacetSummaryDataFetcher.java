@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,8 +27,11 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Extracts {@link FacetSummary} from {@link EvitaResponse}'s extra results requested by
@@ -36,7 +39,19 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class FacetSummaryDataFetcher implements DataFetcher<FacetSummary> {
+
+	@Nullable
+	private static FacetSummaryDataFetcher INSTANCE;
+
+	@Nonnull
+	public static FacetSummaryDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new FacetSummaryDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

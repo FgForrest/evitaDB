@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,12 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
  * Descriptor for {@link io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract}.
@@ -45,6 +47,14 @@ public interface SortableAttributeCompoundSchemaDescriptor extends NamedSchemaWi
 			""")
 		.type(nonNullListRef(AttributeElementDescriptor.THIS))
 		.build();
+	PropertyDescriptor INDEXED = PropertyDescriptor.builder()
+		.name("indexed")
+		.description("""		
+			When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+			This property contains set of all scopes this attribute compound is indexed in.
+			""")
+		.type(nonNull(Scope[].class))
+		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("SortableAttributeCompoundSchema")
@@ -59,5 +69,6 @@ public interface SortableAttributeCompoundSchemaDescriptor extends NamedSchemaWi
 		.staticField(DESCRIPTION)
 		.staticField(DEPRECATION_NOTICE)
 		.staticField(ATTRIBUTE_ELEMENTS)
+		.staticField(INDEXED)
 		.build();
 }

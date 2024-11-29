@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,15 +26,30 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetche
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Passes catalog schema to list of entity schemas, so that it is available.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CatalogEntitySchemasDataFetcher implements DataFetcher<CatalogSchemaContract> {
+
+	@Nullable
+	private static CatalogEntitySchemasDataFetcher INSTANCE;
+
+	@Nonnull
+	public static CatalogEntitySchemasDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new CatalogEntitySchemasDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

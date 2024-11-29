@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.function.ExceptionRethrowingIntBiFunction;
 import io.evitadb.function.ExceptionRethrowingIntTriFunction;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.RequiredArgsConstructor;
@@ -489,12 +490,13 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ProxyFactory proxyFactory
 	) {
-		final Class<?> expectedType = cacheKey.subType();
 		if (REFERENCE_CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
 			//noinspection unchecked
 			return (BestMatchingReferenceConstructorWithExtractionLambda<T>) REFERENCE_CONSTRUCTOR_CACHE.get(cacheKey);
 		} else {
 			int bestConstructorScore = Integer.MIN_VALUE;
+			final Class<?> expectedType = cacheKey.subType();
+			Assert.notNull(expectedType, "Expected type cannot be null");
 			BestMatchingReferenceConstructorWithExtractionLambda<T> bestConstructor = null;
 			for (Constructor<?> declaredConstructor : expectedType.getDeclaredConstructors()) {
 				int score = 0;

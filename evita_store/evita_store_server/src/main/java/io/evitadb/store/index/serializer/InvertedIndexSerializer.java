@@ -38,7 +38,6 @@ import java.util.Comparator;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-@Deprecated
 public class InvertedIndexSerializer extends Serializer<InvertedIndex> {
 
 	@Override

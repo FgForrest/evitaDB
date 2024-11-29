@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ public class SetEntitySchemaWithPriceMutationConverter extends EntitySchemaMutat
 	protected SetEntitySchemaWithPriceMutation convert(@Nonnull Input input) {
 		return new SetEntitySchemaWithPriceMutation(
 			input.getRequiredField(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE),
+			input.getOptionalField(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES),
 			input.getRequiredField(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES)
 		);
 	}

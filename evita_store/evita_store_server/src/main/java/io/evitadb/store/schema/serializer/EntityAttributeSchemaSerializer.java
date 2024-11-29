@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,11 +30,14 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -61,10 +64,18 @@ public class EntityAttributeSchemaSerializer extends Serializer<EntityAttributeS
 			output.writeBoolean(true);
 			kryo.writeClassAndObject(output, attributeSchema.getDefaultValue());
 		}
-		output.writeVarInt(attributeSchema.getUniquenessType().ordinal(), true);
+
+		final Map<Scope, AttributeUniquenessType> uniqueness = attributeSchema.getUniquenessTypeInScopes();
+		output.writeVarInt(uniqueness.size(), true);
+		for (Entry<Scope, AttributeUniquenessType> entry : uniqueness.entrySet()) {
+			kryo.writeObject(output, entry.getKey());
+			kryo.writeObject(output, entry.getValue());
+		}
+
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getFilterableInScopes());
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSortableInScopes());
+
 		output.writeBoolean(attributeSchema.isLocalized());
-		output.writeBoolean(attributeSchema.isFilterable());
-		output.writeBoolean(attributeSchema.isSortable());
 		output.writeBoolean(attributeSchema.isNullable());
 		output.writeBoolean(attributeSchema.isRepresentative());
 		output.writeInt(attributeSchema.getIndexedDecimalPlaces());
@@ -88,7 +99,7 @@ public class EntityAttributeSchemaSerializer extends Serializer<EntityAttributeS
 		final String name = input.readString();
 		final int nameVariantCount = input.readVarInt(true);
 		final Map<NamingConvention, String> nameVariants = CollectionUtils.createLinkedHashMap(nameVariantCount);
-		for(int i = 0; i < nameVariantCount; i++) {
+		for (int i = 0; i < nameVariantCount; i++) {
 			nameVariants.put(
 				NamingConvention.values()[input.readVarInt(true)],
 				input.readString()
@@ -96,10 +107,19 @@ public class EntityAttributeSchemaSerializer extends Serializer<EntityAttributeS
 		}
 		final Class type = kryo.readClass(input).getType();
 		final Object defaultValue = input.readBoolean() ? kryo.readClassAndObject(input) : null;
-		final AttributeUniquenessType unique = AttributeUniquenessType.values()[input.readVarInt(true)];
+
+		final int uqSize = input.readVarInt(true);
+		final EnumMap<Scope, AttributeUniquenessType> unique = new EnumMap<>(Scope.class);
+		for (int i = 0; i < uqSize; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final AttributeUniquenessType uqType = kryo.readObject(input, AttributeUniquenessType.class);
+			unique.put(scope, uqType);
+		}
+
+		final EnumSet<Scope> filterable = EntitySchemaSerializer.readScopeSet(kryo, input);
+		final EnumSet<Scope> sortable = EntitySchemaSerializer.readScopeSet(kryo, input);
+
 		final boolean localized = input.readBoolean();
-		final boolean filterable = input.readBoolean();
-		final boolean sortable = input.readBoolean();
 		final boolean nullable = input.readBoolean();
 		final boolean representative = input.readBoolean();
 		final int indexedDecimalPlaces = input.readInt();

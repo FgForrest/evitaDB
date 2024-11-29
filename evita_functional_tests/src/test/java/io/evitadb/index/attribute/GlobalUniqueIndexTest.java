@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -82,8 +82,8 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldRegisterUniqueValueAndRetrieveItBack() {
 		tested.registerUniqueKey("A", Entities.PRODUCT, null, 1);
-		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("A", null));
-		assertNull(tested.getEntityReferenceByUniqueValue("B", null));
+		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("A", null).orElse(null));
+		assertNull(tested.getEntityReferenceByUniqueValue("B", null).orElse(null));
 	}
 
 	@Test
@@ -91,12 +91,12 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		tested.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2);
 		tested.registerUniqueKey("B", Entities.PRODUCT, Locale.FRENCH, 2);
 		tested.registerUniqueKey("C", Entities.PRODUCT, Locale.ENGLISH, 3);
-		assertEquals(localizedProduct2EnglishRef, tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH));
-		assertNull(tested.getEntityReferenceByUniqueValue("A", Locale.FRENCH));
-		assertEquals(localizedProduct2FrenchRef, tested.getEntityReferenceByUniqueValue("B", Locale.FRENCH));
-		assertNull(tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH));
-		assertEquals(localizedProduct3Ref, tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH));
-		assertNull(tested.getEntityReferenceByUniqueValue("E", null));
+		assertEquals(localizedProduct2EnglishRef, tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH).orElse(null));
+		assertNull(tested.getEntityReferenceByUniqueValue("A", Locale.FRENCH).orElse(null));
+		assertEquals(localizedProduct2FrenchRef, tested.getEntityReferenceByUniqueValue("B", Locale.FRENCH).orElse(null));
+		assertNull(tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH).orElse(null));
+		assertEquals(localizedProduct3Ref, tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH).orElse(null));
+		assertNull(tested.getEntityReferenceByUniqueValue("E", null).orElse(null));
 	}
 
 	@Test
@@ -115,7 +115,7 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 	void shouldUnregisterPreviouslyRegisteredValue() {
 		tested.registerUniqueKey("A", Entities.PRODUCT, null, 1);
 		assertEquals(productRef, tested.unregisterUniqueKey("A", Entities.PRODUCT, null, 1));
-		assertNull(tested.getEntityReferenceByUniqueValue("A", null));
+		assertNull(tested.getEntityReferenceByUniqueValue("A", null).orElse(null));
 	}
 
 	@Test
@@ -127,9 +127,9 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		assertEquals(localizedProduct2FrenchRef, tested.unregisterUniqueKey("B", Entities.PRODUCT, Locale.FRENCH, 2));
 		assertEquals(localizedProduct3Ref, tested.unregisterUniqueKey("C", Entities.PRODUCT, Locale.ENGLISH, 3));
 
-		assertNull(tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH));
-		assertNull(tested.getEntityReferenceByUniqueValue("B", Locale.FRENCH));
-		assertNull(tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH));
+		assertNull(tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH).orElse(null));
+		assertNull(tested.getEntityReferenceByUniqueValue("B", Locale.FRENCH).orElse(null));
+		assertNull(tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH).orElse(null));
 	}
 
 	@Test
@@ -141,27 +141,27 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldRegisterAndPartialUnregisterValues() {
 		tested.registerUniqueKey(new String[]{"A", "B", "C"}, Entities.PRODUCT, null, 1);
-		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("A", null));
-		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("B", null));
-		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("C", null));
+		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("A", null).orElse(null));
+		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("B", null).orElse(null));
+		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("C", null).orElse(null));
 
 		tested.unregisterUniqueKey(new String[]{"B", "C"}, Entities.PRODUCT, null, 1);
-		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("A", null));
-		assertNull(tested.getEntityReferenceByUniqueValue("B", null));
-		assertNull(tested.getEntityReferenceByUniqueValue("C", null));
+		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("A", null).orElse(null));
+		assertNull(tested.getEntityReferenceByUniqueValue("B", null).orElse(null));
+		assertNull(tested.getEntityReferenceByUniqueValue("C", null).orElse(null));
 	}
 
 	@Test
 	void shouldRegisterAndPartialUnregisterLocalizedValues() {
 		tested.registerUniqueKey(new String[]{"A", "B", "C"}, Entities.PRODUCT, Locale.ENGLISH, 1);
-		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH));
-		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH));
-		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH));
+		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH).orElse(null));
+		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH).orElse(null));
+		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH).orElse(null));
 
 		tested.unregisterUniqueKey(new String[]{"B", "C"}, Entities.PRODUCT, Locale.ENGLISH, 1);
-		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH));
-		assertNull(tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH));
-		assertNull(tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH));
+		assertEquals(productRef, tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH).orElse(null));
+		assertNull(tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH).orElse(null));
+		assertNull(tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH).orElse(null));
 	}
 
 	@ParameterizedTest(name = "GlobalUniqueIndex should survive generational randomized test applying modifications on it")
