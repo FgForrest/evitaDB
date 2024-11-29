@@ -262,7 +262,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 	protected GraphQLInputType buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 																 @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                             @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                             @Nullable List<ChildParameterDescriptor> childParameters,
+	                                                             @Nonnull List<ChildParameterDescriptor> childParameters,
 	                                                             @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                             @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);

@@ -29,6 +29,7 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
@@ -53,18 +54,18 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 
 	@Nonnull private final ConstraintDescriptor wrapperContainer;
 
-	public FilterConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext) {
+	public FilterConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema) {
 		super(
-			restHandlingContext,
+			catalogSchema,
 			createHashMap(0) // currently, we don't support any filter constraint with additional children
 		);
 		wrapperContainer = ConstraintDescriptorProvider.getConstraint(And.class);
 	}
 
 	@Nullable
-	public FilterConstraint resolve(@Nonnull String key, @Nullable Object value) {
+	public FilterConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
 		return resolve(
-			new EntityDataLocator(new ManagedEntityTypePointer(restHandlingContext.getEntityType())),
+			new EntityDataLocator(new ManagedEntityTypePointer(rootEntityType)),
 			key,
 			value
 		);

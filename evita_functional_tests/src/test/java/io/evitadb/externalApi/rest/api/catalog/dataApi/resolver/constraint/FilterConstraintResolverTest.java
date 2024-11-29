@@ -21,13 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

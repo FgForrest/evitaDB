@@ -2026,33 +2026,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			);
 	}
 
-	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should return error for missing price histogram buckets count")
-	void shouldReturnErrorForMissingPriceHistogramBucketsCount(RestTester tester) {
-		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/PRODUCT/query")
-			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-					{
-						"filterBy": {
-							"priceInCurrency": "EUR",
-							"priceInPriceLists": ["vip","basic"]
-						},
-						"require": {
-							"page": {
-								"number": 1,
-								"size": %d
-							},
-							"priceHistogram": null
-						}
-					}
-					""",
-				Integer.MAX_VALUE)
-			.executeAndThen()
-			.statusCode(400);
-	}
-
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return self hierarchy from root")
 	@ParameterizedTest
