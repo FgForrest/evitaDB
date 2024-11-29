@@ -1481,8 +1481,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 							),
 							orderBy(
 								inScope(Scope.LIVE, attributeNatural(ATTRIBUTE_CODE_NAME, OrderDirection.DESC)),
-								inScope(Scope.ARCHIVED, attributeNatural(ATTRIBUTE_CODE_EAN, OrderDirection.DESC)),
-								attributeNatural(ATTRIBUTE_CODE, OrderDirection.ASC)
+								inScope(Scope.ARCHIVED, attributeNatural(ATTRIBUTE_CODE_EAN, OrderDirection.DESC))
 							)
 						),
 						EntityReference.class
@@ -1491,8 +1490,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					.toArray();
 
 				assertArrayEquals(
-					// first live by code name, then archived by code EAN, then live by code, then archived by code
-					new int[] { 101, 100, 111, 110, 102, 112 },
+					// first live by code name, then archived by code EAN
+					new int[] { 101, 100, 102, 111, 110, 112 },
 					sortedProductsByCompounds
 				);
 

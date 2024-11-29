@@ -108,7 +108,8 @@ class RegisteredConstraintProvider {
 		OrderBy.class,
 		OrderGroupBy.class,
 		Random.class,
-		OrderInScope.class,
+		/* TODO LHO - uncomment this */
+		//OrderInScope.class,
 		// entity
 		EntityPrimaryKeyExact.class,
 		EntityPrimaryKeyInFilter.class,
@@ -136,7 +137,8 @@ class RegisteredConstraintProvider {
 		Strip.class,
 		DataInLocales.class,
 		QueryTelemetry.class,
-		RequireInScope.class,
+		/* TODO LHO - uncomment this */
+		//RequireInScope.class,
 		// spacing,
 		Spacing.class,
 		SpacingGap.class,

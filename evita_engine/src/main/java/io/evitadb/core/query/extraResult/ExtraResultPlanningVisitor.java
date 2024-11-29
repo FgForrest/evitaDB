@@ -103,7 +103,6 @@ import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
-import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -221,7 +220,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				null,
 				requestedScopes,
 				() -> null,
-				queryContext::getSchema
+				() -> null
 			)
 		);
 	}
@@ -557,7 +556,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public ProcessingScope getProcessingScope() {
-		if (isScopeEmpty()) {
+		if (this.scope.isEmpty()) {
 			throw new GenericEvitaInternalError("Scope should never be empty");
 		} else {
 			return Objects.requireNonNull(this.scope.peek());
@@ -569,20 +568,16 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Stream<RequireConstraint> getEntityContentRequireChain(@Nonnull EntityContentRequire current) {
-		if (isScopeEmpty()) {
-			return Stream.of(current);
-		} else {
-			return Stream.concat(
-				StreamSupport
-					.stream(
-						Spliterators.spliteratorUnknownSize(this.scope.descendingIterator(), Spliterator.ORDERED),
-						false
-					)
-					.map(ProcessingScope::requirement)
-					.filter(Objects::nonNull),
-				Stream.of(current)
-			);
-		}
+		return Stream.concat(
+			StreamSupport
+				.stream(
+					Spliterators.spliteratorUnknownSize(this.scope.descendingIterator(), Spliterator.ORDERED),
+					false
+				)
+				.map(ProcessingScope::requirement)
+				.filter(Objects::nonNull),
+			Stream.of(current)
+		);
 	}
 
 	/**
@@ -590,11 +585,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Optional<ReferenceSchemaContract> getCurrentReferenceSchema() {
-		if (isScopeEmpty()) {
-			return Optional.empty();
-		} else {
-			return getProcessingScope().getReferenceSchema();
-		}
+		return getProcessingScope().getReferenceSchema();
 	}
 
 	/**
@@ -602,18 +593,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Optional<EntitySchemaContract> getCurrentEntitySchema() {
-		if (isScopeEmpty()) {
-			return empty();
-		} else {
-			return getProcessingScope().getEntitySchema();
-		}
-	}
-
-	/**
-	 * Returns true if no context switch occurred in the visitor yet.
-	 */
-	public boolean isScopeEmpty() {
-		return scope.isEmpty();
+		return getProcessingScope().getEntitySchema();
 	}
 
 	/**
@@ -621,6 +601,15 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	public boolean isScopeOfQueriedEntity() {
 		return scope.size() <= 1;
+	}
+
+	/**
+	 * Returns true if the scope relates to top entity.
+	 *
+	 * @return true if the scope relates to top entity
+	 */
+	public boolean isRootScope() {
+		return this.scope.size() == 1;
 	}
 
 	/**

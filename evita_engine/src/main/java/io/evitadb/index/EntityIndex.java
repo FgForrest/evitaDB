@@ -321,8 +321,9 @@ public abstract class EntityIndex implements
 	 */
 	public boolean removeLanguage(@Nonnull Locale locale, int recordId) {
 		final TransactionalBitmap recordIdsWithLanguage = this.entityIdsByLanguage.get(locale);
+		final boolean removed = recordIdsWithLanguage != null && recordIdsWithLanguage.remove(recordId);
 		Assert.isTrue(
-			recordIdsWithLanguage != null && recordIdsWithLanguage.remove(recordId),
+			removed,
 			"Entity `" + recordId + "` has unexpectedly not indexed localized data for language `" + locale + "`!"
 		);
 		if (recordIdsWithLanguage.isEmpty()) {
@@ -330,10 +331,8 @@ public abstract class EntityIndex implements
 			this.dirty.setToTrue();
 			// remove the changes container - the bitmap got removed entirely
 			removeTransactionalMemoryLayerIfExists(recordIdsWithLanguage);
-			return true;
-		} else {
-			return false;
 		}
+		return true;
 	}
 
 	/**

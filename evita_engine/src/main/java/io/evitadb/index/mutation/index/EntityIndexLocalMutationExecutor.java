@@ -752,14 +752,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final Function<String, AttributeSchema> attributeSchemaRetriever = attributeName -> entitySchema.getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null);
 		final Function<String, Stream<SortableAttributeCompoundSchema>> compoundSchemaRetriever = attributeName -> entitySchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
 
-		// index all non-localized attribute compounds
-		removeEntireSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender);
-		applyOnReducedIndexes(
-			scope,
-			existingDataSupplierFactory.getReferenceSupplier(),
-			index -> removeEntireSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender)
-		);
-
 		entity.getAttributeValues()
 			.stream()
 			.filter(Droppable::exists)
@@ -775,7 +767,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							index,
 							key,
 							updateGlobalIndex,
-							false,
+							true,
 							this.undoActionsAppender
 						);
 					removalOperation.accept(globalIndex, true);
@@ -787,6 +779,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					existingDataSupplierFactory.registerRemoval(key);
 				}
 			);
+
+		// unindex all non-localized attribute compounds
+		removeEntireSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender);
+		applyOnReducedIndexes(
+			scope,
+			existingDataSupplierFactory.getReferenceSupplier(),
+			index -> removeEntireSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender)
+		);
 	}
 
 	/**

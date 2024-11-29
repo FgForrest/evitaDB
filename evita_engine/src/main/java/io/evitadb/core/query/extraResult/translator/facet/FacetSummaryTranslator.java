@@ -99,7 +99,8 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 
 		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
 		final Set<Scope> scopes = processingScope.getScopes();
-		final EntitySchemaContract entitySchema = processingScope.getEntitySchema().orElseThrow();
+		final EntitySchemaContract entitySchema = processingScope.getEntitySchema()
+			.orElseGet(extraResultPlanner::getSchema);
 
 		// collect all facet statistics
 		final TargetIndexes<?> indexSetToUse = extraResultPlanner.getIndexSetToUse();

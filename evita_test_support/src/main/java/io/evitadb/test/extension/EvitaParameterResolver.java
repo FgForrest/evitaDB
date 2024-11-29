@@ -848,6 +848,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 									}
 								}
 							} catch (Exception e) {
+								// close the server instance and free ports
+								ofNullable(evitaServer)
+									.ifPresent(it -> getPortManager().releasePortsOnCompletion(dataSetToUse, it.stop()));
+
+								// close evita and clear data
+								evita.close();
+
 								throw new ParameterResolutionException("Failed to set up data set " + dataSetToUse, e);
 							}
 
