@@ -85,6 +85,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class EvitaArchivingTest implements EvitaTestSupport {
 	private static final String DIR_EVITA_ARCHIVING_TEST = "evitaArchivingTest";
 	private static final String ATTRIBUTE_CODE = "code";
+	private static final String ATTRIBUTE_URL = "url";
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_DESCRIPTION = "description";
 	private static final String ATTRIBUTE_EAN = "ean";
@@ -2121,6 +2122,81 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertEquals(
 			new EntityReference(Entities.PRODUCT, 2),
 			queryProductReferenceBy(new Scope[] { Scope.LIVE, Scope.ARCHIVED }, attributeEquals(ATTRIBUTE_NAME, "electronics"), entityLocaleEquals(Locale.ENGLISH))
+		);
+	}
+
+	@Test
+	void shouldBeAbleToRetrieveEntitiesByGloballyUniqueAttributesInBothScopes() {
+		/* create schema for entity archival */
+		evita.defineCatalog(TEST_CATALOG)
+			.withAttribute(
+				ATTRIBUTE_URL,
+				String.class,
+				thatIs -> thatIs
+					.uniqueGloballyInScope(Scope.values())
+					.localized()
+			)
+			.updateViaNewSession(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute(ATTRIBUTE_URL)
+					.updateVia(session);
+			}
+		);
+
+		// upsert non-conflicting entities
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/electronics")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 2)
+					.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/tv")
+					.upsertVia(session);
+			}
+		);
+
+		// archive product entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.archiveEntity(Entities.PRODUCT, 1);
+			}
+		);
+
+		evita.close();
+
+		evita = new Evita(
+			getEvitaConfiguration()
+		);
+
+		// try to find entities by the conflicting unique key
+		assertArrayEquals(
+			new EntityReference[]{
+				new EntityReference(Entities.PRODUCT, 1),
+				new EntityReference(Entities.PRODUCT, 2)
+			},
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED),
+								attributeInSet(ATTRIBUTE_URL, "/electronics", "/tv")
+							)
+						).normalizeQuery(),
+						EntityReference.class
+					).toArray(EntityReference[]::new);
+				}
+			)
 		);
 	}
 

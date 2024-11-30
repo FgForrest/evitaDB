@@ -33,13 +33,11 @@ import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex.EntityWithTypeTuple;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -48,43 +46,20 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated
 @RequiredArgsConstructor
-public class GlobalUniqueIndexStoragePartSerializer extends Serializer<GlobalUniqueIndexStoragePart> {
+public class GlobalUniqueIndexStoragePartSerializer_2024_11 extends Serializer<GlobalUniqueIndexStoragePart> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, GlobalUniqueIndexStoragePart uniqueIndex) {
-		final Long uniquePartId = uniqueIndex.getStoragePartPK();
-		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
-		output.writeVarLong(uniquePartId, true);
-		kryo.writeObject(output, uniqueIndex.getScope());
-		output.writeVarInt(this.keyCompressor.getId(uniqueIndex.getAttributeKey()), true);
-		final Class plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
-		kryo.writeClass(output, plainType);
-
-		final Map<Serializable, EntityWithTypeTuple> uniqueValueToRecordId = uniqueIndex.getUniqueValueToRecordId();
-		output.writeVarInt(uniqueValueToRecordId.size(), true);
-		for (Entry<Serializable, EntityWithTypeTuple> entry : uniqueValueToRecordId.entrySet()) {
-			kryo.writeObject(output, entry.getKey());
-			final EntityWithTypeTuple value = entry.getValue();
-			output.writeInt(value.entityType(), true);
-			output.writeInt(value.entityPrimaryKey());
-			output.writeInt(value.locale());
-		}
-
-		final Map<Integer, Locale> localeIndex = uniqueIndex.getLocaleIndex();
-		output.writeVarInt(localeIndex.size(), true);
-		for (Entry<Integer, Locale> entry : localeIndex.entrySet()) {
-			output.writeVarInt(entry.getKey(), true);
-			kryo.writeObject(output, entry.getValue());
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used anymore!");
 	}
 
 	@Override
 	public GlobalUniqueIndexStoragePart read(Kryo kryo, Input input, Class<? extends GlobalUniqueIndexStoragePart> type) {
 		final long uniquePartId = input.readVarLong(true);
-		final Scope scope = kryo.readObject(input, Scope.class);
-		final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = kryo.readClass(input).getType();
 
 		final int uniqueValueCount = input.readVarInt(true);
@@ -107,7 +82,7 @@ public class GlobalUniqueIndexStoragePartSerializer extends Serializer<GlobalUni
 		}
 
 		return new GlobalUniqueIndexStoragePart(
-			scope, attributeKey, attributeType, uniqueIndex, localeIndex, uniquePartId
+			Scope.LIVE, attributeKey, attributeType, uniqueIndex, localeIndex, uniquePartId
 		);
 	}
 

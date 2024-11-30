@@ -1202,7 +1202,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final Set<AttributeKey> sharedAttributeUniqueIndexes = catalogIndexStoragePart.getSharedAttributeUniqueIndexes();
 			final Map<AttributeKey, GlobalUniqueIndex> sharedUniqueIndexes = CollectionUtils.createHashMap(sharedAttributeUniqueIndexes.size());
 			for (AttributeKey attributeKey : sharedAttributeUniqueIndexes) {
-				final long partId = GlobalUniqueIndexStoragePart.computeUniquePartId(attributeKey, storagePartPersistenceService.getReadOnlyKeyCompressor());
+				final long partId = GlobalUniqueIndexStoragePart.computeUniquePartId(
+					scope,
+					attributeKey,
+					storagePartPersistenceService.getReadOnlyKeyCompressor()
+				);
 				final GlobalUniqueIndexStoragePart sharedUniqueIndexStoragePart = storagePartPersistenceService.getStoragePart(catalogVersion, partId, GlobalUniqueIndexStoragePart.class);
 				Assert.isPremiseValid(
 					sharedUniqueIndexStoragePart != null,
@@ -1213,7 +1217,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				sharedUniqueIndexes.put(
 					attributeKey,
 					new GlobalUniqueIndex(
-						attributeKey, attributeSchema.getPlainType(),
+						scope,
+						attributeKey,
+						attributeSchema.getPlainType(),
 						sharedUniqueIndexStoragePart.getUniqueValueToRecordId(),
 						sharedUniqueIndexStoragePart.getLocaleIndex()
 					)
