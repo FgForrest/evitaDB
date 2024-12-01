@@ -108,7 +108,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			);
 			Assert.isTrue(
 				referenceSchema.isReferencedGroupTypeManaged(),
-				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be filtered because they relate to " +
 					"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
 			);
 		} else if (referenceSchema.getReferencedGroupType() == null || !referenceSchema.isReferencedGroupTypeManaged()) {
@@ -221,12 +221,12 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		boolean required
 	) {
-		Assert.isTrue(
-			referenceSchema.getReferencedGroupType() != null,
-			() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
-				"non-grouped entity type `" + referenceSchema.getReferencedEntityType() + "`."
-		);
 		if (required) {
+			Assert.isTrue(
+				referenceSchema.getReferencedGroupType() != null,
+				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+					"non-grouped entity type `" + referenceSchema.getReferencedEntityType() + "`."
+			);
 			Assert.isTrue(
 				referenceSchema.isReferencedGroupTypeManaged(),
 				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
