@@ -185,7 +185,7 @@ public class QuerySerializationTest {
 		assertSerializationRound(entityGroupFetchAll());
 		assertSerializationRound(entityGroupFetch(attributeContentAll(), priceContentAll()));
 
-		assertSerializationRound(facetSummary(null));
+		assertSerializationRound(facetSummary((FacetStatisticsDepth) null));
 		assertSerializationRound(facetSummary(FacetStatisticsDepth.IMPACT));
 		assertSerializationRound(facetSummary(FacetStatisticsDepth.IMPACT, entityFetchAll()));
 		assertSerializationRound(facetSummary(FacetStatisticsDepth.IMPACT, entityFetchAll(), entityGroupFetchAll()));
