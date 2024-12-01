@@ -6,7 +6,8 @@
       "groupEntity": {
         "primaryKey": 67917,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -29,7 +30,8 @@
           "facetEntity": {
             "primaryKey": 105279,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -51,7 +53,8 @@
           "facetEntity": {
             "primaryKey": 105236,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -73,7 +76,8 @@
           "facetEntity": {
             "primaryKey": 105194,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -95,7 +99,8 @@
           "facetEntity": {
             "primaryKey": 105248,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -117,7 +122,8 @@
           "facetEntity": {
             "primaryKey": 105259,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -139,7 +145,8 @@
           "facetEntity": {
             "primaryKey": 105173,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -161,7 +168,8 @@
           "facetEntity": {
             "primaryKey": 105137,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -183,7 +191,8 @@
           "facetEntity": {
             "primaryKey": 105270,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -205,7 +214,8 @@
           "facetEntity": {
             "primaryKey": 105273,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -227,7 +237,8 @@
           "facetEntity": {
             "primaryKey": 105179,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -249,7 +260,8 @@
           "facetEntity": {
             "primaryKey": 105183,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -271,7 +283,8 @@
           "facetEntity": {
             "primaryKey": 105232,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -293,7 +306,8 @@
           "facetEntity": {
             "primaryKey": 105201,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -315,7 +329,8 @@
           "facetEntity": {
             "primaryKey": 105222,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -337,7 +352,8 @@
           "facetEntity": {
             "primaryKey": 105166,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -359,7 +375,8 @@
           "facetEntity": {
             "primaryKey": 105242,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -382,7 +399,8 @@
       "groupEntity": {
         "primaryKey": 66533,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -405,7 +423,8 @@
           "facetEntity": {
             "primaryKey": 103884,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -430,6 +449,7 @@
         "primaryKey": 114010,
         "type": "Parameter",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -451,7 +471,8 @@
           "facetEntity": {
             "primaryKey": 104525,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -473,7 +494,8 @@
           "facetEntity": {
             "primaryKey": 114011,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -496,7 +518,8 @@
       "groupEntity": {
         "primaryKey": 66518,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -519,7 +542,8 @@
           "facetEntity": {
             "primaryKey": 105133,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -542,7 +566,8 @@
       "groupEntity": {
         "primaryKey": 67913,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -565,7 +590,8 @@
           "facetEntity": {
             "primaryKey": 104493,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -587,7 +613,8 @@
           "facetEntity": {
             "primaryKey": 105294,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -609,7 +636,8 @@
           "facetEntity": {
             "primaryKey": 105275,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -631,7 +659,8 @@
           "facetEntity": {
             "primaryKey": 105264,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -653,7 +682,8 @@
           "facetEntity": {
             "primaryKey": 105185,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -675,7 +705,8 @@
           "facetEntity": {
             "primaryKey": 105143,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -697,7 +728,8 @@
           "facetEntity": {
             "primaryKey": 105286,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -719,7 +751,8 @@
           "facetEntity": {
             "primaryKey": 105299,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -741,7 +774,8 @@
           "facetEntity": {
             "primaryKey": 105230,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -763,7 +797,8 @@
           "facetEntity": {
             "primaryKey": 105164,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -785,7 +820,8 @@
           "facetEntity": {
             "primaryKey": 105198,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -807,7 +843,8 @@
           "facetEntity": {
             "primaryKey": 105210,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -829,7 +866,8 @@
           "facetEntity": {
             "primaryKey": 105250,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -851,7 +889,8 @@
           "facetEntity": {
             "primaryKey": 105219,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -875,6 +914,7 @@
         "primaryKey": 114007,
         "type": "Parameter",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -896,7 +936,8 @@
           "facetEntity": {
             "primaryKey": 105245,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -918,7 +959,8 @@
           "facetEntity": {
             "primaryKey": 105190,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -940,7 +982,8 @@
           "facetEntity": {
             "primaryKey": 105169,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -962,7 +1005,8 @@
           "facetEntity": {
             "primaryKey": 104739,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -984,7 +1028,8 @@
           "facetEntity": {
             "primaryKey": 105234,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1006,7 +1051,8 @@
           "facetEntity": {
             "primaryKey": 105290,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1028,7 +1074,8 @@
           "facetEntity": {
             "primaryKey": 105214,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1050,7 +1097,8 @@
           "facetEntity": {
             "primaryKey": 105158,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1072,7 +1120,8 @@
           "facetEntity": {
             "primaryKey": 105205,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1094,7 +1143,8 @@
           "facetEntity": {
             "primaryKey": 105257,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1116,7 +1166,8 @@
           "facetEntity": {
             "primaryKey": 105267,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1138,7 +1189,8 @@
           "facetEntity": {
             "primaryKey": 105227,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1161,7 +1213,8 @@
       "groupEntity": {
         "primaryKey": 66520,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -1184,7 +1237,8 @@
           "facetEntity": {
             "primaryKey": 105134,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1206,7 +1260,8 @@
           "facetEntity": {
             "primaryKey": 103870,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1229,7 +1284,8 @@
           "facetEntity": {
             "primaryKey": 103998,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1252,7 +1308,8 @@
       "groupEntity": {
         "primaryKey": 66514,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -1275,7 +1332,8 @@
           "facetEntity": {
             "primaryKey": 103880,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1298,7 +1356,8 @@
           "facetEntity": {
             "primaryKey": 104459,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1320,7 +1379,8 @@
           "facetEntity": {
             "primaryKey": 105180,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1342,7 +1402,8 @@
           "facetEntity": {
             "primaryKey": 105237,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1364,7 +1425,8 @@
           "facetEntity": {
             "primaryKey": 105138,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1387,7 +1449,8 @@
       "groupEntity": {
         "primaryKey": 66515,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -1410,7 +1473,8 @@
           "facetEntity": {
             "primaryKey": 105163,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1433,7 +1497,8 @@
       "groupEntity": {
         "primaryKey": 67915,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -1456,7 +1521,8 @@
           "facetEntity": {
             "primaryKey": 105160,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1478,7 +1544,8 @@
           "facetEntity": {
             "primaryKey": 105155,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1500,7 +1567,8 @@
           "facetEntity": {
             "primaryKey": 104820,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1522,7 +1590,8 @@
           "facetEntity": {
             "primaryKey": 105216,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1544,7 +1613,8 @@
           "facetEntity": {
             "primaryKey": 105171,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1566,7 +1636,8 @@
           "facetEntity": {
             "primaryKey": 104078,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1588,7 +1659,8 @@
           "facetEntity": {
             "primaryKey": 104686,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1610,7 +1682,8 @@
           "facetEntity": {
             "primaryKey": 105196,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1632,7 +1705,8 @@
           "facetEntity": {
             "primaryKey": 105192,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1654,7 +1728,8 @@
           "facetEntity": {
             "primaryKey": 104673,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1676,7 +1751,8 @@
           "facetEntity": {
             "primaryKey": 105301,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1698,7 +1774,8 @@
           "facetEntity": {
             "primaryKey": 104485,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1720,7 +1797,8 @@
           "facetEntity": {
             "primaryKey": 104561,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1742,7 +1820,8 @@
           "facetEntity": {
             "primaryKey": 104722,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1764,7 +1843,8 @@
           "facetEntity": {
             "primaryKey": 104865,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1786,7 +1866,8 @@
           "facetEntity": {
             "primaryKey": 104471,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1808,7 +1889,8 @@
           "facetEntity": {
             "primaryKey": 105277,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1830,7 +1912,8 @@
           "facetEntity": {
             "primaryKey": 105151,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1852,7 +1935,8 @@
           "facetEntity": {
             "primaryKey": 104457,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1874,7 +1958,8 @@
           "facetEntity": {
             "primaryKey": 105283,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1896,7 +1981,8 @@
           "facetEntity": {
             "primaryKey": 105187,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1918,7 +2004,8 @@
           "facetEntity": {
             "primaryKey": 105177,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1940,7 +2027,8 @@
           "facetEntity": {
             "primaryKey": 104442,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1962,7 +2050,8 @@
           "facetEntity": {
             "primaryKey": 105296,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -1985,7 +2074,8 @@
       "groupEntity": {
         "primaryKey": 67916,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -2008,7 +2098,8 @@
           "facetEntity": {
             "primaryKey": 105241,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2030,7 +2121,8 @@
           "facetEntity": {
             "primaryKey": 105193,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2052,7 +2144,8 @@
           "facetEntity": {
             "primaryKey": 105235,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2074,7 +2167,8 @@
           "facetEntity": {
             "primaryKey": 105136,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2096,7 +2190,8 @@
           "facetEntity": {
             "primaryKey": 105178,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2118,7 +2213,8 @@
           "facetEntity": {
             "primaryKey": 105182,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2140,7 +2236,8 @@
           "facetEntity": {
             "primaryKey": 105278,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2162,7 +2259,8 @@
           "facetEntity": {
             "primaryKey": 105284,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2184,7 +2282,8 @@
           "facetEntity": {
             "primaryKey": 105297,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2206,7 +2305,8 @@
           "facetEntity": {
             "primaryKey": 105188,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2228,7 +2328,8 @@
           "facetEntity": {
             "primaryKey": 105172,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2250,7 +2351,8 @@
           "facetEntity": {
             "primaryKey": 105152,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2272,7 +2374,8 @@
           "facetEntity": {
             "primaryKey": 105288,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2294,7 +2397,8 @@
           "facetEntity": {
             "primaryKey": 105145,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2316,7 +2420,8 @@
           "facetEntity": {
             "primaryKey": 105147,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2338,7 +2443,8 @@
           "facetEntity": {
             "primaryKey": 105258,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2360,7 +2466,8 @@
           "facetEntity": {
             "primaryKey": 105292,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2382,7 +2489,8 @@
           "facetEntity": {
             "primaryKey": 105262,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2404,7 +2512,8 @@
           "facetEntity": {
             "primaryKey": 105247,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2426,7 +2535,8 @@
           "facetEntity": {
             "primaryKey": 105302,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2448,7 +2558,8 @@
           "facetEntity": {
             "primaryKey": 105156,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2470,7 +2581,8 @@
           "facetEntity": {
             "primaryKey": 105231,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2492,7 +2604,8 @@
           "facetEntity": {
             "primaryKey": 105252,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2514,7 +2627,8 @@
           "facetEntity": {
             "primaryKey": 105161,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2536,7 +2650,8 @@
           "facetEntity": {
             "primaryKey": 105269,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2558,7 +2673,8 @@
           "facetEntity": {
             "primaryKey": 105212,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2580,7 +2696,8 @@
           "facetEntity": {
             "primaryKey": 105200,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2602,7 +2719,8 @@
           "facetEntity": {
             "primaryKey": 104562,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2624,7 +2742,8 @@
           "facetEntity": {
             "primaryKey": 105221,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2648,6 +2767,7 @@
         "primaryKey": 114009,
         "type": "Parameter",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -2669,7 +2789,8 @@
           "facetEntity": {
             "primaryKey": 105217,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2691,7 +2812,8 @@
           "facetEntity": {
             "primaryKey": 105207,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2713,7 +2835,8 @@
           "facetEntity": {
             "primaryKey": 104736,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2736,7 +2859,8 @@
       "groupEntity": {
         "primaryKey": 67914,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -2759,7 +2883,8 @@
           "facetEntity": {
             "primaryKey": 105135,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2781,7 +2906,8 @@
           "facetEntity": {
             "primaryKey": 105276,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2803,7 +2929,8 @@
           "facetEntity": {
             "primaryKey": 105282,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2825,7 +2952,8 @@
           "facetEntity": {
             "primaryKey": 105295,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2847,7 +2975,8 @@
           "facetEntity": {
             "primaryKey": 105176,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2869,7 +2998,8 @@
           "facetEntity": {
             "primaryKey": 105154,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2891,7 +3021,8 @@
           "facetEntity": {
             "primaryKey": 105186,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2913,7 +3044,8 @@
           "facetEntity": {
             "primaryKey": 105144,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2935,7 +3067,8 @@
           "facetEntity": {
             "primaryKey": 105261,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2957,7 +3090,8 @@
           "facetEntity": {
             "primaryKey": 105150,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -2979,7 +3113,8 @@
           "facetEntity": {
             "primaryKey": 105287,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3001,7 +3136,8 @@
           "facetEntity": {
             "primaryKey": 105300,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3023,7 +3159,8 @@
           "facetEntity": {
             "primaryKey": 105251,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3045,7 +3182,8 @@
           "facetEntity": {
             "primaryKey": 105211,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3067,7 +3205,8 @@
           "facetEntity": {
             "primaryKey": 105165,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3089,7 +3228,8 @@
           "facetEntity": {
             "primaryKey": 105199,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3111,7 +3251,8 @@
           "facetEntity": {
             "primaryKey": 105220,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3135,6 +3276,7 @@
         "primaryKey": 114008,
         "type": "Parameter",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -3156,7 +3298,8 @@
           "facetEntity": {
             "primaryKey": 105191,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3178,7 +3321,8 @@
           "facetEntity": {
             "primaryKey": 105225,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3200,7 +3344,8 @@
           "facetEntity": {
             "primaryKey": 105159,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3222,7 +3367,8 @@
           "facetEntity": {
             "primaryKey": 105215,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3244,7 +3390,8 @@
           "facetEntity": {
             "primaryKey": 105206,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3266,7 +3413,8 @@
           "facetEntity": {
             "primaryKey": 105170,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3288,7 +3436,8 @@
           "facetEntity": {
             "primaryKey": 105291,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3310,7 +3459,8 @@
           "facetEntity": {
             "primaryKey": 105246,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3332,7 +3482,8 @@
           "facetEntity": {
             "primaryKey": 105228,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -3354,7 +3505,8 @@
           "facetEntity": {
             "primaryKey": 105268,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],

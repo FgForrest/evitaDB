@@ -5,6 +5,7 @@
       "primaryKey": 66468,
       "type": "Category",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "cs",
         "de",
@@ -25,6 +26,7 @@
           "primaryKey": 66482,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],

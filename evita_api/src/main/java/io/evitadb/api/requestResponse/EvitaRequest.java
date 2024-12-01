@@ -116,6 +116,7 @@ public class EvitaRequest {
 	private Map<String, FacetFilterBy> facetGroupNegation;
 	private Boolean queryTelemetryRequested;
 	private EnumSet<DebugMode> debugModes;
+	private Scope[] scopesAsArray;
 	private Set<Scope> scopes;
 	private Map<String, RequirementContext> entityFetchRequirements;
 	private RequirementContext defaultReferenceRequirement;
@@ -933,11 +934,27 @@ public class EvitaRequest {
 	@Nonnull
 	public Set<Scope> getScopes() {
 		if (this.scopes == null) {
-			this.scopes = ofNullable(QueryUtils.findFilter(this.query, EntityScope.class))
-				.map(EntityScope::getScope)
-				.orElse(DEFAULT_SCOPES);
+			this.scopesAsArray = ofNullable(QueryUtils.findFilter(this.query, EntityScope.class))
+				.map(it -> it.getScope().toArray(Scope[]::new))
+				.orElse(Scope.DEFAULT_SCOPES);
+			final EnumSet<Scope> theScopes = EnumSet.noneOf(Scope.class);
+			Collections.addAll(theScopes, this.scopesAsArray);
+			this.scopes = theScopes;
 		}
 		return this.scopes;
+	}
+
+	/**
+	 * Retrieves an array representation of the scopes.
+	 * Internally, it initializes the scopes by calling the getScopes() method.
+	 *
+	 * @return an array of Scope objects representing the initialized scopes.
+	 */
+	@Nonnull
+	public Scope[] getScopesAsArray() {
+		// init scopes
+		getScopes();
+		return this.scopesAsArray;
 	}
 
 	/**

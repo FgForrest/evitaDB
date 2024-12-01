@@ -5,6 +5,7 @@
       "primaryKey": 66466,
       "type": "Category",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -15,7 +16,7 @@
       }
     },
     "requested": false,
-    "queriedEntityCount": 1396,
+    "queriedEntityCount": 1332,
     "childrenCount": 3,
     "children": [
       {
@@ -23,6 +24,7 @@
           "primaryKey": 66471,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -33,7 +35,7 @@
           }
         },
         "requested": false,
-        "queriedEntityCount": 977,
+        "queriedEntityCount": 913,
         "childrenCount": 0
       },
       {
@@ -41,6 +43,7 @@
           "primaryKey": 66472,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -59,6 +62,7 @@
           "primaryKey": 66473,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -79,6 +83,7 @@
       "primaryKey": 66467,
       "type": "Category",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -97,6 +102,7 @@
           "primaryKey": 66474,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -115,6 +121,7 @@
           "primaryKey": 66475,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -133,6 +140,7 @@
           "primaryKey": 66476,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -151,6 +159,7 @@
           "primaryKey": 66477,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -169,6 +178,7 @@
           "primaryKey": 66478,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -187,6 +197,7 @@
           "primaryKey": 66479,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -207,6 +218,7 @@
       "primaryKey": 66468,
       "type": "Category",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "cs",
         "de",
@@ -227,6 +239,7 @@
           "primaryKey": 66480,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -245,6 +258,7 @@
           "primaryKey": 66481,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -263,6 +277,7 @@
           "primaryKey": 66482,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -281,6 +296,7 @@
           "primaryKey": 66483,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -299,6 +315,7 @@
           "primaryKey": 66484,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -317,6 +334,7 @@
           "primaryKey": 66537,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -337,6 +355,7 @@
       "primaryKey": 66469,
       "type": "Category",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -355,6 +374,7 @@
           "primaryKey": 66493,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -375,6 +395,7 @@
       "primaryKey": 66470,
       "type": "Category",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -393,6 +414,7 @@
       "primaryKey": 347154,
       "type": "Category",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],

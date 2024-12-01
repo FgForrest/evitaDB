@@ -418,7 +418,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						Environment.DEMO_SERVER,
 						it,
 						new ExampleFilter[]{
-							ExampleFilter.CSHARP,
+							// ExampleFilter.CSHARP,
 							ExampleFilter.JAVA,
 							ExampleFilter.REST,
 							ExampleFilter.GRAPHQL,

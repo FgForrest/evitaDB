@@ -50,7 +50,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -117,9 +116,11 @@ public class FacetSummaryConverter extends RequireConverter {
 	}
 
 	@Nonnull
-	private FacetSummaryOfReference getFacetSummaryOfReference(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                                           @Nullable FacetSummaryOfReference facetSummaryRequest,
-	                                                           @Nullable FacetSummary defaultRequest) {
+	private static FacetSummaryOfReference getFacetSummaryOfReference(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable FacetSummaryOfReference facetSummaryRequest,
+		@Nullable FacetSummary defaultRequest
+	) {
 		if (facetSummaryRequest == null && defaultRequest == null) {
 			throw new GenericEvitaInternalError("Either facet summary request or default request must be present!");
 		}

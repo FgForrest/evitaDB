@@ -1,0 +1,39 @@
+{
+  queryProduct(
+    filterBy: {
+      scope: [
+        "LIVE",
+        "ARCHIVED"
+      ],
+      attributeCodeInSet: [
+        "alcatel-1s",
+        "motorola-edge",
+        "apple-iphone-14",
+        "alcatel-1",
+        "nokia-c2"
+      ],
+      entityLocaleEquals: en
+    },
+    orderBy: [
+      {
+        inScope: {
+          scope: "LIVE",
+          ordering: [
+            {
+              attributeCodeNatural: DESC
+            }
+          ]
+        }
+      }
+    ]
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

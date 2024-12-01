@@ -5,6 +5,7 @@
       "primaryKey": 103885,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "locales": [
         "en"
       ],
@@ -25,7 +26,8 @@
           "referencedEntity": {
             "primaryKey": 103875,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -50,7 +52,8 @@
           "referencedEntity": {
             "primaryKey": 103882,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -75,7 +78,8 @@
           "referencedEntity": {
             "primaryKey": 103876,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -100,7 +104,8 @@
           "referencedEntity": {
             "primaryKey": 103870,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -126,7 +131,8 @@
           "referencedEntity": {
             "primaryKey": 103878,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -151,7 +157,8 @@
           "referencedEntity": {
             "primaryKey": 103871,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -176,7 +183,8 @@
           "referencedEntity": {
             "primaryKey": 103874,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -201,7 +209,8 @@
           "referencedEntity": {
             "primaryKey": 103879,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -226,7 +235,8 @@
           "referencedEntity": {
             "primaryKey": 103877,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -251,7 +261,8 @@
           "referencedEntity": {
             "primaryKey": 103872,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -276,7 +287,8 @@
           "referencedEntity": {
             "primaryKey": 103873,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -301,7 +313,8 @@
           "referencedEntity": {
             "primaryKey": 103880,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -327,7 +340,8 @@
           "referencedEntity": {
             "primaryKey": 103881,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -353,7 +367,8 @@
           "referencedEntity": {
             "primaryKey": 103883,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -378,7 +393,8 @@
           "referencedEntity": {
             "primaryKey": 103869,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -404,7 +420,8 @@
           "referencedEntity": {
             "primaryKey": 103884,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],
@@ -430,7 +447,8 @@
           "referencedEntity": {
             "primaryKey": 114011,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "locales": [
               "en"
             ],

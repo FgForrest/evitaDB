@@ -2,7 +2,7 @@
 {
   "parameterValues": [
     {
-      "count": 525,
+      "count": 494,
       "groupEntity": {
         "primaryKey": 66463,
         "attributes": {
@@ -42,10 +42,10 @@
         },
         {
           "requested": false,
-          "count": 405,
+          "count": 374,
           "impact": {
-            "difference": 405,
-            "matchCount": 512,
+            "difference": 374,
+            "matchCount": 481,
             "hasSense": true
           },
           "facetEntity": {
@@ -73,7 +73,7 @@
       ]
     },
     {
-      "count": 1527,
+      "count": 1506,
       "groupEntity": {
         "primaryKey": 66464,
         "attributes": {
@@ -83,10 +83,10 @@
       "facetStatistics": [
         {
           "requested": false,
-          "count": 267,
+          "count": 246,
           "impact": {
-            "difference": 267,
-            "matchCount": 374,
+            "difference": 246,
+            "matchCount": 353,
             "hasSense": true
           },
           "facetEntity": {

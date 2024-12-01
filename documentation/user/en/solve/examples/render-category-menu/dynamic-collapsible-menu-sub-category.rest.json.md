@@ -5,6 +5,7 @@
       "primaryKey": 66482,
       "type": "Category",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -22,6 +23,7 @@
           "primaryKey": 66488,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -39,6 +41,7 @@
           "primaryKey": 66489,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -56,6 +59,7 @@
           "primaryKey": 66490,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -73,6 +77,7 @@
           "primaryKey": 66491,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],

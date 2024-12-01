@@ -5,7 +5,8 @@
       {
         "primaryKey": 63049,
         "type": "Product",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -21,6 +22,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -36,6 +38,7 @@
         "primaryKey": 66554,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -51,6 +54,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -66,6 +70,7 @@
         "primaryKey": 66556,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -81,6 +86,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -96,6 +102,7 @@
         "primaryKey": 66559,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -111,6 +118,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -126,6 +134,7 @@
         "primaryKey": 66561,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -141,6 +150,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -156,6 +166,7 @@
         "primaryKey": 66562,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -171,6 +182,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -186,6 +198,7 @@
         "primaryKey": 66563,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -201,6 +214,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -216,6 +230,7 @@
         "primaryKey": 66565,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -231,6 +246,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -246,6 +262,7 @@
         "primaryKey": 66566,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -261,6 +278,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -276,6 +294,7 @@
         "primaryKey": 66567,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -291,6 +310,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -306,6 +326,7 @@
         "primaryKey": 66569,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -321,6 +342,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -336,6 +358,7 @@
         "primaryKey": 66570,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -351,6 +374,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -366,6 +390,7 @@
         "primaryKey": 66571,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -381,6 +406,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -396,6 +422,7 @@
         "primaryKey": 66572,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -411,6 +438,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -426,6 +454,7 @@
         "primaryKey": 66573,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -441,6 +470,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -456,6 +486,7 @@
         "primaryKey": 66574,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -471,6 +502,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -486,6 +518,7 @@
         "primaryKey": 66575,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -501,6 +534,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -516,6 +550,7 @@
         "primaryKey": 66576,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -531,6 +566,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -546,6 +582,7 @@
         "primaryKey": 66577,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -561,6 +598,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -575,7 +613,8 @@
       {
         "primaryKey": 66578,
         "type": "Product",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -590,6 +629,7 @@
             "primaryKey": 66465,
             "type": "Brand",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
