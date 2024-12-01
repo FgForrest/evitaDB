@@ -27159,6 +27159,1298 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, facetFilterBy, null, facetOrderBy, null, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, facetGroupFilterBy, null, null, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null, null, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, orderBy, null, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null, null, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, null, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, filterBy, null, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	/**
+	 * The `facetSummaryOfReference` requirement triggers the calculation of the {@link FacetSummary} for a specific
+	 * reference. When a generic {@link FacetSummary} requirement is specified, this require constraint overrides
+	 * the default constraints from the generic requirement to constraints specific to this particular reference.
+	 * By combining the generic facetSummary and facetSummaryOfReference, you define common requirements for the facet
+	 * summary calculation, and redefine them only for references where they are insufficient.
+	 *
+	 * The `facetSummaryOfReference` requirements redefine all constraints from the generic facetSummary requirement.
+	 *
+	 * ## Facet calculation rules
+	 *
+	 * 1. The facet summary is calculated only for entities that are returned in the current query result.
+	 * 2. The calculation respects any filter constraints placed outside the 'userFilter' container.
+	 * 3. The default relation between facets within a group is logical disjunction (logical OR).
+	 * 4. The default relation between facets in different groups / references is a logical AND.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "e-readers")
+	 *         )
+	 *         entityLocaleEquals("en")
+	 *     ),
+	 *     require(
+	 *         facetSummary(
+	 *             COUNTS,
+	 *             entityFetch(
+	 *                 attributeContent("name")
+	 *             ),
+	 *             entityGroupFetch(
+	 *                 attributeContent("name")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering facet summary
+	 *
+	 * The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options
+	 * in the user interface, it also takes a lot of time to calculate it. To limit the facet summary, you can use the
+	 * {@link FilterBy} and {@link FilterGroupBy} (which is the same as filterBy, but it filters the entire facet group
+	 * instead of individual facets) constraints.
+	 *
+	 * If you add the filtering constraints to the facetSummary requirement, you can only refer to filterable properties
+	 * that are shared by all referenced entities. This may not be feasible in some cases, and you will need to split
+	 * the generic facetSummary requirement into multiple individual {@link FacetSummaryOfReference} requirements with
+	 * specific filters for each reference type.
+	 *
+	 * The filter conditions can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * ## Ordering facet summary
+	 *
+	 * Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is
+	 * true for ordering facet groups. To sort the facet summary items the way you like, you can use the {@link OrderBy} and
+	 * {@link OrderGroupBy} (which is the same as orderBy but it sorts the facet groups instead of the individual facets)
+	 * constraints.
+	 *
+	 * If you add the ordering constraints to the facetSummary requirement, you can only refer to sortable properties that
+	 * are shared by all referenced entities. This may not be feasible in some cases, and you will need to split the generic
+	 * facetSummary requirement into multiple individual facetSummaryOfReference requirements with specific ordering
+	 * constraints for each reference type.
+	 *
+	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
+	 * the source entity that are specific to a relationship with the target entity.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequire... requirements
+	) {
+		if (referenceName == null) {
+			return null;
+		}
+		if (ArrayUtils.isEmptyOrItsValuesNull(requirements)) {
+			return new FacetSummaryOfReference(
+				referenceName, FacetStatisticsDepth.COUNTS,
+				facetFilterBy, facetGroupFilterBy,
+				facetOrderBy, facetGroupOrderBy
+			);
+		}
+		return new FacetSummaryOfReference(
+			referenceName,
+			FacetStatisticsDepth.COUNTS,
+			facetFilterBy, facetGroupFilterBy,
+			facetOrderBy, facetGroupOrderBy,
+			requirements
+		);
+	}
+
+	/**
 	 * This `queryTelemetry` requirement triggers creation of the {@link QueryTelemetry} DTO and including it the evitaDB
 	 * response.
 	 *
