@@ -882,6 +882,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				it -> FormulaFactory.or(
 					it.getIndexes()
 						.stream()
+						.filter(index -> index.getIndexKey().scope().equals(scope))
 						.filter(EntityIndex.class::isInstance)
 						.map(EntityIndex.class::cast)
 						.map(EntityIndex::getAllPrimaryKeysFormula)

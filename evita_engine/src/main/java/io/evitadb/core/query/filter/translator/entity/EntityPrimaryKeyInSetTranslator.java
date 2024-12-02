@@ -30,6 +30,8 @@ import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -41,6 +43,7 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -111,6 +114,27 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 			// because it's already more constrained than the super set
 			if (this.targetIndexQueriedByOtherConstraints) {
 				return this.resultFormula;
+			} else if (this.resultFormula instanceof ScopeContainerFormula scf) {
+				// if the result formula is a scope container, we need to merge the super set formula with the inner formula
+				return FormulaFactory.and(
+					this.filterByVisitor.getSuperSetFormula(scf.getScope()),
+					scf
+				);
+			} else if (this.resultFormula instanceof OrFormula of &&
+				of.getInnerFormulas().length > 0 &&
+				Arrays.stream(of.getInnerFormulas()).allMatch(ScopeContainerFormula.class::isInstance)
+			) {
+				// if the result formula is an OR formula containing only scope containers,
+				// we need to merge their respective super set formulas with the inner formulas
+				return FormulaFactory.or(
+					Arrays.stream(of.getInnerFormulas())
+						.map(ScopeContainerFormula.class::cast)
+						.map(scf -> FormulaFactory.and(
+							this.filterByVisitor.getSuperSetFormula(scf.getScope()),
+							scf
+						))
+						.toArray(Formula[]::new)
+				);
 			} else {
 				// if the index is not queried by other constraints, we need to merge the super set formulas
 				final Set<Scope> scopesNotCovered = EnumSet.noneOf(Scope.class);

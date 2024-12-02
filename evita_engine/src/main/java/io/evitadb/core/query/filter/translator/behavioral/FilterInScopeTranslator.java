@@ -28,7 +28,6 @@ import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
@@ -89,12 +88,12 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 	 *
 	 * ```evitaql
 	 * query(
-	 *     collection("entity"),
-	 *     filterBy(
-	 *         entityPrimaryKeyInSet(1, 2, 3),
-	 *         inScope(LIVE, attributeIs("code", NOT_NULL)),
-	 *         scope(LIVE)
-	 *     )
+	 * collection("entity"),
+	 * filterBy(
+	 * entityPrimaryKeyInSet(1, 2, 3),
+	 * inScope(LIVE, attributeIs("code", NOT_NULL)),
+	 * scope(LIVE)
+	 * )
 	 * )
 	 * ```
 	 *
@@ -110,15 +109,15 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 	 *
 	 * ```
 	 * OR(
-	 *     AND(                 // SCOPE(ARCHIVED)
-	 *         [1, 2],          // SUPER SET OF ALL ARCHIVED ENTITIES
-	 *         [1, 2, 3]        // CONSTANT: ENTITY_PRIMARY_KEY_IN_SET(1, 2, 3)
-	 *     ),
-	 *     AND(                  // SCOPE(LIVE)
-	 *         [3],              // SUPER SET OF ALL LIVE ENTITIES
-	 *         [1, 2, 3],        // CONSTANT: ENTITY_PRIMARY_KEY_IN_SET(1, 2, 3)
-	 *         [3]               // NOT_NULL("code"),
-	 *     )
+	 * AND(                 // SCOPE(ARCHIVED)
+	 * [1, 2],          // SUPER SET OF ALL ARCHIVED ENTITIES
+	 * [1, 2, 3]        // CONSTANT: ENTITY_PRIMARY_KEY_IN_SET(1, 2, 3)
+	 * ),
+	 * AND(                  // SCOPE(LIVE)
+	 * [3],              // SUPER SET OF ALL LIVE ENTITIES
+	 * [1, 2, 3],        // CONSTANT: ENTITY_PRIMARY_KEY_IN_SET(1, 2, 3)
+	 * [3]               // NOT_NULL("code"),
+	 * )
 	 * )
 	 * ```
 	 *
@@ -156,26 +155,31 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 			this.finalFormula = FormulaFactory.or(
 				this.requestedScopes.stream()
 					.map(
-						scope -> FormulaCloner.clone(
-							formula,
-							examinedFormula -> {
-								// if the formula is a ScopeContainerFormula and the scope matches, return the inner formulas
-								// otherwise skip the container including the inner formulas
-								if (examinedFormula instanceof ScopeContainerFormula scf) {
-									return scf.getScope() == scope ?
-										FormulaFactory.and(scf.getInnerFormulas()) : null;
-								} else {
-									return examinedFormula;
+						scope -> {
+							// if the formula is a ScopeContainerFormula and the scope matches, return the inner formulas
+							// otherwise skip the container including the inner formulas
+							final Formula clonedFormula = FormulaCloner.clone(
+								formula,
+								examinedFormula -> {
+									// if the formula is a ScopeContainerFormula and the scope matches, return the inner formulas
+									// otherwise skip the container including the inner formulas
+									if (examinedFormula instanceof ScopeContainerFormula scf) {
+										return scf.getScope() == scope ?
+											FormulaFactory.and(scf.getInnerFormulas()) : null;
+									} else {
+										return examinedFormula;
+									}
 								}
-							}
-						)
+							);
+							return clonedFormula == null ?
+								null : new ScopeContainerFormula(scope, clonedFormula);
+						}
 					)
 					.map(
 						// if the result formula is empty - it means that for particular scope there are no constraints set
 						// we need to use super set formula instead - i.e. all entities in the scope match the "zero" constraints
 						it -> it == null ? this.superSetFormulaSupplier.get() : it
 					)
-					.filter(it -> it != EmptyFormula.INSTANCE)
 					.toArray(Formula[]::new)
 			);
 		}
