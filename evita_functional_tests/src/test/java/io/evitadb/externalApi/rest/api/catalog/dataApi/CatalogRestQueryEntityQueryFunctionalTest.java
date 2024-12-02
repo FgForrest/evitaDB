@@ -470,8 +470,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				require(
 					inScope(
 						Scope.LIVE,
-						entityFetch(attributeContent(ATTRIBUTE_NAME)),
-						dataInLocales(Locale.ENGLISH)
+						entityFetch(
+							attributeContent(ATTRIBUTE_NAME),
+							dataInLocales(Locale.ENGLISH)
+						)
 					)
 				)
 			),
@@ -493,12 +495,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					"require": {
 						"inScope": {
 							"scope": "LIVE",
-							"require": [{
+							"require": {
 								"entityFetch": {
-									"attributeContent": "name"
-								},
-								"dataInLocales": ["en"]
-							}]
+									"attributeContent": ["name"],
+									"dataInLocales": ["en"]
+								}
+							}
 						}
 					}
 				}
