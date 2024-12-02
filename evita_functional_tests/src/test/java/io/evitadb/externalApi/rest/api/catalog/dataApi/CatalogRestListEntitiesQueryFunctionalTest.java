@@ -276,7 +276,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				),
 				require(
 					page(1, 2),
-					entityFetch(attributeContent(ATTRIBUTE_URL))
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),
 			SealedEntity.class
@@ -309,7 +309,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 						"inScope": {
 							"scope": "LIVE",
 							"filtering": [{
-								"attributeUrlEquals": "%s"
+								"attributeCodeEquals": "%s"
 							}]
 						},
 						"scope": ["LIVE", "ARCHIVED"]
@@ -320,7 +320,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				liveEntities.get(1).getPrimaryKey(),
 				archivedEntities.get(0).getPrimaryKey(),
 				archivedEntities.get(1).getPrimaryKey(),
-				liveEntities.get(0).getAttribute(ATTRIBUTE_URL))
+				liveEntities.get(0).getAttribute(ATTRIBUTE_CODE))
 			.executeAndExpectOkAndThen()
 			.body("", containsInAnyOrder(expectedBody.toArray()));
 	}

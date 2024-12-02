@@ -442,7 +442,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				),
 				require(
 					page(1, 2),
-					entityFetch(attributeContent(ATTRIBUTE_URL))
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
 				)
 			),
 			SealedEntity.class
@@ -478,7 +478,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							inScope: {
 								scope: LIVE,
 								filtering: {
-									attributeUrlEquals: "%s"
+									attributeCodeEquals: "%s"
 								}
 							}
 							scope: [LIVE, ARCHIVED]
@@ -497,7 +497,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				liveEntities.get(1).getPrimaryKey(),
 				archivedEntities.get(0).getPrimaryKey(),
 				archivedEntities.get(1).getPrimaryKey(),
-				liveEntities.get(0).getAttribute(ATTRIBUTE_URL))
+				liveEntities.get(0).getAttribute(ATTRIBUTE_CODE))
 			.executeAndExpectOkAndThen()
 			.body(ERRORS_PATH, nullValue())
 			.body(PRODUCT_QUERY_DATA_PATH, containsInAnyOrder(expectedBody.toArray()));
