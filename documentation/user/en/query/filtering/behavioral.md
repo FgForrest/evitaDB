@@ -80,6 +80,11 @@ for the entity in the archive scope, as can be seen by looking at the input quer
 <MDInclude sourceVariable="recordPage">[The result of selected entities in multiple scopes](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.evitaql.md)</MDInclude>
 
 </LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of selected entities in multiple scopes](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.graphql.json.md)</MDInclude>
+
+</LS>
 <LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of selected entities in multiple scopes](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.rest.json.md)</MDInclude>
@@ -165,6 +170,11 @@ the primary key.
 <LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of querying archived entities](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-listing.evitaql.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of querying archived entities](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-listing.graphql.json.md)</MDInclude>
 
 </LS>
 <LS to="r">
