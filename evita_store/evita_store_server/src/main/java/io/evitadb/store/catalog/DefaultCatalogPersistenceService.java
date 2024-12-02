@@ -705,7 +705,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @return a CatalogWriteAheadLog object if WAL files are present, otherwise null
 	 */
 	@Nullable
-	private static CatalogWriteAheadLog createWalIfAnyWalFilePresent(
+	static CatalogWriteAheadLog createWalIfAnyWalFilePresent(
 		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
