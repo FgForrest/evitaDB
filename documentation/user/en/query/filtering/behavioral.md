@@ -45,15 +45,55 @@ The [scope](#scope) filter constraint allows us to query entities in both scopes
 we couldn't tell which filter constraint to apply to which scope. The `inScope` container is designed to handle this 
 situation.
 
+<Note type="info">
+
+It's obvious that the `inScope` container is not necessary if we are only querying entities in one scope. However, if 
+you do use it in this case, it must match the scope of the query. If you use the `inScope` container with the `LIVE` 
+scope, but the query is executed in the `ARCHIVED` scope, the engine will return an error.
+
+</Note>
+
+
 For example, in our demo dataset we have only a few attributes indexed in the archive - namely `url` and `code` and 
-a few others. We don't index references, hierarchy or prices. If we want to search for entities in both scopes and use 
-appropriate filter constraints, we can use the `inScope` container in the following way:
+a few others. We don't index references, hierarchy or prices in archive scope. If we want to search for entities in both 
+scopes and use appropriate filter constraints, we need to use the `inScope` container in the following way:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Disginguishing filters in different scopes](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.evitaql)
 
 </SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of selected entities in multiple scopes
+</NoteTitle>
+
+The result contains two entities selected by the URL attribute. The entity in the live scope also satisfies 
+the hierarchy and price constraints specified in the `inScope` container. However, these constraints may not be valid 
+for the entity in the archive scope, as can be seen by looking at the input query.
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="recordPage">[The result of selected entities in multiple scopes](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.evitaql.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="recordPage">[The result of selected entities in multiple scopes](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+<Note type="info">
+
+Similar `inScope` containers are available for [order constraints](../ordering/behavioral.md#in-scope) 
+and [requirements constraints](../requirements/behavioral.md#in-scope) with the same purpose and meaning.
+
+</Note>
 
 ## Scope
 
@@ -97,9 +137,10 @@ the target scope are checked and if the entity violates the unique constraint, t
 If you query entities in both scopes using [scope](../query/filtering/behavioral.md#scope) filter and use the filtering
 constraint that exactly matches the unique attribute ([attribute equals](../filtering/comparable.md#attribute-equals),
 [attribute in set](../filtering/comparable.md#attribute-in-set), [attribute is](../filtering/comparable.md#attribute-is)),
-evitaDB will prefer the entity from the live scope over the entity from the archive scope. This means that if you query
-a single entity by its unique attribute value (e.g. `URL`) and search for the entity in both scopes, you will always get
-the entity from the live scope. This behavior is not applied, when only partial match is used (e.g. [attribute starts with](../filtering/string.md#attribute-starts-with), 
+evitaDB will prefer the entity from the first scope specified in `scope` constraint over the entities in scopes defined
+later in this `scope` constraint. This means that if you query a single entity by its unique attribute value (e.g. `URL`)
+and search for the entity in both scopes, you will always get the entity from the first scope you declare in your query.
+This behavior is not applied, when only partial match is used (e.g. [attribute starts with](../filtering/string.md#attribute-starts-with), 
 etc.).
 
 </Note>
@@ -123,12 +164,12 @@ the primary key.
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="recordPage">[The result of querying archived entities](/documentation/user/en/query/filtering/examples/fetching/archived-entities-listing.evitaql.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The result of querying archived entities](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-listing.evitaql.md)</MDInclude>
 
 </LS>
 <LS to="r">
 
-<MDInclude sourceVariable="recordPage">[The result of querying archived entities](/documentation/user/en/query/filtering/examples/fetching/archived-entities-listing.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The result of querying archived entities](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-listing.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -137,48 +178,7 @@ the primary key.
 When we need to look up by the `URL` attribute, which is usually unique, there's an important difference, and that is 
 that the `URL` is only unique within its scope. This means that the same URL can be used for different entities in 
 different scopes. This is the case for some of our entities in our demo data set. The conflict for the unique key 
-between different entities is resolved by evitaDB by favouring the live entity over the archived one. See the following
-example:
-
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
-
-[Resolving conflicting entities example](/documentation/user/en/query/filtering/examples/fetching/archived-entities-conflict.evitaql)
-
-</SourceCodeTabs>
-
-Producing the following result:
-
-<LS to="e,j,c">
-
-<MDInclude sourceVariable="recordPage">[The result of querying conflicting entities](/documentation/user/en/query/filtering/examples/fetching/archived-entities-conflict.evitaql.md)</MDInclude>
-
-</LS>
-<LS to="r">
-
-<MDInclude sourceVariable="recordPage">[The result of querying conflicting entities](/documentation/user/en/query/filtering/examples/fetching/archived-entities-conflict.rest.json.md)</MDInclude>
-
-</LS>
-
-We can still access the archived entity via its `URL` property if we are only looking in the archived scope:
-
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
-
-[Accessing archived entity by URL](/documentation/user/en/query/filtering/examples/fetching/archived-entity-conflict-access.evitaql)
-
-</SourceCodeTabs>
-
-Producing the following result:
-
-<LS to="e,j,c">
-
-<MDInclude sourceVariable="recordPage">[The result of querying archived entity by URL](/documentation/user/en/query/filtering/examples/fetching/archived-entity-conflict-access.evitaql.md)</MDInclude>
-
-</LS>
-<LS to="r">
-
-<MDInclude sourceVariable="recordPage">[The result of querying archived entity by URL](/documentation/user/en/query/filtering/examples/fetching/archived-entity-conflict-access.rest.json.md)</MDInclude>
-
-</LS>
+between different entities is resolved by evitaDB by favouring the live entity over the archived one.
 
 ## User filter
 

@@ -543,7 +543,7 @@ public interface AttributeIndexMutator {
 						it -> existingValueSupplier.getAttributeValue(it).orElse(null);
 
 					boolean isCompoundLocalized = compound.isLocalized(attributeSchemaProvider);
-					final Set<Locale> entityAttributeLocales = existingValueSupplier.getEntityAttributeLocales();
+					final Set<Locale> entityAttributeLocales = existingValueSupplier.getEntityExistingAttributeLocales();
 					if (isCompoundLocalized && locale == null) {
 						// if the compound is localized and the locale is null, it means the global attribute is updated
 						// and we need to update all localized compounds using that global attribute

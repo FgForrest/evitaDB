@@ -59,7 +59,14 @@ import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -76,13 +83,11 @@ import java.util.stream.Collectors;
 public class IndexSelectionVisitor implements ConstraintVisitor {
 	private final QueryPlanningContext queryContext;
 	@Getter private final List<TargetIndexes<? extends Index<?>>> targetIndexes = new LinkedList<>();
-	@Getter private final Deque<Set<Scope>> scopes = new LinkedList<>();
 	private FilterByVisitor filterByVisitor;
 
 	public IndexSelectionVisitor(@Nonnull QueryPlanningContext queryContext) {
 		this.queryContext = queryContext;
 		final Set<Scope> allowedScopes = this.queryContext.getScopes();
-		this.scopes.push(allowedScopes);
 		if (this.queryContext.hasEntityGlobalIndex()) {
 			final List<EntityIndex> indexes = Arrays.stream(Scope.values())
 				.filter(allowedScopes::contains)
@@ -129,14 +134,15 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 				subConstraint.accept(this);
 			}
 		} else if (filterConstraint instanceof FilterInScope inScope) {
-			this.scopes.push(EnumSet.of(inScope.getScope()));
-			try {
-				for (FilterConstraint subConstraint : inScope.getChildren()) {
-					subConstraint.accept(this);
+			getFilterByVisitor().getProcessingScope().doWithScope(
+				EnumSet.of(inScope.getScope()),
+				() -> {
+					for (FilterConstraint subConstraint : inScope.getChildren()) {
+						subConstraint.accept(this);
+					}
+					return null;
 				}
-			} finally {
-				this.scopes.pop();
-			}
+			);
 		} else if (filterConstraint instanceof HierarchyFilterConstraint hierarchyFilterConstraint) {
 			// if query is hierarchy filtering query targeting different entity
 			addHierarchyIndexOption(hierarchyFilterConstraint);
@@ -162,7 +168,9 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 				final EntitySchema entitySchema = this.queryContext.getSchema();
 				final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 				if (referenceSchema.isReferencedEntityTypeManaged()) {
-					for (Scope scope : Objects.requireNonNull(this.scopes.peek())) {
+					final FilterByVisitor theFilterByVisitor = getFilterByVisitor();
+					final Set<Scope> scopes = theFilterByVisitor.getProcessingScope().getScopes();
+					for (Scope scope : scopes) {
 						if (!referenceSchema.isIndexedInScope(scope)) {
 							throw new ReferenceNotIndexedException(referenceSchema.getName(), entitySchema, scope);
 						}
@@ -171,11 +179,11 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					final Formula requestedHierarchyNodesFormula;
 					if (constraint instanceof final HierarchyWithinRoot hierarchyWithinRoot) {
 						requestedHierarchyNodesFormula = HierarchyWithinRootTranslator.createFormulaFromHierarchyIndex(
-							hierarchyWithinRoot, getFilterByVisitor()
+							hierarchyWithinRoot, theFilterByVisitor
 						);
 					} else if (constraint instanceof final HierarchyWithin hierarchyWithin) {
 						requestedHierarchyNodesFormula = HierarchyWithinTranslator.createFormulaFromHierarchyIndex(
-							hierarchyWithin, getFilterByVisitor()
+							hierarchyWithin, theFilterByVisitor
 						);
 					} else {
 						//sanity check only
@@ -187,7 +195,6 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						this.targetIndexes.add(TargetIndexes.EMPTY);
 					}
 					// locate all hierarchy indexes
-					final Set<Scope> scopes = this.queryContext.getScopes();
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
 					final List<ReducedEntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size() * scopes.size());
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
@@ -224,8 +231,10 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	 * are related to respective entity type and id. This may significantly limit the scope that needs to be examined.
 	 */
 	private void addReferenceIndexOption(@Nonnull ReferenceHaving constraint) {
-		final List<ReducedEntityIndex> theTargetIndexes = getFilterByVisitor()
-			.getReferencedRecordEntityIndexes(constraint, Objects.requireNonNull(this.scopes.peek()));
+		final FilterByVisitor theFilterByVisitor = getFilterByVisitor();
+		final Set<Scope> scopes = theFilterByVisitor.getProcessingScope().getScopes();
+		final List<ReducedEntityIndex> theTargetIndexes = theFilterByVisitor
+			.getReferencedRecordEntityIndexes(constraint, scopes);
 
 		// add indexes as potential target indexes
 		this.targetIndexes.add(

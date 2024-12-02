@@ -36,6 +36,8 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -83,6 +85,10 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	 * Constant representing the attribute has no locale assigned.
 	 */
 	private static final int NO_LOCALE = -1;
+	/**
+	 * Scope of the {@link CatalogIndex} this unique index belongs to.
+	 */
+	@Getter private final Scope scope;
 	/**
 	 * Contains name of the attribute.
 	 */
@@ -135,8 +141,13 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	 */
 	private final Map<String, Integer> entityTypeToPk = new ConcurrentHashMap<>();
 
-	public GlobalUniqueIndex(@Nonnull AttributeKey attributeKey, @Nonnull Class<? extends Serializable> attributeType) {
+	public GlobalUniqueIndex(
+		@Nonnull Scope scope,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Class<? extends Serializable> attributeType
+	) {
 		this.dirty = new TransactionalBoolean();
+		this.scope = scope;
 		this.attributeKey = attributeKey;
 		this.type = attributeType;
 		this.uniqueValueToEntityTuple = new TransactionalMap<>(new HashMap<>());
@@ -146,12 +157,14 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	}
 
 	public GlobalUniqueIndex(
+		@Nonnull Scope scope,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Class<? extends Serializable> attributeType,
 		@Nonnull Map<Serializable, EntityWithTypeTuple> uniqueValueToEntityTuple,
 		@Nonnull Map<Integer, Locale> localeIndex
 	) {
 		this.dirty = new TransactionalBoolean();
+		this.scope = scope;
 		this.attributeKey = attributeKey;
 		this.type = attributeType;
 		this.uniqueValueToEntityTuple = new TransactionalMap<>(uniqueValueToEntityTuple);
@@ -176,6 +189,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	}
 
 	public GlobalUniqueIndex(
+		@Nonnull Scope scope,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Class<? extends Serializable> attributeType,
 		@Nonnull Map<Serializable, EntityWithTypeTuple> uniqueValueToEntityTuple,
@@ -183,6 +197,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 		@Nonnull Map<Integer, Locale> localeIndex
 	) {
 		this.dirty = new TransactionalBoolean();
+		this.scope = scope;
 		this.attributeKey = attributeKey;
 		this.type = attributeType;
 		this.uniqueValueToEntityTuple = new TransactionalMap<>(uniqueValueToEntityTuple);
@@ -201,6 +216,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	}
 
 	private GlobalUniqueIndex(
+		@Nonnull Scope scope,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Class<? extends Serializable> attributeType,
 		@Nonnull TransactionalMap<Serializable, EntityWithTypeTuple> uniqueValueToEntityTuple,
@@ -209,6 +225,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 		@Nonnull TransactionalMap<Integer, Locale> idToLocaleIndex
 	) {
 		this.attributeKey = attributeKey;
+		this.scope = scope;
 		this.type = attributeType;
 		this.dirty = new TransactionalBoolean();
 		this.uniqueValueToEntityTuple = uniqueValueToEntityTuple;
@@ -227,6 +244,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	@Override
 	public GlobalUniqueIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		return new GlobalUniqueIndex(
+			this.scope,
 			this.attributeKey,
 			this.type,
 			this.uniqueValueToEntityTuple,
@@ -316,7 +334,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	@Nullable
 	public StoragePart createStoragePart(@Nonnull AttributeKey attribute) {
 		if (this.dirty.isTrue()) {
-			return new GlobalUniqueIndexStoragePart(attribute, type, uniqueValueToEntityTuple, idToLocaleIndex);
+			return new GlobalUniqueIndexStoragePart(this.scope, attribute, this.type, this.uniqueValueToEntityTuple, this.idToLocaleIndex);
 		} else {
 			return null;
 		}
@@ -335,7 +353,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	@Override
 	public GlobalUniqueIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final GlobalUniqueIndex uniqueKeyIndex = new GlobalUniqueIndex(
-			attributeKey, type,
+			this.scope, this.attributeKey, this.type,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueValueToEntityTuple),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entitiesPerType),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.idToLocaleIndex)

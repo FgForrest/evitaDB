@@ -89,7 +89,12 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 
 		kryo.register(EntityIndexType.class, new EnumNameSerializer<>(), index++);
 		kryo.register(AttributeIndexType.class, new EnumNameSerializer<>(), index++);
-		kryo.register(GlobalUniqueIndexStoragePart.class, new SerialVersionBasedSerializer<>(new GlobalUniqueIndexStoragePartSerializer(keyCompressor), GlobalUniqueIndexStoragePart.class), index++);
+		kryo.register(
+			GlobalUniqueIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new GlobalUniqueIndexStoragePartSerializer(keyCompressor), GlobalUniqueIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-8158322083280466471L, new GlobalUniqueIndexStoragePartSerializer_2024_11(keyCompressor)),
+			index++
+		);
 		kryo.register(TransactionalBitmap.class, new SerialVersionBasedSerializer<>(new TransactionalIntegerBitmapSerializer(), TransactionalBitmap.class), index++);
 
 		kryo.register(InvertedIndex.class, new SerialVersionBasedSerializer<>(new InvertedIndexSerializer(), InvertedIndex.class), index++);

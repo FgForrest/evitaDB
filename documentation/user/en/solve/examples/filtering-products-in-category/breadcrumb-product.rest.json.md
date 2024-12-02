@@ -5,7 +5,8 @@
       {
         "primaryKey": 63049,
         "type": "Product",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -30,6 +31,7 @@
               "primaryKey": 66470,
               "type": "Category",
               "version": 1,
+              "scope": "LIVE",
               "locales": [
                 "en"
               ],
@@ -54,10 +56,12 @@
               "primaryKey": 66479,
               "type": "Category",
               "version": 1,
+              "scope": "LIVE",
               "parentEntity": {
                 "primaryKey": 66467,
                 "type": "Category",
                 "version": 1,
+                "scope": "LIVE",
                 "locales": [
                   "en"
                 ],

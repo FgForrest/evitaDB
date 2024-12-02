@@ -177,8 +177,10 @@ public class CatalogIndex implements
 		final GlobalUniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
 			createAttributeKey(attributeSchema, allowedLocales, getIndexKey().scope(), locale, value),
 			lookupKey -> {
-				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(lookupKey, attributeSchema.getType());
-				newUniqueIndex.attachToCatalog(null, catalog);
+				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(
+					this.getIndexKey().scope(), lookupKey, attributeSchema.getType()
+				);
+				newUniqueIndex.attachToCatalog(null, this.catalog);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				this.dirty.setToTrue();

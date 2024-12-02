@@ -185,7 +185,7 @@ public class QuerySerializationTest {
 		assertSerializationRound(entityGroupFetchAll());
 		assertSerializationRound(entityGroupFetch(attributeContentAll(), priceContentAll()));
 
-		assertSerializationRound(facetSummary(null));
+		assertSerializationRound(facetSummary((FacetStatisticsDepth) null));
 		assertSerializationRound(facetSummary(FacetStatisticsDepth.IMPACT));
 		assertSerializationRound(facetSummary(FacetStatisticsDepth.IMPACT, entityFetchAll()));
 		assertSerializationRound(facetSummary(FacetStatisticsDepth.IMPACT, entityFetchAll(), entityGroupFetchAll()));
@@ -203,10 +203,10 @@ public class QuerySerializationTest {
 		assertSerializationRound(facetSummary(null, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("d", "e")), entityFetchAll(), entityGroupFetchAll()));
 		assertSerializationRound(facetSummary(null, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("d", "e")), orderBy(random()), entityFetchAll(), entityGroupFetchAll()));
 		assertSerializationRound(facetSummary(null, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("d", "e")), orderBy(random()), orderGroupBy(attributeNatural("d", OrderDirection.DESC)), entityFetchAll(), entityGroupFetchAll()));
-		assertSerializationRound(facetSummary(null, orderGroupBy(attributeNatural("a", OrderDirection.DESC))));
-		assertSerializationRound(facetSummary(null, orderGroupBy(attributeNatural("a", OrderDirection.DESC)), entityFetchAll()));
-		assertSerializationRound(facetSummary(null, orderBy(random()), orderGroupBy(attributeNatural("a", OrderDirection.DESC))));
-		assertSerializationRound(facetSummary(null, orderBy(random()), orderGroupBy(attributeNatural("a", OrderDirection.DESC)), entityFetchAll()));
+		assertSerializationRound(facetSummary((FacetStatisticsDepth) null, orderGroupBy(attributeNatural("a", OrderDirection.DESC))));
+		assertSerializationRound(facetSummary((FacetStatisticsDepth) null, orderGroupBy(attributeNatural("a", OrderDirection.DESC)), entityFetchAll()));
+		assertSerializationRound(facetSummary((FacetStatisticsDepth) null, orderBy(random()), orderGroupBy(attributeNatural("a", OrderDirection.DESC))));
+		assertSerializationRound(facetSummary((FacetStatisticsDepth) null, orderBy(random()), orderGroupBy(attributeNatural("a", OrderDirection.DESC)), entityFetchAll()));
 
 		assertSerializationRound(facetSummaryOfReference("a"));
 		assertSerializationRound(facetSummaryOfReference("a", FacetStatisticsDepth.IMPACT));
@@ -226,10 +226,10 @@ public class QuerySerializationTest {
 		assertSerializationRound(facetSummaryOfReference("a", null, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("d", "e")), entityFetchAll(), entityGroupFetchAll()));
 		assertSerializationRound(facetSummaryOfReference("a", null, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("d", "e")), orderBy(random()), entityFetchAll(), entityGroupFetchAll()));
 		assertSerializationRound(facetSummaryOfReference("a", null, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("d", "e")), orderBy(random()), orderGroupBy(attributeNatural("d", OrderDirection.DESC)), entityFetchAll(), entityGroupFetchAll()));
-		assertSerializationRound(facetSummaryOfReference("a", null, orderGroupBy(attributeNatural("a", OrderDirection.DESC))));
-		assertSerializationRound(facetSummaryOfReference("a", null, orderGroupBy(attributeNatural("a", OrderDirection.DESC)), entityFetchAll()));
-		assertSerializationRound(facetSummaryOfReference("a", null, orderBy(random()), orderGroupBy(attributeNatural("a", OrderDirection.DESC))));
-		assertSerializationRound(facetSummaryOfReference("a", null, orderBy(random()), orderGroupBy(attributeNatural("a", OrderDirection.DESC)), entityFetchAll()));
+		assertSerializationRound(facetSummaryOfReference("a", orderGroupBy(attributeNatural("a", OrderDirection.DESC))));
+		assertSerializationRound(facetSummaryOfReference("a", orderGroupBy(attributeNatural("a", OrderDirection.DESC)), entityFetchAll()));
+		assertSerializationRound(facetSummaryOfReference("a", orderBy(random()), orderGroupBy(attributeNatural("a", OrderDirection.DESC))));
+		assertSerializationRound(facetSummaryOfReference("a", orderBy(random()), orderGroupBy(attributeNatural("a", OrderDirection.DESC)), entityFetchAll()));
 
 		assertSerializationRound(priceHistogram(20));
 		assertSerializationRound(priceHistogram(20, HistogramBehavior.OPTIMIZED));

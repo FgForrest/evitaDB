@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -66,7 +67,7 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 	private final EntityReferenceWithLocale localizedProduct2FrenchRef = new EntityReferenceWithLocale(Entities.PRODUCT, 2, Locale.FRENCH);
 	private final EntityReferenceWithLocale localizedProduct3Ref = new EntityReferenceWithLocale(Entities.PRODUCT, 3, Locale.ENGLISH);
 	private final GlobalUniqueIndex tested = new GlobalUniqueIndex(
-		new AttributeKey("whatever"), String.class, new HashMap<>(), new HashMap<>()
+		Scope.LIVE, new AttributeKey("whatever"), String.class, new HashMap<>(), new HashMap<>()
 	);
 
 	@BeforeEach
@@ -171,7 +172,7 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		final int initialCount = 100;
 		final Map<String, Integer> mapToCompare = new HashMap<>();
 		final Set<Integer> currentRecordSet = new HashSet<>();
-		final GlobalUniqueIndex initialUniqueIndex = new GlobalUniqueIndex(new AttributeKey("code"), String.class);
+		final GlobalUniqueIndex initialUniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
 		initialUniqueIndex.attachToCatalog(null, catalog);
 
 		runFor(
@@ -248,6 +249,7 @@ class GlobalUniqueIndexTest implements TimeBoundedTestSupport {
 						);
 
 						final GlobalUniqueIndex newGlobalUniqueIndex = new GlobalUniqueIndex(
+							Scope.LIVE,
 							committed.getAttributeKey(),
 							committed.getType(),
 							new HashMap<>(committed.getUniqueValueToEntityReference()),

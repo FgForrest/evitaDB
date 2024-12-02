@@ -1,0 +1,41 @@
+{
+  queryProduct(
+    filterBy: {
+      scope: [
+        "LIVE",
+        "ARCHIVED"
+      ],
+      entityLocaleEquals: en,
+      inScope: {
+        scope: "LIVE",
+        filtering: [
+          {
+            hierarchyCategoriesWithin: {
+              ofParent: {
+                attributeUrlEquals: "/en/cell-phones"
+              }
+            },
+            priceInPriceLists: [
+              "basic"
+            ],
+            priceInCurrency: EUR,
+            priceValidInNow: true
+          }
+        ]
+      }
+    }
+  ) {
+    extraResults {
+      priceHistogram {
+        min
+        max
+        overallCount
+        buckets(requestedCount: 5) {
+          threshold
+          occurrences
+          requested
+        }
+      }
+    }
+  }
+}

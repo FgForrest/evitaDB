@@ -50,7 +50,7 @@ class EntityAttributeValueSupplier implements ExistingAttributeValueSupplier {
 
 	@Nonnull
 	@Override
-	public Set<Locale> getEntityAttributeLocales() {
+	public Set<Locale> getEntityExistingAttributeLocales() {
 		return this.entity.getAttributeLocales();
 	}
 

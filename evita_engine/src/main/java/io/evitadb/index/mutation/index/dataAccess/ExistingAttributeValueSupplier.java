@@ -46,7 +46,7 @@ public interface ExistingAttributeValueSupplier {
 	ExistingAttributeValueSupplier NO_EXISTING_VALUE_SUPPLIER = new ExistingAttributeValueSupplier() {
 		@Nonnull
 		@Override
-		public Set<Locale> getEntityAttributeLocales() {
+		public Set<Locale> getEntityExistingAttributeLocales() {
 			return Collections.emptySet();
 		}
 
@@ -73,7 +73,7 @@ public interface ExistingAttributeValueSupplier {
 	 * Returns complete set of locales for the entity attributes.
 	 */
 	@Nonnull
-	Set<Locale> getEntityAttributeLocales();
+	Set<Locale> getEntityExistingAttributeLocales();
 
 	/**
 	 * Returns existing attribute value for particular attribute key.

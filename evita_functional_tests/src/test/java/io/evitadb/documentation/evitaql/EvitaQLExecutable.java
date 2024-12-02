@@ -29,6 +29,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.parser.DefaultQueryParser;
@@ -136,6 +137,7 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 	private static final String PRICE_FOR_SALE = PRICE_LINK + "Price for sale";
 	private static final String PRICES = PRICE_LINK + "Prices found";
 	private static final String ALTERNATIVE_PRICES = PRICE_LINK + "Other prices: ";
+	private static final String SCOPE = "Scope";
 
 	/**
 	 * Mandatory header column with entity primary key.
@@ -326,13 +328,18 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 				.map(filterBy -> QueryUtils.findConstraint(filterBy, PriceInCurrency.class))
 				.isPresent();
 
+		boolean scopedQuery = ofNullable(query.getFilterBy())
+			.map(filterBy -> QueryUtils.findConstraint(filterBy, EntityScope.class))
+			.isPresent();
+
 		// collect headers for the MarkDown table
 		final String entityType = ofNullable(query.getCollection())
 			.map(io.evitadb.api.query.head.Collection::getEntityType)
 			.orElseGet(() -> response.getRecordData().get(0).getType());
-		final SealedEntitySchema entitySchema = session.getEntitySchemaOrThrow(entityType);
+		final SealedEntitySchema entitySchema = session.getEntitySchemaOrThrowException(entityType);
 		final String[] headers = Stream.of(
 				Stream.of(ENTITY_PRIMARY_KEY),
+				scopedQuery ? Stream.of(SCOPE) : Stream.empty(),
 				entityFetch
 					.map(it -> getEntityHeaderStream(
 							it, () -> response.getRecordData().stream(),
@@ -431,8 +438,9 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 			tableBuilder.addRow(
 				(Object[]) Stream.of(
 						Stream.of(String.valueOf(sealedEntity.getPrimaryKey())),
+						scopedQuery ? Stream.of(sealedEntity.getScope().name()) : Stream.<String>empty(),
 						Arrays.stream(headers)
-							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !it.startsWith(REF_LINK) && !it.startsWith(PRICE_LINK))
+							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !SCOPE.equals(it) && !it.startsWith(REF_LINK) && !it.startsWith(PRICE_LINK))
 							.map(EvitaQLExecutable::toAttributeKey)
 							.map(it -> {
 								if (sealedEntity.getSchema().getAttribute(it.attributeName()).isPresent()) {

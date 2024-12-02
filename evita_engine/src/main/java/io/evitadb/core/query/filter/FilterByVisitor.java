@@ -778,15 +778,20 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nonnull
 	public Stream<EntityIndex> getEntityIndexStream() {
-		final Deque<ProcessingScope<? extends Index<?>>> scope = getScope();
-		final Set<Scope> scopes = getProcessingScope().getScopes();
-		return scope.isEmpty() ?
-			Stream.empty() :
-			scope.peek()
-				.getIndexStream()
-				.filter(index -> scopes.contains(index.getIndexKey().scope()))
+		final ProcessingScope<? extends Index<?>> processingScope = getProcessingScope();
+		final Set<Scope> allowedScopes = processingScope.getScopes();
+		if (allowedScopes.isEmpty()) {
+			 return Stream.empty();
+		} else if (allowedScopes.size() == 1) {
+			return processingScope.getIndexStream()
 				.filter(EntityIndex.class::isInstance)
 				.map(EntityIndex.class::cast);
+		} else {
+			return Arrays.stream(this.queryContext.getEvitaRequest().getScopesAsArray())
+				.flatMap(theScope -> processingScope.getIndexStream().filter(ix -> ix.getIndexKey().scope() == theScope))
+				.filter(EntityIndex.class::isInstance)
+				.map(EntityIndex.class::cast);
+		}
 	}
 
 	/**
@@ -1045,21 +1050,31 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
-		return joinFormulas(
-			getProcessingScope()
-				.getScopes()
-				.stream()
-				.map(CatalogIndexKey::new)
-				.map(this::getIndex)
-				.filter(Optional::isPresent)
-				.map(Optional::get)
-				.map(CatalogIndex.class::cast)
+		final Set<Scope> allowedScopes = getProcessingScope().getScopes();
+		if (allowedScopes.size() == 1) {
+			return getIndex(new CatalogIndexKey(allowedScopes.iterator().next()))
 				.map(index -> {
-					final GlobalUniqueIndex globalUniqueIndex = index.getGlobalUniqueIndex(attributeDefinition, getLocale());
+					final CatalogIndex catalogIndex = (CatalogIndex) index;
+					final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeDefinition, getLocale());
 					return globalUniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(globalUniqueIndex);
 				})
-				.filter(formula -> formula != EmptyFormula.INSTANCE)
-		);
+				.orElse(EmptyFormula.INSTANCE);
+		} else {
+			return joinFormulas(
+				Arrays.stream(this.queryContext.getEvitaRequest().getScopesAsArray())
+					.filter(allowedScopes::contains)
+					.map(CatalogIndexKey::new)
+					.map(this::getIndex)
+					.filter(Optional::isPresent)
+					.map(Optional::get)
+					.map(CatalogIndex.class::cast)
+					.map(index -> {
+						final GlobalUniqueIndex globalUniqueIndex = index.getGlobalUniqueIndex(attributeDefinition, getLocale());
+						return globalUniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(globalUniqueIndex);
+					})
+					.filter(formula -> formula != EmptyFormula.INSTANCE)
+			);
+		}
 	}
 
 	/**
@@ -1080,7 +1095,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				})
 				.orElse(EmptyFormula.INSTANCE);
 		} else {
-			return Arrays.stream(Scope.values())
+			return Arrays.stream(this.queryContext.getEvitaRequest().getScopesAsArray())
 				.filter(allowedScopes::contains)
 				.map(CatalogIndexKey::new)
 				.map(this::getIndex)
@@ -1123,36 +1138,16 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull AttributeSchemaContract attributeDefinition,
 		@Nonnull Function<UniqueIndex, Formula> formulaFunction
 	) {
-		final Set<Scope> allowedScopes = getProcessingScope().getScopes();
-		if (allowedScopes.size() == 1) {
-			return joinFormulas(
-				getEntityIndexStream()
-					.map(
-						entityIndex -> {
-							final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
-							return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
-						}
-					)
-			);
-		} else {
-			return Arrays.stream(Scope.values())
-				.filter(allowedScopes::contains)
-				.map(
-					scope -> joinFormulas(
-						getEntityIndexStream()
-							.filter(index -> index.getIndexKey().scope() == scope)
-							.map(
-								entityIndex -> {
-									final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
-									return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
-								}
-							)
-					)
-				)
-				.filter(it -> !(it instanceof EmptyFormula))
-				.findFirst()
-				.orElse(EmptyFormula.INSTANCE);
-		}
+		return getEntityIndexStream()
+			.map(
+				entityIndex -> {
+					final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
+					return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
+				}
+			)
+			.filter(it -> !(it instanceof EmptyFormula))
+			.findFirst()
+			.orElse(EmptyFormula.INSTANCE);
 	}
 
 	/**

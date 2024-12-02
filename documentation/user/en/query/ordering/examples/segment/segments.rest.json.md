@@ -6,6 +6,7 @@
         "primaryKey": 106106,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -14,7 +15,7 @@
           "global": {
             "code": "alcatel-3-1",
             "orderedQuantity": "0.00000",
-            "published": "2024-04-15T17:42:47.717+02:00"
+            "published": "2024-11-30T15:30:04.557+01:00"
           }
         },
         "prices": [
@@ -56,6 +57,7 @@
         "primaryKey": 113762,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -64,7 +66,7 @@
           "global": {
             "code": "logitech-mx-keys",
             "orderedQuantity": "0.00000",
-            "published": "2024-04-15T17:42:38.571+02:00"
+            "published": "2024-11-30T15:29:54.286+01:00"
           }
         },
         "prices": [
@@ -106,6 +108,7 @@
         "primaryKey": 113725,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -114,7 +117,7 @@
           "global": {
             "code": "immax-neo-lite-smart-christmas-led-tree",
             "orderedQuantity": "0.00000",
-            "published": "2024-04-15T17:42:38.364+02:00"
+            "published": "2024-11-30T15:29:54.033+01:00"
           }
         },
         "prices": [
@@ -156,6 +159,7 @@
         "primaryKey": 113660,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -164,7 +168,7 @@
           "global": {
             "code": "genius-sp-hf2800bt",
             "orderedQuantity": "0.00000",
-            "published": "2024-04-15T17:42:37.986+02:00"
+            "published": "2024-11-30T15:29:53.619+01:00"
           }
         },
         "prices": [
@@ -206,6 +210,7 @@
         "primaryKey": 113302,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -214,7 +219,7 @@
           "global": {
             "code": "24v5c",
             "orderedQuantity": "0.00000",
-            "published": "2024-04-15T17:42:34.849+02:00"
+            "published": "2024-11-30T15:29:50.229+01:00"
           }
         },
         "prices": [
@@ -256,6 +261,7 @@
         "primaryKey": 113110,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -264,7 +270,7 @@
           "global": {
             "code": "logitech-mx-anywhere-3",
             "orderedQuantity": "0.00000",
-            "published": "2024-04-15T17:42:33.399+02:00"
+            "published": "2024-11-30T15:29:48.864+01:00"
           }
         },
         "prices": [
@@ -306,6 +312,7 @@
         "primaryKey": 108599,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -314,7 +321,7 @@
           "global": {
             "code": "fitbit-luxe",
             "orderedQuantity": "0.00000",
-            "published": "2024-04-15T17:42:07.948+02:00"
+            "published": "2024-11-30T15:29:24.414+01:00"
           }
         },
         "prices": [
@@ -356,6 +363,7 @@
         "primaryKey": 107130,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -364,7 +372,7 @@
           "global": {
             "code": "oppo-a16e",
             "orderedQuantity": "0.00000",
-            "published": "2024-04-15T17:41:57.652+02:00"
+            "published": "2024-11-30T15:29:16.041+01:00"
           }
         },
         "prices": [
@@ -405,7 +413,8 @@
       {
         "primaryKey": 106105,
         "type": "Product",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -414,7 +423,7 @@
           "global": {
             "code": "alcatel-3",
             "orderedQuantity": "0.00000",
-            "published": "2024-04-15T17:41:51.786+02:00"
+            "published": "2024-11-30T15:29:10.681+01:00"
           }
         },
         "prices": [
@@ -468,6 +477,7 @@
         "primaryKey": 105148,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -476,7 +486,7 @@
           "global": {
             "code": "amazon-kindle-paperwhite-signature-edition",
             "orderedQuantity": "0.00000",
-            "published": "2024-04-15T17:41:48.296+02:00"
+            "published": "2024-11-30T15:29:08.245+01:00"
           }
         },
         "prices": [
