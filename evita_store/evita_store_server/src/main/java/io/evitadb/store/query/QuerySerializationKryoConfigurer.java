@@ -30,6 +30,7 @@ import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
+import io.evitadb.dataType.Scope;
 import io.evitadb.store.query.serializer.CollectionSerializer;
 import io.evitadb.store.query.serializer.QuerySerializer;
 import io.evitadb.store.query.serializer.filter.*;
@@ -62,9 +63,12 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(QueryPriceMode.class, new EnumSerializer(QueryPriceMode.class), index++);
 		kryo.register(StatisticsBase.class, new EnumSerializer(StatisticsBase.class), index++);
 		kryo.register(StatisticsType.class, new EnumSerializer(StatisticsType.class), index++);
+		kryo.register(Scope.class, new EnumSerializer(Scope.class), index++);
 
+		index = QUERY_BASE + 100;
 		kryo.register(Collection.class, new CollectionSerializer(), index++);
 
+		index = QUERY_BASE + 200;
 		kryo.register(And.class, new AndSerializer(), index++);
 		kryo.register(AttributeBetween.class, new AttributeBetweenSerializer<>(), index++);
 		kryo.register(AttributeContains.class, new AttributeContainsSerializer(), index++);
@@ -99,8 +103,9 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(HierarchyWithin.class, new HierarchyWithinSerializer(), index++);
 		kryo.register(HierarchyWithinRoot.class, new HierarchyWithinRootSerializer(), index++);
 		kryo.register(EntityScope.class, new EntityScopeSerializer(), index++);
-		kryo.register(RequireInScope.class, new InScopeSerializer(), index++);
+		kryo.register(FilterInScope.class, new FilterInScopeSerializer(), index++);
 
+		index = QUERY_BASE + 300;
 		kryo.register(AttributeNatural.class, new AttributeNaturalSerializer(), index++);
 		kryo.register(AttributeSetInFilter.class, new AttributeSetInFilterSerializer(), index++);
 		kryo.register(AttributeSetExact.class, new AttributeSetExactSerializer(), index++);
@@ -113,7 +118,12 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(PriceDiscount.class, new PriceDiscountSerializer(), index++);
 		kryo.register(Random.class, new RandomSerializer(), index++);
 		kryo.register(ReferenceProperty.class, new ReferencePropertySerializer(), index++);
+		kryo.register(OrderInScope.class, new OrderInScopeSerializer(), index++);
+		kryo.register(Segments.class, new SegmentsSerializer(), index++);
+		kryo.register(Segment.class, new SegmentSerializer(), index++);
+		kryo.register(SegmentLimit.class, new SegmentLimitSerializer(), index++);
 
+		index = QUERY_BASE + 400;
 		kryo.register(AssociatedDataContent.class, new AssociatedDataContentSerializer(), index++);
 		kryo.register(AttributeHistogram.class, new AttributeHistogramSerializer(), index++);
 		kryo.register(DataInLocales.class, new DataInLocalesSerializer(), index++);
@@ -149,12 +159,9 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(AttributeContent.class, new AttributeContentSerializer(), index++);
 		kryo.register(QueryTelemetry.class, new QueryTelemetrySerializer(), index++);
 		kryo.register(Debug.class, new DebugSerializer(), index++);
+		kryo.register(RequireInScope.class, new RequireInScopeSerializer(), index++);
 
-		kryo.register(Segments.class, new SegmentsSerializer(), index++);
-		kryo.register(Segment.class, new SegmentSerializer(), index++);
-		kryo.register(SegmentLimit.class, new SegmentLimitSerializer(), index++);
-
-		Assert.isPremiseValid(index < 1100, "Index count overflow.");
+		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}
 
 }

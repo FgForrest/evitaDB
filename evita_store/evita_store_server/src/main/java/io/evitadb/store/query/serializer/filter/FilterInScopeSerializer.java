@@ -39,7 +39,7 @@ import lombok.RequiredArgsConstructor;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-public class InScopeSerializer extends Serializer<FilterInScope> {
+public class FilterInScopeSerializer extends Serializer<FilterInScope> {
 
 	@Override
 	public void write(Kryo kryo, Output output, FilterInScope inScope) {
@@ -48,7 +48,7 @@ public class InScopeSerializer extends Serializer<FilterInScope> {
 		final FilterConstraint[] filtering = inScope.getFiltering();
 		output.writeVarInt(filtering.length, true);
 		for (FilterConstraint filter : filtering) {
-			kryo.writeObject(output, filter);
+			kryo.writeClassAndObject(output, filter);
 		}
 	}
 
@@ -58,7 +58,7 @@ public class InScopeSerializer extends Serializer<FilterInScope> {
 		final int filteringLength = input.readVarInt(true);
 		final FilterConstraint[] filtering = new FilterConstraint[filteringLength];
 		for (int i = 0; i < filteringLength; i++) {
-			filtering[i] = kryo.readObject(input, FilterConstraint.class);
+			filtering[i] = (FilterConstraint) kryo.readClassAndObject(input);
 		}
 		return new FilterInScope(scope, filtering);
 	}

@@ -38,6 +38,7 @@ import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -151,7 +152,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.core.Transaction.getTransactionalLayerMaintainer;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
