@@ -34,6 +34,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -61,9 +62,10 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 			"Scope `" + scopeToUse + "` used in `inScope` filter container was not requested by `scope` constraint!"
 		);
 
-		filterByVisitor.registerFormulaPostProcessor(
+		filterByVisitor.registerFormulaPostProcessorBefore(
 			InScopeFormulaPostProcessor.class,
-			() -> new InScopeFormulaPostProcessor(requestedScopes, filterByVisitor::getSuperSetFormula)
+			() -> new InScopeFormulaPostProcessor(requestedScopes, filterByVisitor::getSuperSetFormula),
+			EntityPrimaryKeyInSetTranslator.SuperSetMatchingPostProcessor.class
 		);
 
 		return filterByVisitor.getProcessingScope()

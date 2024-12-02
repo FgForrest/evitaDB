@@ -36,6 +36,7 @@ import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.ArrayUtils;
@@ -60,9 +61,10 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 	@Override
 	public Formula translate(@Nonnull EntityPrimaryKeyInSet entityPrimaryKeyInSet, @Nonnull FilterByVisitor filterByVisitor) {
 		Assert.notNull(filterByVisitor.getSchema(), "Schema must be known!");
-		filterByVisitor.registerFormulaPostProcessor(
+		filterByVisitor.registerFormulaPostProcessorAfter(
 			SuperSetMatchingPostProcessor.class,
-			() -> new SuperSetMatchingPostProcessor(filterByVisitor)
+			() -> new SuperSetMatchingPostProcessor(filterByVisitor),
+			FilterInScopeTranslator.InScopeFormulaPostProcessor.class
 		);
 		final int[] primaryKeys = entityPrimaryKeyInSet.getPrimaryKeys();
 		final Formula requiredBitmap = ArrayUtils.isEmpty(primaryKeys) ?
@@ -89,7 +91,7 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 	 * In this situation the result formula should be empty and not [1, 2, 3] as it would be without this post processor.
 	 */
 	@RequiredArgsConstructor
-	private static class SuperSetMatchingPostProcessor implements FormulaPostProcessor {
+	public static class SuperSetMatchingPostProcessor implements FormulaPostProcessor {
 		/**
 		 * The filter by visitor that is used to process the formula.
 		 */
