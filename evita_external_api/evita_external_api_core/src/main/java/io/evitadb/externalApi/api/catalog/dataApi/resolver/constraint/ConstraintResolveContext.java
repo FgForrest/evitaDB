@@ -75,7 +75,7 @@ class ConstraintResolveContext implements ConstraintTraverseContext<ConstraintRe
 	 * {@link #dataLocator()} that was used by parent constraint as main data locator. Useful for logic that is based
 	 * on difference between current and parent data locator.
 	 */
-	@Nonnull
+	@Nullable
 	public DataLocator parentDataLocator() {
 		return parentDataLocator;
 	}

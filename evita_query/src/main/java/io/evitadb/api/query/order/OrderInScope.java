@@ -26,6 +26,7 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.Scope;
@@ -65,7 +66,8 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "inScope",
 	shortDescription = "Limits enclosed ordering constraints to be applied only when sorting entities in named scope.",
-	userDocsLink = "/documentation/query/ordering/behavioral#in-scope"
+	userDocsLink = "/documentation/query/ordering/behavioral#in-scope",
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
 public class OrderInScope extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 9023638910417966280L;
