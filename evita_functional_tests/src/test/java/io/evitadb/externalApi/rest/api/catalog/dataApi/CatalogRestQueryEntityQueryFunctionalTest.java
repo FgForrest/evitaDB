@@ -104,6 +104,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 	private static final String DATA_PATH = ResponseDescriptor.RECORD_PAGE.name() + ".data";
 	private static final String HIERARCHY_EXTRA_RESULTS_PATH = ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
+	private static final String PRICE_HISTOGRAM_RESULTS_PATH = ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name();
 
 	private static final String SELF_HIERARCHY_EXTRA_RESULTS_PATH = HIERARCHY_EXTRA_RESULTS_PATH + "." + HierarchyDescriptor.SELF.name();
 	public static final String SELF_MEGA_MENU_PATH = SELF_HIERARCHY_EXTRA_RESULTS_PATH + ".megaMenu";
@@ -465,15 +466,17 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 							.map(EntityClassifier::getPrimaryKey)
 							.toArray(Integer[]::new)
 					),
-					scope(Scope.LIVE, Scope.ARCHIVED)
+					scope(Scope.LIVE, Scope.ARCHIVED),
+					inScope(
+						Scope.LIVE,
+						priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC),
+						priceInCurrency(CURRENCY_EUR)
+					)
 				),
 				require(
 					inScope(
 						Scope.LIVE,
-						entityFetch(
-							attributeContent(ATTRIBUTE_NAME),
-							dataInLocales(Locale.ENGLISH)
-						)
+						priceHistogram(5)
 					)
 				)
 			),
@@ -490,15 +493,21 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				{
 					"filterBy": {
 						"entityPrimaryKeyInSet": [%d, %d, %d, %d],
-						"scope": ["LIVE", "ARCHIVED"]
+						"scope": ["LIVE", "ARCHIVED"],
+						"inScope": {
+							"scope": "LIVE",
+							"filtering": [{
+								"priceInPriceLists": ["vip", "basic"],
+								"priceInCurrency": "EUR"
+							}]
+						}
 					},
 					"require": {
 						"inScope": {
 							"scope": "LIVE",
 							"require": {
-								"entityFetch": {
-									"attributeContent": ["name"],
-									"dataInLocales": ["en"]
+								"priceHistogram": {
+									"requestedBucketCount" : 5
 								}
 							}
 						}
@@ -510,7 +519,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				archivedEntities.get(0).getPrimaryKey(),
 				archivedEntities.get(1).getPrimaryKey())
 			.executeAndExpectOkAndThen()
-			.body(DATA_PATH, containsInAnyOrder(expectedBody.toArray()));
+			.body(DATA_PATH, containsInAnyOrder(expectedBody.toArray()))
+			.body(PRICE_HISTOGRAM_RESULTS_PATH, equalTo(createPriceHistogramDto(expectedEntities)));
 	}
 
 	@Test
