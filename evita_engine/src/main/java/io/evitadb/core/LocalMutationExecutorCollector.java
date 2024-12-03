@@ -24,6 +24,7 @@
 package io.evitadb.core;
 
 
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.query.Query;
@@ -166,6 +167,7 @@ class LocalMutationExecutorCollector {
 	 */
 	@Nonnull
 	public <T> Optional<T> execute(
+		@Nullable EvitaSessionContract session,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityMutation entityMutation,
 		boolean checkConsistency,
@@ -185,6 +187,10 @@ class LocalMutationExecutorCollector {
 			this.entityMutations.add(entityMutation);
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);
+			// record mutation to the traffic recorder
+			if (session != null) {
+				this.catalog.getTrafficRecorder().recordMutation(session.getId(), entityMutation);
+			}
 		} else {
 			// while implicit mutations are trapped in memory and stored on next flush
 			changeCollector.setTrapChanges(true);
@@ -222,6 +228,7 @@ class LocalMutationExecutorCollector {
 					final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externalEntityMutations;
 					this.catalog.getCollectionForEntityOrThrowException(externalEntityMutations.getEntityType())
 						.applyMutations(
+							session,
 							externalEntityMutations,
 							serverEntityMutation.shouldApplyUndoOnError(),
 							serverEntityMutation.shouldVerifyConsistency(),

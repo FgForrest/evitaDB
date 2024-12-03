@@ -71,7 +71,18 @@ public interface TrafficRecorder {
 	 * @param totalRecordCount total number of records that match the query
 	 * @param primaryKeys      primary keys that were returned by the query
 	 */
+	/* TODO JNO, PARTS / BYTES FETCHED? */
 	void recordQuery(@Nonnull UUID sessionId, @Nonnull Query query, int totalRecordCount, @Nonnull int... primaryKeys);
+
+	/**
+	 * Function is called when existing entity if being enriched of newly fetched data.
+	 *
+	 * @param sessionId unique identifier of the session the query belongs to
+	 * @param query the query that was enriched
+	 * @param primaryKey the primary key of the record that was enriched
+	 */
+	/* TODO JNO, PARTS / BYTES FETCHED? */
+	void recordEnrichment(@Nonnull UUID sessionId, @Nonnull Query query, int primaryKey);
 
 	/**
 	 * Function is called when a mutation is executed.
@@ -80,5 +91,4 @@ public interface TrafficRecorder {
 	 * @param mutation  mutation that was executed
 	 */
 	void recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation... mutation);
-
 }

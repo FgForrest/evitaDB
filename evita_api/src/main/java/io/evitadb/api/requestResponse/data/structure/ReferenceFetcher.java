@@ -112,7 +112,10 @@ public interface ReferenceFetcher {
 	 * @param entityCollection for lazy fetching reference container for the passed entity if its missing
 	 */
 	@Nonnull
-	<T extends SealedEntity> T initReferenceIndex(@Nonnull T entity, @Nonnull EntityCollectionContract entityCollection);
+	<T extends SealedEntity> T initReferenceIndex(
+		@Nonnull T entity,
+		@Nonnull EntityCollectionContract entityCollection
+	);
 
 	/**
 	 * Method captures information from entity {@link ReferenceContract} and fetches the referenced entities so that
@@ -131,7 +134,10 @@ public interface ReferenceFetcher {
 	 * @param entityCollection for lazy fetching reference container for the passed entity if its missing
 	 */
 	@Nonnull
-	<T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection);
+	<T extends SealedEntity> List<T> initReferenceIndex(
+		@Nonnull List<T> entities,
+		@Nonnull EntityCollectionContract entityCollection
+	);
 
 	/**
 	 * Creates a fetcher lambda that for passed entity parent primary key fetches the rich form of the entity.
@@ -160,9 +166,6 @@ public interface ReferenceFetcher {
 	/**
 	 * Creates a comparator that orders the references according to requirements.
 	 * The comparator is created during `initReferenceIndex` methods invocation, and takes advantage of the indexes.
-	 * The client logic cannot order by attributes that were not marked as sortable as of now. However, this might
-	 * change in the future (see https://gitlab.fg.cz/hv/evita/-/issues/136).
-	 * If none the init methods is not called, the exception is thrown.
 	 *
 	 * @return null if the references should remain in the order they were fetched
 	 */
@@ -172,9 +175,6 @@ public interface ReferenceFetcher {
 	/**
 	 * Returns FALSE if the entity should contain references with empty {@link ReferenceDecorator#getReferencedEntity()}.
 	 * The predicate is created during `initReferenceIndex` methods invocation, and takes advantage of the indexes.
-	 * The client logic cannot order by attributes that were not marked as sortable as of now. However, this might
-	 * change in the future (see https://gitlab.fg.cz/hv/evita/-/issues/136).
-	 * If none the init methods is not called, the exception is thrown.
 	 */
 	@Nullable
 	BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema);

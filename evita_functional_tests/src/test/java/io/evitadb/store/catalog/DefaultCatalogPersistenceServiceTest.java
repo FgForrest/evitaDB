@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
@@ -59,6 +60,7 @@ import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.sequence.SequenceService;
+import io.evitadb.core.traffic.NoOpTrafficRecorder;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.index.EntityIndexKey;
@@ -817,6 +819,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private EntityCollection constructEntityCollectionWithSomeEntities(@Nonnull CatalogPersistenceService ioService, @Nonnull SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema entitySchema, int entityTypePrimaryKey) {
 		final Catalog mockCatalog = getMockCatalog(catalogSchema, entitySchema);
 		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
+		final EvitaSessionContract session = Mockito.mock(EvitaSessionContract.class);
 		final EntityCollection entityCollection = new EntityCollection(
 			catalogSchema.getName(),
 			0L,
@@ -825,7 +828,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			ioService,
 			NoCacheSupervisor.INSTANCE,
 			sequenceService,
-			DefaultTracingContext.INSTANCE
+			DefaultTracingContext.INSTANCE,
+			NoOpTrafficRecorder.INSTANCE
 		);
 		entityCollection.attachToCatalog(null, mockCatalog);
 
@@ -873,7 +877,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			ioService,
 			NoCacheSupervisor.INSTANCE,
 			sequenceService,
-			DefaultTracingContext.INSTANCE
+			DefaultTracingContext.INSTANCE,
+			NoOpTrafficRecorder.INSTANCE
 		);
 		collection.attachToCatalog(null, getMockCatalog(catalogSchema, schema));
 

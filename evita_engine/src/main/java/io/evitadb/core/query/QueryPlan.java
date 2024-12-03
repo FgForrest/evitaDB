@@ -270,6 +270,7 @@ public class QueryPlan {
 							result = (T) new EvitaEntityResponse<>(
 								evitaRequest.getQuery(),
 								dataChunk,
+								this.primaryKeys,
 								extraResults
 							);
 						}

@@ -51,7 +51,7 @@ import java.util.stream.Stream;
 /**
  * Mutation is responsible for setting up a new {@link EntitySchemaContract} - or more precisely
  * the {@link EntityCollectionContract} instance within {@link io.evitadb.api.CatalogContract} instance.
- * The mutation is used by {@link io.evitadb.api.CatalogContract#getOrCreateCollectionForEntity(String, EvitaSessionContract)} method
+ * The mutation is used by {@link io.evitadb.api.CatalogContract#getOrCreateCollectionForEntity(EvitaSessionContract, String)} method
  * internally.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022

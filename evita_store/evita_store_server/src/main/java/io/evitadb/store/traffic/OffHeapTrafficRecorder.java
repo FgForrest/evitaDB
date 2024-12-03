@@ -143,6 +143,11 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, Closeable {
 	}
 
 	@Override
+	public void recordEnrichment(@Nonnull UUID sessionId, @Nonnull Query query, int primaryKey) {
+
+	}
+
+	@Override
 	public void recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation... mutation) {
 		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		if (sessionTraffic != null) {
