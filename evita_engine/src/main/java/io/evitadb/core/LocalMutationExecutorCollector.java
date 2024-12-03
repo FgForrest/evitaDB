@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
+import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -183,17 +184,19 @@ class LocalMutationExecutorCollector {
 		// add the mutation to the list of mutations, but only for root level mutations
 		// mutations on lower levels are implicit mutations which should not be written to WAL (considered), because
 		// are automatically generated when top level mutation is applied (replayed)
+		final MutationApplicationRecord record;
 		if (level == 0) {
 			this.entityMutations.add(entityMutation);
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);
 			// record mutation to the traffic recorder
-			if (session != null) {
-				this.catalog.getTrafficRecorder().recordMutation(session.getId(), entityMutation);
-			}
+			record = session == null ?
+				null : this.catalog.getTrafficRecorder().recordMutation(session.getId(), entityMutation);
 		} else {
 			// while implicit mutations are trapped in memory and stored on next flush
 			changeCollector.setTrapChanges(true);
+			// no record is created for implicit mutations
+			record = null;
 		}
 
 		// apply mutations using applicators
@@ -243,12 +246,21 @@ class LocalMutationExecutorCollector {
 				changeCollector.verifyConsistency();
 			}
 
+			// finish the record
+			if (record != null) {
+				record.finish();
+			}
+
 		} catch (RuntimeException ex) {
 			// we need to catch all exceptions and store them in the exception field
 			if (this.exception == null) {
 				this.exception = ex;
 			} else if (ex != this.exception) {
 				this.exception.addSuppressed(ex);
+			}
+			// finish the record with exception
+			if (record != null) {
+				record.finishWithException(ex);
 			}
 		} finally {
 			// we finalize this collector only on zero level

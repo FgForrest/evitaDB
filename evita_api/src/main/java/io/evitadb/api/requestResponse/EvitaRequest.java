@@ -44,7 +44,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -74,52 +73,52 @@ import static java.util.Optional.ofNullable;
 public class EvitaRequest {
 	private static final ConditionalGap[] EMPTY_GAPS = new ConditionalGap[0];
 	private static final String[] EMPTY_PRICE_LISTS = new String[0];
-	private static final Set<Scope> DEFAULT_SCOPES = CollectionUtils.toUnmodifiableSet(EnumSet.of(Scope.DEFAULT_SCOPE));
+
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
 	private final String entityType;
 	private final Locale implicitLocale;
 	@Getter private final Class<?> expectedType;
-	private int[] primaryKeys;
+	@Nullable private int[] primaryKeys;
 	private boolean localeExamined;
-	private Locale locale;
-	private Boolean requiredLocales;
-	private Set<Locale> requiredLocaleSet;
+	@Nullable private Locale locale;
+	@Nullable private Boolean requiredLocales;
+	@Nullable private Set<Locale> requiredLocaleSet;
 	private QueryPriceMode queryPriceMode;
 	private Boolean priceValidInTimeSet;
-	private OffsetDateTime priceValidInTime;
+	@Nullable private OffsetDateTime priceValidInTime;
 	private Boolean requiresEntity;
-	private Boolean requiresParent;
-	private HierarchyContent parentContent;
-	private EntityFetch entityRequirement;
-	private Boolean entityAttributes;
-	private Set<String> entityAttributeSet;
-	private Boolean entityAssociatedData;
-	private Set<String> entityAssociatedDataSet;
-	private Boolean entityReference;
-	private PriceContentMode entityPrices;
+	@Nullable private Boolean requiresParent;
+	@Nullable private HierarchyContent parentContent;
+	@Nullable private EntityFetch entityRequirement;
+	@Nullable private Boolean entityAttributes;
+	@Nullable private Set<String> entityAttributeSet;
+	@Nullable private Boolean entityAssociatedData;
+	@Nullable private Set<String> entityAssociatedDataSet;
+	@Nullable private Boolean entityReference;
+	@Nullable private PriceContentMode entityPrices;
 	private Boolean currencySet;
-	private Currency currency;
+	@Nullable private Currency currency;
 	private Boolean requiresPriceLists;
 	private String[] priceLists;
 	private String[] additionalPriceLists;
-	private Integer start;
-	private ConditionalGap[] conditionalGaps;
-	private Map<String, HierarchyFilterConstraint> hierarchyWithin;
-	private Boolean requiredWithinHierarchy;
-	private Boolean requiresHierarchyStatistics;
-	private Boolean requiresHierarchyParents;
-	private Integer limit;
-	private EvitaRequest.ResultForm resultForm;
-	private Map<String, FacetFilterBy> facetGroupConjunction;
-	private Map<String, FacetFilterBy> facetGroupDisjunction;
-	private Map<String, FacetFilterBy> facetGroupNegation;
+	@Nullable private Integer start;
+	@Nullable private ConditionalGap[] conditionalGaps;
+	@Nullable private Map<String, HierarchyFilterConstraint> hierarchyWithin;
+	@Nullable private Boolean requiredWithinHierarchy;
+	@Nullable private Boolean requiresHierarchyStatistics;
+	@Nullable private Boolean requiresHierarchyParents;
+	@Nullable private Integer limit;
+	@Nullable private EvitaRequest.ResultForm resultForm;
+	@Nullable private Map<String, FacetFilterBy> facetGroupConjunction;
+	@Nullable private Map<String, FacetFilterBy> facetGroupDisjunction;
+	@Nullable private Map<String, FacetFilterBy> facetGroupNegation;
 	private Boolean queryTelemetryRequested;
-	private EnumSet<DebugMode> debugModes;
+	@Nullable private EnumSet<DebugMode> debugModes;
 	private Scope[] scopesAsArray;
-	private Set<Scope> scopes;
-	private Map<String, RequirementContext> entityFetchRequirements;
-	private RequirementContext defaultReferenceRequirement;
+	@Nullable private Set<Scope> scopes;
+	@Nullable private Map<String, RequirementContext> entityFetchRequirements;
+	@Nullable private RequirementContext defaultReferenceRequirement;
 
 	/**
 	 * Parses the requirement context from the passed {@link ReferenceContent} and {@link AttributeContent}.
@@ -269,7 +268,7 @@ public class EvitaRequest {
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull String entityType,
-		@Nonnull FilterBy filterBy,
+		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
 		@Nullable Locale locale
 	) {
@@ -357,7 +356,7 @@ public class EvitaRequest {
 	public Locale getLocale() {
 		if (!this.localeExamined) {
 			this.localeExamined = true;
-			this.locale = ofNullable(QueryUtils.findFilter(query, EntityLocaleEquals.class))
+			this.locale = ofNullable(QueryUtils.findFilter(this.query, EntityLocaleEquals.class))
 				.map(EntityLocaleEquals::getLocale)
 				.orElse(null);
 		}
@@ -390,7 +389,7 @@ public class EvitaRequest {
 	@Nullable
 	public Set<Locale> getRequiredLocales() {
 		if (this.requiredLocales == null) {
-			final EntityFetch entityFetch = QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
+			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			if (entityFetch == null) {
 				this.requiredLocales = true;
 				final Locale theLocale = getLocale();
@@ -423,7 +422,7 @@ public class EvitaRequest {
 	@Nonnull
 	public QueryPriceMode getQueryPriceMode() {
 		if (this.queryPriceMode == null) {
-			this.queryPriceMode = ofNullable(QueryUtils.findRequire(query, PriceType.class))
+			this.queryPriceMode = ofNullable(QueryUtils.findRequire(this.query, PriceType.class))
 				.map(PriceType::getQueryPriceMode)
 				.orElse(QueryPriceMode.WITH_TAX);
 		}
@@ -437,12 +436,12 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public int[] getPrimaryKeys() {
-		if (primaryKeys == null) {
-			primaryKeys = ofNullable(QueryUtils.findFilter(query, EntityPrimaryKeyInSet.class, SeparateEntityContentRequireContainer.class))
+		if (this.primaryKeys == null) {
+			this.primaryKeys = ofNullable(QueryUtils.findFilter(this.query, EntityPrimaryKeyInSet.class, SeparateEntityContentRequireContainer.class))
 				.map(EntityPrimaryKeyInSet::getPrimaryKeys)
 				.orElse(ArrayUtils.EMPTY_INT_ARRAY);
 		}
-		return primaryKeys;
+		return this.primaryKeys;
 	}
 
 	/**
@@ -450,7 +449,7 @@ public class EvitaRequest {
 	 */
 	public boolean isRequiresEntity() {
 		if (this.requiresEntity == null) {
-			final EntityFetch entityFetch = QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
+			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			this.requiresEntity = entityFetch != null;
 			this.entityRequirement = entityFetch;
 		}
@@ -583,7 +582,7 @@ public class EvitaRequest {
 	@Nonnull
 	public PriceContentMode getRequiresEntityPrices() {
 		if (this.entityPrices == null) {
-			final EntityFetch entityFetch = QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
+			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			if (entityFetch == null) {
 				this.entityPrices = PriceContentMode.NONE;
 				this.additionalPriceLists = EMPTY_PRICE_LISTS;
@@ -618,7 +617,7 @@ public class EvitaRequest {
 	 */
 	public boolean isRequiresPriceLists() {
 		if (this.requiresPriceLists == null) {
-			final List<PriceInPriceLists> priceInPriceLists = QueryUtils.findFilters(query, PriceInPriceLists.class);
+			final List<PriceInPriceLists> priceInPriceLists = QueryUtils.findFilters(this.query, PriceInPriceLists.class);
 			Assert.isTrue(
 				priceInPriceLists.size() <= 1,
 				"Query can not contain more than one price in price lists filter constraints!"
@@ -652,7 +651,7 @@ public class EvitaRequest {
 	@Nullable
 	public Currency getRequiresCurrency() {
 		if (this.currencySet == null) {
-			final List<Currency> currenciesFound = QueryUtils.findFilters(query, PriceInCurrency.class)
+			final List<Currency> currenciesFound = QueryUtils.findFilters(this.query, PriceInCurrency.class)
 				.stream()
 				.map(PriceInCurrency::getCurrency)
 				.distinct()
@@ -674,7 +673,7 @@ public class EvitaRequest {
 	@Nullable
 	public OffsetDateTime getRequiresPriceValidIn() {
 		if (this.priceValidInTimeSet == null) {
-			final List<OffsetDateTime> validitySpan = QueryUtils.findFilters(query, PriceValidIn.class)
+			final List<OffsetDateTime> validitySpan = QueryUtils.findFilters(this.query, PriceValidIn.class)
 				.stream()
 				.map(it -> it.getTheMoment(this::getAlignedNow))
 				.distinct()
@@ -697,7 +696,7 @@ public class EvitaRequest {
 	public Optional<FacetFilterBy> getFacetGroupConjunction(@Nonnull String referenceName) {
 		if (this.facetGroupConjunction == null) {
 			this.facetGroupConjunction = new HashMap<>();
-			QueryUtils.findRequires(query, FacetGroupsConjunction.class)
+			QueryUtils.findRequires(this.query, FacetGroupsConjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
 					this.facetGroupConjunction.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
@@ -714,7 +713,7 @@ public class EvitaRequest {
 	public Optional<FacetFilterBy> getFacetGroupDisjunction(@Nonnull String referenceName) {
 		if (this.facetGroupDisjunction == null) {
 			this.facetGroupDisjunction = new HashMap<>();
-			QueryUtils.findRequires(query, FacetGroupsDisjunction.class)
+			QueryUtils.findRequires(this.query, FacetGroupsDisjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
 					this.facetGroupDisjunction.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
@@ -731,7 +730,7 @@ public class EvitaRequest {
 	public Optional<FacetFilterBy> getFacetGroupNegation(@Nonnull String referenceName) {
 		if (this.facetGroupNegation == null) {
 			this.facetGroupNegation = new HashMap<>();
-			QueryUtils.findRequires(query, FacetGroupsNegation.class)
+			QueryUtils.findRequires(this.query, FacetGroupsNegation.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
 					this.facetGroupNegation.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
@@ -746,7 +745,7 @@ public class EvitaRequest {
 	 */
 	public boolean isQueryTelemetryRequested() {
 		if (queryTelemetryRequested == null) {
-			this.queryTelemetryRequested = QueryUtils.findRequire(query, QueryTelemetry.class) != null;
+			this.queryTelemetryRequested = QueryUtils.findRequire(this.query, QueryTelemetry.class) != null;
 		}
 		return queryTelemetryRequested;
 	}
@@ -757,7 +756,7 @@ public class EvitaRequest {
 	 */
 	public boolean isDebugModeEnabled(@Nonnull DebugMode debugMode) {
 		if (debugModes == null) {
-			this.debugModes = ofNullable(QueryUtils.findRequire(query, Debug.class))
+			this.debugModes = ofNullable(QueryUtils.findRequire(this.query, Debug.class))
 				.map(Debug::getDebugMode)
 				.orElseGet(() -> EnumSet.noneOf(DebugMode.class));
 		}
@@ -877,20 +876,20 @@ public class EvitaRequest {
 	 */
 	@Nullable
 	public HierarchyFilterConstraint getHierarchyWithin(@Nullable String referenceName) {
-		if (requiredWithinHierarchy == null) {
+		if (this.hierarchyWithin == null) {
 			if (query.getFilterBy() == null) {
-				hierarchyWithin = Collections.emptyMap();
+				this.hierarchyWithin = Collections.emptyMap();
 			} else {
-				hierarchyWithin = new HashMap<>();
+				this.hierarchyWithin = new HashMap<>();
 				QueryUtils.findConstraints(
 						query.getFilterBy(),
 						HierarchyFilterConstraint.class
 					)
-					.forEach(it -> hierarchyWithin.put(it.getReferenceName().orElse(null), it));
+					.forEach(it -> this.hierarchyWithin.put(it.getReferenceName().orElse(null), it));
 			}
-			requiredWithinHierarchy = true;
+			this.requiredWithinHierarchy = true;
 		}
-		return hierarchyWithin.get(referenceName);
+		return this.hierarchyWithin.get(referenceName);
 	}
 
 	/**

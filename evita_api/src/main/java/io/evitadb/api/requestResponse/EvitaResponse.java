@@ -27,12 +27,13 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,11 +54,37 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@NotThreadSafe
 public abstract sealed class EvitaResponse<T extends Serializable>
 	permits EvitaBinaryEntityResponse, EvitaEntityReferenceResponse, EvitaEntityResponse {
+	/**
+	 * The input query that produced this response.
+	 */
 	protected final Query sourceQuery;
+	/**
+	 * Page of records according to pagination rules in input query. If no pagination was defined in input query `page(1, 20)`
+	 * is assumed.
+	 */
 	protected final DataChunk<T> recordPage;
-	protected final Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults = new HashMap<>();
+	/**
+	 * Extra results attached to the base data response. The key is the class of the extra result and the value is the
+	 * extra result itself. The field is initialized on first access.
+	 */
+	protected Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults;
+	/**
+	 * Number of IO fetches performed to fetch all data in this response. This is a sum of all fetches performed by
+	 * all entities in the response. The value is initialized on first access and is memoized for subsequent calls.
+	 * The value is zero if entities in the response doesn't implement {@link EntityFetchAwareDecorator} interface
+	 * (which is available only on the server side).
+	 */
+	private Integer ioFetchCount;
+	/**
+	 * Number of bytes fetched by IO fetches performed to fetch all data in this response. This is a sum of all fetches
+	 * performed by all entities in the response. The value is initialized on first access and is memoized for subsequent
+	 * calls. The value is zero if entities in the response doesn't implement {@link EntityFetchAwareDecorator} interface
+	 * (which is available only on the server side).
+	 */
+	private Integer ioFetchedSizeBytes;
 
 	protected EvitaResponse(
 		@Nonnull Query sourceQuery,
@@ -84,7 +111,7 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	 */
 	@Nonnull
 	public Query getSourceQuery() {
-		return sourceQuery;
+		return this.sourceQuery;
 	}
 
 	/**
@@ -100,7 +127,7 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	 */
 	@Nonnull
 	public DataChunk<T> getRecordPage() {
-		return recordPage;
+		return this.recordPage;
 	}
 
 	/**
@@ -108,14 +135,14 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	 */
 	@Nonnull
 	public List<T> getRecordData() {
-		return recordPage.getData();
+		return this.recordPage.getData();
 	}
 
 	/**
 	 * Returns total count of available main records in entire result set (i.e. ignoring current pagination settings).
 	 */
 	public int getTotalRecordCount() {
-		return recordPage.getTotalRecordCount();
+		return this.recordPage.getTotalRecordCount();
 	}
 
 	/**
@@ -123,13 +150,16 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	 */
 	@Nonnull
 	public Set<Class<? extends EvitaResponseExtraResult>> getExtraResultTypes() {
-		return this.extraResults.keySet();
+		return this.extraResults == null ? Collections.emptySet() : this.extraResults.keySet();
 	}
 
 	/**
 	 * Adds extra result to be accompanied with standard record page.
 	 */
 	public void addExtraResult(@Nonnull EvitaResponseExtraResult extraResult) {
+		if (this.extraResults == null) {
+			this.extraResults = CollectionUtils.createHashMap(16);
+		}
 		this.extraResults.put(extraResult.getClass(), extraResult);
 	}
 
@@ -138,7 +168,7 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	 */
 	@Nullable
 	public <S extends EvitaResponseExtraResult> S getExtraResult(Class<S> resultType) {
-		final Object extraResult = this.extraResults.get(resultType);
+		final Object extraResult = this.extraResults == null ? null : this.extraResults.get(resultType);
 		if (extraResult != null && !resultType.isInstance(extraResult)) {
 			throw new GenericEvitaInternalError("This should never happen!");
 		}
@@ -151,7 +181,35 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 	 */
 	@Nonnull
 	public Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> getExtraResults() {
-		return Collections.unmodifiableMap(this.extraResults);
+		return this.extraResults == null ? Collections.emptyMap() : Collections.unmodifiableMap(this.extraResults);
+	}
+
+	/**
+	 * Retrieves the number of input/output fetch operations counted during
+	 * the processing of this response. If the count has not been calculated yet,
+	 * it will trigger the computation of I/O fetch statistics.
+	 *
+	 * @return the total count of I/O fetch operations for the current response.
+	 */
+	public int getIoFetchCount() {
+		if (this.ioFetchCount == null || this.ioFetchedSizeBytes == null) {
+			computeIoFetchStats();
+		}
+		return this.ioFetchCount;
+	}
+
+	/**
+	 * Retrieves the total size in bytes of data fetched during input/output operations
+	 * within the processing of this response. If the size has not been calculated yet,
+	 * it will trigger the computation of I/O fetch statistics.
+	 *
+	 * @return the total size in bytes of I/O fetch operations for the current response.
+	 */
+	public int getIoFetchedSizeBytes() {
+		if (this.ioFetchCount == null || this.ioFetchedSizeBytes == null) {
+			computeIoFetchStats();
+		}
+		return this.ioFetchedSizeBytes;
 	}
 
 	@Override
@@ -159,24 +217,47 @@ public abstract sealed class EvitaResponse<T extends Serializable>
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		EvitaResponse<?> that = (EvitaResponse<?>) o;
-		return recordPage.equals(that.recordPage) &&
-			extraResults.size() == ((EvitaResponse<?>) o).extraResults.size() &&
-			extraResults.entrySet()
-				.stream()
-				.filter(it -> !(it instanceof QueryTelemetry))
-				.allMatch(it -> it.getValue().equals(((EvitaResponse<?>) o).extraResults.get(it.getKey())));
+		return this.recordPage.equals(that.recordPage) &&
+			(this.extraResults == null && ((EvitaResponse<?>) o).extraResults == null) ||
+			(
+				this.extraResults != null && ((EvitaResponse<?>) o).extraResults != null &&
+				this.extraResults.size() == ((EvitaResponse<?>) o).extraResults.size() &&
+				this.extraResults.entrySet()
+					.stream()
+					.filter(it -> !(it instanceof QueryTelemetry))
+					.allMatch(it -> it.getValue().equals(((EvitaResponse<?>) o).extraResults.get(it.getKey())))
+			);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(recordPage);
+		return Objects.hash(this.recordPage, this.extraResults);
 	}
 
 	@Override
 	public String toString() {
 		return "EvitaResponse:" +
-			"\nsourceQuery:\n" + sourceQuery.prettyPrint() +
-			"\nresult:\n" + recordPage +
-			(extraResults.isEmpty() ? "" : "\nextraResults\n: " + extraResults);
+			"\nsourceQuery:\n" + this.sourceQuery.prettyPrint() +
+			"\nresult:\n" + this.recordPage +
+			(this.extraResults == null || this.extraResults.isEmpty() ? "" : "\nextraResults\n: " + extraResults);
+	}
+
+	/**
+	 * Computes the statistics for input/output (I/O) fetch operations by iterating over the record data.
+	 * The method aggregates both the count of I/O fetch operations and the total size of bytes fetched.
+	 * These statistics are collected from records that implement the {@link EntityFetchAwareDecorator} interface.
+	 * The computed values are then stored in the instance variables {@code ioFetchCount} and {@code ioFetchedSizeBytes}.
+	 */
+	private void computeIoFetchStats() {
+		int ioFetchCount = 0;
+		int ioFetchedSizeBytes = 0;
+		for (Object record : getRecordData()) {
+			if (record instanceof EntityFetchAwareDecorator efad) {
+				ioFetchCount += efad.getIoFetchCount();
+				ioFetchedSizeBytes += efad.getIoFetchedBytes();
+			}
+		}
+		this.ioFetchCount = ioFetchCount;
+		this.ioFetchedSizeBytes = ioFetchedSizeBytes;
 	}
 }

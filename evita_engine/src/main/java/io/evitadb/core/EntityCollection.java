@@ -34,7 +34,6 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
-import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
@@ -42,7 +41,6 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -98,6 +96,7 @@ import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
 import io.evitadb.core.traffic.TrafficRecorder;
+import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -243,12 +242,7 @@ public final class EntityCollection implements
 	/**
 	 * Traffic recorder used for recording the traffic in the catalog.
 	 */
-	private final TrafficRecorder trafficRecorder;
-	/**
-	 * Provides the tracing context for tracking the execution flow in the application.
-	 * TODO JNO - toto dát jako součást traffic recorderu
-	 **/
-	private final TracingContext tracingContext;
+	private final TrafficRecordingEngine trafficRecorder;
 	/**
 	 * Inner class that provides information for the {@link EntityCollectionHeader} when it's created in the persistence
 	 * layer.
@@ -289,10 +283,8 @@ public final class EntityCollection implements
 		@Nonnull CatalogPersistenceService catalogPersistenceService,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull SequenceService sequenceService,
-		@Nonnull TracingContext tracingContext,
-		@Nonnull TrafficRecorder trafficRecorder
+		@Nonnull TrafficRecordingEngine trafficRecorder
 	) {
-		this.tracingContext = tracingContext;
 		this.trafficRecorder = trafficRecorder;
 		this.entityType = entityType;
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
@@ -388,10 +380,8 @@ public final class EntityCollection implements
 		@Nonnull EntityCollectionPersistenceService persistenceService,
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
 		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull TracingContext tracingContext,
-		@Nonnull TrafficRecorder trafficRecorder
+		@Nonnull TrafficRecordingEngine trafficRecorder
 	) {
-		this.tracingContext = tracingContext;
 		this.trafficRecorder = trafficRecorder;
 		this.entityType = entitySchema.getName();
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
@@ -431,47 +421,31 @@ public final class EntityCollection implements
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
 
-		final T response = this.tracingContext.executeWithinBlockIfParentContextAvailable(
-			"query - " + queryPlan.getDescription(),
-			(Supplier<T>) queryPlan::execute,
-			queryPlan::getSpanAttributes
-		);
-
 		// record query information
-		this.trafficRecorder.recordQuery(
-			session.getId(),
-			evitaRequest.getQuery(),
-			response.getTotalRecordCount(),
-			response.getPrimaryKeys()
+		return this.trafficRecorder.recordQuery(
+			"query", session.getId(), queryPlan
 		);
-
-		return response;
 	}
 
 	@Override
 	@Nonnull
 	public Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-		final Optional<SealedEntity> response = fetchEntity(primaryKey, evitaRequest, session, referenceFetcher);
 
 		// record query information
-		this.trafficRecorder.recordQuery(
+		return this.trafficRecorder.recordFetch(
 			session.getId(),
-			evitaRequest.getQuery(),
-			response.isPresent() ? 1 : 0,
-			response.stream().mapToInt(EntityClassifier::getPrimaryKeyOrThrowException).toArray()
+			evitaRequest,
+			() -> fetchEntity(primaryKey, evitaRequest, session, referenceFetcher)
 		);
-
-		return response;
 	}
 
 	@Override
 	@Nonnull
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		final ReferenceFetcher referenceFetcher;
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
-		referenceFetcher = referenceEntityFetch.isEmpty() &&
+		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() &&
 			!evitaRequest.isRequiresEntityReferences() &&
 			!evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
@@ -483,19 +457,16 @@ public final class EntityCollection implements
 				entity
 			);
 
-		final ServerEntityDecorator result = applyReferenceFetcher(
-			enrichEntityInternal(entity, evitaRequest),
-			referenceFetcher
-		);
-
 		// record query information
-		this.trafficRecorder.recordEnrichment(
+		return this.trafficRecorder.recordEnrichment(
 			session.getId(),
-			evitaRequest.getQuery(),
-			entity.getPrimaryKeyOrThrowException()
+			entity,
+			evitaRequest,
+			() -> applyReferenceFetcher(
+				enrichEntityInternal(entity, evitaRequest),
+				referenceFetcher
+			)
 		);
-
-		return result;
 	}
 
 	@Override
@@ -608,11 +579,17 @@ public final class EntityCollection implements
 					() -> new EntityMissingException(getEntityType(), primaryKeys, null)
 				);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+			final ServerEntityDecorator entity = wrapToDecorator(evitaRequest, removedEntity, false);
 			//noinspection unchecked
-			return of(
-				(T) applyReferenceFetcher(
-					wrapToDecorator(evitaRequest, removedEntity, false),
-					referenceFetcher
+			return this.trafficRecorder.recordEnrichment(
+				session.getId(),
+				entity,
+				evitaRequest,
+				() -> of(
+					(T) applyReferenceFetcher(
+						entity,
+						referenceFetcher
+					)
 				)
 			);
 		} else {
@@ -665,9 +642,14 @@ public final class EntityCollection implements
 					entityHierarchy.length,
 					entityHierarchy,
 					ofNullable(removedRoot)
-						.map(it -> (T) applyReferenceFetcherInternal(
-								referenceFetcher.initReferenceIndex(it, this),
-								referenceFetcher
+						.map(entity -> this.trafficRecorder.recordEnrichment(
+								session.getId(),
+								entity,
+								evitaRequest,
+								() -> (T) applyReferenceFetcherInternal(
+									referenceFetcher.initReferenceIndex(entity, this),
+									referenceFetcher
+								)
 							)
 						)
 						.orElse(null)
@@ -682,10 +664,10 @@ public final class EntityCollection implements
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
 
-		final EvitaEntityReferenceResponse result = tracingContext.executeWithinBlockIfParentContextAvailable(
-			"delete - " + queryPlan.getDescription(),
-			(Supplier<EvitaEntityReferenceResponse>) queryPlan::execute,
-			queryPlan::getSpanAttributes
+		final EvitaEntityReferenceResponse result = this.trafficRecorder.recordQuery(
+			"delete",
+			session.getId(),
+			queryPlan
 		);
 
 		return result
@@ -715,12 +697,13 @@ public final class EntityCollection implements
 			final EntityWithFetchCount archivedEntity = changeEntityScopeInternal(primaryKeys[0], Scope.ARCHIVED, session, evitaRequest, EntityWithFetchCount.class)
 				.orElseThrow(() -> new EntityMissingException(getEntityType(), primaryKeys, null));
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+			final ServerEntityDecorator entity = wrapToDecorator(evitaRequest, archivedEntity, false);
 			//noinspection unchecked
-			return of(
-				(T) applyReferenceFetcher(
-					wrapToDecorator(evitaRequest, archivedEntity, false),
-					referenceFetcher
-				)
+			return this.trafficRecorder.recordEnrichment(
+				session.getId(),
+				entity,
+				evitaRequest,
+				() -> of((T) applyReferenceFetcher(entity, referenceFetcher))
 			);
 		} else {
 			return empty();
@@ -746,13 +729,13 @@ public final class EntityCollection implements
 			final EntityWithFetchCount restoredEntity = changeEntityScopeInternal(primaryKeys[0], Scope.LIVE, session, evitaRequest, EntityWithFetchCount.class)
 				.orElseThrow(() -> new EntityMissingException(getEntityType(), primaryKeys, null));
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+			final ServerEntityDecorator entity = wrapToDecorator(evitaRequest, restoredEntity, false);
 			//noinspection unchecked
-			return ofNullable(restoredEntity)
-				.map(
-					it -> (T) applyReferenceFetcher(
-					wrapToDecorator(evitaRequest, it, false),
-					referenceFetcher
-				)
+			return this.trafficRecorder.recordEnrichment(
+				session.getId(),
+				entity,
+				evitaRequest,
+				() -> of((T) applyReferenceFetcher(entity, referenceFetcher))
 			);
 		} else {
 			return empty();
@@ -1451,7 +1434,6 @@ public final class EntityCollection implements
 				),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.indexes),
 				this.cacheSupervisor,
-				this.tracingContext,
 				this.trafficRecorder
 			);
 		} else {
@@ -1496,7 +1478,6 @@ public final class EntityCollection implements
 			newPersistenceService,
 			this.indexes,
 			this.cacheSupervisor,
-			this.tracingContext,
 			this.trafficRecorder
 		);
 		// the catalog remains the same here
@@ -1535,7 +1516,6 @@ public final class EntityCollection implements
 					)
 				),
 			this.cacheSupervisor,
-			this.tracingContext,
 			this.trafficRecorder
 		);
 	}

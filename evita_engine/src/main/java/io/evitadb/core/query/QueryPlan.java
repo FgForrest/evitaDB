@@ -43,7 +43,6 @@ import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
-import io.evitadb.core.query.response.EntityFetchAwareDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.slice.Slicer;
 import io.evitadb.core.query.slice.Slicer.OffsetAndLimit;
@@ -299,27 +298,20 @@ public class QueryPlan {
 					result = (T) new EvitaEntityReferenceResponse(
 						evitaRequest.getQuery(),
 						dataChunk,
+						this.primaryKeys,
 						extraResults
 					);
 				}
 
 				ofNullable(this.queryContext.getQueryFinishedEvent())
 					.ifPresent(it -> {
-						int ioFetchCount = 0;
-						int ioFetchedSizeBytes = 0;
-						for (S record : result.getRecordData()) {
-							if (record instanceof EntityFetchAwareDecorator efad) {
-								ioFetchCount += efad.getIoFetchCount();
-								ioFetchedSizeBytes += efad.getIoFetchedBytes();
-							}
-						}
 						it.finish(
 							prefetchedDataSuitableForFiltering,
 							this.filter.getEstimatedCardinality(),
 							this.primaryKeys == null ? 0 : this.primaryKeys.length,
 							this.totalRecordCount,
-							ioFetchCount,
-							ioFetchedSizeBytes,
+							result.getIoFetchCount(),
+							result.getIoFetchedSizeBytes(),
 							this.filter.getEstimatedCost(),
 							this.filter.getCost()
 						).commit();

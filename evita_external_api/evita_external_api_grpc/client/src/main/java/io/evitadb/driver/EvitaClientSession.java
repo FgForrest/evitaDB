@@ -577,13 +577,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 				)
 		);
 		if (EntityReferenceContract.class.isAssignableFrom(expectedType)) {
+			final int[] primaryKeys = grpcResponse.getRecordPage().getEntityReferencesList().stream()
+				.mapToInt(GrpcEntityReference::getPrimaryKey)
+				.toArray();
 			final DataChunk<EntityReference> recordPage = ResponseConverter.convertToDataChunk(
 				grpcResponse,
 				grpcRecordPage -> EntityConverter.toEntityReferences(grpcRecordPage.getEntityReferencesList())
 			);
 			//noinspection unchecked
 			return (T) new EvitaEntityReferenceResponse(
-				finalQuery, recordPage,
+				finalQuery, recordPage, primaryKeys,
 				getEvitaResponseExtraResults(
 					grpcResponse,
 					new EvitaRequest(

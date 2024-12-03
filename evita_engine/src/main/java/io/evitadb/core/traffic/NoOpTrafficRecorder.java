@@ -59,17 +59,30 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 	}
 
 	@Override
-	public void recordQuery(@Nonnull UUID sessionId, @Nonnull Query query, int totalRecordCount, @Nonnull int[] primaryKeys) {
+	public void recordQuery(
+		@Nonnull UUID sessionId, @Nonnull Query query,
+		int totalRecordCount, int ioFetchCount, int ioFetchedSizeBytes,
+		@Nonnull int[] primaryKeys
+	) {
 		// no-op
 	}
 
 	@Override
-	public void recordEnrichment(@Nonnull UUID sessionId, @Nonnull Query query, int primaryKey) {
+	public void recordFetch(
+		@Nonnull UUID sessionId, @Nonnull Query query, int ioFetchCount, int ioFetchedSizeBytes, int primaryKey
+	) {
 		// no-op
 	}
 
 	@Override
-	public void recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation... mutation) {
+	public void recordEnrichment(
+		@Nonnull UUID sessionId, @Nonnull Query query, int ioFetchCount, int ioFetchedSizeBytes, int primaryKey
+	) {
+		// no-op
+	}
+
+	@Override
+	public void recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation mutation) {
 		// no-op
 	}
 

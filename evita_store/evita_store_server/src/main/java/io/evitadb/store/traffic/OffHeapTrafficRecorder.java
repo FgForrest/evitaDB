@@ -71,7 +71,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, Closeable {
 	/**
 	 * Size of a single memory slot used for storing queries and mutations.
 	 */
-	public static final int BLOCK_SIZE_BYTES = 1_024;
+	private static final int BLOCK_SIZE_BYTES = 1_024;
 	/**
 	 * Private final variable to store a reference to a ByteBuffer object.
 	 * The AtomicReference class is used to provide thread-safe access to the memoryBlock.
@@ -125,7 +125,14 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, Closeable {
 	}
 
 	@Override
-	public void recordQuery(@Nonnull UUID sessionId, @Nonnull Query query, int totalRecordCount, @Nonnull int[] primaryKeys) {
+	public void recordQuery(
+		@Nonnull UUID sessionId,
+		@Nonnull Query query,
+		int totalRecordCount,
+		int ioFetchCount,
+		int ioFetchedSizeBytes,
+		@Nonnull int[] primaryKeys
+	) {
 		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		if (sessionTraffic != null) {
 			final int blockPeek = prepareStorageBlock(sessionTraffic);
@@ -143,12 +150,29 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, Closeable {
 	}
 
 	@Override
-	public void recordEnrichment(@Nonnull UUID sessionId, @Nonnull Query query, int primaryKey) {
+	public void recordFetch(
+		@Nonnull UUID sessionId,
+		@Nonnull Query query,
+		int ioFetchCount,
+		int ioFetchedSizeBytes,
+		int primaryKey
+	) {
 
 	}
 
 	@Override
-	public void recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation... mutation) {
+	public void recordEnrichment(
+		@Nonnull UUID sessionId,
+		@Nonnull Query query,
+		int ioFetchCount,
+		int ioFetchedSizeBytes,
+		int primaryKey
+	) {
+
+	}
+
+	@Override
+	public void recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation mutation) {
 		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		if (sessionTraffic != null) {
 			final int blockPeek = prepareStorageBlock(sessionTraffic);

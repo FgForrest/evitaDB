@@ -92,6 +92,8 @@ import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
 import io.evitadb.core.traffic.NoOpTrafficRecorder;
 import io.evitadb.core.traffic.TrafficRecorder;
+import io.evitadb.core.traffic.TrafficRecordingEngine;
+import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -140,9 +142,9 @@ import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -259,18 +261,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	 */
 	@Getter private final CatalogEntitySchemaAccessor entitySchemaAccessor = new CatalogEntitySchemaAccessor();
 	/**
-	 * Provides the tracing context for tracking the execution flow in the application.
-	 * TODO JNO - toto dát jako součást traffic recorderu
-	 **/
-	private final TracingContext tracingContext;
-	/**
 	 * Transaction manager used for processing the transactions.
 	 */
 	private final TransactionManager transactionManager;
 	/**
 	 * Traffic recorder used for recording the traffic in the catalog.
 	 */
-	@Getter private final TrafficRecorder trafficRecorder;
+	@Getter private final TrafficRecordingEngine trafficRecorder;
 	/**
 	 * Contains reference to the archived catalog index that allows fast lookups for entities across all types.
 	 */
@@ -342,7 +339,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final String catalogName = catalogSchema.getName();
 		final long catalogVersion = 0L;
 
-		this.tracingContext = tracingContext;
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
 			catalogName, catalogSchema.getNameVariants(), catalogSchema.getCatalogEvolutionMode(),
 			getEntitySchemaAccessor()
@@ -388,7 +384,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.transactionManager = new TransactionManager(
 			this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
 		);
-		this.trafficRecorder = getTrafficRecorder(evitaConfiguration.server());
+		this.trafficRecorder = new TrafficRecordingEngine(tracingContext, Catalog.getTrafficRecorder(evitaConfiguration.server()));
 
 		this.persistenceService.storeHeader(
 			this.catalogId, CatalogState.WARMING_UP, catalogVersion, 0, null,
@@ -408,7 +404,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
 	) {
-		this.tracingContext = tracingContext;
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
 			.map(
@@ -448,7 +443,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			this.archiveCatalogIndex.attachToCatalog(null, this);
 		}
 		this.cacheSupervisor = cacheSupervisor;
-		this.trafficRecorder = getTrafficRecorder(evitaConfiguration.server());
+		this.trafficRecorder = new TrafficRecordingEngine(tracingContext, Catalog.getTrafficRecorder(evitaConfiguration.server()));
 		this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
 			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
 			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
@@ -470,7 +465,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				this.persistenceService,
 				this.cacheSupervisor,
 				this.sequenceService,
-				this.tracingContext,
 				this.trafficRecorder
 			);
 			collections.put(entityType, collection);
@@ -538,7 +532,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			entityCollections,
 			previousCatalogVersion.persistenceService,
 			previousCatalogVersion,
-			previousCatalogVersion.tracingContext,
 			false
 		);
 	}
@@ -551,16 +544,14 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull Collection<EntityCollection> entityCollections,
 		@Nonnull CatalogPersistenceService persistenceService,
 		@Nonnull Catalog previousCatalogVersion,
-		@Nonnull TracingContext tracingContext,
 		boolean initSchemas
 	) {
 		this.catalogId = previousCatalogVersion.catalogId;
-		this.tracingContext = tracingContext;
 		this.versionId = new TransactionalReference<>(catalogVersion);
 		this.state = catalogState;
 		this.catalogIndex = catalogIndex;
 		this.archiveCatalogIndex = archiveCatalogIndex;
-		this.persistenceService = persistenceService;
+		this.persistenceService = previousCatalogVersion.persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
 		this.trafficRecorder = previousCatalogVersion.trafficRecorder;
 		this.entityTypeSequence = previousCatalogVersion.entityTypeSequence;
@@ -672,10 +663,10 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
 
-		return tracingContext.executeWithinBlockIfParentContextAvailable(
-			"query - " + queryPlan.getDescription(),
-			(Supplier<T>) queryPlan::execute,
-			queryPlan::getSpanAttributes
+		return this.trafficRecorder.recordQuery(
+			"query",
+			session.getId(),
+			queryPlan
 		);
 	}
 
@@ -788,7 +779,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 					newIoService,
 					this.cacheSupervisor,
 					this.sequenceService,
-					this.tracingContext,
 					this.trafficRecorder
 				)
 			)
@@ -803,7 +793,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			newCollections,
 			newIoService,
 			this,
-			this.tracingContext,
 			true
 		);
 	}
@@ -848,7 +837,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				newCollections,
 				this.persistenceService,
 				this,
-				this.tracingContext,
 				true
 			);
 
@@ -1433,6 +1421,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	) {
 		// internal schema is expected to be produced on the server side
 		final CatalogSchema originalSchema = getInternalSchema();
+		final AtomicReference<MutationApplicationRecord> record = new AtomicReference<>();
 		try {
 			final Optional<Transaction> transactionRef = Transaction.getTransaction();
 			ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
@@ -1441,6 +1430,14 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			final Transaction transaction = transactionRef.orElse(null);
 			for (CatalogSchemaMutation theMutation : schemaMutation) {
 				transactionRef.ifPresent(it -> it.registerMutation(theMutation));
+
+				// record the mutation
+				if (session != null) {
+					record.set(
+						this.trafficRecorder.recordMutation(session.getId(), theMutation)
+					);
+				}
+
 				// if the mutation implements entity schema mutation apply it on the appropriate schema
 				if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
 					final String entityType = modifyEntitySchemaMutation.getEntityType();
@@ -1468,9 +1465,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 						ArrayUtils.mergeArrays(modifyEntitySchemaMutations, schemaWithImpactOnEntitySchemas.entitySchemaMutations());
 				}
 
-				// record the mutation
+				// finish the recording
 				if (session != null) {
-					this.trafficRecorder.recordMutation(session.getId(), theMutation);
+					record.get().finish();
 				}
 
 				// exchange the current catalog schema so that additional entity schema mutations can take advantage of
@@ -1484,6 +1481,13 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		} catch (RuntimeException ex) {
 			// revert all changes in the schema (for current transaction) if anything failed
 			this.schema.set(new CatalogSchemaDecorator(originalSchema));
+
+			// finish the recording with error
+			final MutationApplicationRecord recording = record.get();
+			if (recording != null) {
+				recording.finishWithException(ex);
+			}
+
 			throw ex;
 		} finally {
 			// finally, store the updated catalog schema to disk
@@ -1627,7 +1631,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			this.persistenceService,
 			this.cacheSupervisor,
 			this.sequenceService,
-			this.tracingContext,
 			this.trafficRecorder
 		);
 		this.entityCollectionsByPrimaryKey.put(newCollection.getEntityTypePrimaryKey(), newCollection);

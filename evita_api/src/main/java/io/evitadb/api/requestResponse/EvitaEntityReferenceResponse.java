@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.dataType.DataChunk;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
@@ -36,22 +37,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public final class EvitaEntityReferenceResponse extends EvitaResponse<EntityReference> {
-	private int[] primaryKeys;
-
-	public EvitaEntityReferenceResponse(
-		@Nonnull Query sourceQuery,
-		@Nonnull DataChunk<EntityReference> recordPage
-	) {
-		super(sourceQuery, recordPage);
-	}
-
-	public EvitaEntityReferenceResponse(
-		@Nonnull Query sourceQuery,
-		@Nonnull DataChunk<EntityReference> recordPage,
-		@Nonnull EvitaResponseExtraResult... extraResults
-	) {
-		super(sourceQuery, recordPage, extraResults);
-	}
+	@Getter private final int[] primaryKeys;
 
 	public EvitaEntityReferenceResponse(
 		@Nonnull Query sourceQuery,
@@ -72,12 +58,4 @@ public final class EvitaEntityReferenceResponse extends EvitaResponse<EntityRefe
 		this.primaryKeys = primaryKeys;
 	}
 
-	@Nonnull
-	@Override
-	public int[] getPrimaryKeys() {
-		if (this.primaryKeys == null) {
-			this.primaryKeys = recordPage.stream().mapToInt(EntityReference::getPrimaryKey).toArray();
-		}
-		return this.primaryKeys;
-	}
 }

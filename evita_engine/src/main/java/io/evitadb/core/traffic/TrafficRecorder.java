@@ -66,23 +66,56 @@ public interface TrafficRecorder {
 	/**
 	 * Function is called when a query is executed.
 	 *
-	 * @param sessionId        unique identifier of the session the query belongs to
-	 * @param query            query that was executed
-	 * @param totalRecordCount total number of records that match the query
-	 * @param primaryKeys      primary keys that were returned by the query
+	 * @param sessionId          unique identifier of the session the query belongs to
+	 * @param query              query that was executed
+	 * @param totalRecordCount   total number of records that match the query
+	 *                           (not necessarily all of them were fetched)
+	 * @param ioFetchCount       number of IO fetches that were needed to fetch all records
+	 * @param ioFetchedSizeBytes number of bytes fetched from the disk
+	 * @param primaryKeys        primary keys that were returned by the query
 	 */
-	/* TODO JNO, PARTS / BYTES FETCHED? */
-	void recordQuery(@Nonnull UUID sessionId, @Nonnull Query query, int totalRecordCount, @Nonnull int... primaryKeys);
+	void recordQuery(
+		@Nonnull UUID sessionId,
+		@Nonnull Query query,
+		int totalRecordCount,
+		int ioFetchCount,
+		int ioFetchedSizeBytes,
+		@Nonnull int... primaryKeys
+	);
 
 	/**
 	 * Function is called when existing entity if being enriched of newly fetched data.
 	 *
-	 * @param sessionId unique identifier of the session the query belongs to
-	 * @param query the query that was enriched
+	 * @param sessionId  unique identifier of the session the query belongs to
+	 * @param query      the query that was enriched
+	 * @param ioFetchCount       number of IO fetches that were needed to fetch all records
+	 * @param ioFetchedSizeBytes number of bytes fetched from the disk
 	 * @param primaryKey the primary key of the record that was enriched
 	 */
-	/* TODO JNO, PARTS / BYTES FETCHED? */
-	void recordEnrichment(@Nonnull UUID sessionId, @Nonnull Query query, int primaryKey);
+	void recordFetch(
+		@Nonnull UUID sessionId,
+		@Nonnull Query query,
+		int ioFetchCount,
+		int ioFetchedSizeBytes,
+		int primaryKey
+	);
+
+	/**
+	 * Function is called when existing entity if being enriched of newly fetched data.
+	 *
+	 * @param sessionId  unique identifier of the session the query belongs to
+	 * @param query      the query that was enriched
+	 * @param ioFetchCount       number of IO fetches that were needed to fetch all records
+	 * @param ioFetchedSizeBytes number of bytes fetched from the disk
+	 * @param primaryKey the primary key of the record that was enriched
+	 */
+	void recordEnrichment(
+		@Nonnull UUID sessionId,
+		@Nonnull Query query,
+		int ioFetchCount,
+		int ioFetchedSizeBytes,
+		int primaryKey
+	);
 
 	/**
 	 * Function is called when a mutation is executed.
@@ -90,5 +123,5 @@ public interface TrafficRecorder {
 	 * @param sessionId unique identifier of the session the mutation belongs to
 	 * @param mutation  mutation that was executed
 	 */
-	void recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation... mutation);
+	void recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation mutation);
 }
