@@ -26,6 +26,7 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.Scope;
@@ -63,7 +64,8 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "inScope",
 	shortDescription = "Limits enclosed filtering constraints to be applied only when searching for entities in named scope.",
-	userDocsLink = "/documentation/query/filtering/behavioral#in-scope"
+	userDocsLink = "/documentation/query/filtering/behavioral#in-scope",
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
 public class FilterInScope extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -2943395408560139656L;

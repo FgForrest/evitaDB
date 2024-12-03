@@ -81,6 +81,12 @@ which contains no sort index, and are ordered by their primary keys.
 </LS>
 <LS to="r">
 
+<MDInclude sourceVariable="data.queryProduct.recordPage">[##### The result of sorted entities when filtering from multiple scopes
+](/documentation/user/en/query/ordering/examples/behavioral/archived-entities-ordering.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
 <MDInclude sourceVariable="recordPage">[##### The result of sorted entities when filtering from multiple scopes
 ](/documentation/user/en/query/ordering/examples/behavioral/archived-entities-ordering.rest.json.md)</MDInclude>
 
