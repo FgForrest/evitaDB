@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorWithReference;
@@ -35,6 +36,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Ancestor for keys representing cacheable elements in a constraint tree.
@@ -98,6 +100,28 @@ public abstract class CacheableElementKey {
 		} else {
 			throw new ExternalApiInternalError("Unsupported entity type pointer '" + entityTypePointer.getClass().getName() + "'");
 		}
+	}
+
+	protected long hashAllowedConstraintPredicate(@Nonnull LongHashFunction hashFunction,
+	                                              @Nonnull AllowedConstraintPredicate allowedConstraintPredicate) {
+		return hashFunction.hashLongs(new long[] {
+			hashFunction.hashChars(allowedConstraintPredicate.getBaseConstraintType().getSimpleName()),
+			hashConstraintSet(hashFunction, allowedConstraintPredicate.getLocallyAllowedConstraints()),
+			hashConstraintSet(hashFunction, allowedConstraintPredicate.getGloballyAllowedConstraints()),
+			hashConstraintSet(hashFunction, allowedConstraintPredicate.getForbiddenConstraints())
+		});
+	}
+
+	private long hashConstraintSet(@Nonnull LongHashFunction hashFunction,
+	                               @Nonnull Set<Class<? extends Constraint<?>>> constraintSet) {
+		return hashFunction.hashLongs(
+			constraintSet
+				.stream()
+				.map(Class::getSimpleName)
+				.sorted()
+				.mapToLong(hashFunction::hashChars)
+				.toArray()
+		);
 	}
 
 	private enum NonManagedEntityTypeHashFlag {
