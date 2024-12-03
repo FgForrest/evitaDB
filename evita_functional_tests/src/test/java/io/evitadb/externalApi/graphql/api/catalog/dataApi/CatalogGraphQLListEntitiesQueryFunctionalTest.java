@@ -30,6 +30,7 @@ import io.evitadb.api.query.order.Segments;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -354,6 +355,158 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(PRODUCT_LIST_PATH, emptyIterable());
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return data based on scope")
+	void shouldReturnDataBasedOnScope(Evita evita, GraphQLTester tester) {
+		final List<SealedEntity> liveEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.LIVE)
+				),
+				require(
+					page(1, 2),
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
+				)
+			),
+			SealedEntity.class
+		);
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 2),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+
+		var expectedBody = Stream.concat(Stream.of(liveEntities.get(0)), archivedEntities.stream())
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
+				.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					listProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: [%d, %d, %d, %d],
+							inScope: {
+								scope: LIVE,
+								filtering: {
+									attributeCodeEquals: "%s"
+								}
+							}
+							scope: [LIVE, ARCHIVED]
+						}
+					) {
+						primaryKey
+						scope
+					}
+				}
+				""",
+				liveEntities.get(0).getPrimaryKey(),
+				liveEntities.get(1).getPrimaryKey(),
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey(),
+				liveEntities.get(0).getAttribute(ATTRIBUTE_CODE))
+			.executeAndExpectOkAndThen()
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, containsInAnyOrder(expectedBody.toArray()));
+	}
+
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should order data based on scope")
+	void shouldOrderDataBasedOnScope(Evita evita, GraphQLTester tester) {
+		final List<EntityClassifier> liveEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(scope(Scope.LIVE)),
+				require(page(1, 2))
+			),
+			EntityClassifier.class
+		);
+		final List<EntityClassifier> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(scope(Scope.ARCHIVED)),
+				require(page(1, 2))
+			),
+			EntityClassifier.class
+		);
+
+		final EvitaResponse<EntityClassifier> expectedEntities = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(
+						Stream.concat(liveEntities.stream(), archivedEntities.stream())
+							.map(EntityClassifier::getPrimaryKey)
+							.toArray(Integer[]::new)
+					),
+					scope(Scope.LIVE, Scope.ARCHIVED)
+				),
+				orderBy(
+					inScope(
+						Scope.LIVE,
+						attributeNatural(ATTRIBUTE_PRIORITY, DESC)
+					)
+				)
+			),
+			EntityClassifier.class
+		);
+		var expectedBody = expectedEntities.getRecordData()
+			.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					listProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: [%d, %d, %d, %d],
+							scope: [LIVE, ARCHIVED]
+						},
+						orderBy: {
+							inScope: {
+								scope: LIVE,
+								ordering: {
+									attributePriorityNatural: DESC
+								}
+							}
+						}
+					) {
+						primaryKey
+					}
+				}
+				""",
+				liveEntities.get(0).getPrimaryKey(),
+				liveEntities.get(1).getPrimaryKey(),
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey())
+			.executeAndExpectOkAndThen()
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, containsInAnyOrder(expectedBody.toArray()));
 	}
 
 	@Test

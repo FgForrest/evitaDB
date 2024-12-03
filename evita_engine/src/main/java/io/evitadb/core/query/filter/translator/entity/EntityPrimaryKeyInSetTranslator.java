@@ -30,10 +30,13 @@ import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.ArrayUtils;
@@ -41,6 +44,7 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -57,9 +61,10 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 	@Override
 	public Formula translate(@Nonnull EntityPrimaryKeyInSet entityPrimaryKeyInSet, @Nonnull FilterByVisitor filterByVisitor) {
 		Assert.notNull(filterByVisitor.getSchema(), "Schema must be known!");
-		filterByVisitor.registerFormulaPostProcessor(
+		filterByVisitor.registerFormulaPostProcessorAfter(
 			SuperSetMatchingPostProcessor.class,
-			() -> new SuperSetMatchingPostProcessor(filterByVisitor)
+			() -> new SuperSetMatchingPostProcessor(filterByVisitor),
+			FilterInScopeTranslator.InScopeFormulaPostProcessor.class
 		);
 		final int[] primaryKeys = entityPrimaryKeyInSet.getPrimaryKeys();
 		final Formula requiredBitmap = ArrayUtils.isEmpty(primaryKeys) ?
@@ -86,7 +91,7 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 	 * In this situation the result formula should be empty and not [1, 2, 3] as it would be without this post processor.
 	 */
 	@RequiredArgsConstructor
-	private static class SuperSetMatchingPostProcessor implements FormulaPostProcessor {
+	public static class SuperSetMatchingPostProcessor implements FormulaPostProcessor {
 		/**
 		 * The filter by visitor that is used to process the formula.
 		 */
@@ -111,6 +116,27 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 			// because it's already more constrained than the super set
 			if (this.targetIndexQueriedByOtherConstraints) {
 				return this.resultFormula;
+			} else if (this.resultFormula instanceof ScopeContainerFormula scf) {
+				// if the result formula is a scope container, we need to merge the super set formula with the inner formula
+				return FormulaFactory.and(
+					this.filterByVisitor.getSuperSetFormula(scf.getScope()),
+					scf
+				);
+			} else if (this.resultFormula instanceof OrFormula of &&
+				of.getInnerFormulas().length > 0 &&
+				Arrays.stream(of.getInnerFormulas()).allMatch(ScopeContainerFormula.class::isInstance)
+			) {
+				// if the result formula is an OR formula containing only scope containers,
+				// we need to merge their respective super set formulas with the inner formulas
+				return FormulaFactory.or(
+					Arrays.stream(of.getInnerFormulas())
+						.map(ScopeContainerFormula.class::cast)
+						.map(scf -> FormulaFactory.and(
+							this.filterByVisitor.getSuperSetFormula(scf.getScope()),
+							scf
+						))
+						.toArray(Formula[]::new)
+				);
 			} else {
 				// if the index is not queried by other constraints, we need to merge the super set formulas
 				final Set<Scope> scopesNotCovered = EnumSet.noneOf(Scope.class);

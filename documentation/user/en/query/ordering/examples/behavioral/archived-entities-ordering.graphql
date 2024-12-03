@@ -2,8 +2,8 @@
   queryProduct(
     filterBy: {
       scope: [
-        "LIVE",
-        "ARCHIVED"
+        LIVE,
+        ARCHIVED
       ],
       attributeCodeInSet: [
         "alcatel-1s",
@@ -17,7 +17,7 @@
     orderBy: [
       {
         inScope: {
-          scope: "LIVE",
+          scope: LIVE,
           ordering: [
             {
               attributeCodeNatural: DESC

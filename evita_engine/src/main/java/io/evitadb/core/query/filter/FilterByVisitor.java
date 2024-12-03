@@ -570,10 +570,66 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Class<T> postProcessorType,
 		@Nonnull Supplier<T> formulaPostProcessorSupplier
 	) {
-		final T value = formulaPostProcessorSupplier.get();
 		final LinkedHashMap<Class<? extends FormulaPostProcessor>, FormulaPostProcessor> postProcessors = getPostProcessors();
-		postProcessors.put(postProcessorType, value);
-		return value;
+		final FormulaPostProcessor existingPP = postProcessors.get(postProcessorType);
+		if (existingPP == null) {
+			final T pp = formulaPostProcessorSupplier.get();
+			postProcessors.put(postProcessorType, pp);
+			return pp;
+		} else {
+			//noinspection unchecked
+			return (T) existingPP;
+		}
+	}
+
+	/**
+	 * Registers new {@link FormulaPostProcessor} to the list of processors that will be called just before
+	 * IndexFilterByVisitor hands the result of its work to the calling logic.
+	 */
+	public <T extends FormulaPostProcessor> T registerFormulaPostProcessorBefore(
+		@Nonnull Class<T> postProcessorType,
+		@Nonnull Supplier<T> formulaPostProcessorSupplier,
+		@Nonnull Class<? extends FormulaPostProcessor> beforeProcessorType
+	) {
+		final LinkedHashMap<Class<? extends FormulaPostProcessor>, FormulaPostProcessor> postProcessors = getPostProcessors();
+		final FormulaPostProcessor existingPP = postProcessors.get(postProcessorType);
+		if (existingPP == null) {
+			final T pp = formulaPostProcessorSupplier.get();
+			final FormulaPostProcessor beforePP = postProcessors.remove(beforeProcessorType);
+			postProcessors.put(postProcessorType, pp);
+			if (beforePP != null) {
+				postProcessors.put(beforeProcessorType, beforePP);
+			}
+			return pp;
+		} else {
+			//noinspection unchecked
+			return (T) existingPP;
+		}
+	}
+
+	/**
+	 * Registers new {@link FormulaPostProcessor} to the list of processors that will be called just before
+	 * IndexFilterByVisitor hands the result of its work to the calling logic.
+	 */
+	public <T extends FormulaPostProcessor> T registerFormulaPostProcessorAfter(
+		@Nonnull Class<T> postProcessorType,
+		@Nonnull Supplier<T> formulaPostProcessorSupplier,
+		@Nonnull Class<? extends FormulaPostProcessor> afterProcessorType
+	) {
+		final LinkedHashMap<Class<? extends FormulaPostProcessor>, FormulaPostProcessor> postProcessors = getPostProcessors();
+		final FormulaPostProcessor existingPP = postProcessors.get(postProcessorType);
+		if (existingPP == null) {
+			final T pp = formulaPostProcessorSupplier.get();
+			final FormulaPostProcessor afterPP = postProcessors.remove(afterProcessorType);
+			if (afterPP != null) {
+				postProcessors.put(afterProcessorType, afterPP);
+			}
+			postProcessors.put(postProcessorType, pp);
+			return pp;
+		} else {
+			//noinspection unchecked
+			return (T) existingPP;
+		}
 	}
 
 	/**
@@ -876,21 +932,38 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nonnull
 	public Formula getSuperSetFormula(@Nonnull Scope scope) {
-		return this.targetIndexes.stream()
-			.filter(it -> it.getIndexes().stream().anyMatch(index -> index.getIndexKey().scope().equals(scope)))
-			.map(
-				it -> FormulaFactory.or(
-					it.getIndexes()
-						.stream()
-						.filter(EntityIndex.class::isInstance)
-						.map(EntityIndex.class::cast)
-						.map(EntityIndex::getAllPrimaryKeysFormula)
-						.filter(formula -> !(formula instanceof EmptyFormula))
-						.toArray(Formula[]::new)
+		final ProcessingScope<? extends Index<?>> processingScope = getProcessingScope();
+		final boolean indexesInScopeMatch = processingScope.getIndexStream().anyMatch(it -> it.getIndexKey().scope().equals(scope));
+		// prefer indexes i current scope (this is required for ReferencedEntityFetcher and index selection)
+		if (indexesInScopeMatch) {
+			return FormulaFactory.or(
+				processingScope.getIndexStream()
+					.filter(index -> index.getIndexKey().scope().equals(scope))
+					.filter(EntityIndex.class::isInstance)
+					.map(EntityIndex.class::cast)
+					.map(EntityIndex::getAllPrimaryKeysFormula)
+					.filter(formula -> !(formula instanceof EmptyFormula))
+					.toArray(Formula[]::new)
+			);
+		} else {
+			// but fallback to global scope
+			return this.targetIndexes.stream()
+				.filter(it -> it.getIndexes().stream().anyMatch(index -> index.getIndexKey().scope().equals(scope)))
+				.map(
+					it -> FormulaFactory.or(
+						it.getIndexes()
+							.stream()
+							.filter(index -> index.getIndexKey().scope().equals(scope))
+							.filter(EntityIndex.class::isInstance)
+							.map(EntityIndex.class::cast)
+							.map(EntityIndex::getAllPrimaryKeysFormula)
+							.filter(formula -> !(formula instanceof EmptyFormula))
+							.toArray(Formula[]::new)
+					)
 				)
-			)
-			.min(Comparator.comparingLong(Formula::getEstimatedCost))
-			.orElse(EmptyFormula.INSTANCE);
+				.min(Comparator.comparingLong(Formula::getEstimatedCost))
+				.orElse(EmptyFormula.INSTANCE);
+		}
 	}
 
 	/**

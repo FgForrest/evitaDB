@@ -57,6 +57,8 @@ information is also not indexed. So if you tried to calculate facet summary or h
 the archive scope, you'd get an error from the query engine. If you are querying entities in multiple scopes, you should
 use the `inScope` container and limit these calculations to only those scopes where the indexes are prepared:
 
+<LS to="e,j,c,r">
+
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Disginguishing requires in different scopes](/documentation/user/en/query/requirements/examples/behavioral/archived-entities-requirements.evitaql)
@@ -80,12 +82,24 @@ As you can see, the result contains calculations for the data that the engine ca
 </LS>
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[##### The result of requested price histogram only for entities in live scope
+<MDInclude sourceVariable="extraResults.priceHistogram">[##### The result of requested price histogram only for entities in live scope
 ](/documentation/user/en/query/requirements/examples/behavioral/archived-entities-requirements.rest.json.md)</MDInclude>
 
 </LS>
 
 </Note>
+
+</LS>
+<LS to="g">
+
+<Note type="warn">
+
+Using `inScope` constraint container is not supported by the GraphQL API yet. You can check the status of the implementation
+in the issue [#752](https://github.com/FgForrest/evitaDB/issues/752). Otherwise, you can check out other languages/APIs.
+
+</Note>
+
+</LS>
 
 <Note type="info">
 

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
@@ -30,13 +31,22 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescripto
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
+import io.evitadb.api.query.filter.And;
+import io.evitadb.api.query.filter.Not;
+import io.evitadb.api.query.order.AttributeNatural;
+import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -48,782 +58,410 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
  */
 class WrapperObjectKeyTest {
 
-	@Test
-	void shouldEqualsWhenFlatStructure() {
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			)
-		);
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			)
-				.hashCode(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			)
-				.hashCode()
-		);
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			),
-			new WrapperObjectKey(
-				ConstraintType.ORDER,
-				new EntityDataLocator(new ManagedEntityTypePointer("category")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			)
-		);
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			)
-				.hashCode(),
-			new WrapperObjectKey(
-				ConstraintType.ORDER,
-				new EntityDataLocator(new ManagedEntityTypePointer("category")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			)
-				.hashCode()
-		);
+	@ParameterizedTest
+	@MethodSource("equalingFlatStructureKeys")
+	void shouldEqualsWhenFlatStructure(WrapperObjectKey keyA, WrapperObjectKey keyB) {
+		assertEquals(keyA, keyB);
+		assertEquals(keyA.hashCode(), keyB.hashCode());
+		assertEquals(keyA.toHash(), keyB.toHash());
 	}
 
-	@Test
-	void shouldEqualsWhenComplexStructure() {
-		// same properties
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
+	@Nonnull
+	static Stream<Arguments> equalingFlatStructureKeys() {
+		return Stream.of(
+			// comparing same definition
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					List.of(new ValueParameterDescriptor("id", Integer.class, true, false))
 				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					List.of(new ValueParameterDescriptor("id", Integer.class, true, false))
 				)
 			),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
+			// comparing different definitions which same key parts
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					List.of(new ValueParameterDescriptor("id", Integer.class, true, false))
 				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-		);
-		// same properties
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.hashCode(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.hashCode()
-		);
-		// same properties with only child parameter
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of()
-			),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of()
-			)
-		);
-		// same properties with only child parameter
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of()
-			)
-				.hashCode(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of()
-			)
-				.hashCode()
-		);
-		// same properties with only additional child parameter
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-		);
-		// same properties with only additional child parameter
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.hashCode(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.hashCode()
-		);
-		// dynamic child domain with same data locator
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-		);
-		// dynamic additional child domain with same data locator
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET)
-				)
-			),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET)
+				new WrapperObjectKey(
+					ConstraintType.ORDER,
+					new EntityDataLocator(new ManagedEntityTypePointer("category")),
+					List.of(new ValueParameterDescriptor("id", Integer.class, true, false))
 				)
 			)
 		);
 	}
 
-	@Test
-	void shouldNotEqualsWhenComplexStructure() {
-		// different data locator
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
+	@ParameterizedTest
+	@MethodSource("equalingComplexStructureKeys")
+	void shouldEqualsWhenComplexStructure(WrapperObjectKey keyA, WrapperObjectKey keyB) {
+		assertEquals(keyA, keyB);
+		assertEquals(keyA.hashCode(), keyB.hashCode());
+		assertEquals(keyA.toHash(), keyB.toHash());
+	}
+
+	@Nonnull
+	static Stream<Arguments> equalingComplexStructureKeys() {
+		return Stream.of(
+			// same properties
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+					)
 				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+					)
 				)
 			),
-			new WrapperObjectKey(
-				ConstraintType.ORDER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
+			// same properties with only child parameter
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					Map.of()
 				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-		);
-		// different data locator
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.hashCode(),
-			new WrapperObjectKey(
-				ConstraintType.ORDER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.hashCode()
-		);
-		// different parameters
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of()
-			)
-		);
-		// different parameters
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			)
-				.hashCode(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of()
-			)
-				.hashCode()
-		);
-		// different children parameters
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of()
-			),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(),
-				List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT))
-			)
-		);
-		// different children parameters
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of()
-			)
-				.hashCode(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(),
-				List.of(),
-				List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT))
-			)
-				.hashCode()
-		);
-		// dynamic child domain with different data locator
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					Map.of()
 				)
 			),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
+			// same properties with only additional child parameter
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					Map.of(),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+					)
 				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-		);
-		// dynamic additional child domain with different data locator
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET)
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					Map.of(),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+					)
 				)
 			),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
+			// dynamic child domain with same data locator
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+					)
 				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+					)
+				)
+			),
+			// dynamic additional child domain with same data locator
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET)
+					)
 				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET)
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET)
+					)
+				)
+			),
+			// same properties with global constraint settings
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("filtering", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of()),
+						Set.of(And.class), Set.of(Not.class)
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT),
+						Set.of(AttributeNatural.class), Set.of(PriceNatural.class)
+					)
+				),
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("filtering", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of()),
+						Set.of(And.class), Set.of(Not.class)
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT),
+						Set.of(AttributeNatural.class), Set.of(PriceNatural.class)
+					)
 				)
 			)
 		);
 	}
 
-	@Test
-	void shouldGenerateSameHashes() {
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
+	@ParameterizedTest
+	@MethodSource("notEqualingComplexStructureKeys")
+	void shouldNotEqualsWhenComplexStructure(WrapperObjectKey keyA, WrapperObjectKey keyB) {
+		assertNotEquals(keyA, keyB);
+		assertNotEquals(keyA.hashCode(), keyB.hashCode());
+		assertNotEquals(keyA.toHash(), keyB.toHash());
+	}
+
+	@Nonnull
+	static Stream<Arguments> notEqualingComplexStructureKeys() {
+		return Stream.of(
+			// different data locator
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+					)
 				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+				new WrapperObjectKey(
+					ConstraintType.ORDER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+					)
+				)
+			),
+			// different parameters
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					)
 				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					Map.of()
+				)
+			),
+			// different children parameters
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					Map.of()
+				),
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					Map.of(),
+					constructAdditionalChildParameterForKey(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT))
+				)
+			),
+			// dynamic child domain with different data locator
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new HierarchyDataLocator(new ManagedEntityTypePointer("product")),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+					)
+				),
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
+					)
+				)
+			),
+			// dynamic additional child domain with different data locator
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new HierarchyDataLocator(new ManagedEntityTypePointer("product")),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET)
+					)
+				),
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
+					List.of(
+						new ValueParameterDescriptor("id", Integer.class, true, false)
+					),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET)
+					)
+				)
+			),
+			// same properties with different global constraint settings
+			Arguments.of(
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("filtering", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of()),
+						Set.of(And.class), Set.of()
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT),
+						Set.of(AttributeNatural.class), Set.of(PriceNatural.class)
+					)
+				),
+				new WrapperObjectKey(
+					ConstraintType.FILTER,
+					new EntityDataLocator(new ManagedEntityTypePointer("product")),
+					constructChildParameterForKey(
+						new ChildParameterDescriptor("filtering", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of()),
+						Set.of(And.class), Set.of(Not.class)
+					),
+					constructAdditionalChildParameterForKey(
+						new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT),
+						Set.of(AttributeNatural.class), Set.of()
+					)
 				)
 			)
-				.toHash(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash()
-		);
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			)
-				.toHash(),
-			new WrapperObjectKey(
-				ConstraintType.ORDER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(),
-				List.of()
-			)
-				.toHash()
-		);
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash()
-		);
-		// resolved to same child domain
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("name", String.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("name", String.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.ENTITY, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash()
-		);
-		// resolved to same additional child domain
-		assertEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("name", String.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("name", String.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.ENTITY)
-				)
-			)
-				.toHash()
 		);
 	}
 
-	@Test
-	void shouldNotGenerateSameHashes() {
-		// different value parameter name
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("name", String.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash()
-		);
-		// different data locator
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash(),
-			new WrapperObjectKey(
-				ConstraintType.ORDER,
-				new EntityDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("id", Integer.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash()
-		);
+	@Nonnull
+	private static Map<ChildParameterDescriptor, AllowedConstraintPredicate> constructChildParameterForKey(
+		@Nonnull ChildParameterDescriptor childParameter
+	) {
+		return constructChildParameterForKey(childParameter, Set.of(), Set.of());
+	}
 
-		// dynamic child domain
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("name", String.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
-				List.of(
-					new ValueParameterDescriptor("name", String.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.DEFAULT)
-				)
-			)
-				.toHash()
+	@Nonnull
+	private static Map<ChildParameterDescriptor, AllowedConstraintPredicate> constructChildParameterForKey(
+		@Nonnull ChildParameterDescriptor childParameter,
+		@Nonnull Set<Class<? extends Constraint<?>>> globallyAllowedConstraints,
+		@Nonnull Set<Class<? extends Constraint<?>>> globallyForbiddenConstraints
+	) {
+		return Map.of(
+			childParameter,
+			new AllowedConstraintPredicate(childParameter, globallyAllowedConstraints, globallyForbiddenConstraints)
 		);
-		// dynamic additional child domain
-		assertNotEquals(
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product")),
-				List.of(
-					new ValueParameterDescriptor("name", String.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET)
-				)
-			)
-				.toHash(),
-			new WrapperObjectKey(
-				ConstraintType.FILTER,
-				new HierarchyDataLocator(new ManagedEntityTypePointer("product"), "category"),
-				List.of(
-					new ValueParameterDescriptor("name", String.class, true, false)
-				),
-				List.of(
-					new ChildParameterDescriptor("with", FilterConstraint.class, true, ConstraintDomain.DEFAULT, false, Set.of(), Set.of())
-				),
-				List.of(
-					new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true, ConstraintDomain.HIERARCHY_TARGET)
-				)
-			)
-				.toHash()
+	}
+
+	@Nonnull
+	private static Map<AdditionalChildParameterDescriptor, AllowedConstraintPredicate> constructAdditionalChildParameterForKey(
+		@Nonnull AdditionalChildParameterDescriptor additionalChildParameter
+	) {
+		return constructAdditionalChildParameterForKey(additionalChildParameter, Set.of(), Set.of());
+	}
+
+	@Nonnull
+	private static Map<AdditionalChildParameterDescriptor, AllowedConstraintPredicate> constructAdditionalChildParameterForKey(
+		@Nonnull AdditionalChildParameterDescriptor additionalChildParameter,
+		@Nonnull Set<Class<? extends Constraint<?>>> globallyAllowedConstraints,
+		@Nonnull Set<Class<? extends Constraint<?>>> globallyForbiddenConstraints
+	) {
+		return Map.of(
+			additionalChildParameter,
+			new AllowedConstraintPredicate(additionalChildParameter, globallyAllowedConstraints, globallyForbiddenConstraints)
 		);
 	}
 }
