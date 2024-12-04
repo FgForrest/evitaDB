@@ -30,10 +30,12 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.List;
 import java.util.Set;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
@@ -73,6 +75,39 @@ public class FilteringFormulaPredicate implements IntPredicate {
 					requestedScopes,
 					filterBy,
 					entityType,
+					stepDescriptionSupplier
+				),
+				(executionContext, formula) -> {
+					try {
+						executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+						return formula.compute();
+					} finally {
+						executionContext.popStep();
+					}
+				}
+			)
+		);
+		// we need to initialize formula immediately with new execution context - the results are needed in planning phase already
+		this.filteringFormula.initialize(queryContext.getInternalExecutionContext());
+	}
+
+	public FilteringFormulaPredicate(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull List<GlobalEntityIndex> indexes,
+		@Nonnull FilterBy filterBy,
+		@Nonnull Supplier<String> stepDescriptionSupplier
+	) {
+		this.filterBy = filterBy;
+		// create a deferred formula that will log the execution time to query telemetry
+		this.filteringFormula = new DeferredFormula(
+			new FormulaWrapper(
+				createFormulaForTheFilter(
+					queryContext,
+					GlobalEntityIndex.class,
+					indexes,
+					filterBy,
+					null,
+					null,
 					stepDescriptionSupplier
 				),
 				(executionContext, formula) -> {

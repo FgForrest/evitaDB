@@ -232,7 +232,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
 					"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
 			);
-		} else if (!referenceSchema.isReferencedGroupTypeManaged()) {
+		} else if (referenceSchema.getReferencedGroupType() == null || !referenceSchema.isReferencedGroupTypeManaged()) {
 			return null;
 		}
 
