@@ -294,6 +294,41 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
+		return createFormulaForTheFilter(
+			queryContext,
+			GlobalEntityIndex.class,
+			// now analyze the filter by in a nested context with exchanged primary entity index
+			requestedScopes
+				.stream()
+				.flatMap(scope -> queryContext.getGlobalEntityIndexIfExists(entityType, scope).stream())
+				.toList(),
+			filterBy,
+			rootFilterBy,
+			queryContext.getSchema(entityType),
+			stepDescriptionSupplier
+		);
+	}
+
+	/**
+	 * Method creates a new formula that looks for entity primary keys in global index of `entityType` collection that
+	 * match the `filterBy` constraint.
+	 *
+	 * @param queryContext            used for accessing global index, global cache and recording query telemetry
+	 * @param filterBy                the filter constraints the entities must match
+	 * @param entitySchema            the entity schema of the entity that is looked up
+	 * @param stepDescriptionSupplier the message supplier for the query telemetry
+	 * @return output {@link Formula} that is able to produce the matching entity primary keys
+	 */
+	@Nonnull
+	public static <T extends EntityIndex> Formula createFormulaForTheFilter(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Class<T> indexType,
+		@Nonnull List<T> indexesToUse,
+		@Nonnull FilterBy filterBy,
+		@Nullable FilterBy rootFilterBy,
+		@Nullable EntitySchemaContract entitySchema,
+		@Nonnull Supplier<String> stepDescriptionSupplier
+	) {
 		final Formula theFormula;
 		try {
 			queryContext.pushStep(
@@ -308,23 +343,19 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			);
 
 			// now analyze the filter by in a nested context with exchanged primary entity index
-			final List<GlobalEntityIndex> globalIndexesToUse = requestedScopes
-				.stream()
-				.flatMap(scope -> queryContext.getGlobalEntityIndexIfExists(entityType, scope).stream())
-				.toList();
-			if (globalIndexesToUse.isEmpty()) {
+			if (indexesToUse.isEmpty()) {
 				return EmptyFormula.INSTANCE;
 			} else {
 				theFormula = queryContext.analyse(
 					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
-						GlobalEntityIndex.class,
-						() -> globalIndexesToUse,
+						indexType,
+						() -> indexesToUse,
 						null,
-						queryContext.getSchema(entityType),
+						entitySchema,
 						null,
 						null,
 						null,
-						new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
+						new AttributeSchemaAccessor(queryContext.getCatalogSchema(), entitySchema),
 						(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 						() -> {
 							// initialize root constraint for the execution
@@ -974,7 +1005,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Class<S> indexType,
 		@Nonnull Supplier<List<S>> targetIndexSupplier,
 		@Nullable EntityContentRequire requirements,
-		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
@@ -1060,7 +1091,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Class<S> indexType,
 		@Nonnull Supplier<List<S>> targetIndexSupplier,
 		@Nullable EntityContentRequire requirements,
-		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
@@ -1530,7 +1561,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			@Nonnull Supplier<List<T>> targetIndexSupplier,
 			@Nonnull Set<Scope> requiredScopes,
 			@Nullable EntityContentRequire requirements,
-			@Nonnull EntitySchemaContract entitySchema,
+			@Nullable EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
 			@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
 			@Nullable EntityNestedQueryComparator entityNestedQueryComparator,

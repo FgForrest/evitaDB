@@ -77,6 +77,7 @@ import io.evitadb.index.IndexKey;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -824,13 +825,22 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 									referencedGroupType != null,
 									() -> "Referenced group type must be defined for facet group conjunction of `" + referenceName + "`!"
 								);
-								return new FilteringFormulaPredicate(
-									this,
-									getScopes(),
-									filterBy,
-									referencedGroupType,
-									() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
-								);
+								if (referenceSchema.isReferencedGroupTypeManaged()) {
+									return new FilteringFormulaPredicate(
+										this,
+										getScopes(),
+										filterBy,
+										referencedGroupType,
+										() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+									);
+								} else {
+									return new FilteringFormulaPredicate(
+										this,
+										getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
+										filterBy,
+										() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+									);
+								}
 							}
 						)
 						.test(groupId);
@@ -839,6 +849,37 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				return true;
 			}
 		}
+	}
+
+	/**
+	 * Creates a list of global entity indexes for the given non-managed entity type. Global indexes contains only
+	 * primary keys of groups retrieved from {@link FacetIndex} of the given reference.
+	 *
+	 * @param referenceName name of the reference to retrieve groups from
+	 * @param referencedGroupType type of the referenced group
+	 * @return list of fake global entity indexes
+	 */
+	@Nonnull
+	private List<GlobalEntityIndex> getThrowingGlobalIndexesForNonManagedEntityTypeGroup(
+		@Nonnull String referenceName,
+		@Nonnull String referencedGroupType
+	) {
+		return getScopes().stream()
+			.map(scope -> {
+				final Optional<Index<EntityIndexKey>> refTypeIndex = getIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
+				return refTypeIndex
+					.map(GlobalEntityIndex.class::cast)
+					.map(index -> index.getFacetingEntities().get(referenceName))
+					.map(facetIndex -> GlobalEntityIndex.createThrowingStub(
+							referencedGroupType,
+							new EntityIndexKey(EntityIndexType.GLOBAL, scope),
+							facetIndex.getGroupsAsMap().keySet()
+						)
+					)
+					.orElse(null);
+			})
+			.filter(Objects::nonNull)
+			.toList();
 	}
 
 	/**
@@ -865,13 +906,22 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 								referencedGroupType != null,
 								() -> "Referenced group type must be defined for facet group disjunction of `" + referenceName + "`!"
 							);
-							return new FilteringFormulaPredicate(
-								this,
-								getScopes(),
-								filterBy,
-								referencedGroupType,
-								() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
-							);
+							if (referenceSchema.isReferencedGroupTypeManaged()) {
+								return new FilteringFormulaPredicate(
+									this,
+									getScopes(),
+									filterBy,
+									referencedGroupType,
+									() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+								);
+							} else {
+								return new FilteringFormulaPredicate(
+									this,
+									getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
+									filterBy,
+									() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+								);
+							}
 						}
 					).test(groupId);
 				}
@@ -905,13 +955,22 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 								referencedGroupType != null,
 								() -> "Referenced group type must be defined for facet group negation of `" + referenceName + "`!"
 							);
-							return new FilteringFormulaPredicate(
-								this,
-								getScopes(),
-								filterBy,
-								referencedGroupType,
-								() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
-							);
+							if (referenceSchema.isReferencedGroupTypeManaged()) {
+								return new FilteringFormulaPredicate(
+									this,
+									getScopes(),
+									filterBy,
+									referencedGroupType,
+									() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+								);
+							} else {
+								return new FilteringFormulaPredicate(
+									this,
+									getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
+									filterBy,
+									() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+								);
+							}
 						}
 					).test(groupId);
 				}
