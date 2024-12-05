@@ -135,7 +135,7 @@
 		<grpc.version>1.68.1</grpc.version>
 		<bouncyCastle.version>1.78</bouncyCastle.version>
 		<swagger.version>2.2.25</swagger.version>
-		<armeria.version>1.31.0</armeria.version>
+		<armeria.version>1.31.2</armeria.version>
 		<!-- we should keep this in sync with armeria -->
 		<netty.version>4.1.115.Final</netty.version>
 		<prometheus.version>1.3.3</prometheus.version>

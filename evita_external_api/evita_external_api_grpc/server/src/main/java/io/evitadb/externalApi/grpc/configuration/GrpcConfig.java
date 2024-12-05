@@ -38,10 +38,10 @@ import static java.util.Optional.ofNullable;
 
 /**
  * gRPC API specific configuration.
- * Currently, we're not able to set prefix for gRPC API and share port with other APIs.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Slf4j
 public class GrpcConfig extends AbstractApiConfiguration {
 
 	private static final String BASE_GRPC_PATH = "";

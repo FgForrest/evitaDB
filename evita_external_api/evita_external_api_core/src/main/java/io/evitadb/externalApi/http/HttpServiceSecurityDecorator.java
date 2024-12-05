@@ -106,14 +106,14 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		for (int i = 0; i < peak; i++) {
 			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
 				if (schemes[i] == null || scheme.equals(schemes[i])) {
-					if (mtlsConfiguration.enabled() && SCHEME_HTTPS.equals(scheme)) {
+					if (Boolean.TRUE.equals(mtlsConfiguration.enabled()) && SCHEME_HTTPS.equals(scheme)) {
 						final Set<X509Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration);
 						try {
 							final SSLSession sslSession = ctx.sslSession();
 							if (sslSession == null) {
 								return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
 							}
-							final Certificate[] clientCerts = ctx.sslSession().getPeerCertificates();
+							final Certificate[] clientCerts = sslSession.getPeerCertificates();
 							if (clientCerts.length == 0) {
 								return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
 							}

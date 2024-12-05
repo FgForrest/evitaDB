@@ -67,10 +67,15 @@ public class CertificatesLoader {
 	private final CertificatePath certificatePath;
 
 	public LoadedCertificates reinitialize() {
+		final String certificateFile = certificatePath.certificate();
+		if (certificateFile == null) {
+			throw new EvitaInvalidUsageException("Certificate file path is not set.");
+		}
+		log.info("Reinitializing certificates.");
 		try {
 			final TlsKeyPair tlsKeyPair = TlsKeyPair.of(
 				loadPrivateKey(certificatePath),
-				loadCertificate(certificateFactory, certificatePath.certificate())
+				loadCertificate(certificateFactory, certificateFile)
 			);
 
 			final List<X509Certificate> trustedCertificates = new ArrayList<>(clientAllowedCertificates.size());
