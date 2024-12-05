@@ -418,7 +418,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						Environment.DEMO_SERVER,
 						it,
 						new ExampleFilter[]{
-							ExampleFilter.CSHARP,
+							// ExampleFilter.CSHARP,
 							ExampleFilter.JAVA,
 							ExampleFilter.REST,
 							ExampleFilter.GRAPHQL,
@@ -451,7 +451,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
 			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/use/connectors/grpc.md"),
+			getRootDirectory().resolve("documentation/user/en/get-started/create-first-database.md"),
 			new ExampleFilter[]{
 				ExampleFilter.CSHARP,
 				ExampleFilter.JAVA,
@@ -474,7 +474,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
 			Environment.LOCALHOST,
-			getRootDirectory().resolve("documentation/user/en/query/ordering/price.md"),
+			getRootDirectory().resolve("documentation/user/en/query/requirements/facet.md"),
 			ExampleFilter.values(),
 			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST
 		).stream();

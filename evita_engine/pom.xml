@@ -78,6 +78,10 @@
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
+			<groupId>one.edee.oss</groupId>
+			<artifactId>proxycian_bytebuddy</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>com.carrotsearch</groupId>
 			<artifactId>hppc</artifactId>
 		</dependency>

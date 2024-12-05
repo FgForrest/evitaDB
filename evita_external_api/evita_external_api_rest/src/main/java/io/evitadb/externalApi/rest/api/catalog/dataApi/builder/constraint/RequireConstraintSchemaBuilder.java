@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
@@ -62,6 +63,7 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,
 		FacetGroupsNegation.class,
+		RequireInScope.class,
 		Page.class,
 		Spacing.class,
 		SpacingGap.class,

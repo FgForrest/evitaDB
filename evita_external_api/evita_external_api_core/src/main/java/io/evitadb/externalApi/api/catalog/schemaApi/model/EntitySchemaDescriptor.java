@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -77,6 +78,17 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 		.type(nonNull(Boolean.class))
 		.build();
 
+	PropertyDescriptor HIERARCHY_INDEXED = PropertyDescriptor.builder()
+		.name("hierarchyIndexed")
+		.description("""
+			Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+			extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+			can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+			(calculating parent chain, children, siblings, etc.).
+			""")
+		.type(nonNull(Scope[].class))
+		.build();
+
 	PropertyDescriptor WITH_PRICE = PropertyDescriptor.builder()
 		.name("withPrice")
 		.description("""
@@ -93,6 +105,19 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			`priceHistogram` and requirement `priceType` can be used in query as well.
 			""")
 		.type(nonNull(Boolean.class))
+		.build();
+
+	PropertyDescriptor PRICE_INDEXED = PropertyDescriptor.builder()
+		.name("priceIndexed")
+		.description("""
+			Returns set of all scopes the price information is indexed in and can be used for filtering entities and computation
+			of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+			can define its price), but it is not possible to work with the price information in any other way (calculating
+			price histogram, filtering, sorting by price, etc.).
+			
+			Prices can be also set as non-indexed individually by setting indexed property on price to false.
+			""")
+		.type(nonNull(Scope[].class))
 		.build();
 
 	PropertyDescriptor INDEXED_PRICE_PLACES = PropertyDescriptor.builder()
@@ -279,7 +304,9 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			DEPRECATION_NOTICE,
 			WITH_GENERATED_PRIMARY_KEY,
 			WITH_HIERARCHY,
+			HIERARCHY_INDEXED,
 			WITH_PRICE,
+			PRICE_INDEXED,
 			INDEXED_PRICE_PLACES,
 			LOCALES,
 			CURRENCIES,
@@ -314,7 +341,9 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			DEPRECATION_NOTICE,
 			WITH_GENERATED_PRIMARY_KEY,
 			WITH_HIERARCHY,
+			HIERARCHY_INDEXED,
 			WITH_PRICE,
+			PRICE_INDEXED,
 			INDEXED_PRICE_PLACES,
 			LOCALES,
 			CURRENCIES,

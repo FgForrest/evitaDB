@@ -134,8 +134,8 @@ public class EntityJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeEntityClassifier(@Nonnull EntityClassifier entity) {
 		final ObjectNode rootNode = objectJsonSerializer.objectNode();
-		rootNode.put(RestEntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey());
-		rootNode.put(RestEntityDescriptor.TYPE.name(), entity.getType());
+		rootNode.put(RestEntityDescriptor.PRIMARY_KEY.name(), objectJsonSerializer.serializeObject(entity.getPrimaryKey()));
+		rootNode.put(RestEntityDescriptor.TYPE.name(), objectJsonSerializer.serializeObject(entity.getType()));
 		return rootNode;
 	}
 
@@ -145,7 +145,8 @@ public class EntityJsonSerializer {
 	private void serializeEntityBody(@Nonnull EntitySerializationContext ctx,
 	                                 @Nonnull ObjectNode rootNode,
 	                                 @Nonnull EntityDecorator entity) {
-		rootNode.put(RestEntityDescriptor.VERSION.name(), entity.version());
+		rootNode.put(RestEntityDescriptor.VERSION.name(), objectJsonSerializer.serializeObject(entity.version()));
+		rootNode.put(RestEntityDescriptor.SCOPE.name(), objectJsonSerializer.serializeObject(entity.getScope()));
 
 		if (entity.parentAvailable()) {
 			entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serializeSingleEntity(ctx, parent)));

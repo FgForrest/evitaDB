@@ -23,13 +23,11 @@
 
 package io.evitadb.core.query.filter.translator.price;
 
-import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -42,7 +40,6 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.price.alternative.SellingPriceAvailableBitmapFilter;
 import io.evitadb.core.query.sort.price.translator.PriceDiscountTranslator;
 import io.evitadb.function.TriFunction;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -63,19 +60,13 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull PriceValidIn priceValidIn, @Nonnull FilterByVisitor filterByVisitor) {
-		if (filterByVisitor.isEntityTypeKnown()) {
-			final EntitySchemaContract schema = filterByVisitor.getSchema();
-			Assert.isTrue(
-				schema.isWithPrice(),
-				() -> new EntityHasNoPricesException(schema.getName())
-			);
-		}
-
 		// if there are any more specific constraints - skip itself
 		//noinspection unchecked
 		if (filterByVisitor.isAnyConstraintPresentInConjunctionScopeExcludingUserFilter(PriceBetween.class)) {
 			return SkipFormula.INSTANCE;
 		} else {
+			verifyEntityPricesAreIndexed(filterByVisitor);
+
 			final OffsetDateTime theMoment = priceValidIn.getTheMoment(filterByVisitor::getNow);
 			final String[] priceLists = ofNullable(filterByVisitor.findInConjunctionTree(PriceInPriceLists.class))
 				.map(PriceInPriceLists::getPriceLists)

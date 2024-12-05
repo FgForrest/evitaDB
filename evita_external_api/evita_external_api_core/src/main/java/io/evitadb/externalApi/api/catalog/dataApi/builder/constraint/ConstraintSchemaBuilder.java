@@ -47,6 +47,7 @@ import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.*;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -116,11 +117,11 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	/**
 	 * Globally allowed constraints. Child constraints must fit into this set to be allowed.
 	 */
-	@Nonnull private final Set<Class<? extends Constraint<?>>> allowedConstraints;
+	@Nonnull @Getter private final Set<Class<? extends Constraint<?>>> allowedConstraints;
 	/**
 	 * Globally forbidden constraints. Forbidden child constraints are merged with global ones.
 	 */
-	@Nonnull private final Set<Class<? extends Constraint<?>>> forbiddenConstraints;
+	@Nonnull @Getter private final Set<Class<? extends Constraint<?>>> forbiddenConstraints;
 
 	protected ConstraintSchemaBuilder(@Nonnull CTX sharedContext,
 	                                  @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintSchemaBuilder<CTX, SIMPLE_TYPE, OBJECT_TYPE, OBJECT_FIELD>>> additionalBuilders,
@@ -137,8 +138,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		this.keyBuilder = new ConstraintKeyBuilder();
 		this.dataLocatorResolver = new DataLocatorResolver(sharedContext.getCatalog().getSchema());
 		this.additionalBuilders = additionalBuilders;
-		this.allowedConstraints = allowedConstraints;
-		this.forbiddenConstraints = forbiddenConstraints;
+		this.allowedConstraints = Collections.unmodifiableSet(allowedConstraints);
+		this.forbiddenConstraints = Collections.unmodifiableSet(forbiddenConstraints);
 	}
 
 	/**
@@ -221,14 +222,6 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	}
 
 	/**
-	 * Returns predicate filtering allowed child constraints restricted by globally allowed and forbidden constraints.
-	 */
-	@Nonnull
-	protected AllowedConstraintPredicate getAllowedChildrenPredicate(@Nonnull ChildParameterDescriptor childParameter) {
-		return new AllowedConstraintPredicate(childParameter, allowedConstraints, forbiddenConstraints);
-	}
-
-	/**
 	 * Filters found attribute schema to filter out those which are not relevant for this builder.
 	 */
 	@Nonnull
@@ -243,7 +236,11 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	@Nonnull
 	protected SIMPLE_TYPE obtainContainer(@Nonnull ConstraintBuildContext buildContext,
 	                                      @Nonnull ChildParameterDescriptor childParameter) {
-		final AllowedConstraintPredicate allowedChildrenPredicate = getAllowedChildrenPredicate(childParameter);
+		final AllowedConstraintPredicate allowedChildrenPredicate = new AllowedConstraintPredicate(
+			childParameter,
+			allowedConstraints,
+			forbiddenConstraints
+		);
 
 		final ContainerKey containerKey = new ContainerKey(
 			getConstraintType(),
@@ -540,7 +537,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		fields.addAll(
 			referenceSchemas
 				.stream()
-				.filter(ReferenceSchemaContract::isIndexed)
+				.filter(ReferenceSchemaContract::isIndexedInAnyScope)
 				.flatMap(referenceSchema -> {
 					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
 						buildContext.switchToChildContext(new ReferenceDataLocator(
@@ -694,7 +691,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		fields.addAll(
 			referenceSchemas
 				.stream()
-				.filter(ReferenceSchemaContract::isFaceted)
+				.filter(ReferenceSchemaContract::isFacetedInAnyScope)
 				.flatMap(facetSchema -> {
 					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder =
 						constraintDescriptor -> buildFieldFromConstraintDescriptor(
@@ -885,15 +882,25 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	@Nonnull
 	protected SIMPLE_TYPE obtainWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                         @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                         @Nullable List<ChildParameterDescriptor> childParameters,
+	                                                         @Nonnull List<ChildParameterDescriptor> childParameters,
 	                                                         @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                         @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final WrapperObjectKey wrapperObjectKey = new WrapperObjectKey(
 			getConstraintType(),
 			buildContext.dataLocator(),
 			valueParameters,
-			childParameters,
-			additionalChildParameters
+			childParameters.stream().collect(Collectors.toMap(
+				Function.identity(),
+				childParameter -> new AllowedConstraintPredicate(childParameter, allowedConstraints, forbiddenConstraints)
+			)),
+			additionalChildParameters.stream().collect(Collectors.toMap(
+				Function.identity(),
+				additionalChildParameter -> {
+					final AtomicReference<? extends ConstraintSchemaBuilder<CTX, SIMPLE_TYPE, OBJECT_TYPE, OBJECT_FIELD>> builder =
+						additionalBuilders.get(additionalChildParameter.constraintType());
+					return new AllowedConstraintPredicate(additionalChildParameter, builder.get().getAllowedConstraints(), builder.get().getForbiddenConstraints());
+				}
+			))
 		);
 
 		// reuse already build wrapper object with same parameters
@@ -923,7 +930,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	protected abstract SIMPLE_TYPE buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                                 @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                                 @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                                 @Nullable List<ChildParameterDescriptor> childParameters,
+	                                                                 @Nonnull List<ChildParameterDescriptor> childParameters,
 	                                                                 @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                                 @Nullable ValueTypeSupplier valueTypeSupplier);
 

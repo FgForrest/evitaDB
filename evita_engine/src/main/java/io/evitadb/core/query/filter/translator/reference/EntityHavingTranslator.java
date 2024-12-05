@@ -48,13 +48,17 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
+import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -132,7 +136,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull EntityHaving entityHaving, @Nonnull FilterByVisitor filterByVisitor) {
-		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchema();
+		final EntitySchemaContract entitySchema = Objects.requireNonNull(filterByVisitor.getProcessingScope().getEntitySchema());
 		final ReferenceSchemaContract referenceSchema = filterByVisitor.getReferenceSchema()
 			.orElseThrow(() -> new EvitaInvalidUsageException(
 					"Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
@@ -167,14 +171,21 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 						processingScope.getIndexes(),
 						filterConstraint,
 						() -> {
+							if (nestedResult.globalIndex() == null) {
+								return EmptyFormula.INSTANCE;
+							}
 							final ReferenceOwnerTranslatingFormula outputFormula = new ReferenceOwnerTranslatingFormula(
 								nestedResult.globalIndex(),
 								nestedResult.filter(),
 								it -> {
 									// leave the return here, so that we can easily debug it
-									return filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it)
-										.map(EntityIndex::getAllPrimaryKeys)
-										.orElse(EmptyBitmap.INSTANCE);
+									final RoaringBitmap combinedResult = RoaringBitmap.or(
+										filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it)
+											.map(EntityIndex::getAllPrimaryKeys)
+											.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
+											.toArray(RoaringBitmap[]::new)
+									);
+									return combinedResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(combinedResult);
 								}
 							);
 							return new DeferredFormula(

@@ -25,8 +25,6 @@ package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
@@ -41,12 +39,14 @@ import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeComparisonTranslator.createAlternativeBitmapFilter;
@@ -80,20 +80,16 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		return new AttributeFormula(
 			true,
 			attributeKey,
-			filterByVisitor.applyOnGlobalUniqueIndex(
+			filterByVisitor.applyOnFirstGlobalUniqueIndex(
 				globalAttributeSchema,
-				index -> {
-					final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue(
-						comparedValue, attributeKey.locale()
-					);
-					//noinspection unchecked
-					return entityReference == null ?
-						EmptyFormula.INSTANCE :
-						new MultipleEntityFormula(
+				index -> index.getEntityReferenceByUniqueValue(comparedValue, attributeKey.locale())
+					.map(
+						it -> (Formula) new MultipleEntityFormula(
 							new long[]{index.getId()},
-							filterByVisitor.translateEntityReference(entityReference)
-						);
-				}
+							filterByVisitor.translateEntityReference(it)
+						)
+					)
+					.orElse(EmptyFormula.INSTANCE)
 			)
 		);
 	}
@@ -118,7 +114,7 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		return new AttributeFormula(
 			attributeDefinition instanceof GlobalAttributeSchemaContract,
 			attributeKey,
-			filterByVisitor.applyOnUniqueIndexes(
+			filterByVisitor.applyOnFirstUniqueIndex(
 				attributeDefinition, index -> {
 					final Integer recordId = index.getRecordIdByUniqueValue(comparedValue);
 					return ofNullable(recordId)
@@ -160,9 +156,10 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 	public Formula translate(@Nonnull AttributeEquals attributeEquals, @Nonnull FilterByVisitor filterByVisitor) {
 		final String attributeName = attributeEquals.getAttributeName();
 		final Serializable attributeValue = attributeEquals.getAttributeValue();
-		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
+		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+			final Set<Scope> scopes = filterByVisitor.getScopes();
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
@@ -173,11 +170,11 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			final Serializable comparedValue = normalizer.apply(EvitaDataTypes.toTargetType(attributeValue, plainType));
 
 			if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
-				globalAttributeSchema.isUniqueGlobally()) {
+				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)) {
 				return createGloballyUniqueAttributeFormula(
 					filterByVisitor, globalAttributeSchema, attributeKey, comparedValue
 				);
-			} else if (attributeDefinition.isUnique()) {
+			} else if (scopes.stream().anyMatch(attributeDefinition::isUniqueInScope)) {
 				return createUniqueAttributeFormula(
 					filterByVisitor, attributeDefinition, attributeKey, comparedValue
 				);

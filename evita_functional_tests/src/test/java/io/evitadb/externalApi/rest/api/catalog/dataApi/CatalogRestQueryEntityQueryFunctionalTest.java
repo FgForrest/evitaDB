@@ -49,6 +49,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
@@ -81,18 +82,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -105,6 +104,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 	private static final String DATA_PATH = ResponseDescriptor.RECORD_PAGE.name() + ".data";
 	private static final String HIERARCHY_EXTRA_RESULTS_PATH = ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
+	private static final String PRICE_HISTOGRAM_RESULTS_PATH = ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name();
 
 	private static final String SELF_HIERARCHY_EXTRA_RESULTS_PATH = HIERARCHY_EXTRA_RESULTS_PATH + "." + HierarchyDescriptor.SELF.name();
 	public static final String SELF_MEGA_MENU_PATH = SELF_HIERARCHY_EXTRA_RESULTS_PATH + ".megaMenu";
@@ -139,8 +139,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/PRODUCT/query")
-			.httpMethod(Request.METHOD_POST)
+			.post("/PRODUCT/query")
 			.requestBody("""
                     {
 						"filterBy": {
@@ -158,6 +157,370 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return archived entities")
+	void shouldReturnArchivedEntities(Evita evita, RestTester tester) {
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 2),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntities = archivedEntities.stream()
+			.map(entity -> createEntityDto(new EntityReference(entity.getType(), entity.getPrimaryKey())))
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/query")
+			.requestBody(
+				"""
+	                {
+						"filterBy": {
+						    "entityPrimaryKeyInSet": [%d, %d],
+						    "scope": ["ARCHIVED"]
+						}
+					}
+					""",
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return both live and archived entities explicitly")
+	void shouldReturnBothLiveAndArchivedEntitiesExplicitly(Evita evita, RestTester tester) {
+		final List<SealedEntity> liveEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.LIVE)
+				),
+				require(
+					page(1, 2),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 2),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntities = Stream.concat(liveEntities.stream(), archivedEntities.stream())
+			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))
+			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/query")
+			.requestBody(
+				"""
+	                {
+						"filterBy": {
+						    "entityPrimaryKeyInSet": [%d, %d, %d, %d],
+						    "scope": ["LIVE", "ARCHIVED"]
+						}
+					}
+					""",
+				liveEntities.get(0).getPrimaryKey(),
+				liveEntities.get(1).getPrimaryKey(),
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should not return archived entity without scope")
+	void shouldNotReturnArchivedEntityWithoutScope(Evita evita, RestTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 1),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/query")
+			.requestBody(
+				"""
+	                {
+						"filterBy": {
+						    "entityPrimaryKeyInSet": [%d]
+						}
+					}
+					""",
+				archivedEntity.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, emptyIterable());
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return data based on scope")
+	void shouldReturnDataBasedOnScope(Evita evita, RestTester tester) {
+		final List<SealedEntity> liveEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.LIVE)
+				),
+				require(
+					page(1, 2),
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
+				)
+			),
+			SealedEntity.class
+		);
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 2),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+
+		var expectedBody = Stream.concat(Stream.of(liveEntities.get(0)), archivedEntities.stream())
+			.map(entity -> createEntityDto(new EntityReference(entity.getType(), entity.getPrimaryKey())))
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/query")
+			.requestBody("""
+				{
+					"filterBy": {
+						"entityPrimaryKeyInSet": [%d, %d, %d, %d],
+						"inScope": {
+							"scope": "LIVE",
+							"filtering": [{
+								"attributeCodeEquals": "%s"
+							}]
+						},
+						"scope": ["LIVE", "ARCHIVED"]
+					}
+				}
+				""",
+				liveEntities.get(0).getPrimaryKey(),
+				liveEntities.get(1).getPrimaryKey(),
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey(),
+				liveEntities.get(0).getAttribute(ATTRIBUTE_CODE))
+			.executeAndExpectOkAndThen()
+			.body(DATA_PATH, containsInAnyOrder(expectedBody.toArray()));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should order data based on scope")
+	void shouldOrderDataBasedOnScope(Evita evita, RestTester tester) {
+		final List<EntityClassifier> liveEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(scope(Scope.LIVE)),
+				require(page(1, 2))
+			),
+			EntityClassifier.class
+		);
+		final List<EntityClassifier> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(scope(Scope.ARCHIVED)),
+				require(page(1, 2))
+			),
+			EntityClassifier.class
+		);
+
+		final EvitaResponse<EntityClassifier> expectedEntities = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(
+						Stream.concat(liveEntities.stream(), archivedEntities.stream())
+							.map(EntityClassifier::getPrimaryKey)
+							.toArray(Integer[]::new)
+					),
+					scope(Scope.LIVE, Scope.ARCHIVED)
+				),
+				orderBy(
+					inScope(
+						Scope.LIVE,
+						attributeNatural(ATTRIBUTE_PRIORITY, DESC)
+					)
+				)
+			),
+			EntityClassifier.class
+		);
+		var expectedBody = expectedEntities.getRecordData()
+			.stream()
+			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/query")
+			.requestBody("""
+				{
+					"filterBy": {
+						"entityPrimaryKeyInSet": [%d, %d, %d, %d],
+						"scope": ["LIVE", "ARCHIVED"]
+					},
+					"orderBy": [{
+						"inScope": {
+							"scope": "LIVE",
+							"ordering": [{
+								"attributePriorityNatural": "DESC"
+							}]
+						}
+					}]
+				}
+				""",
+				liveEntities.get(0).getPrimaryKey(),
+				liveEntities.get(1).getPrimaryKey(),
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey())
+			.executeAndExpectOkAndThen()
+			.body(DATA_PATH, containsInAnyOrder(expectedBody.toArray()));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should require data based on scope")
+	void shouldRequireDataBasedOnScope(Evita evita, RestTester tester) {
+		final List<EntityClassifier> liveEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(scope(Scope.LIVE)),
+				require(page(1, 2))
+			),
+			EntityClassifier.class
+		);
+		final List<EntityClassifier> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(scope(Scope.ARCHIVED)),
+				require(page(1, 2))
+			),
+			EntityClassifier.class
+		);
+
+		final EvitaResponse<EntityClassifier> expectedEntities = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(
+						Stream.concat(liveEntities.stream(), archivedEntities.stream())
+							.map(EntityClassifier::getPrimaryKey)
+							.toArray(Integer[]::new)
+					),
+					scope(Scope.LIVE, Scope.ARCHIVED),
+					inScope(
+						Scope.LIVE,
+						priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC),
+						priceInCurrency(CURRENCY_EUR)
+					)
+				),
+				require(
+					inScope(
+						Scope.LIVE,
+						priceHistogram(5)
+					)
+				)
+			),
+			EntityClassifier.class
+		);
+		var expectedBody = expectedEntities.getRecordData()
+			.stream()
+			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/query")
+			.requestBody("""
+				{
+					"filterBy": {
+						"entityPrimaryKeyInSet": [%d, %d, %d, %d],
+						"scope": ["LIVE", "ARCHIVED"],
+						"inScope": {
+							"scope": "LIVE",
+							"filtering": [{
+								"priceInPriceLists": ["vip", "basic"],
+								"priceInCurrency": "EUR"
+							}]
+						}
+					},
+					"require": {
+						"inScope": {
+							"scope": "LIVE",
+							"require": {
+								"priceHistogram": {
+									"requestedBucketCount" : 5
+								}
+							}
+						}
+					}
+				}
+				""",
+				liveEntities.get(0).getPrimaryKey(),
+				liveEntities.get(1).getPrimaryKey(),
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey())
+			.executeAndExpectOkAndThen()
+			.body(DATA_PATH, containsInAnyOrder(expectedBody.toArray()))
+			.body(PRICE_HISTOGRAM_RESULTS_PATH, equalTo(createPriceHistogramDto(expectedEntities)));
 	}
 
 	@Test
@@ -1889,33 +2252,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.PRICE_HISTOGRAM),
 				equalTo(createPriceHistogramDto(response))
 			);
-	}
-
-	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should return error for missing price histogram buckets count")
-	void shouldReturnErrorForMissingPriceHistogramBucketsCount(RestTester tester) {
-		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/PRODUCT/query")
-			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-					{
-						"filterBy": {
-							"priceInCurrency": "EUR",
-							"priceInPriceLists": ["vip","basic"]
-						},
-						"require": {
-							"page": {
-								"number": 1,
-								"size": %d
-							},
-							"priceHistogram": null
-						}
-					}
-					""",
-				Integer.MAX_VALUE)
-			.executeAndThen()
-			.statusCode(400);
 	}
 
 	@UseDataSet(REST_THOUSAND_PRODUCTS)

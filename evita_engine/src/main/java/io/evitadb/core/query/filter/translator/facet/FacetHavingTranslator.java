@@ -30,6 +30,7 @@ import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -70,9 +71,12 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull FacetHaving facetHaving, @Nonnull FilterByVisitor filterByVisitor) {
-		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchema();
+		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchemaOrThrowException();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(facetHaving.getReferenceName());
-		isTrue(referenceSchema.isFaceted(), "Reference of type `" + facetHaving.getReferenceName() + "` is not marked as faceted.");
+		isTrue(
+			filterByVisitor.getScopes().stream().anyMatch(referenceSchema::isFacetedInScope),
+			() -> new ReferenceNotFacetedException(facetHaving.getReferenceName(), entitySchema)
+		);
 
 		final List<Formula> collectedFormulas = filterByVisitor.collectFromIndexes(
 			entityIndex -> {
@@ -85,7 +89,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				return entityIndex.getFacetReferencingEntityIdsFormula(
 					facetHaving.getReferenceName(),
 					(groupId, theFacetIds, recordIdBitmaps) -> {
-						if ((referenceSchema.isReferencedGroupTypeManaged() || groupId == null) && filterByVisitor.isFacetGroupConjunction(referenceSchema, groupId)) {
+						if (filterByVisitor.isFacetGroupConjunction(referenceSchema, groupId)) {
 							// AND relation is requested for facet of this group
 							return new FacetGroupAndFormula(
 								facetHaving.getReferenceName(), groupId, theFacetIds, recordIdBitmaps

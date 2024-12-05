@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort.utils;
 
+import io.evitadb.utils.ArrayUtils;
 import org.roaringbitmap.BatchIterator;
 import org.roaringbitmap.ImmutableBitmapDataProvider;
 
@@ -35,7 +36,6 @@ import java.util.Arrays;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class SortUtils {
-	private final static int[] EMPTY_RESULT = new int[0];
 
 	/**
 	 * Method returns the array of sorted entities capped at the peak index.
@@ -46,7 +46,7 @@ public class SortUtils {
 	 */
 	public static int[] asResult(int[] sortedEntities, int sortedEntitiesPeak) {
 		if (sortedEntitiesPeak == 0) {
-			return EMPTY_RESULT;
+			return ArrayUtils.EMPTY_INT_ARRAY;
 		}
 		return sortedEntities.length == sortedEntitiesPeak ?
 			sortedEntities : Arrays.copyOfRange(sortedEntities, 0, sortedEntitiesPeak);

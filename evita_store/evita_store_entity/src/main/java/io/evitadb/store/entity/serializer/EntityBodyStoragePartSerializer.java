@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.dataType.Scope;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,7 @@ public class EntityBodyStoragePartSerializer extends Serializer<EntityBodyStorag
 	public void write(Kryo kryo, Output output, EntityBodyStoragePart object) {
 		output.writeVarInt(object.getVersion(), true);
 		output.writeInt(object.getPrimaryKey());
+		kryo.writeObject(output, object.getScope());
 		kryo.writeObjectOrNull(output, object.getParent(), Integer.class);
 
 		final Set<Locale> locales = object.getLocales();
@@ -76,6 +78,7 @@ public class EntityBodyStoragePartSerializer extends Serializer<EntityBodyStorag
 
 		final int version = input.readVarInt(true);
 		final int entityPrimaryKey = input.readInt();
+		final Scope scope = kryo.readObject(input, Scope.class);
 		final Integer hierarchicalPlacement = kryo.readObjectOrNull(input, Integer.class);
 
 		final int localeCount = input.readVarInt(true);
@@ -96,7 +99,7 @@ public class EntityBodyStoragePartSerializer extends Serializer<EntityBodyStorag
 			associatedDataKeys.add(keyCompressor.getKeyForId(input.readVarInt(true)));
 		}
 		return new EntityBodyStoragePart(
-			version, entityPrimaryKey, hierarchicalPlacement,
+			version, entityPrimaryKey, scope, hierarchicalPlacement,
 			locales, attributeLocales, associatedDataKeys,
 			Math.toIntExact(input.total() - totalBefore)
 		);

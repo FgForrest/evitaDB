@@ -2,11 +2,12 @@
 {
   "parameterValues": [
     {
-      "count": 525,
+      "count": 494,
       "groupEntity": {
         "primaryKey": 66463,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -19,16 +20,17 @@
       "facetStatistics": [
         {
           "requested": false,
-          "count": 4214,
+          "count": 4150,
           "impact": {
             "difference": -11,
-            "matchCount": 4214,
+            "matchCount": 4150,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 66558,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -41,16 +43,17 @@
         },
         {
           "requested": false,
-          "count": 4118,
+          "count": 4054,
           "impact": {
             "difference": -107,
-            "matchCount": 4118,
+            "matchCount": 4054,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 66600,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -63,16 +66,17 @@
         },
         {
           "requested": false,
-          "count": 3820,
+          "count": 3787,
           "impact": {
-            "difference": -405,
-            "matchCount": 3820,
+            "difference": -374,
+            "matchCount": 3787,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 104449,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -85,16 +89,17 @@
         },
         {
           "requested": false,
-          "count": 4223,
+          "count": 4159,
           "impact": {
             "difference": -2,
-            "matchCount": 4223,
+            "matchCount": 4159,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 110006,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -108,11 +113,12 @@
       ]
     },
     {
-      "count": 1527,
+      "count": 1506,
       "groupEntity": {
         "primaryKey": 66464,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -125,16 +131,17 @@
       "facetStatistics": [
         {
           "requested": false,
-          "count": 267,
+          "count": 246,
           "impact": {
-            "difference": -3958,
-            "matchCount": 267,
+            "difference": -3915,
+            "matchCount": 246,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 104450,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -149,14 +156,15 @@
           "requested": false,
           "count": 83,
           "impact": {
-            "difference": -4142,
+            "difference": -4078,
             "matchCount": 83,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 107862,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -171,14 +179,15 @@
           "requested": false,
           "count": 6,
           "impact": {
-            "difference": -4219,
+            "difference": -4155,
             "matchCount": 6,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 108300,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -193,14 +202,15 @@
           "requested": false,
           "count": 912,
           "impact": {
-            "difference": -3313,
+            "difference": -3249,
             "matchCount": 912,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 114000,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -215,14 +225,15 @@
           "requested": false,
           "count": 20,
           "impact": {
-            "difference": -4205,
+            "difference": -4141,
             "matchCount": 20,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 114002,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -237,14 +248,15 @@
           "requested": false,
           "count": 365,
           "impact": {
-            "difference": -3860,
+            "difference": -3796,
             "matchCount": 365,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 114003,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],

@@ -5,6 +5,7 @@
       "primaryKey": 103885,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "cs",
         "en"
@@ -20,7 +21,8 @@
           "referencedEntity": {
             "primaryKey": 103869,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -34,7 +36,8 @@
           "groupEntity": {
             "primaryKey": 66518,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -52,7 +55,8 @@
           "referencedEntity": {
             "primaryKey": 103870,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -66,7 +70,8 @@
           "groupEntity": {
             "primaryKey": 66520,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -84,7 +89,8 @@
           "referencedEntity": {
             "primaryKey": 103871,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -97,7 +103,8 @@
           "groupEntity": {
             "primaryKey": 66515,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -115,7 +122,8 @@
           "referencedEntity": {
             "primaryKey": 103872,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -128,7 +136,8 @@
           "groupEntity": {
             "primaryKey": 66547,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -146,7 +155,8 @@
           "referencedEntity": {
             "primaryKey": 103873,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -159,7 +169,8 @@
           "groupEntity": {
             "primaryKey": 66547,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -177,7 +188,8 @@
           "referencedEntity": {
             "primaryKey": 103874,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -190,7 +202,8 @@
           "groupEntity": {
             "primaryKey": 66516,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -208,7 +221,8 @@
           "referencedEntity": {
             "primaryKey": 103875,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -222,6 +236,7 @@
             "primaryKey": 114007,
             "type": "Parameter",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -238,7 +253,8 @@
           "referencedEntity": {
             "primaryKey": 103876,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -252,6 +268,7 @@
             "primaryKey": 114008,
             "type": "Parameter",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -268,7 +285,8 @@
           "referencedEntity": {
             "primaryKey": 103877,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -281,7 +299,8 @@
           "groupEntity": {
             "primaryKey": 67915,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -299,7 +318,8 @@
           "referencedEntity": {
             "primaryKey": 103878,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -313,6 +333,7 @@
             "primaryKey": 114009,
             "type": "Parameter",
             "version": 1,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -329,7 +350,8 @@
           "referencedEntity": {
             "primaryKey": 103879,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -342,7 +364,8 @@
           "groupEntity": {
             "primaryKey": 67917,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -360,7 +383,8 @@
           "referencedEntity": {
             "primaryKey": 103880,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -374,7 +398,8 @@
           "groupEntity": {
             "primaryKey": 66514,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -392,7 +417,8 @@
           "referencedEntity": {
             "primaryKey": 103881,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -406,7 +432,8 @@
           "groupEntity": {
             "primaryKey": 66462,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -424,7 +451,8 @@
           "referencedEntity": {
             "primaryKey": 103882,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -437,7 +465,8 @@
           "groupEntity": {
             "primaryKey": 66521,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -455,7 +484,8 @@
           "referencedEntity": {
             "primaryKey": 103883,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -468,7 +498,8 @@
           "groupEntity": {
             "primaryKey": 66522,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -486,7 +517,8 @@
           "referencedEntity": {
             "primaryKey": 103884,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"
@@ -500,7 +532,8 @@
           "groupEntity": {
             "primaryKey": 66533,
             "type": "Parameter",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "cs",
               "en"

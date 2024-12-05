@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,10 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
@@ -43,11 +46,14 @@ import io.evitadb.utils.NamingConvention;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Currency;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
@@ -147,7 +153,9 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), entitySchema.getDeprecationNotice())
 			.e(EntitySchemaDescriptor.WITH_GENERATED_PRIMARY_KEY.name(), entitySchema.isWithGeneratedPrimaryKey())
 			.e(EntitySchemaDescriptor.WITH_HIERARCHY.name(), entitySchema.isWithHierarchy())
+			.e(EntitySchemaDescriptor.HIERARCHY_INDEXED.name(),createFlagInScopesDto(entitySchema::isHierarchyIndexedInScope))
 			.e(EntitySchemaDescriptor.WITH_PRICE.name(), entitySchema.isWithPrice())
+			.e(EntitySchemaDescriptor.PRICE_INDEXED.name(), createFlagInScopesDto(entitySchema::isPriceIndexedInScope))
 			.e(EntitySchemaDescriptor.INDEXED_PRICE_PLACES.name(), entitySchema.getIndexedPricePlaces())
 			.e(EntitySchemaDescriptor.LOCALES.name(), entitySchema.getLocales().stream().map(Locale::toLanguageTag).collect(Collectors.toList()))
 			.e(EntitySchemaDescriptor.CURRENCIES.name(), entitySchema.getCurrencies().stream().map(Currency::toString).collect(Collectors.toList()))
@@ -214,13 +222,23 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.build())
 			.e(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription())
 			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice())
-			.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType().name());
+			.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
+				.map(scope -> map()
+					.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType(scope).name())
+					.build())
+				.toList());
 		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
-			dtoBuilder.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().name());
+			dtoBuilder.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
+				.map(scope -> map()
+					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType(scope).name())
+					.build())
+				.toList());
 		}
 		dtoBuilder
-			.e(AttributeSchemaDescriptor.FILTERABLE.name(), attributeSchema.isFilterable())
-			.e(AttributeSchemaDescriptor.SORTABLE.name(), attributeSchema.isSortable())
+			.e(AttributeSchemaDescriptor.FILTERABLE.name(), createFlagInScopesDto(attributeSchema::isFilterableInScope))
+			.e(AttributeSchemaDescriptor.SORTABLE.name(), createFlagInScopesDto(attributeSchema::isSortableInScope))
 			.e(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized())
 			.e(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
 		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
@@ -257,6 +275,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 					.e(AttributeElementDescriptor.BEHAVIOUR.name(), it.behaviour().name())
 					.build())
 				.toList())
+			.e(SortableAttributeCompoundSchemaDescriptor.INDEXED.name(), createFlagInScopesDto(sortableAttributeCompoundSchema::isIndexedInScope))
 			.build();
 	}
 
@@ -315,8 +334,8 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.e(NameVariantsDescriptor.KEBAB_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.KEBAB_CASE))
 				.build())
 			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
-			.e(ReferenceSchemaDescriptor.INDEXED.name(), referenceSchema.isIndexed())
-			.e(ReferenceSchemaDescriptor.FACETED.name(), referenceSchema.isFaceted())
+			.e(ReferenceSchemaDescriptor.INDEXED.name(), createFlagInScopesDto(referenceSchema::isIndexedInScope))
+			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFacetedInScope))
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
 
@@ -345,6 +364,36 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 		return referenceSchemaBuilder.build();
 	}
 
+	@Nonnull
+	private static List<String> createFlagInScopesDto(@Nonnull Predicate<Scope> flagPredicate) {
+		return Arrays.stream(Scope.values()).filter(flagPredicate).map(Enum::name).toList();
+	}
+
+	@Nonnull
+	protected static List<Map<String, Object>> createAttributeUniquenessTypeDto(@Nonnull AttributeUniquenessType uniquenessType) {
+		return Arrays.stream(Scope.values())
+			.map(scope -> {
+				final AttributeUniquenessType finalUniquenessType = (scope == Scope.LIVE) ? uniquenessType : AttributeUniquenessType.NOT_UNIQUE;
+				return map()
+					.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), finalUniquenessType.name())
+					.build();
+			})
+			.toList();
+	}
+
+	@Nonnull
+	protected static List<Map<String, Object>> createGlobalAttributeUniquenessTypeDto(@Nonnull GlobalAttributeUniquenessType uniquenessType) {
+		return Arrays.stream(Scope.values())
+			.map(scope -> {
+				final GlobalAttributeUniquenessType finalUniquenessType = (scope == Scope.LIVE) ? uniquenessType : GlobalAttributeUniquenessType.NOT_UNIQUE;
+				return map()
+					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), finalUniquenessType.name())
+					.build();
+			})
+			.toList();
+	}
 
 	@Nullable
 	protected static Object serializeDefaultValue(@Nullable Object object) {

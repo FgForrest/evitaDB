@@ -86,7 +86,7 @@
   "limit": 19,
   "offset": 76,
   "singlePage": false,
-  "totalRecordCount": 4225,
+  "totalRecordCount": 4161,
   "type": "STRIP"
 }
 ```

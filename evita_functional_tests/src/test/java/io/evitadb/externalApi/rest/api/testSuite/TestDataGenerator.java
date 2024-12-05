@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
@@ -50,6 +51,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Random;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -65,6 +67,7 @@ import static io.evitadb.test.generator.DataGenerator.*;
 public class TestDataGenerator {
 
 	public static final String REST_THOUSAND_PRODUCTS = "RESTThousandProducts";
+	public static final String REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE = "RESTHundredArchiveProductsWithArchive";
 
 	public static final String ENTITY_EMPTY = "empty";
 	public static final String ENTITY_EMPTY_WITHOUT_PK = "emptyWithoutPk";
@@ -96,15 +99,16 @@ public class TestDataGenerator {
 	}
 
 	@Nullable
-	public static DataCarrier generateMainCatalogEntities(@Nonnull Evita evita, int productCount) {
+	public static DataCarrier generateMainCatalogEntities(@Nonnull Evita evita, int productCount, boolean archiveSomeProducts) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getCatalogSchema()
 				.openForWrite()
-				.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.sortable().uniqueGlobally())
+				.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.sortable().uniqueGloballyInScope(Scope.LIVE, Scope.ARCHIVED))
 				.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
 				.withAttribute(ATTRIBUTE_RELATIVE_URL, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale().nullable())
 				.updateVia(session);
 
+			final Random random = new Random(SEED);
 			final DataGenerator dataGenerator = new DataGenerator.Builder()
 				.withPriceInnerRecordHandlingGenerator(ALL_PRICE_INNER_RECORD_HANDLING_GENERATOR)
 				.withPriceIndexingDecider(DEFAULT_PRICE_INDEXING_DECIDER)
@@ -270,11 +274,19 @@ public class TestDataGenerator {
 					SEED
 				)
 				.limit(productCount)
-				.map(session::upsertEntity)
+				.map(entity -> {
+					final EntityReference entityReference = session.upsertEntity(entity);
+					if (archiveSomeProducts && random.nextInt(productCount) < productCount / 2) {
+						// archive 50 % of products if enabled
+						session.archiveEntity(entityReference.getType(), entityReference.getPrimaryKey());
+					}
+
+					return entityReference;
+				})
 				.toList();
 
 			final List<SealedEntity> products = storedProducts.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), Scope.values(), entityFetchAllContent()).orElseThrow())
 				.collect(Collectors.toList());
 			final List<SealedEntity> stores = storedStores.stream()
 				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())

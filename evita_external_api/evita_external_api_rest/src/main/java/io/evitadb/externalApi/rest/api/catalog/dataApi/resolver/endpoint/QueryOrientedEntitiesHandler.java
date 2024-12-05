@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
@@ -30,18 +31,23 @@ import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
+import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
+import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingException;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
+import io.swagger.v3.oas.models.media.Schema;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -77,13 +83,13 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	protected QueryOrientedEntitiesHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 
-		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext);
+		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext.getCatalogSchema());
 		this.orderConstraintResolver = new OrderConstraintResolver(
-			restApiHandlingContext,
+			restApiHandlingContext.getCatalogSchema(),
 			new AtomicReference<>(filterConstraintResolver)
 		);
 		this.requireConstraintResolver = new RequireConstraintResolver(
-			restApiHandlingContext,
+			restApiHandlingContext.getCatalogSchema(),
 			new AtomicReference<>(filterConstraintResolver),
 			new AtomicReference<>(orderConstraintResolver)
 		);
@@ -112,17 +118,20 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 		return parseRequestBody(executionContext, QueryEntityRequestDto.class)
 			.thenApply(requestData -> {
+				final Optional<Object> rawFilterBy = requestData.getFilterBy().map(it -> deserializeConstraintContainer(FetchEntityRequestDescriptor.FILTER_BY.name(), it));
+				final Optional<Object> rawOrderBy = requestData.getOrderBy().map(it -> deserializeConstraintContainer(FetchEntityRequestDescriptor.ORDER_BY.name(), it));
+				final Optional<Object> rawRequire = requestData.getRequire().map(it -> deserializeConstraintContainer(FetchEntityRequestDescriptor.REQUIRE.name(), it));
 				requestExecutedEvent.finishInputDeserialization();
 
 				return requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
-					final FilterBy filterBy = requestData.getFilterBy()
-						.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
+					final FilterBy filterBy = rawFilterBy
+						.map(container -> (FilterBy) filterConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.FILTER_BY.name(), container))
 						.orElse(null);
-					final OrderBy orderBy = requestData.getOrderBy()
-						.map(container -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
+					final OrderBy orderBy = rawOrderBy
+						.map(container -> (OrderBy) orderConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.ORDER_BY.name(), container))
 						.orElse(null);
-					final Require require = requestData.getRequire()
-						.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
+					final Require require = rawRequire
+						.map(container -> (Require) requireConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.REQUIRE.name(), container))
 						.orElse(null);
 
 					return query(
@@ -133,6 +142,35 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 					);
 				});
 			});
+	}
+
+	@Nullable
+	protected Object deserializeConstraintContainer(@Nonnull String key, Object value) {
+		Assert.isPremiseValid(
+			value instanceof JsonNode,
+			() -> new RestInternalError("Input value is not a JSON node. Instead it is `" + value.getClass().getName() + "`.")
+		);
+
+		//noinspection rawtypes
+		final Schema rootSchema = (Schema) SchemaUtils.getTargetSchema(
+				restHandlingContext.getEndpointOperation()
+					.getRequestBody()
+					.getContent()
+					.get(MimeTypes.APPLICATION_JSON)
+					.getSchema(),
+				restHandlingContext.getOpenApi()
+			)
+			.getProperties()
+			.get(key);
+
+		try {
+			return dataDeserializer.deserializeTree(
+				SchemaUtils.getTargetSchema(rootSchema, restHandlingContext.getOpenApi()),
+				(JsonNode) value
+			);
+		} catch (Exception e) {
+			throw new RestInvalidArgumentException("Could not parse query: " + e.getMessage());
+		}
 	}
 
 	@Nonnull

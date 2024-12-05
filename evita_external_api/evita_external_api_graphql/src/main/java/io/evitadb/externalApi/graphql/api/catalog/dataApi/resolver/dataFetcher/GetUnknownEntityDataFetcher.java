@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryHeaderArgumentsJoinType;
@@ -61,6 +62,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -138,7 +140,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
 
     @Nonnull
     @Override
-    public DataFetcherResult<SealedEntity> get(@Nonnull DataFetchingEnvironment environment) {
+    public DataFetcherResult<SealedEntity> get(DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment, catalogSchema);
         final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
@@ -180,26 +182,35 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
     }
 
     @Nonnull
-    private <A extends Serializable & Comparable<A>> FilterBy buildFilterBy(@Nonnull Arguments arguments) {
+    private static FilterBy buildFilterBy(@Nonnull Arguments arguments) {
         final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
+        if (arguments.locale() != null) {
+            filterConstraints.add(entityLocaleEquals(arguments.locale()));
+        }
+        filterConstraints.add(scope(arguments.scopes()));
+        filterConstraints.add(buildAttributeFilterContainer(arguments));
+
+        return filterBy(filterConstraints.toArray(FilterConstraint[]::new));
+    }
+
+    @Nonnull
+    private static <A extends Serializable & Comparable<A>> FilterConstraint buildAttributeFilterContainer(@Nonnull Arguments arguments) {
+        final List<FilterConstraint> attributeConstraints = new LinkedList<>();
         for (Map.Entry<GlobalAttributeSchemaContract, Object> attribute : arguments.globallyUniqueAttributes().entrySet()) {
             //noinspection unchecked
-            filterConstraints.add(attributeEquals(attribute.getKey().getName(), (A) attribute.getValue()));
+            attributeConstraints.add(attributeEquals(attribute.getKey().getName(), (A) attribute.getValue()));
         }
 
         final FilterConstraint composition;
         if (arguments.join() == QueryHeaderArgumentsJoinType.AND) {
-            composition = and(filterConstraints.toArray(FilterConstraint[]::new));
+            composition = and(attributeConstraints.toArray(FilterConstraint[]::new));
         } else if (arguments.join() == QueryHeaderArgumentsJoinType.OR) {
-            composition = or(filterConstraints.toArray(FilterConstraint[]::new));
+            composition = or(attributeConstraints.toArray(FilterConstraint[]::new));
         } else {
             throw new GraphQLInternalError("Unsupported join type `" + arguments.join() + "`.");
         }
-
-        return Optional.ofNullable(arguments.locale())
-            .map(locale -> filterBy(entityLocaleEquals(locale), composition))
-            .orElseGet(() -> filterBy(composition));
+        return composition;
     }
 
     @Nonnull
@@ -218,7 +229,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
 
     @Nonnull
     private Optional<EntityContentRequire[]> buildEnrichingRequires(@Nonnull DataFetchingEnvironment environment,
-                                                          @Nonnull String entityType) {
+                                                                    @Nonnull String entityType) {
         final List<SelectedField> targetEntityFields = SelectionSetAggregator.getImmediateFields(
             GlobalEntityDescriptor.TARGET_ENTITY.name(),
             environment.getSelectionSet()
@@ -253,35 +264,54 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
      */
     private record Arguments(@Nullable Locale locale,
                              @Nonnull QueryHeaderArgumentsJoinType join,
+                             @Nonnull Scope[] scopes,
                              @Nonnull Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull CatalogSchemaContract catalogSchema) {
+            final HashMap<String, Object> arguments = new HashMap<>(environment.getArguments());
+
+            final Locale locale = (Locale) arguments.remove(UnknownEntityHeaderDescriptor.LOCALE.name());
+            final QueryHeaderArgumentsJoinType join = (QueryHeaderArgumentsJoinType) arguments.remove(UnknownEntityHeaderDescriptor.JOIN.name());
+            //noinspection unchecked
+            final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(UnknownEntityHeaderDescriptor.SCOPE.name()))
+                .map(it -> it.toArray(Scope[]::new))
+                .orElse(Scope.DEFAULT_SCOPES);
+
             // left over arguments are globally unique attribute filters as defined by schema
-            final Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes = extractUniqueAttributesFromArguments(environment.getArguments(), catalogSchema);
+            final Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes = extractUniqueAttributesFromArguments(scopes, arguments, catalogSchema);
 
             // validate that arguments contain at least one entity identifier
             if (globallyUniqueAttributes.isEmpty()) {
                 throw new GraphQLInvalidArgumentException("Missing globally unique attribute to identify entity.");
             }
 
-            final Locale locale = environment.getArgument(UnknownEntityHeaderDescriptor.LOCALE.name());
             if (locale == null &&
-                globallyUniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale)) {
+                Arrays.stream(scopes)
+                    .anyMatch(scope ->
+                        globallyUniqueAttributes.keySet()
+                            .stream()
+                            .anyMatch(attribute ->
+                                attribute.isUniqueGloballyWithinLocaleInScope(scope)))) {
                 throw new GraphQLInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
             }
-            final QueryHeaderArgumentsJoinType join = environment.getArgument(UnknownEntityHeaderDescriptor.JOIN.name());
 
-            return new Arguments(locale, join, globallyUniqueAttributes);
+            return new Arguments(
+                locale,
+                join,
+                scopes,
+                globallyUniqueAttributes
+            );
         }
     }
 
     private static Map<GlobalAttributeSchemaContract, Object> extractUniqueAttributesFromArguments(
-        @Nonnull Map<String, Object> arguments,
+        @Nonnull Scope[] requestedScopes,
+        @Nonnull Map<String, Object> remainingArguments,
         @Nonnull CatalogSchemaContract catalogSchema
     ) {
-        final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = createHashMap(arguments.size());
+        final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = createHashMap(remainingArguments.size());
 
-        for (Map.Entry<String, Object> argument : arguments.entrySet()) {
+        for (Map.Entry<String, Object> argument : remainingArguments.entrySet()) {
             final String attributeName = argument.getKey();
             final GlobalAttributeSchemaContract attributeSchema = catalogSchema
                 .getAttributeByName(attributeName, ARGUMENT_NAME_NAMING_CONVENTION)
@@ -291,7 +321,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
                 continue;
             }
             Assert.isPremiseValid(
-                attributeSchema.isUniqueGlobally(),
+                Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUniqueGloballyInScope),
                 () -> new GraphQLQueryResolvingInternalError(
                     "Cannot find entity by non-unique attribute `" + attributeName + "`."
                 )

@@ -135,7 +135,7 @@ public abstract class AbstractApiConfiguration {
 	protected AbstractApiConfiguration(
 		@Nullable Boolean enabled,
 		@Nonnull String host,
-		@Nonnull String exposeOn,
+		@Nullable String exposeOn,
 		@Nullable String tlsMode,
 		@Nullable Boolean keepAlive,
 		@Nullable MtlsConfiguration mtlsConfiguration

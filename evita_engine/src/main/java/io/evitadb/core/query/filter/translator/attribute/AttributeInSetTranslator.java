@@ -36,10 +36,11 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.index.attribute.EntityReferenceWithLocale;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -49,8 +50,8 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeComparisonTranslator.createAlternativeBitmapFilter;
@@ -86,23 +87,23 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		return new AttributeFormula(
 			true,
 			attributeKey,
-			filterByVisitor.applyOnGlobalUniqueIndex(
-				globalAttributeSchema,
-				index -> {
-					final EntityReferenceWithLocale[] filteredEntityMaskedIds = theComparedValues.stream()
-						.map(it -> index.getEntityReferenceByUniqueValue(it, attributeKey.locale()))
-						.filter(Objects::nonNull)
-						.toArray(EntityReferenceWithLocale[]::new);
 
-					return ArrayUtils.isEmpty(filteredEntityMaskedIds) ?
-						EmptyFormula.INSTANCE :
-						new MultipleEntityFormula(
-							new long[]{index.getId()},
-							new BaseBitmap(
-								filterByVisitor.translateEntityReference(filteredEntityMaskedIds)
-							)
-						);
-				}
+			FormulaFactory.or(
+				theComparedValues
+					.stream()
+					.map(
+						comparedValue -> filterByVisitor.applyOnFirstGlobalUniqueIndex(
+							globalAttributeSchema,
+							index -> index.getEntityReferenceByUniqueValue(comparedValue, attributeKey.locale())
+								.map(it -> (Formula) new MultipleEntityFormula(
+									new long[]{index.getId()},
+									new BaseBitmap(filterByVisitor.translateEntityReference(it))
+								))
+								.orElse(EmptyFormula.INSTANCE)
+						)
+					)
+					.filter(it -> it != EmptyFormula.INSTANCE)
+					.toArray(Formula[]::new)
 			)
 		);
 	}
@@ -127,15 +128,19 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		return new AttributeFormula(
 			attributeDefinition instanceof GlobalAttributeSchemaContract,
 			attributeKey,
-			filterByVisitor.applyStreamOnUniqueIndexes(
-				attributeDefinition,
-				index -> theComparedValues
+			FormulaFactory.or(
+				theComparedValues
 					.stream()
 					.map(
-						it -> ofNullable(index.getRecordIdByUniqueValue(it))
-							.map(x -> (Formula) new ConstantFormula(new ArrayBitmap(x)))
-							.orElse(EmptyFormula.INSTANCE)
+						comparedValue -> filterByVisitor.applyOnFirstUniqueIndex(
+							attributeDefinition,
+							index -> ofNullable(index.getRecordIdByUniqueValue(comparedValue))
+								.map(it -> (Formula) new ConstantFormula(new ArrayBitmap(it)))
+								.orElse(EmptyFormula.INSTANCE)
+						)
 					)
+					.filter(it -> it != EmptyFormula.INSTANCE)
+					.toArray(Formula[]::new)
 			)
 		);
 	}
@@ -178,9 +183,10 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		}
 
 		final String attributeName = attributeInSet.getAttributeName();
-		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
+		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+			final Set<Scope> scopes = filterByVisitor.getScopes();
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
@@ -195,11 +201,11 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 				.toList();
 
 			if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
-				globalAttributeSchema.isUniqueGlobally()) {
+				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)) {
 				return createGloballyUniqueAttributeFormula(
 					filterByVisitor, globalAttributeSchema, attributeKey, theComparedValues
 				);
-			} else if (attributeDefinition.isUnique()) {
+			} else if (scopes.stream().anyMatch(attributeDefinition::isUniqueInScope)) {
 				return createUniqueAttributeFormula(
 					filterByVisitor, attributeDefinition, attributeKey, theComparedValues
 				);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,7 +71,6 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueFilterConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", null));
 		assertThrows(UnsupportedDataTypeException.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", List.of()));
 		assertThrows(UnsupportedDataTypeException.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", Map.of()));
 	}
@@ -100,7 +99,6 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveChildFilterConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "and", null));
 		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "and", "abc"));
 		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "and", Map.of()));
 	}
@@ -194,15 +192,6 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 			() -> resolver.resolve(
 				Entities.PRODUCT,
 				"attributeAgeBetween",
-				null
-			)
-		);
-
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> resolver.resolve(
-				Entities.PRODUCT,
-				"attributeAgeBetween",
 				List.of(1)
 			)
 		);
@@ -278,6 +267,69 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 									.e("referenceRelatedProductsHaving", List.of(
 										map()
 											.e("attributeOrderEquals", 1)
+											.build()
+									)))
+								.build()
+						))
+						.build()
+				)
+			)
+		);
+	}
+
+	@Test
+	void shouldResolveComplexFilterAndFilterOutUndefinedConstraints() {
+		//noinspection ConstantConditions
+		assertEquals(
+			filterBy(
+				attributeEquals("CODE", "123"),
+				facetHaving("BRAND", entityPrimaryKeyInSet(10, 20, 30)),
+				referenceHaving(
+					"CATEGORY",
+					and(
+						attributeStartsWith("CODE", "ab"),
+						entityPrimaryKeyInSet(2),
+						entityHaving(
+							and(
+								attributeEquals("NAME", "cd"),
+								referenceHaving(
+									"RELATED_PRODUCTS",
+									attributeEquals("ORDER", 1)
+								)
+							)
+						)
+					)
+				)
+			),
+			QueryPurifierVisitor.purify(
+				resolver.resolve(
+					Entities.PRODUCT,
+					"filterBy",
+					map()
+						.e("attributeCodeEquals", "123")
+						.e("or", List.of(
+							map()
+								.e("attributeAgeIs", null)
+								.build(),
+							map()
+								.e("priceBetween", null)
+								.e("facetBrandHaving", List.of(
+									map()
+										.e("entityPrimaryKeyInSet",  List.of(10, 20, 30))
+										.build()
+								))
+								.build()
+						))
+						.e("referenceCategoryHaving", List.of(
+							map()
+								.e("attributeCodeStartsWith", "ab")
+								.e("entityPrimaryKeyInSet", List.of(2))
+								.e("entityHaving", map()
+									.e("attributeNameEquals", "cd")
+									.e("referenceRelatedProductsHaving", List.of(
+										map()
+											.e("attributeOrderEquals", 1)
+											.e("and", null)
 											.build()
 									)))
 								.build()

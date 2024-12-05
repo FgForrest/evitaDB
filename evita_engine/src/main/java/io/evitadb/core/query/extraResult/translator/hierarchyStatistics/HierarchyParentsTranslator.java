@@ -60,8 +60,9 @@ public class HierarchyParentsTranslator
 	extends AbstractHierarchyTranslator
 	implements RequireConstraintTranslator<HierarchyParents>, SelfTraversingTranslator {
 
+	@Nullable
 	@Override
-	public ExtraResultProducer apply(HierarchyParents parents, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer createProducer(@Nonnull HierarchyParents parents, @Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		final HierarchyStatisticsProducer producer = getHierarchyStatisticsProducer(extraResultPlanningVisitor);
 		final Optional<HierarchyStatistics> statistics = parents.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(parents.getName());

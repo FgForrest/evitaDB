@@ -165,6 +165,8 @@ message GrpcEntityRequest {
   repeated GrpcQueryParam positionalQueryParams = 4;
   // The named query parameters.
   map<string, GrpcQueryParam> namedQueryParams = 5;
+  // The set of scopes to search for the entity.
+  repeated GrpcEntityScope scopes = 6;
 }
 
 // Response to GetEntity request.
@@ -382,6 +384,34 @@ message GrpcDeleteEntityRequest {
   map<string, GrpcQueryParam> namedQueryParams = 5;
 }
 
+// Request for deleting an entity that should return the archived entity with required richness.
+message GrpcArchiveEntityRequest {
+  // Entity type of the entity to be archived.
+  string entityType = 1;
+  // Primary key of the entity to be archived.
+  google.protobuf.Int32Value primaryKey = 2;
+  // The string part of the parametrised query require part.
+  string require = 3;
+  // The positional query parameters.
+  repeated GrpcQueryParam positionalQueryParams = 4;
+  // The named query parameters.
+  map<string, GrpcQueryParam> namedQueryParams = 5;
+}
+
+// Request for deleting an entity that should return the restored entity with required richness.
+message GrpcRestoreEntityRequest {
+  // Entity type of the entity to be restored.
+  string entityType = 1;
+  // Primary key of the entity to be restored.
+  google.protobuf.Int32Value primaryKey = 2;
+  // The string part of the parametrised query require part.
+  string require = 3;
+  // The positional query parameters.
+  repeated GrpcQueryParam positionalQueryParams = 4;
+  // The named query parameters.
+  map<string, GrpcQueryParam> namedQueryParams = 5;
+}
+
 // Request for deleting a collection of entities specified by a query.
 message GrpcDeleteEntitiesRequest {
   // The string part of the parametrised query.
@@ -410,6 +440,28 @@ message GrpcDeleteEntityResponse {
     // The deleted entity reference.
     GrpcEntityReference entityReference = 1;
     // The deleted entity.
+    GrpcSealedEntity entity = 2;
+  }
+}
+
+// Response to ArchiveEntity request.
+message GrpcArchiveEntityResponse {
+  // The archived entity. The used field is decided by the require block in the query.
+  oneof response {
+    // The archived entity reference.
+    GrpcEntityReference entityReference = 1;
+    // The archived entity.
+    GrpcSealedEntity entity = 2;
+  }
+}
+
+// Response to RestoreEntity request.
+message GrpcRestoreEntityResponse {
+  // The restored entity. The used field is decided by the require block in the query.
+  oneof response {
+    // The restored entity reference.
+    GrpcEntityReference entityReference = 1;
+    // The restored entity.
     GrpcSealedEntity entity = 2;
   }
 }
@@ -492,6 +544,8 @@ message GrpcQueryParam {
     GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;
     // The expression
     string expressionValue = 23;
+    // The scope enum value.
+    GrpcEntityScope scope = 24;
 
     // The string array value.
     GrpcStringArray stringArrayValue = 101;
@@ -534,6 +588,8 @@ message GrpcQueryParam {
     GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;
     // The histogram behavior enum value.
     GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;
+    // The scope enum value.
+    GrpcEntityScopeArray scopeArrayValue = 122;
   }
 }
 
@@ -612,6 +668,10 @@ service EvitaSessionService {
   rpc DeleteEntityAndItsHierarchy(GrpcDeleteEntityRequest) returns (GrpcDeleteEntityAndItsHierarchyResponse);
   // Procedure that deletes all entities that match the sent query and returns their bodies.
   rpc DeleteEntities(GrpcDeleteEntitiesRequest) returns (GrpcDeleteEntitiesResponse);
+  // Procedure that archives an entity and returns it with required richness.
+  rpc ArchiveEntity(GrpcArchiveEntityRequest) returns (GrpcArchiveEntityResponse);
+  // Procedure that restores an entity and returns it with required richness.
+  rpc RestoreEntity(GrpcRestoreEntityRequest) returns (GrpcRestoreEntityResponse);
 
   // Procedure that opens a transaction.
   rpc GetTransactionId(google.protobuf.Empty) returns (GrpcTransactionResponse);

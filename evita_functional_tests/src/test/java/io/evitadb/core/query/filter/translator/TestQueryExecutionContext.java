@@ -65,7 +65,7 @@ public class TestQueryExecutionContext extends QueryExecutionContext {
 		Query query,
 		Map<Integer, SealedEntity> entities
 	) {
-		super(Mockito.mock(QueryPlanningContext.class), null, (aClass, sealedEntity) -> new UnsupportedOperationException());
+		super(Mockito.mock(QueryPlanningContext.class), false, null, (aClass, sealedEntity) -> new UnsupportedOperationException());
 		this.schema = entitySchema;
 		this.evitaRequest = new EvitaRequest(
 			query,

@@ -51,10 +51,12 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
 
@@ -262,7 +264,7 @@ public class EntityDecorator implements SealedEntity {
 		this.referencePredicate = referencePredicate;
 		this.pricePredicate = pricePredicate;
 		this.alignedNow = alignedNow;
-		this.filteredReferences = decorator.referencesAvailable() ?
+		final Map<ReferenceKey, ReferenceContract> theFilteredReferences = decorator.referencesAvailable() ?
 			decorator.getReferences()
 				.stream()
 				.filter(referencePredicate)
@@ -283,6 +285,7 @@ public class EntityDecorator implements SealedEntity {
 						LinkedHashMap::new
 					)
 				) : Collections.emptyMap();
+		this.filteredReferences = CollectionUtils.toUnmodifiableMap(theFilteredReferences);
 	}
 
 	/**
@@ -409,7 +412,7 @@ public class EntityDecorator implements SealedEntity {
 			);
 		}
 
-		this.filteredReferences = Arrays.stream(fetchedAndFilteredReferences)
+		final LinkedHashMap<ReferenceKey, ReferenceContract> theFilteredReferences = Arrays.stream(fetchedAndFilteredReferences)
 			.filter(Objects::nonNull)
 			.collect(
 				Collectors.toMap(
@@ -421,6 +424,7 @@ public class EntityDecorator implements SealedEntity {
 					LinkedHashMap::new
 				)
 			);
+		this.filteredReferences = CollectionUtils.toUnmodifiableMap(theFilteredReferences);
 	}
 
 	/**
@@ -456,7 +460,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public LocaleSerializablePredicate getLocalePredicate() {
-		return ofNullable(localePredicate.getUnderlyingPredicate()).orElse(localePredicate);
+		return ofNullable(this.localePredicate.getUnderlyingPredicate()).orElse(this.localePredicate);
 	}
 
 	/**
@@ -464,7 +468,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public HierarchySerializablePredicate getHierarchyPredicate() {
-		return ofNullable(hierarchyPredicate.getUnderlyingPredicate()).orElse(hierarchyPredicate);
+		return ofNullable(this.hierarchyPredicate.getUnderlyingPredicate()).orElse(this.hierarchyPredicate);
 	}
 
 	/**
@@ -480,7 +484,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public HierarchySerializablePredicate createHierarchyPredicateRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
-		return hierarchyPredicate.createRicherCopyWith(evitaRequest);
+		return this.hierarchyPredicate.createRicherCopyWith(evitaRequest);
 	}
 
 	/**
@@ -488,7 +492,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public AttributeValueSerializablePredicate getAttributePredicate() {
-		return ofNullable(attributePredicate.getUnderlyingPredicate()).orElse(attributePredicate);
+		return ofNullable(this.attributePredicate.getUnderlyingPredicate()).orElse(this.attributePredicate);
 	}
 
 	/**
@@ -496,7 +500,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public AttributeValueSerializablePredicate createAttributePredicateRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
-		return attributePredicate.createRicherCopyWith(evitaRequest);
+		return this.attributePredicate.createRicherCopyWith(evitaRequest);
 	}
 
 	/**
@@ -504,7 +508,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public AssociatedDataValueSerializablePredicate getAssociatedDataPredicate() {
-		return ofNullable(associatedDataPredicate.getUnderlyingPredicate()).orElse(associatedDataPredicate);
+		return ofNullable(this.associatedDataPredicate.getUnderlyingPredicate()).orElse(this.associatedDataPredicate);
 	}
 
 	/**
@@ -512,7 +516,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public AssociatedDataValueSerializablePredicate createAssociatedDataPredicateRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
-		return associatedDataPredicate.createRicherCopyWith(evitaRequest);
+		return this.associatedDataPredicate.createRicherCopyWith(evitaRequest);
 	}
 
 	/**
@@ -520,7 +524,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public ReferenceContractSerializablePredicate getReferencePredicate() {
-		return ofNullable(referencePredicate.getUnderlyingPredicate()).orElse(referencePredicate);
+		return ofNullable(this.referencePredicate.getUnderlyingPredicate()).orElse(this.referencePredicate);
 	}
 
 	/**
@@ -528,7 +532,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public ReferenceContractSerializablePredicate createReferencePredicateRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
-		return referencePredicate.createRicherCopyWith(evitaRequest);
+		return this.referencePredicate.createRicherCopyWith(evitaRequest);
 	}
 
 	/**
@@ -536,7 +540,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public PriceContractSerializablePredicate getPricePredicate() {
-		return ofNullable(pricePredicate.getUnderlyingPredicate()).orElse(pricePredicate);
+		return ofNullable(this.pricePredicate.getUnderlyingPredicate()).orElse(this.pricePredicate);
 	}
 
 	/**
@@ -544,43 +548,49 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public PriceContractSerializablePredicate createPricePredicateRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
-		return pricePredicate.createRicherCopyWith(evitaRequest);
+		return this.pricePredicate.createRicherCopyWith(evitaRequest);
 	}
 
 	@Nonnull
 	@Override
 	public String getType() {
-		return delegate.getType();
+		return this.delegate.getType();
 	}
 
 	@Nonnull
 	@Override
 	public EntitySchemaContract getSchema() {
-		return entitySchema;
+		return this.entitySchema;
 	}
 
 	@Nullable
 	@Override
 	public Integer getPrimaryKey() {
-		return delegate.getPrimaryKey();
+		return this.delegate.getPrimaryKey();
+	}
+
+	@Nonnull
+	@Override
+	public Scope getScope() {
+		return this.delegate.getScope();
 	}
 
 	@Override
 	public boolean parentAvailable() {
-		return delegate.parentAvailable() && hierarchyPredicate.wasFetched();
+		return this.delegate.parentAvailable() && this.hierarchyPredicate.wasFetched();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
-		hierarchyPredicate.checkFetched();
+		this.hierarchyPredicate.checkFetched();
 		Assert.isTrue(
 			getSchema().isWithHierarchy(),
 			() -> new EntityIsNotHierarchicalException(getSchema().getName())
 		);
 		if (parentAvailable()) {
-			return parentEntity == CONCEALED_ENTITY ? empty() :
-				ofNullable(parentEntity).or(delegate::getParentEntity);
+			return this.parentEntity == CONCEALED_ENTITY ? empty() :
+				ofNullable(this.parentEntity).or(this.delegate::getParentEntity);
 		} else {
 			return empty();
 		}
@@ -588,26 +598,26 @@ public class EntityDecorator implements SealedEntity {
 
 	@Override
 	public boolean referencesAvailable() {
-		return referencePredicate.wasFetched();
+		return this.referencePredicate.wasFetched();
 	}
 
 	@Override
 	public boolean referencesAvailable(@Nonnull String referenceName) {
-		return referencePredicate.wasFetched(referenceName);
+		return this.referencePredicate.wasFetched(referenceName);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences() {
-		referencePredicate.checkFetched();
+		this.referencePredicate.checkFetched();
 		return getFilteredReferences().values();
 	}
 
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
-		referencePredicate.checkFetched(referenceName);
-		delegate.checkReferenceName(referenceName);
+		this.referencePredicate.checkFetched(referenceName);
+		this.delegate.checkReferenceName(referenceName);
 		final Collection<ReferenceContract> values = getFilteredReferences().values();
 		final List<ReferenceContract> matchingReferences = new ArrayList<>(values.size());
 		boolean found = false;
@@ -627,22 +637,22 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
-		referencePredicate.checkFetched(referenceName);
+		this.referencePredicate.checkFetched(referenceName);
 		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)));
 	}
 
 	@Nonnull
 	@Override
 	public Set<Locale> getAllLocales() {
-		return delegate.getAllLocales();
+		return this.delegate.getAllLocales();
 	}
 
 	@Nonnull
 	@Override
 	public Set<Locale> getLocales() {
-		return delegate.getLocales()
+		return this.delegate.getLocales()
 			.stream()
-			.filter(localePredicate)
+			.filter(this.localePredicate)
 			.collect(Collectors.toSet());
 	}
 
@@ -652,7 +662,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public Optional<EntityClassifierWithParent> getParentEntityWithoutCheckingPredicate() {
-		return ofNullable(parentEntity);
+		return ofNullable(this.parentEntity);
 	}
 
 	@Nonnull
@@ -662,37 +672,37 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nullable
 	public Locale getImplicitLocale() {
-		return localePredicate.getImplicitLocale();
+		return this.localePredicate.getImplicitLocale();
 	}
 
 	@Override
 	public boolean dropped() {
-		return delegate.dropped();
+		return this.delegate.dropped();
 	}
 
 	@Override
 	public int version() {
-		return delegate.version();
+		return this.delegate.version();
 	}
 
 	@Override
 	public boolean attributesAvailable() {
-		return attributePredicate.wasFetched();
+		return this.attributePredicate.wasFetched();
 	}
 
 	@Override
 	public boolean attributesAvailable(@Nonnull Locale locale) {
-		return attributePredicate.wasFetched(locale);
+		return this.attributePredicate.wasFetched(locale);
 	}
 
 	@Override
 	public boolean attributeAvailable(@Nonnull String attributeName) {
-		return attributePredicate.wasFetched(attributeName);
+		return this.attributePredicate.wasFetched(attributeName);
 	}
 
 	@Override
 	public boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale) {
-		return attributePredicate.wasFetched(attributeName, locale);
+		return this.attributePredicate.wasFetched(attributeName, locale);
 	}
 
 	@Nullable
@@ -717,15 +727,15 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
 		final AttributeKey attributeKey;
-		if (attributePredicate.isLocaleSet()) {
-			final Locale locale = attributePredicate.getLocale();
+		if (this.attributePredicate.isLocaleSet()) {
+			final Locale locale = this.attributePredicate.getLocale();
 			attributeKey = locale == null ?
 				new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
 		} else {
 			attributeKey = new AttributeKey(attributeName);
 		}
-		attributePredicate.checkFetched(attributeKey);
-		return delegate.getAttributeValue(attributeKey).filter(attributePredicate);
+		this.attributePredicate.checkFetched(attributeKey);
+		return this.delegate.getAttributeValue(attributeKey).filter(attributePredicate);
 	}
 
 	@Nullable
@@ -733,7 +743,7 @@ public class EntityDecorator implements SealedEntity {
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return getAttributeValue(attributeName, locale)
-			.filter(attributePredicate)
+			.filter(this.attributePredicate)
 			.map(it -> (T) it.value())
 			.orElse(null);
 	}
@@ -743,7 +753,7 @@ public class EntityDecorator implements SealedEntity {
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return getAttributeValue(attributeName, locale)
-			.filter(attributePredicate)
+			.filter(this.attributePredicate)
 			.map(it -> (T[]) it.value())
 			.orElse(null);
 	}
@@ -752,15 +762,15 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName, @Nonnull Locale locale) {
 		final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-		attributePredicate.checkFetched(attributeKey);
-		return delegate.getAttributeValue(attributeKey)
-			.filter(attributePredicate);
+		this.attributePredicate.checkFetched(attributeKey);
+		return this.delegate.getAttributeValue(attributeKey)
+			.filter(this.attributePredicate);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntityAttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
-		return delegate.getAttributeSchema(attributeName);
+		return this.delegate.getAttributeSchema(attributeName);
 	}
 
 	@Nonnull
@@ -784,31 +794,31 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		attributePredicate.checkFetched(attributeKey);
-		return delegate.getAttributeValue(attributeKey)
-			.filter(attributePredicate);
+		this.attributePredicate.checkFetched(attributeKey);
+		return this.delegate.getAttributeValue(attributeKey)
+			.filter(this.attributePredicate);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<AttributeValue> getAttributeValues() {
-		attributePredicate.checkFetched();
-		if (filteredAttributes == null) {
-			filteredAttributes = delegate.getAttributeValues()
+		this.attributePredicate.checkFetched();
+		if (this.filteredAttributes == null) {
+			this.filteredAttributes = this.delegate.getAttributeValues()
 				.stream()
-				.filter(attributePredicate)
+				.filter(this.attributePredicate)
 				.collect(Collectors.toList());
 		}
-		return filteredAttributes;
+		return this.filteredAttributes;
 	}
 
 	@Nonnull
 	@Override
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
-		attributePredicate.checkFetched(new AttributeKey(attributeName));
-		return delegate.getAttributeValues(attributeName)
+		this.attributePredicate.checkFetched(new AttributeKey(attributeName));
+		return this.delegate.getAttributeValues(attributeName)
 			.stream()
-			.filter(attributePredicate)
+			.filter(this.attributePredicate)
 			.collect(Collectors.toList());
 	}
 
@@ -820,22 +830,22 @@ public class EntityDecorator implements SealedEntity {
 
 	@Override
 	public boolean associatedDataAvailable() {
-		return associatedDataPredicate.wasFetched();
+		return this.associatedDataPredicate.wasFetched();
 	}
 
 	@Override
 	public boolean associatedDataAvailable(@Nonnull Locale locale) {
-		return associatedDataPredicate.wasFetched(locale);
+		return this.associatedDataPredicate.wasFetched(locale);
 	}
 
 	@Override
 	public boolean associatedDataAvailable(@Nonnull String associatedDataName) {
-		return associatedDataPredicate.wasFetched(associatedDataName);
+		return this.associatedDataPredicate.wasFetched(associatedDataName);
 	}
 
 	@Override
 	public boolean associatedDataAvailable(@Nonnull String associatedDataName, @Nonnull Locale locale) {
-		return associatedDataPredicate.wasFetched(associatedDataName, locale);
+		return this.associatedDataPredicate.wasFetched(associatedDataName, locale);
 	}
 
 	@Nullable
@@ -868,23 +878,23 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName) {
 		final AssociatedDataKey associatedDataKey;
-		if (associatedDataPredicate.isLocaleSet()) {
-			final Locale locale = associatedDataPredicate.getLocale();
+		if (this.associatedDataPredicate.isLocaleSet()) {
+			final Locale locale = this.associatedDataPredicate.getLocale();
 			associatedDataKey = locale == null ?
 				new AssociatedDataKey(associatedDataName) : new AssociatedDataKey(associatedDataName, locale);
 		} else {
 			associatedDataKey = new AssociatedDataKey(associatedDataName);
 		}
-		associatedDataPredicate.checkFetched(associatedDataKey);
-		return delegate.getAssociatedDataValue(associatedDataKey).filter(associatedDataPredicate);
+		this.associatedDataPredicate.checkFetched(associatedDataKey);
+		return this.delegate.getAssociatedDataValue(associatedDataKey).filter(this.associatedDataPredicate);
 	}
 
 	@Nullable
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
-		return delegate.getAssociatedDataValue(associatedDataName, locale)
-			.filter(associatedDataPredicate)
+		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
+			.filter(this.associatedDataPredicate)
 			.map(it -> (T) it.value())
 			.orElse(null);
 	}
@@ -892,7 +902,7 @@ public class EntityDecorator implements SealedEntity {
 	@Nullable
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
-		return delegate.getAssociatedDataValue(associatedDataName, locale)
+		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
 			.filter(associatedDataPredicate)
 			.map(AssociatedDataValue::value)
 			.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
@@ -903,8 +913,8 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
-		return delegate.getAssociatedDataValue(associatedDataName, locale)
-			.filter(associatedDataPredicate)
+		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
+			.filter(this.associatedDataPredicate)
 			.map(it -> (T[]) it.value())
 			.orElse(null);
 	}
@@ -913,15 +923,15 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
-		associatedDataPredicate.checkFetched(associatedDataKey);
-		return delegate.getAssociatedDataValue(associatedDataKey)
-			.filter(associatedDataPredicate);
+		this.associatedDataPredicate.checkFetched(associatedDataKey);
+		return this.delegate.getAssociatedDataValue(associatedDataKey)
+			.filter(this.associatedDataPredicate);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<AssociatedDataSchemaContract> getAssociatedDataSchema(@Nonnull String associatedDataName) {
-		return delegate.getAssociatedDataSchema(associatedDataName);
+		return this.delegate.getAssociatedDataSchema(associatedDataName);
 	}
 
 	@Nonnull
@@ -945,30 +955,30 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull AssociatedDataKey associatedDataKey) {
-		associatedDataPredicate.checkFetched(associatedDataKey);
-		return delegate.getAssociatedDataValue(associatedDataKey)
+		this.associatedDataPredicate.checkFetched(associatedDataKey);
+		return this.delegate.getAssociatedDataValue(associatedDataKey)
 			.filter(associatedDataPredicate);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<AssociatedDataValue> getAssociatedDataValues() {
-		if (filteredAssociatedData == null) {
-			associatedDataPredicate.checkFetched();
-			filteredAssociatedData = delegate.getAssociatedDataValues()
+		if (this.filteredAssociatedData == null) {
+			this.associatedDataPredicate.checkFetched();
+			this.filteredAssociatedData = this.delegate.getAssociatedDataValues()
 				.stream()
-				.filter(associatedDataPredicate)
+				.filter(this.associatedDataPredicate)
 				.collect(Collectors.toList());
 		}
-		return filteredAssociatedData;
+		return this.filteredAssociatedData;
 	}
 
 	@Nonnull
 	@Override
 	public Collection<AssociatedDataValue> getAssociatedDataValues(@Nonnull String associatedDataName) {
-		return delegate.getAssociatedDataValues(associatedDataName)
+		return this.delegate.getAssociatedDataValues(associatedDataName)
 			.stream()
-			.filter(associatedDataPredicate)
+			.filter(this.associatedDataPredicate)
 			.collect(Collectors.toList());
 	}
 
@@ -980,68 +990,68 @@ public class EntityDecorator implements SealedEntity {
 
 	@Override
 	public boolean pricesAvailable() {
-		return pricePredicate.isFetched() && delegate.pricesAvailable();
+		return this.pricePredicate.isFetched() && this.delegate.pricesAvailable();
 	}
 
 	@Nullable
 	@Override
 	public Optional<PriceContract> getPrice(@Nonnull PriceKey priceKey) throws ContextMissingException {
-		pricePredicate.checkFetched(priceKey.currency(), priceKey.priceList());
-		return delegate.getPrice(priceKey)
-			.filter(pricePredicate);
+		this.pricePredicate.checkFetched(priceKey.currency(), priceKey.priceList());
+		return this.delegate.getPrice(priceKey)
+			.filter(this.pricePredicate);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
-		pricePredicate.checkFetched(currency, priceList);
-		return delegate.getPrice(priceId, priceList, currency)
-			.filter(pricePredicate);
+		this.pricePredicate.checkFetched(currency, priceList);
+		return this.delegate.getPrice(priceId, priceList, currency)
+			.filter(this.pricePredicate);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPrice(@Nonnull String priceList, @Nonnull Currency currency) throws UnexpectedResultCountException, ContextMissingException {
-		pricePredicate.checkFetched(currency, priceList);
-		return delegate.getPrice(priceList, currency)
-			.filter(pricePredicate);
+		this.pricePredicate.checkFetched(currency, priceList);
+		return this.delegate.getPrice(priceList, currency)
+			.filter(this.pricePredicate);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<PriceContract> getPrices(@Nonnull String priceList) throws ContextMissingException {
-		pricePredicate.checkFetched(null, priceList);
+		this.pricePredicate.checkFetched(null, priceList);
 		return SealedEntity.super.getPrices(priceList);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<PriceContract> getPrices(@Nonnull Currency currency) throws ContextMissingException {
-		pricePredicate.checkFetched(currency);
+		this.pricePredicate.checkFetched(currency);
 		return SealedEntity.super.getPrices(currency);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<PriceContract> getPrices(@Nonnull Currency currency, @Nonnull String priceList) throws ContextMissingException {
-		pricePredicate.checkFetched(currency, priceList);
+		this.pricePredicate.checkFetched(currency, priceList);
 		return SealedEntity.super.getPrices(currency, priceList);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSale(@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority) {
-		pricePredicate.checkFetched(currency, priceListPriority);
-		if (pricePredicate.isContextAvailable()) {
+		this.pricePredicate.checkFetched(currency, priceListPriority);
+		if (this.pricePredicate.isContextAvailable()) {
 			// verify the mandated context
 			Assert.isTrue(
-				Objects.equals(currency, pricePredicate.getCurrency()) &&
-					Objects.equals(atTheMoment, pricePredicate.getValidIn()) &&
-					Arrays.equals(priceListPriority, pricePredicate.getPriceLists()),
+				Objects.equals(currency, this.pricePredicate.getCurrency()) &&
+					Objects.equals(atTheMoment, this.pricePredicate.getValidIn()) &&
+					Arrays.equals(priceListPriority, this.pricePredicate.getPriceLists()),
 				() -> "Entity cannot provide price for sale different from the context it was loaded in! " +
-					"The entity `" + getPrimaryKey() + "` was fetched using `" + pricePredicate.getCurrency() + "` currency, " +
-					ofNullable(pricePredicate.getValidIn()).map(it -> "valid at `" + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(it) + "`").orElse("") +
-					" and price list in this priority: " + Arrays.stream(pricePredicate.getPriceLists()).map(it -> "`" + it + "`").collect(Collectors.joining(", ")) + "."
+					"The entity `" + getPrimaryKey() + "` was fetched using `" + this.pricePredicate.getCurrency() + "` currency, " +
+					ofNullable(this.pricePredicate.getValidIn()).map(it -> "valid at `" + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(it) + "`").orElse("") +
+					" and price list in this priority: " + Arrays.stream(this.pricePredicate.getPriceLists()).map(it -> "`" + it + "`").collect(Collectors.joining(", ")) + "."
 			);
 		}
 		return SealedEntity.super.getPriceForSale(currency, atTheMoment, priceListPriority);
@@ -1049,24 +1059,24 @@ public class EntityDecorator implements SealedEntity {
 
 	@Override
 	public boolean isPriceForSaleContextAvailable() {
-		return pricePredicate.isContextAvailable();
+		return this.pricePredicate.isContextAvailable();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<PriceForSaleContext> getPriceForSaleContext() {
-		return pricePredicate.getPriceForSaleContext();
+		return this.pricePredicate.getPriceForSaleContext();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
-		if (pricePredicate.isContextAvailable()) {
-			pricePredicate.checkPricesFetched();
+		if (this.pricePredicate.isContextAvailable()) {
+			this.pricePredicate.checkPricesFetched();
 			return SealedEntity.super.getPriceForSale(
-				pricePredicate.getCurrency(),
-				pricePredicate.getValidIn(),
-				pricePredicate.getPriceLists()
+				this.pricePredicate.getCurrency(),
+				this.pricePredicate.getValidIn(),
+				this.pricePredicate.getPriceLists()
 			);
 		} else {
 			throw new ContextMissingException();
@@ -1076,12 +1086,12 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSaleIfAvailable() {
-		if (pricePredicate.isContextAvailable()) {
-			pricePredicate.checkPricesFetched();
+		if (this.pricePredicate.isContextAvailable()) {
+			this.pricePredicate.checkPricesFetched();
 			return getPriceForSale(
-				pricePredicate.getCurrency(),
-				pricePredicate.getValidIn(),
-				pricePredicate.getPriceLists()
+				this.pricePredicate.getCurrency(),
+				this.pricePredicate.getValidIn(),
+				this.pricePredicate.getPriceLists()
 			);
 		} else {
 			return empty();
@@ -1091,14 +1101,14 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public List<PriceContract> getAllPricesForSale(@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority) throws ContextMissingException {
-		pricePredicate.checkFetched(currency, priceListPriority);
+		this.pricePredicate.checkFetched(currency, priceListPriority);
 		final List<PriceContract> allPricesForSale = SealedEntity.super.getAllPricesForSale(currency, atTheMoment, priceListPriority);
 		if (allPricesForSale.size() > 1) {
 			return allPricesForSale
 				.stream()
 				.sorted(
 					Comparator.comparing(
-						pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
+						this.pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
 							PriceContract::priceWithTax : PriceContract::priceWithoutTax
 					)
 				).toList();
@@ -1110,12 +1120,12 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public List<PriceContract> getAllPricesForSale() {
-		if (pricePredicate.isContextAvailable()) {
-			pricePredicate.checkPricesFetched();
+		if (this.pricePredicate.isContextAvailable()) {
+			this.pricePredicate.checkPricesFetched();
 			return getAllPricesForSale(
-				pricePredicate.getCurrency(),
-				pricePredicate.getValidIn(),
-				pricePredicate.getPriceLists()
+				this.pricePredicate.getCurrency(),
+				this.pricePredicate.getValidIn(),
+				this.pricePredicate.getPriceLists()
 			);
 		} else {
 			throw new ContextMissingException();
@@ -1130,14 +1140,14 @@ public class EntityDecorator implements SealedEntity {
 	                                                                                          @Nullable OffsetDateTime atTheMoment,
 	                                                                                          @Nullable String[] priceListPriority,
 	                                                                                          @Nonnull AccompanyingPrice[] accompanyingPricesRequest) {
-		pricePredicate.checkFetched(currency, priceListPriority);
+		this.pricePredicate.checkFetched(currency, priceListPriority);
 		final List<PriceForSaleWithAccompanyingPrices> allPricesForSale = SealedEntity.super.getAllPricesForSaleWithAccompanyingPrices(currency, atTheMoment, priceListPriority, accompanyingPricesRequest);
 		if (allPricesForSale.size() > 1) {
 			return allPricesForSale
 				.stream()
 				.sorted(
 					Comparator.comparing(
-						pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
+						this.pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
 							it -> it.priceForSale().priceWithTax() :
 							it -> it.priceForSale().priceWithoutTax()
 					)
@@ -1149,13 +1159,13 @@ public class EntityDecorator implements SealedEntity {
 
 	@Override
 	public boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode) throws ContextMissingException {
-		if (pricePredicate.isContextAvailable()) {
-			pricePredicate.checkPricesFetched();
+		if (this.pricePredicate.isContextAvailable()) {
+			this.pricePredicate.checkPricesFetched();
 			return hasPriceInInterval(
 				from, to, queryPriceMode,
-				pricePredicate.getCurrency(),
-				pricePredicate.getValidIn(),
-				pricePredicate.getPriceLists()
+				this.pricePredicate.getCurrency(),
+				this.pricePredicate.getValidIn(),
+				this.pricePredicate.getPriceLists()
 			);
 		} else {
 			throw new ContextMissingException();
@@ -1165,35 +1175,35 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public Collection<PriceContract> getPrices() {
-		if (filteredPrices == null) {
-			pricePredicate.checkPricesFetched();
-			filteredPrices = delegate.getPrices()
+		if (this.filteredPrices == null) {
+			this.pricePredicate.checkPricesFetched();
+			this.filteredPrices = this.delegate.getPrices()
 				.stream()
-				.filter(pricePredicate)
+				.filter(this.pricePredicate)
 				.collect(Collectors.toList());
 		}
-		return filteredPrices;
+		return this.filteredPrices;
 	}
 
 	@Nonnull
 	@Override
 	public PriceInnerRecordHandling getPriceInnerRecordHandling() {
-		if (pricePredicate.getPriceContentMode() == PriceContentMode.NONE) {
+		if (this.pricePredicate.getPriceContentMode() == PriceContentMode.NONE) {
 			return PriceInnerRecordHandling.UNKNOWN;
 		}
-		return delegate.getPriceInnerRecordHandling();
+		return this.delegate.getPriceInnerRecordHandling();
 	}
 
 	@Nonnull
 	public Optional<PriceContract> getPriceForSale(@Nonnull Predicate<PriceContract> predicate) throws ContextMissingException {
-		if (pricePredicate.isContextAvailable()) {
-			pricePredicate.checkPricesFetched();
+		if (this.pricePredicate.isContextAvailable()) {
+			this.pricePredicate.checkPricesFetched();
 			return PricesContract.computePriceForSale(
 				getPrices(),
 				getPriceInnerRecordHandling(),
-				pricePredicate.getCurrency(),
-				pricePredicate.getValidIn(),
-				pricePredicate.getPriceLists(),
+				this.pricePredicate.getCurrency(),
+				this.pricePredicate.getValidIn(),
+				this.pricePredicate.getPriceLists(),
 				predicate
 			);
 		} else {
@@ -1221,12 +1231,12 @@ public class EntityDecorator implements SealedEntity {
 
 	@Override
 	public int hashCode() {
-		return delegate.hashCode();
+		return this.delegate.hashCode();
 	}
 
 	@Override
 	public boolean equals(Object obj) {
-		return delegate.equals(obj instanceof EntityDecorator ? ((EntityDecorator) obj).delegate : obj);
+		return this.delegate.equals(obj instanceof EntityDecorator ? ((EntityDecorator) obj).delegate : obj);
 	}
 
 	@Override
@@ -1242,9 +1252,9 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nullable
 	public Locale getRequestedLocale() {
-		final Set<Locale> locales = localePredicate.getLocales();
+		final Set<Locale> locales = this.localePredicate.getLocales();
 		return locales != null && locales.size() == 1 ?
-			locales.iterator().next() : localePredicate.getImplicitLocale();
+			locales.iterator().next() : this.localePredicate.getImplicitLocale();
 	}
 
 	/**
@@ -1253,7 +1263,7 @@ public class EntityDecorator implements SealedEntity {
 	 * @return true if there was more than one locale used for fetching the entity
 	 */
 	public boolean isMultipleLocalesRequested() {
-		final Set<Locale> locales = localePredicate.getLocales();
+		final Set<Locale> locales = this.localePredicate.getLocales();
 		return locales != null && locales.size() != 1;
 	}
 
@@ -1264,7 +1274,7 @@ public class EntityDecorator implements SealedEntity {
 	 * @return true if passed locale was requested when the entity was fetched
 	 */
 	public boolean isLocaleRequested(@Nonnull Locale locale) {
-		return localePredicate.test(locale);
+		return this.localePredicate.test(locale);
 	}
 
 	/**
@@ -1273,13 +1283,13 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	private Map<ReferenceKey, ReferenceContract> getFilteredReferences() {
-		if (filteredReferences == null) {
-			filteredReferences = delegate.getReferences()
+		if (this.filteredReferences == null) {
+			final LinkedHashMap<ReferenceKey, ReferenceContract> theFilteredReferences = this.delegate.getReferences()
 				.stream()
-				.filter(referencePredicate)
+				.filter(this.referencePredicate)
 				.map(
 					it -> new ReferenceDecorator(
-						it, referencePredicate.getAttributePredicate(it.getReferenceKey().referenceName())
+						it, this.referencePredicate.getAttributePredicate(it.getReferenceKey().referenceName())
 					)
 				)
 				.collect(
@@ -1292,8 +1302,9 @@ public class EntityDecorator implements SealedEntity {
 						LinkedHashMap::new
 					)
 				);
+			this.filteredReferences = CollectionUtils.toUnmodifiableMap(theFilteredReferences);
 		}
-		return filteredReferences;
+		return this.filteredReferences;
 	}
 
 	/**
@@ -1320,7 +1331,7 @@ public class EntityDecorator implements SealedEntity {
 			reference,
 			referencedEntity,
 			referencedGroupEntity,
-			referencePredicate.getAttributePredicate(
+			this.referencePredicate.getAttributePredicate(
 				referenceSchema.getName()
 			)
 		);

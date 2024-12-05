@@ -3,7 +3,7 @@
   "width": {
     "buckets": [
       {
-        "occurrences": 460,
+        "occurrences": 428,
         "requested": true,
         "threshold": "15.90"
       },
@@ -35,7 +35,7 @@
     ],
     "max": "508.00",
     "min": "15.90",
-    "overallCount": 2195
+    "overallCount": 2163
   }
 }
 ```

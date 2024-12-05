@@ -2,11 +2,12 @@
 {
   "parameterValues": [
     {
-      "count": 525,
+      "count": 494,
       "groupEntity": {
         "primaryKey": 66463,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -28,7 +29,8 @@
           "facetEntity": {
             "primaryKey": 66558,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -50,7 +52,8 @@
           "facetEntity": {
             "primaryKey": 66600,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -63,16 +66,17 @@
         },
         {
           "requested": false,
-          "count": 405,
+          "count": 374,
           "impact": {
-            "difference": 405,
-            "matchCount": 512,
+            "difference": 374,
+            "matchCount": 481,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 104449,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -94,7 +98,8 @@
           "facetEntity": {
             "primaryKey": 110006,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -108,11 +113,12 @@
       ]
     },
     {
-      "count": 1527,
+      "count": 1506,
       "groupEntity": {
         "primaryKey": 66464,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -125,16 +131,17 @@
       "facetStatistics": [
         {
           "requested": false,
-          "count": 267,
+          "count": 246,
           "impact": {
-            "difference": 267,
-            "matchCount": 374,
+            "difference": 246,
+            "matchCount": 353,
             "hasSense": true
           },
           "facetEntity": {
             "primaryKey": 104450,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -156,7 +163,8 @@
           "facetEntity": {
             "primaryKey": 107862,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -178,7 +186,8 @@
           "facetEntity": {
             "primaryKey": 108300,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -200,7 +209,8 @@
           "facetEntity": {
             "primaryKey": 114000,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -222,7 +232,8 @@
           "facetEntity": {
             "primaryKey": 114002,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -244,7 +255,8 @@
           "facetEntity": {
             "primaryKey": 114003,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],

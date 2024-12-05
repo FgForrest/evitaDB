@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,12 +25,14 @@ package io.evitadb.api.proxy.impl.entityBuilder;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.proxy.SealedEntityProxy;
+import io.evitadb.api.proxy.WithScopeEditor;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.dataType.Scope;
 import one.edee.oss.proxycian.MethodClassification;
 import one.edee.oss.proxycian.PredicateMethodClassification;
 import one.edee.oss.proxycian.recipe.Advice;
@@ -71,6 +73,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			upsertDeeplyViaMethodClassification(),
 			toMutationArrayMethodClassification(),
 			toMutationCollectionMethodClassification(),
+			setScopeMethodClassification(),
 			openForWriteMethodClassification(),
 			SetAttributeMethodClassifier.INSTANCE,
 			SetAssociatedDataMethodClassifier.INSTANCE,
@@ -230,6 +233,16 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "getContract".equals(method.getName()),
 			(method, proxyState) -> method,
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getProxyClass()
+		);
+	}
+
+	@Nonnull
+	private static PredicateMethodClassification<Object, Method, SealedEntityProxyState> setScopeMethodClassification() {
+		return new PredicateMethodClassification<>(
+			"setScope",
+			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, WithScopeEditor.class) && "setScope".equals(method.getName()),
+			(method, proxyState) -> method,
+			(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.entityBuilder().setScope((Scope) args[0])
 		);
 	}
 

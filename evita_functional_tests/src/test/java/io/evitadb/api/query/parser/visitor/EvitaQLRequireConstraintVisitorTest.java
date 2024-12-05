@@ -38,6 +38,7 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -2955,6 +2956,38 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("queryTelemetry('a','b')"));
 	}
 
+	@Test
+	void shouldParseInScopeConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("inScope(LIVE, facetSummary())");
+		assertEquals(inScope(Scope.LIVE, facetSummary()), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("inScope ( LIVE , facetSummary())");
+		assertEquals(inScope(Scope.LIVE, facetSummary()), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("inScope ( LIVE , facetSummary(), attributeHistogram(10, 'weight'))");
+		assertEquals(inScope(Scope.LIVE, facetSummary(), attributeHistogram(10, "weight")), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraint("inScope ( ?,    facetSummary(  ) )", Scope.ARCHIVED);
+		assertEquals(inScope(Scope.ARCHIVED, facetSummary()), constraint4);
+
+		final RequireConstraint constraint5 = parseRequireConstraint("inScope ( ?,    facetSummary(), attributeHistogram(?, ?) )", Scope.ARCHIVED, 10, "weight");
+		assertEquals(inScope(Scope.ARCHIVED, facetSummary(), attributeHistogram(10, "weight")), constraint5);
+
+		final RequireConstraint constraint6 = parseRequireConstraint("inScope ( @a,  facetSummary() )", Map.of("a", Scope.ARCHIVED));
+		assertEquals(inScope(Scope.ARCHIVED, facetSummary()), constraint6);
+
+		final RequireConstraint constraint7 = parseRequireConstraint("inScope ( @a,   facetSummary( ), attributeHistogram(@b,   @c) )", Map.of("a", Scope.ARCHIVED, "b", 10, "c", "weight"));
+		assertEquals(inScope(Scope.ARCHIVED, facetSummary(), attributeHistogram(10, "weight")), constraint7);
+	}
+
+	@Test
+	void shouldNotParseInScopeConstraint() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("inScope"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("inScope(LIVE)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("inScope(LIVE)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("inScope('LIVE', facetSummary())"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("inScope('a','b')"));
+	}
 
 	/**
 	 * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"
@@ -2963,7 +2996,7 @@ class EvitaQLRequireConstraintVisitorTest {
 	 * @param positionalArguments positional arguments to substitute
 	 * @return parsed constraint
 	 */
-	private RequireConstraint parseRequireConstraint(@Nonnull String string, @Nonnull Object... positionalArguments) {
+	private static RequireConstraint parseRequireConstraint(@Nonnull String string, @Nonnull Object... positionalArguments) {
 		return ParserExecutor.execute(
 			new ParseContext(positionalArguments),
 			() -> ParserFactory.getParser(string).requireConstraint().accept(new EvitaQLRequireConstraintVisitor())
@@ -2977,7 +3010,7 @@ class EvitaQLRequireConstraintVisitorTest {
 	 * @param namedArguments named arguments to substitute
 	 * @return parsed constraint
 	 */
-	private RequireConstraint parseRequireConstraint(@Nonnull String string, @Nonnull Map<String, Object> namedArguments) {
+	private static RequireConstraint parseRequireConstraint(@Nonnull String string, @Nonnull Map<String, Object> namedArguments) {
 		return ParserExecutor.execute(
 			new ParseContext(namedArguments),
 			() -> ParserFactory.getParser(string).requireConstraint().accept(new EvitaQLRequireConstraintVisitor())
@@ -2990,7 +3023,7 @@ class EvitaQLRequireConstraintVisitorTest {
 	 * @param string string to parse
 	 * @return parsed constraint
 	 */
-	private RequireConstraint parseRequireConstraintUnsafe(@Nonnull String string) {
+	private static RequireConstraint parseRequireConstraintUnsafe(@Nonnull String string) {
 		final ParseContext context = new ParseContext();
 		context.setMode(ParseMode.UNSAFE);
 		return ParserExecutor.execute(

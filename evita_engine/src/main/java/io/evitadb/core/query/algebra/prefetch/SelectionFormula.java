@@ -45,6 +45,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -73,7 +74,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	/**
 	 * Memoized predicate stored upon first calculation to lower computational resources.
 	 */
-	private PriceAmountPredicate memoizedPredicate;
+	@Nullable private PriceAmountPredicate memoizedPredicate;
 	/**
 	 * Memoized clone stored upon first calculation to lower computational resources.
 	 */
@@ -81,11 +82,11 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	/**
 	 * Updated cardinality based on current execution context.
 	 */
-	private Integer prefetchEstimatedCardinality;
+	@Nullable private Integer prefetchEstimatedCardinality;
 	/**
 	 * Updated cost based on current execution context.
 	 */
-	private Long prefetchEstimatedCost;
+	@Nullable private Long prefetchEstimatedCost;
 
 	public SelectionFormula(@Nonnull Formula delegate, @Nonnull EntityToBitmapFilter alternative) {
 		Assert.notNull(!(delegate instanceof SkipFormula), "The delegate formula cannot be a skip formula!");
@@ -177,7 +178,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 							predicate = filteredOutPriceRecordAccessor.getRequestedPredicate();
 						} else {
 							Assert.isPremiseValid(
-								predicate.equals(filteredOutPriceRecordAccessor.getRequestedPredicate()),
+								Objects.equals(predicate, filteredOutPriceRecordAccessor.getRequestedPredicate()),
 								"All filtered out price record accessors must have the same predicate!"
 							);
 						}
@@ -278,9 +279,11 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	protected Bitmap computeInternal() {
 		Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
 		// if the entities were prefetched we passed the "is it worthwhile" check
-		return Optional.ofNullable(this.executionContext.getPrefetchedEntities())
-			.map(it -> alternative.filter(this.executionContext))
-			.orElseGet(() -> getDelegate().compute());
+		if (this.executionContext.isPrefetchExecution()) {
+			return this.alternative.filter(this.executionContext);
+		} else {
+			return getDelegate().compute();
+		}
 	}
 
 }

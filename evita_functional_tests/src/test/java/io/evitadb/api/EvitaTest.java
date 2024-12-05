@@ -36,6 +36,7 @@ import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
 import io.evitadb.api.query.order.OrderDirection;
@@ -1015,6 +1016,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReflectedReferenceToEntity(
 						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
 						whichIs -> whichIs.withAttributesInheritedExcept("note")
+							.withFacetedInherited()
 							.withAttribute("customNote", String.class)
 					)
 					.updateVia(session);
@@ -2203,15 +2205,15 @@ class EvitaTest implements EvitaTestSupport {
 			assertEquals(
 				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, 1150, new EntityCollectionStatistics[0]
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, 1153, new EntityCollectionStatistics[0]
 				)
 			);
 
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1642,
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1657,
 					new EntityCollectionStatistics[]{
-						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 508)
+						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 520)
 					}
 				),
 				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow()
@@ -2465,6 +2467,93 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals(2, shortEntity.getReferences(Entities.BRAND).size());
 				assertEquals(1, shortEntity.getReferences(Entities.PARAMETER).size());
 			}
+		);
+	}
+
+	@Test
+	void shouldCorrectlyLocalizeGloballyUniqueAttribute() {
+		evita.defineCatalog(TEST_CATALOG)
+			.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+			.updateViaNewSession(evita);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withGlobalAttribute(ATTRIBUTE_URL)
+					.updateVia(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
+				);
+			}
+		);
+
+		assertThrows(
+			UniqueValueViolationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 2)
+							.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
+					);
+				}
+			)
+		);
+
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 1),
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(attributeEquals(ATTRIBUTE_URL, "/theProduct"))
+						),
+						EntityReference.class
+					).orElseThrow();
+				}
+			)
+		);
+
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 1),
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								attributeEquals(ATTRIBUTE_URL, "/theProduct"),
+								entityLocaleEquals(Locale.ENGLISH)
+							)
+						),
+						EntityReference.class
+					).orElseThrow();
+				}
+			)
+		);
+
+		assertNull(
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								attributeEquals(ATTRIBUTE_URL, "/theProduct"),
+								entityLocaleEquals(Locale.FRENCH)
+							)
+						),
+						EntityReference.class
+					).orElse(null);
+				}
+			)
 		);
 	}
 

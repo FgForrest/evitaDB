@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
@@ -49,28 +50,28 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
+import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.CatalogIndex;
-import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.IndexMaintainer;
-import io.evitadb.index.IndexType;
-import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.mutation.index.AttributeIndexMutator.EntityAttributeValueSupplier;
-import io.evitadb.index.mutation.index.AttributeIndexMutator.ExistingAttributeValueSupplier;
+import io.evitadb.index.*;
+import io.evitadb.index.mutation.index.dataAccess.EntityExistingDataFactory;
+import io.evitadb.index.mutation.index.dataAccess.EntityPriceSupplier;
+import io.evitadb.index.mutation.index.dataAccess.EntityStoragePartExistingDataFactory;
+import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
+import io.evitadb.index.mutation.index.dataAccess.ExistingDataSupplierFactory;
+import io.evitadb.index.mutation.index.dataAccess.ReferenceSupplier;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
-import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
@@ -80,10 +81,12 @@ import java.io.Serializable;
 import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import java.util.stream.Stream;
@@ -101,7 +104,6 @@ import static io.evitadb.utils.Assert.isPremiseValid;
 public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * The {@link EntitySchemaContract#getName()} of the entity type.
-
 	 */
 	private final String entityType;
 	/**
@@ -127,9 +129,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private final Supplier<EntitySchema> schemaAccessor;
 	/**
-	 * The accessor that allows to retrieve schema of other entities.
+	 * The sequence service that assigns new price internal ids.
 	 */
-	private final Function<String, EntitySchema> otherEntitiesSchemaAccessor;
+	@Nonnull private final IntSupplier priceInternalIdSupplier;
 	/**
 	 * List of all undo actions that must be executed in case of (semi) rollback.
 	 */
@@ -139,9 +141,32 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private final Consumer<Runnable> undoActionsAppender;
 	/**
+	 * Supplier that allows to retrieve full entity body. It's used only when entity changes its scope.
+	 */
+	private final Supplier<Entity> fullEntitySupplier;
+	/**
+	 * Memoized factory that allows to retrieve existing attribute values from the current storage part.
+	 */
+	private ExistingDataSupplierFactory storagePartExistingDataFactory;
+	/**
 	 * Set of keys of indexes that were created in this particular entity upsert.
 	 */
 	private Set<ReferenceKey> createdReferences;
+	/**
+	 * Memoized scope of the current entity.
+	 */
+	private Scope memoizedScope;
+
+	/**
+	 * Constructs an {@link EntityIndexKey} for a referenced entity type using the specified reference name.
+	 *
+	 * @param referenceName The name of the reference for which the index key should be created.
+	 * @return An instance of {@link EntityIndexKey} corresponding to the referenced entity type.
+	 */
+	@Nonnull
+	private static EntityIndexKey getReferencedTypeIndexKey(@Nonnull String referenceName, @Nonnull Scope scope) {
+		return new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName);
+	}
 
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -149,65 +174,67 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor,
 		@Nonnull IndexMaintainer<CatalogIndexKey, CatalogIndex> catalogIndexCreatingAccessor,
 		@Nonnull Supplier<EntitySchema> schemaAccessor,
-		@Nonnull Function<String, EntitySchema> otherEntitiesSchemaAccessor,
-		boolean undoOnError
+		@Nonnull IntSupplier priceInternalIdSupplier,
+		boolean undoOnError,
+		@Nonnull Supplier<Entity> fullEntitySupplier
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add(anyType -> entityPrimaryKey);
 		this.entityIndexCreatingAccessor = entityIndexCreatingAccessor;
 		this.catalogIndexCreatingAccessor = catalogIndexCreatingAccessor;
 		this.schemaAccessor = schemaAccessor;
-		this.otherEntitiesSchemaAccessor = otherEntitiesSchemaAccessor;
+		this.priceInternalIdSupplier = priceInternalIdSupplier;
 		this.entityType = schemaAccessor.get().getName();
 		this.undoActions = undoOnError ? new LinkedList<>() : null;
 		this.undoActionsAppender = undoOnError ? undoActions::add : null;
+		this.fullEntitySupplier = fullEntitySupplier;
 	}
 
 	/**
-	 * Removes entity itself from indexes.
+	 * Returns the scope of the current entity. If the scope has already been retrieved and memoized, it returns the
+	 * memoized value. Otherwise, it fetches the scope from the main entity storage part, memoizes it, and returns it.
+	 *
+	 * @return The scope of the current entity.
 	 */
-	public void removeEntity(int primaryKey) {
-		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
-		if (globalIndex.removePrimaryKey(primaryKey)) {
-			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-				globalIndex,
-				null,
-				primaryKey,
-				getEntitySchema(),
-				null,
-				containerAccessor,
-				undoActionsAppender
-			);
+	@Nonnull
+	public Scope getScope() {
+		if (this.memoizedScope == null) {
+			this.memoizedScope = this.containerAccessor.getEntityStoragePart(
+					this.entityType, getPrimaryKeyToIndex(IndexType.ENTITY_INDEX), EntityExistence.MUST_EXIST
+				)
+				.getScope();
 		}
+		return this.memoizedScope;
 	}
 
 	@Override
 	public void applyMutation(@Nonnull LocalMutation<?, ?> localMutation) {
-		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
+		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
 		final int recordId = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
 
 		final boolean created = globalIndex.insertPrimaryKeyIfMissing(recordId);
 		if (created) {
-			if (undoActions != null) {
-				undoActions.add(() -> globalIndex.removePrimaryKey(recordId));
+			if (this.undoActions != null) {
+				this.undoActions.add(() -> globalIndex.removePrimaryKey(recordId));
 			}
+			// we need to set-up all the entity compounds that rely on non-localized attributes
+			// they will exist even if the attributes are not present (i.e. compounds contain only NULL values)
 			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+				this,
 				globalIndex,
 				null,
-				recordId,
 				getEntitySchema(),
-				null,
-				containerAccessor,
-				undoActionsAppender
+				getStoragePartExistingDataFactory().getEntityAttributeValueSupplier(),
+				this.undoActionsAppender
 			);
 		}
 
-		if (created && schemaAccessor.get().isWithHierarchy()) {
+		if (created && this.schemaAccessor.get().isWithHierarchy()) {
 			setParent(
 				this, globalIndex,
 				getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX),
 				null,
-				undoActionsAppender
+				this.undoActionsAppender
 			);
 		}
 
@@ -219,19 +246,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				// when new upserted price is not indexed, it is removed from indexes, so we need to behave like removal
 				(priceMutation instanceof UpsertPriceMutation upsertPriceMutation && !upsertPriceMutation.isIndexed())) {
 				// removal must first occur on the reduced indexes, because they consult the super index
-				ReferenceIndexMutator.executeWithReferenceIndexes(entityType, this, priceUpdateApplicator);
+				ReferenceIndexMutator.executeWithReferenceIndexes(this.entityType, this, priceUpdateApplicator);
 				priceUpdateApplicator.accept(globalIndex);
 			} else {
 				// upsert must first occur on super index, because reduced indexed rely on information in super index
 				priceUpdateApplicator.accept(globalIndex);
-				ReferenceIndexMutator.executeWithReferenceIndexes(entityType, this, priceUpdateApplicator);
+				ReferenceIndexMutator.executeWithReferenceIndexes(this.entityType, this, priceUpdateApplicator);
 			}
 		} else if (localMutation instanceof ParentMutation parentMutation) {
 			updateHierarchyPlacement(parentMutation, globalIndex);
 		} else if (localMutation instanceof ReferenceMutation<?> referenceMutation) {
 			final ReferenceKey referenceKey = referenceMutation.getReferenceKey();
 			final ReferenceSchemaContract referenceSchema = getEntitySchema().getReferenceOrThrowException(referenceKey.referenceName());
-			if (referenceSchema.isIndexed()) {
+			if (referenceSchema.isIndexedInScope(getScope())) {
 				updateReferences(referenceMutation, globalIndex);
 				ReferenceIndexMutator.executeWithReferenceIndexes(
 					entityType,
@@ -242,15 +269,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				);
 			}
 		} else if (localMutation instanceof AttributeMutation attributeMutation) {
-			final EntityAttributeValueSupplier existingAttributeAccessor = new EntityAttributeValueSupplier(
-				this.getContainerAccessor(), entityType, recordId
-			);
 			final EntitySchema entitySchema = getEntitySchema();
-			final BiConsumer<Boolean, EntityIndex> attributeUpdateApplicator = (updateGlobalIndex, targetIndex) -> updateAttributes(
+			final ExistingAttributeValueSupplier entityAttributeValueSupplier = getStoragePartExistingDataFactory().getEntityAttributeValueSupplier();
+			final BiConsumer<Boolean, EntityIndex> attributeUpdateApplicator = (updateGlobalIndex, targetIndex) -> updateAttribute(
 				attributeMutation,
 				attributeName -> entitySchema.getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null),
 				attributeName -> entitySchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast),
-				existingAttributeAccessor,
+				entityAttributeValueSupplier,
 				targetIndex,
 				updateGlobalIndex,
 				true
@@ -264,6 +289,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			);
 		} else if (localMutation instanceof AssociatedDataMutation) {
 			// do nothing, associated data doesn't affect entity index directly
+		} else if (localMutation instanceof SetEntityScopeMutation setEntityScopeMutation) {
+			final Entity entity = this.fullEntitySupplier.get();
+			if (entity.getScope() == setEntityScopeMutation.getScope()) {
+				// do nothing, the scope is already set
+			} else {
+				// remove the entity from the indexes
+				Assert.isPremiseValid(
+					Objects.equals(entity.getScope(), getScope()),
+					"Scope between entity and latest entity body container must be the same!"
+				);
+				removeEntityFromIndexes(entity, entity.getScope());
+				addEntityToIndexes(entity, setEntityScopeMutation.getScope());
+				// reset memoized scope, it has just changed
+				this.memoizedScope = setEntityScopeMutation.getScope();
+			}
 		} else {
 			// SHOULD NOT EVER HAPPEN
 			throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
@@ -283,16 +323,26 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		);
 
 		if (!(addedLocales.isEmpty() && removedLocales.isEmpty())) {
+			final ExistingDataSupplierFactory existingAttributeFactory = getStoragePartExistingDataFactory();
 			final EntitySchema entitySchema = getEntitySchema();
 			for (Locale locale : addedLocales) {
-				upsertEntityLanguage(entityStoragePart, locale, entitySchema);
+				if (entityStoragePart.getLocales().contains(locale)) {
+					upsertEntityLanguage(locale, entitySchema, existingAttributeFactory);
+				}
 			}
 			for (Locale locale : removedLocales) {
-				removeEntityLanguage(entityStoragePart, locale, entitySchema);
+				if (!entityStoragePart.getLocales().contains(locale)) {
+					// locale was removed entirely - remove the information from index
+					removeEntityLanguage(
+						locale,
+						entitySchema,
+						existingAttributeFactory
+					);
+				}
 			}
 		}
 
-		if (entityStoragePart.isMarkedForRemoval()) {
+		if (this.containerAccessor.isEntityRemovedEntirely()) {
 			// remove the entity itself from the indexes
 			removeEntity(primaryKeyToIndex);
 		}
@@ -311,33 +361,26 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Method removes existing index from the existing set.
 	 */
-	public void removeIndex(EntityIndexKey entityIndexKey) {
-		entityIndexCreatingAccessor.removeIndex(entityIndexKey);
+	public void removeIndex(@Nonnull EntityIndexKey entityIndexKey) {
+		this.entityIndexCreatingAccessor.removeIndex(entityIndexKey);
 	}
 
-	public CatalogIndex getCatalogIndex() {
-		return Objects.requireNonNull(catalogIndexCreatingAccessor.getOrCreateIndex(CatalogIndexKey.INSTANCE));
+	@Nonnull
+	public CatalogIndex getCatalogIndex(@Nonnull Scope scope) {
+		return this.catalogIndexCreatingAccessor.getOrCreateIndex(new CatalogIndexKey(scope));
 	}
-
-	/*
-		FRIENDLY METHODS
-	 */
 
 	/**
 	 * Returns current entity schema.
 	 */
 	@Nonnull
 	EntitySchema getEntitySchema() {
-		return schemaAccessor.get();
+		return this.schemaAccessor.get();
 	}
 
-	/**
-	 * Returns current entity schema.
+	/*
+		FRIENDLY METHODS
 	 */
-	@Nullable
-	EntitySchema getEntitySchema(@Nonnull String entityType) {
-		return otherEntitiesSchemaAccessor.apply(entityType);
-	}
 
 	/**
 	 * Returns primary key that should be indexed by certain {@link IndexType}. Argument of index type is necessary
@@ -346,9 +389,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * id for {@link IndexType#ATTRIBUTE_SORT_INDEX}.
 	 */
 	int getPrimaryKeyToIndex(@Nonnull IndexType indexType) {
-		isPremiseValid(!entityPrimaryKey.isEmpty(), "Should not ever happen.");
+		isPremiseValid(!this.entityPrimaryKey.isEmpty(), "Should not ever happen.");
 		//noinspection ConstantConditions
-		return entityPrimaryKey.peek().applyAsInt(indexType);
+		return this.entityPrimaryKey.peek().applyAsInt(indexType);
 	}
 
 	/**
@@ -377,7 +420,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Method processes all mutations that targets entity attributes - e.g. {@link AttributeMutation}.
 	 */
-	void updateAttributes(
+	void updateAttribute(
 		@Nonnull AttributeMutation attributeMutation,
 		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
 		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundSchemaProvider,
@@ -413,30 +456,677 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		}
 	}
 
+	/**
+	 * Remove the language for the specified record in the target index.
+	 *
+	 * @param recordId           The ID of the record to remove the language for.
+	 * @param locale             The locale of the language to be removed.
+	 * @param targetIndex        The target index from which to remove the language.
+	 * @param entitySchema       The schema of the entity.
+	 * @param undoActionConsumer consumer that consolidates undo actions
+	 */
+	void upsertEntityLanguageInTargetIndex(
+		int recordId,
+		@Nonnull Locale locale,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		if (targetIndex.upsertLanguage(locale, recordId, entitySchema)) {
+			insertInitialSuiteOfSortableAttributeCompounds(locale, targetIndex, existingDataSupplierFactory, undoActionConsumer);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> removeEntityLanguageInTargetIndex(
+						recordId, locale, targetIndex,
+						entitySchema, existingDataSupplierFactory,
+						null
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Remove the language for the specified record in the target index.
+	 *
+	 * @param recordId           The ID of the record to remove the language for.
+	 * @param locale             The locale of the language to be removed.
+	 * @param entitySchema       The schema of the entity.
+	 * @param targetIndex        The target index from which to remove the language.
+	 * @param undoActionConsumer consumer that consolidates undo actions
+	 */
+	void removeEntityLanguageInTargetIndex(
+		int recordId,
+		@Nonnull Locale locale,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		if (targetIndex.removeLanguage(locale, recordId)) {
+			removeEntireSuiteOfSortableAttributeCompounds(locale, targetIndex, existingDataSupplierFactory, undoActionConsumer);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> upsertEntityLanguageInTargetIndex(
+						recordId, locale, targetIndex, entitySchema, existingDataSupplierFactory, null
+					)
+				);
+			}
+		}
+	}
+
 	/*
 		PRIVATE METHODS
 	 */
 
 	/**
-	 * Applies passed consumer function on all {@link io.evitadb.index.ReducedEntityIndex} related to currently existing
-	 * {@link ReferenceContract} of the entity.
+	 * Inserts an initial suite of sortable attribute compounds into the specified target index.
+	 *
+	 * This method determines whether the target index is associated with a reference key or not
+	 * and delegates to the appropriate mutator. It utilizes the existing data supplier factory
+	 * to source any required pre-existing data and optionally records undo actions.
+	 *
+	 * @param locale the locale context for the operation, which may be null;
+	 *               if null, the operation is performed without locale-specific considerations
+	 * @param targetIndex the target entity index where the sortable attribute compounds will be inserted;
+	 *                    it must not be null
+	 * @param existingDataSupplierFactory the factory to create suppliers that provide existing data used during the insert;
+	 *                                    it must not be null
+	 * @param undoActionConsumer an optional consumer to store runnable actions for undoing changes;
+	 *                           may be null if undo actions are not required
 	 */
-	private void applyOnReducedIndexes(int epk, @Nonnull Consumer<EntityIndex> entityIndexConsumer) {
-		final ReferencesStoragePart referencesStoragePart = containerAccessor.getReferencesStoragePart(entityType, epk);
-		referencesStoragePart
-			.getReferencesAsCollection()
+	private void insertInitialSuiteOfSortableAttributeCompounds(
+		@Nullable Locale locale,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		if (targetIndex.getIndexKey().discriminator() instanceof ReferenceKey) {
+			ReferenceIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+				this,
+				targetIndex,
+				locale,
+				existingDataSupplierFactory,
+				undoActionConsumer
+			);
+		} else {
+			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+				this,
+				targetIndex,
+				locale,
+				getEntitySchema(),
+				existingDataSupplierFactory.getEntityAttributeValueSupplier(),
+				undoActionConsumer
+			);
+		}
+	}
+
+	/**
+	 * Removes an entire suite of sortable attribute compounds from the specified entity index.
+	 *
+	 * @param locale The locale for which the attribute compounds should be removed. This may be null if locale-specific processing is not required.
+	 * @param targetIndex The target entity index from which the sortable attribute compounds will be removed. Must not be null.
+	 * @param existingDataSupplierFactory A factory for creating suppliers of existing data that may be used to assist in the removal process. Must not be null.
+	 * @param undoActionConsumer An optional consumer that can accept a Runnable to perform undo actions, if needed. This may be null if undo functionality is not required.
+	 */
+	private void removeEntireSuiteOfSortableAttributeCompounds(
+		@Nullable Locale locale,
+		@Nonnull EntityIndex targetIndex,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nullable Consumer<Runnable> undoActionConsumer
+	) {
+		if (targetIndex.getIndexKey().discriminator() instanceof ReferenceKey) {
+			ReferenceIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+				this,
+				targetIndex,
+				locale,
+				existingDataSupplierFactory,
+				undoActionConsumer
+			);
+		} else {
+			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+				this,
+				targetIndex,
+				locale,
+				getEntitySchema(),
+				existingDataSupplierFactory.getEntityAttributeValueSupplier(),
+				undoActionConsumer
+			);
+		}
+	}
+
+	/**
+	 * Retrieves or creates an instance of ExistingDataSupplierFactory for the current storage part.
+	 * If the factory is not already created, it initializes the factory using the root primary key and the type.
+	 *
+	 * @return An instance of ExistingDataSupplierFactory associated with the current storage part.
+	 */
+	@Nonnull
+	private ExistingDataSupplierFactory getStoragePartExistingDataFactory() {
+		if (this.storagePartExistingDataFactory == null) {
+			this.storagePartExistingDataFactory = new EntityStoragePartExistingDataFactory(
+				this.containerAccessor,
+				this.entityType,
+				this.entityPrimaryKey.getFirst().applyAsInt(IndexType.ENTITY_INDEX)
+			);
+		}
+		return this.storagePartExistingDataFactory;
+	}
+
+	/**
+	 * Removes entity itself from indexes.
+	 */
+	private void removeEntity(int primaryKey) {
+		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
+		if (globalIndex.removePrimaryKey(primaryKey)) {
+			// we need to remove the entity compounds rely on non-localized attributes
+			// they will exist even if the attributes are not present (i.e. compounds contain only NULL values)
+			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+				this,
+				globalIndex,
+				null,
+				getEntitySchema(),
+				getStoragePartExistingDataFactory().getEntityAttributeValueSupplier(),
+				this.undoActionsAppender
+			);
+		}
+	}
+
+	/**
+	 * Removes entity from all indexes with passed scope.
+	 *
+	 * @param entity entity to be removed
+	 * @param scope  scope of the entity
+	 */
+	private void removeEntityFromIndexes(@Nonnull Entity entity, @Nonnull Scope scope) {
+		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
+		final int entityPrimaryKey = entity.getPrimaryKeyOrThrowException();
+		final EntitySchemaContract entitySchema = entity.getSchema();
+		final EntityExistingDataFactory existingDataSupplierFactory = new EntityExistingDataFactory(entity);
+		// un-index attributes
+		unindexAllGlobalAttributes(entity, scope, entitySchema, globalIndex, existingDataSupplierFactory);
+		// un-index hierarchy (hierarchies are only in global index)
+		unindexHierarchyPlacement(entityPrimaryKey, entitySchema, globalIndex);
+		// un-index prices
+		unindexAllPrices(entity, scope, globalIndex, existingDataSupplierFactory);
+		// un-index references (and their attributes)
+		unindexReferences(entity, scope, entitySchema, globalIndex, existingDataSupplierFactory);
+		// remove all languages from the global indexes
+		unindexLocales(entity, entitySchema, globalIndex, existingDataSupplierFactory);
+		// finally, remove entity from the global index
+		unindexPrimaryKey(entityPrimaryKey, scope, globalIndex);
+	}
+
+	/**
+	 * Unindexes a primary key from the global entity index and potentially removes
+	 * the global index if it is empty and the scope is not LIVE.
+	 *
+	 * @param entityPrimaryKey The primary key of the entity to be unindexed.
+	 * @param scope            The scope indicating the context in which the method is called.
+	 * @param globalIndex      The global entity index from which the primary key is to be removed.
+	 */
+	private void unindexPrimaryKey(
+		int entityPrimaryKey,
+		@Nonnull Scope scope,
+		@Nonnull GlobalEntityIndex globalIndex
+	) {
+		globalIndex.removePrimaryKey(entityPrimaryKey);
+
+		// if scope is not LIVE and global index is empty, remove the global index
+		if (scope != Scope.LIVE && globalIndex.isEmpty()) {
+			removeIndex(globalIndex.getIndexKey());
+		}
+	}
+
+	/**
+	 * Unindexes the locales associated with the provided entity.
+	 * This method iterates through each locale in the entity and ensures that
+	 * the locale is removed from the global index.
+	 *
+	 * @param entity                      The entity whose locales are to be unindexed.
+	 * @param entitySchema                The schema of the entity for which locales are being unindexed.
+	 * @param globalIndex                 The global index from which the locales should be removed.
+	 * @param existingDataSupplierFactory Factory to supply existing data related to the entity.
+	 */
+	private void unindexLocales(
+		@Nonnull Entity entity,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
+	) {
+		final int epk = entity.getPrimaryKeyOrThrowException();
+		for (Locale locale : entity.getLocales()) {
+			removeEntityLanguageInTargetIndex(
+				epk, locale, globalIndex, entitySchema, existingDataSupplierFactory, this.undoActionsAppender
+			);
+		}
+	}
+
+	/**
+	 * This method is responsible for removing the hierarchy placement of an entity from a global index.
+	 * The operation is only performed if the entity schema has a hierarchical structure.
+	 *
+	 * @param entityPrimaryKey the primary key of the entity whose hierarchy placement is to be removed
+	 * @param entitySchema     the schema of the entity which dictates whether the entity supports a hierarchy
+	 * @param globalIndex      the global index from which the entity's hierarchy placement will be removed
+	 */
+	private void unindexHierarchyPlacement(
+		int entityPrimaryKey,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull GlobalEntityIndex globalIndex
+	) {
+		if (entitySchema.isWithHierarchy()) {
+			removeParent(
+				this,
+				globalIndex,
+				entityPrimaryKey,
+				this.undoActionsAppender
+			);
+		}
+	}
+
+	/**
+	 * Unindexes all global attributes for a given entity within a specified scope.
+	 * This method ensures that attribute values associated with the entity are removed
+	 * from the global index and other related indexes as defined by the scope and schemas.
+	 *
+	 * Attributes are held in these indexes:
+	 *
+	 * - {@link GlobalEntityIndex}
+	 * - {@link ReducedEntityIndex}
+	 *
+	 * @param entity                      The entity whose global attributes are to be unindexed.
+	 * @param scope                       The scope within which the attribute unindexing is to be performed.
+	 * @param entitySchema                The schema contract defining the attributes and their metadata for the entity.
+	 * @param globalIndex                 The global index from which attributes are to be removed.
+	 * @param existingDataSupplierFactory A factory providing access to existing data needed for attribute removal.
+	 */
+	private void unindexAllGlobalAttributes(
+		@Nonnull Entity entity,
+		@Nonnull Scope scope,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
+	) {
+		final Function<String, AttributeSchema> attributeSchemaRetriever = attributeName -> entitySchema.getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null);
+		final Function<String, Stream<SortableAttributeCompoundSchema>> compoundSchemaRetriever = attributeName -> entitySchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
+
+		entity.getAttributeValues()
 			.stream()
 			.filter(Droppable::exists)
-			.map(it -> {
-				final ReferenceSchemaContract referenceSchema = schemaAccessor.get().getReferenceOrThrowException(it.getReferenceName());
-				if (referenceSchema.isReferencedEntityTypeManaged()) {
-					final EntitySchemaContract referencedEntity = otherEntitiesSchemaAccessor.apply(referenceSchema.getReferencedEntityType());
-					if (referencedEntity.isWithHierarchy()) {
-						return this.entityIndexCreatingAccessor.getIndexIfExists(new EntityIndexKey(EntityIndexType.REFERENCED_HIERARCHY_NODE, it.getReferenceKey()));
+			.forEach(
+				attributeValue -> {
+					final AttributeKey key = attributeValue.key();
+					final BiConsumer<EntityIndex, Boolean> removalOperation =
+						(index, updateGlobalIndex) -> AttributeIndexMutator.executeAttributeRemoval(
+							this,
+							attributeSchemaRetriever,
+							compoundSchemaRetriever,
+							existingDataSupplierFactory.getEntityAttributeValueSupplier(),
+							index,
+							key,
+							updateGlobalIndex,
+							true,
+							this.undoActionsAppender
+						);
+					removalOperation.accept(globalIndex, true);
+					applyOnReducedIndexes(
+						scope,
+						existingDataSupplierFactory.getReferenceSupplier(),
+						entityIndex -> removalOperation.accept(entityIndex, false)
+					);
+					existingDataSupplierFactory.registerRemoval(key);
+				}
+			);
+
+		// unindex all non-localized attribute compounds
+		removeEntireSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender);
+		applyOnReducedIndexes(
+			scope,
+			existingDataSupplierFactory.getReferenceSupplier(),
+			index -> removeEntireSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender)
+		);
+	}
+
+	/**
+	 * Unindexes all references and their attributes for the given entity within the specified scope. Reference
+	 * attributes are held in these indexes:
+	 *
+	 * - {@link ReferencedTypeEntityIndex}
+	 * - {@link ReducedEntityIndex}
+	 *
+	 * @param entity                      The entity whose references are to be unindexed
+	 * @param scope                       The scope in which the references are to be unindexed
+	 * @param entitySchema                The schema contract of the entity
+	 * @param globalIndex                 The global entity index used for unindexing
+	 * @param existingDataSupplierFactory A factory for supplying existing data required for unindexing
+	 */
+	private void unindexReferences(
+		@Nonnull Entity entity,
+		@Nonnull Scope scope,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
+	) {
+		final int epk = entity.getPrimaryKeyOrThrowException();
+		for (ReferenceContract reference : entity.getReferences()) {
+			if (reference.exists()) {
+				final ReferenceKey referenceKey = reference.getReferenceKey();
+				if (ReferenceIndexMutator.isIndexedReference(reference, scope)) {
+					final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
+					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
+					final EntityIndex mainReferenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
+					ReferenceIndexMutator.referenceRemoval(
+						epk, entitySchema, this,
+						globalIndex, referenceTypeIndex, mainReferenceIndex, referenceKey,
+						existingDataSupplierFactory,
+						this.undoActionsAppender
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Unindexes all the prices associated with the given entity within the specified scope.
+	 *
+	 * @param entity                      the entity whose prices need to be unindexed
+	 * @param scope                       the scope within which the prices should be unindexed
+	 * @param globalIndex                 the global index from which prices should be removed
+	 * @param existingDataSupplierFactory a factory to obtain existing data required for price removal
+	 */
+	private void unindexAllPrices(
+		@Nonnull Entity entity,
+		@Nonnull Scope scope,
+		@Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
+	) {
+		final EntityPriceSupplier priceSupplier = existingDataSupplierFactory.getPriceSupplier();
+		final BiConsumer<EntityIndex, PriceWithInternalIds> priceRemovalOperation =
+			(index, price) -> PriceIndexMutator.priceRemove(
+				this,
+				index,
+				price.priceKey(),
+				price,
+				entity.getPriceInnerRecordHandling(),
+				this.undoActionsAppender
+			);
+		priceSupplier.getExistingPrices()
+			.filter(Droppable::exists)
+			.forEach(
+				price -> {
+					// first remove from reduced indexes, because they consult the super index
+					applyOnReducedIndexes(
+						scope,
+						existingDataSupplierFactory.getReferenceSupplier(),
+						ix -> priceRemovalOperation.accept(ix, price)
+					);
+					// then remove from the super index
+					priceRemovalOperation.accept(globalIndex, price);
+					priceSupplier.registerRemoval(price.priceKey());
+				}
+			);
+	}
+
+	/**
+	 * Add entity to all indexes with passed scope.
+	 *
+	 * @param entity entity to be added
+	 * @param scope  scope of the entity
+	 */
+	private void addEntityToIndexes(@Nonnull Entity entity, @Nonnull Scope scope) {
+		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
+		final int entityPrimaryKey = entity.getPrimaryKeyOrThrowException();
+		final EntitySchemaContract entitySchema = entity.getSchema();
+		final EntityExistingDataFactory existingDataSupplierFactory = new EntityExistingDataFactory(entity);
+		// add entity from to the global index
+		indexEntity(entityPrimaryKey, globalIndex);
+		// add all languages to the indexes
+		indexAllLocales(entity, entitySchema, globalIndex, existingDataSupplierFactory);
+		// index attributes
+		indexAllGlobalAttributes(entity, scope, entitySchema, globalIndex, existingDataSupplierFactory);
+		// index hierarchy (hierarchies are only in global index)
+		indexHierarchyPlacement(entity, entitySchema, globalIndex);
+		// index prices
+		indexAllPrices(scope, globalIndex, existingDataSupplierFactory);
+		// index references (and their attributes)
+		indexAllReferences(entity, scope, entitySchema, globalIndex, existingDataSupplierFactory);
+	}
+
+	/**
+	 * Attempts to index an entity by inserting its primary key into the global index if it is missing.
+	 *
+	 * @param entityPrimaryKey the primary key of the entity to be indexed
+	 * @param globalIndex an instance of {@code GlobalEntityIndex} used to check and insert the primary key
+	 * @return {@code true} if the primary key was successfully inserted; {@code false} if the primary key was already present
+	 */
+	private static boolean indexEntity(
+		int entityPrimaryKey,
+		@Nonnull GlobalEntityIndex globalIndex
+	) {
+		return globalIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
+	}
+
+	/**
+	 * Indexes all locales for the given entity by invoking the method to upsert language-specific entities
+	 * into the target index.
+	 *
+	 * @param entity The entity containing locales to be indexed.
+	 * @param entitySchema The schema of the entity providing structure and constraints.
+	 * @param globalIndex The global index where language-specific entries will be upserted.
+	 * @param existingDataSupplierFactory Factory to supply existing data necessary for the upsert operation.
+	 */
+	private void indexAllLocales(
+		@Nonnull Entity entity,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
+	) {
+		final int epk = entity.getPrimaryKeyOrThrowException();
+		for (Locale locale : entity.getLocales()) {
+			upsertEntityLanguageInTargetIndex(
+				epk, locale, globalIndex, entitySchema, existingDataSupplierFactory, this.undoActionsAppender
+			);
+		}
+	}
+
+	/**
+	 * Indexes all global attributes for a given entity. Attributes are held in these indexes:
+	 *
+	 * - {@link GlobalEntityIndex}
+	 * - {@link ReducedEntityIndex}
+	 *
+	 * @param entity                      The entity containing attributes to be indexed.
+	 * @param scope                       The scope defining the context in which the indexing occurs.
+	 * @param entitySchema                The schema contract of the entity providing attribute definitions.
+	 * @param globalIndex                 The global index where attributes will be upserted.
+	 * @param existingDataSupplierFactory The factory supplying existing data for the entity.
+	 */
+	private void indexAllGlobalAttributes(
+		@Nonnull Entity entity,
+		@Nonnull Scope scope,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
+	) {
+		final Function<String, AttributeSchema> attributeSchemaRetriever = attributeName -> entitySchema.getAttribute(attributeName).map(AttributeSchema.class::cast).orElse(null);
+		final Function<String, Stream<SortableAttributeCompoundSchema>> compoundSchemaRetriever = attributeName -> entitySchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
+
+		// index all non-localized attribute compounds
+		insertInitialSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender);
+		applyOnReducedIndexes(
+			scope,
+			existingDataSupplierFactory.getReferenceSupplier(),
+			index -> insertInitialSuiteOfSortableAttributeCompounds(null, globalIndex, existingDataSupplierFactory, this.undoActionsAppender)
+		);
+
+		// now index all attributes
+		entity.getAttributeValues()
+			.stream()
+			.filter(Droppable::exists)
+			.forEach(
+				attributeValue -> {
+					final AttributeKey key = attributeValue.key();
+					final BiConsumer<EntityIndex, Boolean> upsertOperation =
+						(index, updateGlobalIndex) -> AttributeIndexMutator.executeAttributeUpsert(
+						this,
+						attributeSchemaRetriever,
+						compoundSchemaRetriever,
+						ExistingAttributeValueSupplier.NO_EXISTING_VALUE_SUPPLIER,
+						index,
+						key,
+						attributeValue.valueOrThrowException(),
+						updateGlobalIndex,
+						false,
+						this.undoActionsAppender
+					);
+					upsertOperation.accept(globalIndex, true);
+					applyOnReducedIndexes(
+						scope,
+						existingDataSupplierFactory.getReferenceSupplier(),
+						index -> upsertOperation.accept(index, false)
+					);
+				}
+			);
+	}
+
+	/**
+	 * Indexes the hierarchy placement of an entity within a global entity index.
+	 *
+	 * @param entity       the entity whose hierarchy placement needs to be indexed
+	 * @param entitySchema the schema contract of the entity
+	 * @param globalIndex  the global entity index where the hierarchy placement will be indexed
+	 */
+	private void indexHierarchyPlacement(
+		@Nonnull Entity entity,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull GlobalEntityIndex globalIndex
+	) {
+		if (entitySchema.isWithHierarchy() && entity.getParent().isPresent()) {
+			setParent(
+				this,
+				globalIndex,
+				entity.getPrimaryKeyOrThrowException(),
+				entity.getParent().getAsInt(),
+				this.undoActionsAppender
+			);
+		}
+	}
+
+	/**
+	 * Indexes all prices using the provided scope, global index, and data supplier factory.
+	 * This method retrieves the price data using the existingDataSupplierFactory and
+	 * applies the price upsert operation on the global index and reduced indexes.
+	 *
+	 * @param scope                       The scope within which prices should be indexed.
+	 * @param globalIndex                 The global index where all prices are indexed primarily.
+	 * @param existingDataSupplierFactory The factory used to obtain existing data suppliers, including price suppliers.
+	 */
+	private void indexAllPrices(
+		@Nonnull Scope scope,
+		@Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
+	) {
+		final EntityPriceSupplier priceSupplier = existingDataSupplierFactory.getPriceSupplier();
+		final BiConsumer<EntityIndex, PriceWithInternalIds> priceUpsertOperation = (index, price) -> PriceIndexMutator.priceUpsert(
+			this,
+			index,
+			price.priceKey(),
+			price.innerRecordId(),
+			price.validity(),
+			price.priceWithoutTax(),
+			price.priceWithTax(),
+			price.indexed(),
+			null,
+			priceSupplier.getPriceInnerRecordHandling(),
+			PriceIndexMutator.createPriceProvider(price),
+			this.undoActionsAppender
+		);
+		priceSupplier.getExistingPrices()
+			.filter(Droppable::exists)
+			.forEach(
+				price -> {
+					priceUpsertOperation.accept(globalIndex, price);
+					applyOnReducedIndexes(
+						scope,
+						existingDataSupplierFactory.getReferenceSupplier(),
+						index -> priceUpsertOperation.accept(index, price)
+					);
+				}
+			);
+	}
+
+	/**
+	 * Indexes all references and reference attributes of a given entity within the specified scope and schema by
+	 * updating the global index and any relevant entity indexes. Reference attributes are held in these indexes:
+	 *
+	 * - {@link ReferencedTypeEntityIndex}
+	 * - {@link ReducedEntityIndex}
+	 *
+	 * @param entity                      The entity containing references to be indexed.
+	 * @param scope                       The scope within which indexing is to be performed.
+	 * @param entitySchema                A contract that provides the structure and rules for the entity schema.
+	 * @param globalIndex                 The global index that maintains references to all entities.
+	 * @param existingDataSupplierFactory Factory to supply existing data needed for indexing.
+	 */
+	private void indexAllReferences(
+		@Nonnull Entity entity,
+		@Nonnull Scope scope,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull GlobalEntityIndex globalIndex,
+		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
+	) {
+		final int epk = entity.getPrimaryKeyOrThrowException();
+		for (ReferenceContract reference : entity.getReferences()) {
+			if (reference.exists()) {
+				final ReferenceKey referenceKey = reference.getReferenceKey();
+				if (ReferenceIndexMutator.isIndexedReference(reference, scope)) {
+					final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
+					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
+					final EntityIndex mainReferenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
+					ReferenceIndexMutator.referenceInsert(
+						epk, entitySchema, this,
+						globalIndex, referenceTypeIndex, mainReferenceIndex, referenceKey,
+						existingDataSupplierFactory,
+						this.undoActionsAppender
+					);
+					if (ReferenceIndexMutator.isFacetedReference(scope, referenceKey, this)) {
+						for (ReferenceContract otherReferences : entity.getReferences()) {
+							if (!referenceKey.equals(otherReferences.getReferenceKey())) {
+								final EntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
+								ReferenceIndexMutator.addFacetToIndex(
+									referenceIndex,
+									referenceKey,
+									reference.getGroup().filter(Droppable::exists).map(GroupEntityReference::getPrimaryKey).orElse(null),
+									this,
+									epk,
+									this.undoActionsAppender
+								);
+							}
+						}
 					}
 				}
-				return this.entityIndexCreatingAccessor.getIndexIfExists(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, it.getReferenceKey()));
-			})
+			}
+		}
+	}
+
+	/**
+	 * Applies passed consumer function on all {@link ReducedEntityIndex} related to currently existing
+	 * {@link ReferenceContract} of the entity.
+	 */
+	private void applyOnReducedIndexes(
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSupplier referenceSupplier,
+		@Nonnull Consumer<EntityIndex> entityIndexConsumer
+	) {
+		referenceSupplier
+			.getReferenceKeys()
+			.map(
+				it -> this.entityIndexCreatingAccessor.getIndexIfExists(
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, it)
+				)
+			)
 			.filter(Objects::nonNull)
 			.forEach(entityIndexConsumer);
 	}
@@ -448,10 +1138,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private void updateReferences(@Nonnull ReferenceMutation<?> referenceMutation, @Nonnull EntityIndex entityIndex) {
 		final ReferenceKey referenceKey = referenceMutation.getReferenceKey();
+		final Scope scope = getScope();
 		final int theEntityPrimaryKey = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
 
 		if (referenceMutation instanceof SetReferenceGroupMutation upsertReferenceGroupMutation) {
-			final EntityIndex referenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey);
+			final EntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
 			ReferenceIndexMutator.setFacetGroupInIndex(
 				theEntityPrimaryKey, entityIndex,
 				upsertReferenceGroupMutation.getReferenceKey(),
@@ -467,7 +1158,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				entityType
 			);
 		} else if (referenceMutation instanceof RemoveReferenceGroupMutation removeReferenceGroupMutation) {
-			final EntityIndex referenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey);
+			final EntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
 			ReferenceIndexMutator.removeFacetGroupInIndex(
 				theEntityPrimaryKey, entityIndex,
 				removeReferenceGroupMutation.getReferenceKey(),
@@ -480,43 +1171,49 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				this,
 				entityType
 			);
-		} else if (referenceMutation instanceof ReferenceAttributeMutation referenceAttributesUpdateMutation) {
-			final AttributeMutation attributeMutation = referenceAttributesUpdateMutation.getAttributeMutation();
-			final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(
-				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceKey.referenceName())
-			);
-			final EntityIndex referenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey);
-			ReferenceIndexMutator.attributeUpdate(
-				theEntityPrimaryKey, entityType, this, referenceTypeIndex, referenceIndex, referenceMutation.getReferenceKey(), attributeMutation
-			);
 		} else {
-			final EntitySchema entitySchema = getEntitySchema();
-			if (referenceMutation instanceof InsertReferenceMutation) {
+			if (referenceMutation instanceof ReferenceAttributeMutation referenceAttributesUpdateMutation) {
+				final AttributeMutation attributeMutation = referenceAttributesUpdateMutation.getAttributeMutation();
 				final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(
-					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceKey.referenceName())
+					getReferencedTypeIndexKey(referenceKey.referenceName(), scope)
 				);
-				final EntityIndex referenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey);
-				ReferenceIndexMutator.referenceInsert(
-					theEntityPrimaryKey, entitySchema, this,
-					entityIndex, referenceTypeIndex, referenceIndex, referenceKey,
-					undoActionsAppender
-				);
-				if (this.createdReferences == null) {
-					this.createdReferences = CollectionUtils.createHashSet(16);
-				}
-				this.createdReferences.add(referenceKey);
-			} else if (referenceMutation instanceof RemoveReferenceMutation) {
-				final EntityIndexKey referencedTypeIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceKey.referenceName());
-				final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
-				final EntityIndex referenceIndex = ReferenceIndexMutator.getReferencedEntityIndex(this, referenceKey);
-				ReferenceIndexMutator.referenceRemoval(
-					theEntityPrimaryKey, entitySchema, this,
-					entityIndex, referenceTypeIndex, referenceIndex, referenceKey,
-					undoActionsAppender
+				final EntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
+				ReferenceIndexMutator.attributeUpdate(
+					this, getStoragePartExistingDataFactory(),
+					referenceTypeIndex, referenceIndex, referenceMutation.getReferenceKey(),
+					attributeMutation
 				);
 			} else {
-				// SHOULD NOT EVER HAPPEN
-				throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
+				final EntitySchema entitySchema = getEntitySchema();
+				if (referenceMutation instanceof InsertReferenceMutation) {
+					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(
+						getReferencedTypeIndexKey(referenceKey.referenceName(), scope)
+					);
+					final EntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
+					ReferenceIndexMutator.referenceInsert(
+						theEntityPrimaryKey, entitySchema, this,
+						entityIndex, referenceTypeIndex, referenceIndex, referenceKey,
+						getStoragePartExistingDataFactory(),
+						this.undoActionsAppender
+					);
+					if (this.createdReferences == null) {
+						this.createdReferences = CollectionUtils.createHashSet(16);
+					}
+					this.createdReferences.add(referenceKey);
+				} else if (referenceMutation instanceof RemoveReferenceMutation) {
+					final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
+					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
+					final EntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
+					ReferenceIndexMutator.referenceRemoval(
+						theEntityPrimaryKey, entitySchema, this,
+						entityIndex, referenceTypeIndex, referenceIndex, referenceKey,
+						getStoragePartExistingDataFactory(),
+						this.undoActionsAppender
+					);
+				} else {
+					// SHOULD NOT EVER HAPPEN
+					throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
+				}
 			}
 		}
 	}
@@ -525,144 +1222,54 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Method inserts language for entity if entity lacks information about used language.
 	 */
 	private void upsertEntityLanguage(
-		@Nonnull EntityBodyStoragePart entityStoragePart,
 		@Nonnull Locale locale,
-		@Nonnull EntitySchemaContract entitySchema
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
-		if (entityStoragePart.getLocales().contains(locale)) {
-			final int epk = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
-			final EntityIndex globalIndex = this.entityIndexCreatingAccessor.getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
-			final boolean added = upsertEntityLanguageInTargetIndex(epk, locale, globalIndex, entitySchema, undoActionsAppender);
-			if (added && undoActions != null) {
-				undoActions.add(() -> removeEntityLanguageInTargetIndex(epk, locale, globalIndex, null));
-			}
-			applyOnReducedIndexes(epk, index -> {
-				final boolean addedInTargetIndex = upsertEntityLanguageInTargetIndex(epk, locale, index, entitySchema, undoActionsAppender);
-				if (addedInTargetIndex && undoActions != null) {
-					undoActions.add(() -> removeEntityLanguageInTargetIndex(epk, locale, index, null));
-				}
-			});
-		}
+		final int epk = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
+		final EntityIndex globalIndex = this.entityIndexCreatingAccessor.getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
+		upsertEntityLanguageInTargetIndex(epk, locale, globalIndex, entitySchema, existingDataSupplierFactory, this.undoActionsAppender);
+		applyOnReducedIndexes(
+			getScope(),
+			existingDataSupplierFactory.getReferenceSupplier(),
+			index -> upsertEntityLanguageInTargetIndex(
+				epk, locale, index, entitySchema, existingDataSupplierFactory, this.undoActionsAppender
+			)
+		);
 	}
 
 	/**
 	 * Method removes language for entity.
 	 */
 	private void removeEntityLanguage(
-		@Nonnull EntityBodyStoragePart entityStoragePart,
 		@Nonnull Locale locale,
-		@Nonnull EntitySchemaContract entitySchema
-	) {
-		if (!entityStoragePart.getLocales().contains(locale)) {
-			// locale was removed entirely - remove the information from index
-			final int epk = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
-			final EntityIndex globalIndex = this.entityIndexCreatingAccessor.getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
-			final boolean removed = removeEntityLanguageInTargetIndex(epk, locale, globalIndex, undoActionsAppender);
-			if (removed && this.undoActions != null) {
-				this.undoActions.add(() -> upsertEntityLanguageInTargetIndex(epk, locale, globalIndex, entitySchema, null));
-			}
-			applyOnReducedIndexes(
-				epk,
-				index -> {
-					// removal mutations happen before indexes are created and thus the created indexes will not have
-					// the language set (entity already lacks the language) - so we cannot remove it for those indexes
-					if (this.createdReferences == null || !this.createdReferences.contains((ReferenceKey) index.getIndexKey().getDiscriminator())) {
-						final boolean removedInTargetIndex = removeEntityLanguageInTargetIndex(
-							epk, locale, index, this.undoActionsAppender
-						);
-						if (removedInTargetIndex && this.undoActions != null) {
-							this.undoActions.add(() -> upsertEntityLanguageInTargetIndex(epk, locale, index, entitySchema, null));
-						}
-					}
-				}
-			);
-		}
-	}
-
-	/**
-	 * Remove the language for the specified record in the target index.
-	 *
-	 * @param recordId The ID of the record to remove the language for.
-	 * @param locale The locale of the language to be removed.
-	 * @param targetIndex The target index from which to remove the language.
-	 * @param entitySchema The schema of the entity.
-	 * @return true if the language was removed, false otherwise.
-	 */
-	boolean upsertEntityLanguageInTargetIndex(
-		int recordId,
-		@Nonnull Locale locale,
-		@Nonnull EntityIndex targetIndex,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
-		if (targetIndex.upsertLanguage(locale, recordId, entitySchema)) {
-			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-				targetIndex,
-				locale,
-				recordId,
-				getEntitySchema(),
-				null,
-				containerAccessor,
-				undoActionConsumer
-			);
-			final EntityIndexKey indexKey = targetIndex.getIndexKey();
-			if (indexKey.getDiscriminator() instanceof ReferenceKey referenceKey) {
-				AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-					targetIndex,
-					locale,
-					recordId,
-					getEntitySchema(),
-					referenceKey,
-					containerAccessor,
-					undoActionConsumer
-				);
+		final int epk = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
+		final EntityIndex globalIndex = this.entityIndexCreatingAccessor.getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
+		removeEntityLanguageInTargetIndex(
+			epk, locale, globalIndex,
+			entitySchema,
+			existingDataSupplierFactory,
+			this.undoActionsAppender
+		);
+		applyOnReducedIndexes(
+			getScope(),
+			existingDataSupplierFactory.getReferenceSupplier(),
+			index -> {
+				// removal mutations happen before indexes are created and thus the created indexes will not have
+				// the language set (entity already lacks the language) - so we cannot remove it for those indexes
+				final ReferenceKey referenceKey = (ReferenceKey) index.getIndexKey().discriminator();
+				if (this.createdReferences == null || !this.createdReferences.contains(referenceKey)) {
+					removeEntityLanguageInTargetIndex(
+						epk, locale, index,
+						entitySchema, existingDataSupplierFactory,
+						this.undoActionsAppender
+					);
+				}
 			}
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * Remove the language for the specified record in the target index.
-	 *
-	 * @param recordId The ID of the record to remove the language for.
-	 * @param locale The locale of the language to be removed.
-	 * @param targetIndex The target index from which to remove the language.
-	 * @return true if the language was removed, false otherwise.
-	 */
-	boolean removeEntityLanguageInTargetIndex(
-		int recordId,
-		@Nonnull Locale locale,
-		@Nonnull EntityIndex targetIndex,
-		@Nullable Consumer<Runnable> undoActionConsumer
-	) {
-		if (targetIndex.removeLanguage(locale, recordId)) {
-			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-				targetIndex,
-				locale,
-				recordId,
-				getEntitySchema(),
-				null,
-				containerAccessor,
-				undoActionConsumer
-			);
-			final EntityIndexKey indexKey = targetIndex.getIndexKey();
-			if (indexKey.getDiscriminator() instanceof ReferenceKey referenceKey) {
-				AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-					targetIndex,
-					locale,
-					recordId,
-					getEntitySchema(),
-					referenceKey,
-					containerAccessor,
-					undoActionConsumer
-				);
-			}
-			return true;
-		} else {
-			return false;
-		}
+		);
 	}
 
 	/**
@@ -671,30 +1278,26 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * except the referenced entity index that directly connects to {@link ReferenceMutation#getReferenceKey()} because
 	 * this is altered in {@link #updateReferences(ReferenceMutation, EntityIndex)} method.
 	 */
-	private void updateReferencesInReferenceIndex(@Nonnull ReferenceMutation<?> referenceMutation, @Nonnull EntityIndex targetIndex) {
-		final EntityIndexType targetIndexType = targetIndex.getIndexKey().getType();
-		final int theEntityPrimaryKey;
-		if (targetIndexType == EntityIndexType.REFERENCED_HIERARCHY_NODE) {
-			theEntityPrimaryKey = getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX);
-		} else if (targetIndexType == EntityIndexType.REFERENCED_ENTITY) {
-			theEntityPrimaryKey = getPrimaryKeyToIndex(IndexType.REFERENCE_INDEX);
-		} else {
-			throw new GenericEvitaInternalError("Unexpected type of index: " + targetIndexType);
-		}
+	private void updateReferencesInReferenceIndex(
+		@Nonnull ReferenceMutation<?> referenceMutation,
+		@Nonnull EntityIndex targetIndex
+	) {
 		if (referenceMutation instanceof SetReferenceGroupMutation upsertReferenceGroupMutation) {
 			ReferenceIndexMutator.setFacetGroupInIndex(
-				theEntityPrimaryKey, targetIndex,
+				getPrimaryKeyToIndex(IndexType.FACET_INDEX),
+				targetIndex,
 				upsertReferenceGroupMutation.getReferenceKey(),
 				upsertReferenceGroupMutation.getGroupPrimaryKey(),
 				this,
-				entityType
+				this.entityType
 			);
 		} else if (referenceMutation instanceof RemoveReferenceGroupMutation removeReferenceGroupMutation) {
 			ReferenceIndexMutator.removeFacetGroupInIndex(
-				theEntityPrimaryKey, targetIndex,
+				getPrimaryKeyToIndex(IndexType.FACET_INDEX),
+				targetIndex,
 				removeReferenceGroupMutation.getReferenceKey(),
 				this,
-				entityType
+				this.entityType
 			);
 		} else if (referenceMutation instanceof ReferenceAttributeMutation) {
 			// do nothing - attributes are not indexed in hierarchy index
@@ -704,17 +1307,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				referenceMutation.getReferenceKey(),
 				null,
 				this,
-				theEntityPrimaryKey,
-				undoActionsAppender
+				getPrimaryKeyToIndex(IndexType.FACET_INDEX),
+				this.undoActionsAppender
 			);
 		} else if (referenceMutation instanceof RemoveReferenceMutation) {
 			ReferenceIndexMutator.removeFacetInIndex(
 				targetIndex,
 				referenceMutation.getReferenceKey(),
 				this,
-				entityType,
-				theEntityPrimaryKey,
-				undoActionsAppender
+				this.entityType,
+				getPrimaryKeyToIndex(IndexType.FACET_INDEX),
+				this.undoActionsAppender
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN
@@ -749,7 +1352,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final Consumer<EntityIndex> pricesInsertion = theIndex -> {
 				for (PriceWithInternalIds price : priceStorageContainer.getPrices()) {
 					PriceIndexMutator.priceUpsert(
-						entityType, this, theIndex, price.priceKey(),
+						this, theIndex, price.priceKey(),
 						price.innerRecordId(),
 						price.validity(),
 						price.priceWithoutTax(),
@@ -786,20 +1389,34 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (priceMutation instanceof final UpsertPriceMutation upsertPriceMutation) {
 			final int theEntityPrimaryKey = this.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
 			PriceIndexMutator.priceUpsert(
-				this, index, entityType, theEntityPrimaryKey, priceKey,
+				this, index, priceKey,
 				upsertPriceMutation.getInnerRecordId(),
 				upsertPriceMutation.getValidity(),
 				upsertPriceMutation.getPriceWithoutTax(),
 				upsertPriceMutation.getPriceWithTax(),
 				upsertPriceMutation.isIndexed(),
-				(thePriceKey, theInnerRecordId) -> containerAccessor.findExistingInternalIds(
-					entityType, theEntityPrimaryKey, thePriceKey, theInnerRecordId
-				),
-				undoActionsAppender
+				this.getStoragePartExistingDataFactory().getPriceSupplier(),
+				(thePriceKey, theInnerRecordId) -> {
+					final OptionalInt existingInternalId = this.containerAccessor.findExistingInternalId(
+						this.entityType, theEntityPrimaryKey, thePriceKey
+					);
+					// -1 value is used of old prices that were not indexed and thus do not have internal id
+					// now all prices have internal id, so we can safely use -1 as a marker for non-existing price id
+					if (existingInternalId.isPresent() && existingInternalId.getAsInt() != -1) {
+						return existingInternalId.getAsInt();
+					} else {
+						final int newlyAssignedId = this.priceInternalIdSupplier.getAsInt();
+						this.containerAccessor.registerAssignedPriceId(theEntityPrimaryKey, thePriceKey, newlyAssignedId);
+						return newlyAssignedId;
+					}
+				},
+				this.undoActionsAppender
 			);
 		} else if (priceMutation instanceof RemovePriceMutation) {
 			PriceIndexMutator.priceRemove(
-				entityType, this, index, priceKey, undoActionsAppender
+				this, index, priceKey,
+				this.getStoragePartExistingDataFactory().getPriceSupplier(),
+				this.undoActionsAppender
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN

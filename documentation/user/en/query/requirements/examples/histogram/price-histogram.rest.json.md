@@ -2,12 +2,12 @@
 {
   "buckets": [
     {
-      "occurrences": 753,
+      "occurrences": 701,
       "requested": true,
       "threshold": "0.00"
     },
     {
-      "occurrences": 478,
+      "occurrences": 467,
       "requested": true,
       "threshold": "251.80"
     },
@@ -17,7 +17,7 @@
       "threshold": "503.60"
     },
     {
-      "occurrences": 530,
+      "occurrences": 529,
       "requested": true,
       "threshold": "755.40"
     },
@@ -104,6 +104,6 @@
   ],
   "max": "5036.00",
   "min": "0.00",
-  "overallCount": 4127
+  "overallCount": 4063
 }
 ```

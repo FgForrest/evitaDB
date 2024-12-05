@@ -193,10 +193,11 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Reference that was marked as faceted is called Facet.
    * </pre>
    *
-   * <code>.google.protobuf.BoolValue faceted = 7;</code>
+   * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
+   * @deprecated
    * @return Whether the faceted field is set.
    */
-  boolean hasFaceted();
+  @java.lang.Deprecated boolean hasFaceted();
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
@@ -207,10 +208,11 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Reference that was marked as faceted is called Facet.
    * </pre>
    *
-   * <code>.google.protobuf.BoolValue faceted = 7;</code>
+   * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
+   * @deprecated
    * @return The faceted.
    */
-  com.google.protobuf.BoolValue getFaceted();
+  @java.lang.Deprecated com.google.protobuf.BoolValue getFaceted();
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
@@ -221,9 +223,9 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Reference that was marked as faceted is called Facet.
    * </pre>
    *
-   * <code>.google.protobuf.BoolValue faceted = 7;</code>
+   * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    */
-  com.google.protobuf.BoolValueOrBuilder getFacetedOrBuilder();
+  @java.lang.Deprecated com.google.protobuf.BoolValueOrBuilder getFacetedOrBuilder();
 
   /**
    * <pre>
@@ -288,4 +290,179 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    */
   com.google.protobuf.ByteString
       getAttributeInheritanceFilterBytes(int index);
+
+  /**
+   * <pre>
+   * when set to true, the value of `indexedInScope` field is ignored and the settings are inherited from the original
+   * reference.
+   * </pre>
+   *
+   * <code>bool indexedInherited = 10;</code>
+   * @return The indexedInherited.
+   */
+  boolean getIndexedInherited();
+
+  /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+   * @return A list containing the indexedInScopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
+  /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+   * @return The count of indexedInScopes.
+   */
+  int getIndexedInScopesCount();
+  /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+   * @param index The index of the element to return.
+   * @return The indexedInScopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index);
+  /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+   * @return A list containing the enum numeric values on the wire for indexedInScopes.
+   */
+  java.util.List<java.lang.Integer>
+  getIndexedInScopesValueList();
+  /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of indexedInScopes at the given index.
+   */
+  int getIndexedInScopesValue(int index);
+
+  /**
+   * <pre>
+   * when set to true, the value of `facetedInScope` field is ignored and the settings are inherited from the original
+   * reference.
+   * </pre>
+   *
+   * <code>bool facetedInherited = 12;</code>
+   * @return The facetedInherited.
+   */
+  boolean getFacetedInherited();
+
+  /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 13;</code>
+   * @return A list containing the facetedInScopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getFacetedInScopesList();
+  /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 13;</code>
+   * @return The count of facetedInScopes.
+   */
+  int getFacetedInScopesCount();
+  /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 13;</code>
+   * @param index The index of the element to return.
+   * @return The facetedInScopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getFacetedInScopes(int index);
+  /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 13;</code>
+   * @return A list containing the enum numeric values on the wire for facetedInScopes.
+   */
+  java.util.List<java.lang.Integer>
+  getFacetedInScopesValueList();
+  /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 13;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of facetedInScopes at the given index.
+   */
+  int getFacetedInScopesValue(int index);
 }

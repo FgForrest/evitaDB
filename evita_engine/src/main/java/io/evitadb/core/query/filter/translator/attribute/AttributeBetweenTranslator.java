@@ -57,11 +57,13 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
 import static java.util.Optional.ofNullable;
 
@@ -105,7 +107,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 							throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
 						}
 					};
-					final Serializable theValue = attr.get().value();
+					final Serializable theValue = Objects.requireNonNull(attr.get().value());
 					if (theValue.getClass().isArray()) {
 						return Arrays.stream((Object[]) theValue).map(Comparable.class::cast).anyMatch(predicate);
 					} else {
@@ -140,44 +142,44 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 						if (theValue == null) {
 							return false;
 						} else if (from != null && to != null) {
-							if (from instanceof BigDecimal || to instanceof BigDecimal) {
-								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.between((BigDecimal) from, (BigDecimal) to));
-							} else if (from instanceof Long || to instanceof Long) {
-								return ((LongNumberRange) theValue).overlaps(LongNumberRange.between((Long) from, (Long) to));
-							} else if (from instanceof Integer || to instanceof Integer) {
-								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.between((Integer) from, (Integer) to));
-							} else if (from instanceof Short || to instanceof Short) {
-								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.between((Short) from, (Short) to));
-							} else if (from instanceof Byte || to instanceof Byte) {
-								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.between((Byte) from, (Byte) to));
+							if (from instanceof BigDecimal fromBD && to instanceof BigDecimal toBD) {
+								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.between(fromBD, toBD));
+							} else if (from instanceof Long fromL && to instanceof Long toL) {
+								return ((LongNumberRange) theValue).overlaps(LongNumberRange.between(fromL, toL));
+							} else if (from instanceof Integer fromI && to instanceof Integer toI) {
+								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.between(fromI, toI));
+							} else if (from instanceof Short fromS && to instanceof Short toS) {
+								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.between(fromS, toS));
+							} else if (from instanceof Byte fromB && to instanceof Byte toB) {
+								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.between(fromB, toB));
 							} else {
 								throw new GenericEvitaInternalError("Unexpected input type: " + from + ", " + to);
 							}
 						} else if (from != null) {
-							if (from instanceof BigDecimal) {
-								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.from((BigDecimal) from));
-							} else if (from instanceof Long) {
-								return ((LongNumberRange) theValue).overlaps(LongNumberRange.from((Long) from));
-							} else if (from instanceof Integer) {
-								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.from((Integer) from));
-							} else if (from instanceof Short) {
-								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.from((Short) from));
-							} else if (from instanceof Byte) {
-								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.from((Byte) from));
+							if (from instanceof BigDecimal fromBD) {
+								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.from(fromBD));
+							} else if (from instanceof Long fromL) {
+								return ((LongNumberRange) theValue).overlaps(LongNumberRange.from(fromL));
+							} else if (from instanceof Integer fromI) {
+								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.from(fromI));
+							} else if (from instanceof Short fromS) {
+								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.from(fromS));
+							} else if (from instanceof Byte fromB) {
+								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.from(fromB));
 							} else {
 								throw new GenericEvitaInternalError("Unexpected input type: " + from);
 							}
 						} else if (to != null) {
-							if (to instanceof BigDecimal) {
-								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.to((BigDecimal) to));
-							} else if (to instanceof Long) {
-								return ((LongNumberRange) theValue).overlaps(LongNumberRange.to((Long) to));
-							} else if (to instanceof Integer) {
-								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.to((Integer) to));
-							} else if (to instanceof Short) {
-								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.to((Short) to));
-							} else if (to instanceof Byte) {
-								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.to((Byte) to));
+							if (to instanceof BigDecimal toBD) {
+								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.to(toBD));
+							} else if (to instanceof Long toL) {
+								return ((LongNumberRange) theValue).overlaps(LongNumberRange.to(toL));
+							} else if (to instanceof Integer toI) {
+								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.to(toI));
+							} else if (to instanceof Short toS) {
+								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.to(toS));
+							} else if (to instanceof Byte toB) {
+								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.to(toB));
 							} else {
 								throw new GenericEvitaInternalError("Unexpected input type: " + to);
 							}
@@ -185,7 +187,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 							throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
 						}
 					};
-					final Serializable theValue = attr.get().value();
+					final Serializable theValue = Objects.requireNonNull(attr.get().value());
 					if (theValue.getClass().isArray()) {
 						return Arrays.stream((Object[]) theValue).map(Comparable.class::cast).anyMatch(predicate);
 					} else {
@@ -235,7 +237,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 							}
 						}
 					};
-					final Serializable theValue = attr.get().value();
+					final Serializable theValue = Objects.requireNonNull(attr.get().value());
 					if (theValue.getClass().isArray()) {
 						return Arrays.stream((Object[]) theValue)
 							.map(normalizer)
@@ -275,8 +277,8 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 	@Nonnull
 	private static AttributeFormula createRangeAttributeFormula(
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull Serializable from,
-		@Nonnull Serializable to,
+		@Nullable Serializable from,
+		@Nullable Serializable to,
 		@Nonnull AttributeSchemaContract attributeDefinition,
 		@Nonnull AttributeKey attributeKey
 	) {
@@ -326,13 +328,13 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 	private static AttributeBitmapFilter createAlternativeBitmapFilter(
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull String attributeName,
-		@Nonnull Serializable from,
-		@Nonnull Serializable to
+		@Nullable Serializable from,
+		@Nullable Serializable to
 	) {
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
-			processingScope.getRequirements(),
+			attributeContent(attributeName),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> {
@@ -412,7 +414,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 		final Serializable from = filterConstraint.getFrom();
 		final Serializable to = filterConstraint.getTo();
 
-		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName);
+		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
@@ -445,10 +447,12 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 						index -> {
 							if (convertedFrom != null && convertedTo != null) {
 								return index.getRecordsBetweenFormula(convertedFrom, convertedTo);
-							} else if (convertedFrom == null) {
+							} else if (convertedFrom == null && convertedTo != null) {
 								return index.getRecordsLesserThanEqFormula(convertedTo);
-							} else {
+							} else if (convertedFrom != null) {
 								return index.getRecordsGreaterThanEqFormula(convertedFrom);
+							} else {
+								throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
 							}
 						}
 					),

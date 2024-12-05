@@ -3,6 +3,7 @@
   "primaryKey": 66488,
   "type": "Category",
   "version": 1,
+  "scope": "LIVE",
   "parentEntity": {
     "primaryKey": 66482,
     "type": "Category",
@@ -24,7 +25,7 @@
       "code": "wireless-headphones",
       "level": 3,
       "order": -1,
-      "published": "2024-04-15T17:41:23.952+02:00",
+      "published": "2024-11-30T15:28:44.033+01:00",
       "status": "ACTIVE",
       "visibility": "VISIBLE"
     },

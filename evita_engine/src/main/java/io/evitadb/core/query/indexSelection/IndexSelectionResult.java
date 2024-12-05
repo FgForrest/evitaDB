@@ -26,6 +26,7 @@ package io.evitadb.core.query.indexSelection;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 
+import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
@@ -36,7 +37,9 @@ import java.util.List;
  *                      is not used to resolve entire query filter.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public record IndexSelectionResult<T extends Index<?>>(List<TargetIndexes<T>> targetIndexes) {
+public record IndexSelectionResult<T extends Index<?>>(
+	@Nonnull List<TargetIndexes<T>> targetIndexes
+) {
 	/**
 	 * Returns true if this DTO contains NO reference to the target indexes.
 	 */

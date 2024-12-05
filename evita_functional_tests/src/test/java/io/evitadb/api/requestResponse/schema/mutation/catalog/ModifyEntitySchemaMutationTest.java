@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,14 +27,17 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -108,6 +111,14 @@ public class ModifyEntitySchemaMutationTest {
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchema.class);
 		final EntityAttributeSchema attribute = Mockito.mock(EntityAttributeSchema.class);
 		Mockito.doReturn(Integer.class).when(attribute).getType();
+		Mockito.doReturn(
+			AttributeSchema.toUniquenessEnumMap(
+				new ScopedAttributeUniquenessType[]{
+					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+				}
+			)
+		).when(attribute).getUniquenessTypeInScopes();
+
 		Mockito.when(entitySchema.getAttribute("someAttribute")).thenReturn(of(attribute));
 		Mockito.when(entitySchema.getName()).thenReturn("entityName");
 		Mockito.when(entitySchema.version()).thenReturn(1);
@@ -134,6 +145,14 @@ public class ModifyEntitySchemaMutationTest {
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchema.class);
 		final EntityAttributeSchema attribute = Mockito.mock(EntityAttributeSchema.class);
 		Mockito.doReturn(Integer.class).when(attribute).getType();
+		Mockito.doReturn(
+			AttributeSchema.toUniquenessEnumMap(
+				new ScopedAttributeUniquenessType[]{
+					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+				}
+			)
+		).when(attribute).getUniquenessTypeInScopes();
+
 		Mockito.when(entitySchema.getAttribute("someAttribute")).thenReturn(of(attribute));
 		Mockito.when(entitySchema.getName()).thenReturn("entityName");
 		Mockito.when(entitySchema.version()).thenReturn(1);

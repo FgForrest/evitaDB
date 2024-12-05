@@ -2,7 +2,8 @@
 {
   "primaryKey": 63049,
   "type": "Product",
-  "version": 1,
+  "version": 2,
+  "scope": "LIVE",
   "locales": [
     "en"
   ],
@@ -21,11 +22,12 @@
       "displaySize": "13.30000",
       "ean": "15491963",
       "isAlias": false,
+      "maxOrderQuantity": "9999",
       "minOrderQuantity": "1.00000",
       "order": 104526,
       "orderedQuantity": "0.00000",
       "productType": "MASTER",
-      "published": "2024-04-15T17:41:45+02:00",
+      "published": "2024-11-30T15:29:05.76+01:00",
       "rating": "0",
       "ratingVotes": 0,
       "saleRestriction": "WITHOUT_RESTRICTION",

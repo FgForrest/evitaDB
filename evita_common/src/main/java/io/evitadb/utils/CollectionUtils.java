@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,10 +27,12 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -201,6 +203,41 @@ public class CollectionUtils {
 	@Nonnull
 	public static <K, V> Property<K, V> property(@Nonnull K name, @Nonnull V value) {
 		return new Property<>(name, value);
+	}
+
+	/**
+	 * Converts a modifiable set to an unmodifiable set. If the input set is already unmodifiable,
+	 * it returns the same set, otherwise it wraps the set in an unmodifiable set.
+	 *
+	 * @param set the set to be converted to an unmodifiable set, must not be null
+	 * @return an unmodifiable view of the specified set
+	 */
+	@Nonnull
+	public static <V> Set<V> toUnmodifiableSet(@Nonnull Set<V> set) {
+		if (set.getClass().getName().startsWith("java.util.ImmutableCollections$") ||
+				set.getClass().getName().equals("java.util.Collections$UnmodifiableSet")) {
+			return set;
+		} else {
+			return Collections.unmodifiableSet(set);
+		}
+	}
+
+	/**
+	 * Converts the given modifiable map to an unmodifiable map. If the input map
+	 * is already unmodifiable, it returns the same map; otherwise, it wraps the
+	 * map in an unmodifiable map.
+	 *
+	 * @param uniquenessTypeInScopes the map to be converted to an unmodifiable map, must not be null
+	 * @return an unmodifiable view of the specified map
+	 */
+	@Nonnull
+	public static <K, V> Map<K, V> toUnmodifiableMap(@Nonnull Map<K, V> uniquenessTypeInScopes) {
+		if (uniquenessTypeInScopes.getClass().getName().startsWith("java.util.ImmutableCollections$") ||
+				uniquenessTypeInScopes.getClass().getName().equals("java.util.Collections$UnmodifiableMap")) {
+			return uniquenessTypeInScopes;
+		} else {
+			return Collections.unmodifiableMap(uniquenessTypeInScopes);
+		}
 	}
 
 	/**

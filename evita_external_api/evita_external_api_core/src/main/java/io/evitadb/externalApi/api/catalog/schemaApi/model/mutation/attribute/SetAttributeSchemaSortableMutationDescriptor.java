@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,15 +23,17 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation}.
+ * Descriptor representing {@link SetAttributeSchemaSortableMutation}.
  *
  * Note: this descriptor has static structure.
  *
@@ -39,14 +41,16 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface SetAttributeSchemaSortableMutationDescriptor extends AttributeSchemaMutationDescriptor {
 
-	PropertyDescriptor SORTABLE = PropertyDescriptor.builder()
-		.name("sortable")
+	PropertyDescriptor SORTABLE_IN_SCOPES = PropertyDescriptor.builder()
+		.name("sortableInScopes")
 		.description("""
 			When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 			as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
 			(memory/disk) space in the form of index.
+			
+			This array defines in which scopes the attribute will be sortable. It will not be sortable in not-specified scopes.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nullable(Scope[].class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -57,6 +61,6 @@ public interface SetAttributeSchemaSortableMutationDescriptor extends AttributeS
 			 Mutation can be used for altering also the existing `AttributeSchema` or
 			 `GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(NAME, SORTABLE))
+		.staticFields(List.of(NAME, SORTABLE_IN_SCOPES))
 		.build();
 }

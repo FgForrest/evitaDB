@@ -32,6 +32,7 @@ import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -72,6 +73,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		String[].class,
 		Iterable.class
 	);
+	protected final EvitaQLValueTokenVisitor scopeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(Scope.class);
 
 	@Override
 	public OrderConstraint visitOrderByConstraint(@Nonnull EvitaQLParser.OrderByConstraintContext ctx) {
@@ -347,6 +349,20 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 				(EntityHaving) filterConstraint,
 				(OrderBy) orderByConstraint,
 				(SegmentLimit) limitConstraint
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitOrderInScopeConstraint(OrderInScopeConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new OrderInScope(
+				ctx.args.scope.accept(scopeValueTokenVisitor).asEnum(Scope.class),
+				ctx.args.orderConstraints
+					.stream()
+					.map(fc -> visitChildConstraint(fc, OrderConstraint.class))
+					.toArray(OrderConstraint[]::new)
 			)
 		);
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ class ConstraintResolveContext implements ConstraintTraverseContext<ConstraintRe
 		this(null, dataLocator);
 	}
 
-	public ConstraintResolveContext(@Nonnull DataLocator parentDataLocator, @Nonnull DataLocator dataLocator) {
+	public ConstraintResolveContext(@Nullable DataLocator parentDataLocator, @Nonnull DataLocator dataLocator) {
 		this.parentDataLocator = parentDataLocator;
 		this.dataLocator = dataLocator;
 	}
@@ -75,7 +75,7 @@ class ConstraintResolveContext implements ConstraintTraverseContext<ConstraintRe
 	 * {@link #dataLocator()} that was used by parent constraint as main data locator. Useful for logic that is based
 	 * on difference between current and parent data locator.
 	 */
-	@Nonnull
+	@Nullable
 	public DataLocator parentDataLocator() {
 		return parentDataLocator;
 	}

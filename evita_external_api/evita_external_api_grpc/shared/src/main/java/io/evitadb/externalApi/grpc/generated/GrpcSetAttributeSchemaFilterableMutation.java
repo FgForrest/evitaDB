@@ -45,6 +45,7 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcSetAttributeSchemaFilterableMutation() {
     name_ = "";
+    filterableInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -67,6 +68,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -88,6 +90,29 @@ private static final long serialVersionUID = 0L;
             filterable_ = input.readBool();
             break;
           }
+          case 24: {
+            int rawValue = input.readEnum();
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              filterableInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            filterableInScopes_.add(rawValue);
+            break;
+          }
+          case 26: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+                filterableInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000001;
+              }
+              filterableInScopes_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -103,6 +128,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        filterableInScopes_ = java.util.Collections.unmodifiableList(filterableInScopes_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -136,7 +164,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -156,7 +184,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -173,15 +201,105 @@ private static final long serialVersionUID = 0L;
    * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
    * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
    * (memory/disk) space in the form of index.
+   * deprecated in favor of `filterableInScopes`
    * </pre>
    *
-   * <code>bool filterable = 2;</code>
+   * <code>bool filterable = 2 [deprecated = true];</code>
+   * @deprecated
    * @return The filterable.
    */
   @java.lang.Override
-  public boolean getFilterable() {
+  @java.lang.Deprecated public boolean getFilterable() {
     return filterable_;
   }
+
+  public static final int FILTERABLEINSCOPES_FIELD_NUMBER = 3;
+  private java.util.List<java.lang.Integer> filterableInScopes_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope> filterableInScopes_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcEntityScope convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+   * @return A list containing the filterableInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getFilterableInScopesList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(filterableInScopes_, filterableInScopes_converter_);
+  }
+  /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+   * @return The count of filterableInScopes.
+   */
+  @java.lang.Override
+  public int getFilterableInScopesCount() {
+    return filterableInScopes_.size();
+  }
+  /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+   * @param index The index of the element to return.
+   * @return The filterableInScopes at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getFilterableInScopes(int index) {
+    return filterableInScopes_converter_.convert(filterableInScopes_.get(index));
+  }
+  /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+   * @return A list containing the enum numeric values on the wire for filterableInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getFilterableInScopesValueList() {
+    return filterableInScopes_;
+  }
+  /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of filterableInScopes at the given index.
+   */
+  @java.lang.Override
+  public int getFilterableInScopesValue(int index) {
+    return filterableInScopes_.get(index);
+  }
+  private int filterableInScopesMemoizedSerializedSize;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
@@ -197,11 +315,19 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
     }
     if (filterable_ != false) {
       output.writeBool(2, filterable_);
+    }
+    if (getFilterableInScopesList().size() > 0) {
+      output.writeUInt32NoTag(26);
+      output.writeUInt32NoTag(filterableInScopesMemoizedSerializedSize);
+    }
+    for (int i = 0; i < filterableInScopes_.size(); i++) {
+      output.writeEnumNoTag(filterableInScopes_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -218,6 +344,18 @@ private static final long serialVersionUID = 0L;
     if (filterable_ != false) {
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(2, filterable_);
+    }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < filterableInScopes_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(filterableInScopes_.get(i));
+      }
+      size += dataSize;
+      if (!getFilterableInScopesList().isEmpty()) {  size += 1;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }filterableInScopesMemoizedSerializedSize = dataSize;
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -238,6 +376,7 @@ private static final long serialVersionUID = 0L;
         .equals(other.getName())) return false;
     if (getFilterable()
         != other.getFilterable()) return false;
+    if (!filterableInScopes_.equals(other.filterableInScopes_)) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -254,6 +393,10 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + FILTERABLE_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getFilterable());
+    if (getFilterableInScopesCount() > 0) {
+      hash = (37 * hash) + FILTERABLEINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + filterableInScopes_.hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -396,6 +539,8 @@ private static final long serialVersionUID = 0L;
 
       filterable_ = false;
 
+      filterableInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -422,8 +567,14 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation result = new io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation(this);
+      int from_bitField0_ = bitField0_;
       result.name_ = name_;
       result.filterable_ = filterable_;
+      if (((bitField0_ & 0x00000001) != 0)) {
+        filterableInScopes_ = java.util.Collections.unmodifiableList(filterableInScopes_);
+        bitField0_ = (bitField0_ & ~0x00000001);
+      }
+      result.filterableInScopes_ = filterableInScopes_;
       onBuilt();
       return result;
     }
@@ -479,6 +630,16 @@ private static final long serialVersionUID = 0L;
       if (other.getFilterable() != false) {
         setFilterable(other.getFilterable());
       }
+      if (!other.filterableInScopes_.isEmpty()) {
+        if (filterableInScopes_.isEmpty()) {
+          filterableInScopes_ = other.filterableInScopes_;
+          bitField0_ = (bitField0_ & ~0x00000001);
+        } else {
+          ensureFilterableInScopesIsMutable();
+          filterableInScopes_.addAll(other.filterableInScopes_);
+        }
+        onChanged();
+      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -507,6 +668,7 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
+    private int bitField0_;
 
     private java.lang.Object name_ = "";
     /**
@@ -541,7 +703,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -564,7 +726,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       name_ = value;
       onChanged();
       return this;
@@ -578,7 +740,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
+
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
@@ -598,7 +760,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       name_ = value;
       onChanged();
       return this;
@@ -610,14 +772,62 @@ private static final long serialVersionUID = 0L;
      * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
      * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
      * (memory/disk) space in the form of index.
+     * deprecated in favor of `filterableInScopes`
      * </pre>
      *
-     * <code>bool filterable = 2;</code>
+     * <code>bool filterable = 2 [deprecated = true];</code>
+     * @deprecated
      * @return The filterable.
      */
     @java.lang.Override
-    public boolean getFilterable() {
+    @java.lang.Deprecated public boolean getFilterable() {
       return filterable_;
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * deprecated in favor of `filterableInScopes`
+     * </pre>
+     *
+     * <code>bool filterable = 2 [deprecated = true];</code>
+     * @deprecated
+     * @param value The filterable to set.
+     * @return This builder for chaining.
+     */
+    @java.lang.Deprecated public Builder setFilterable(boolean value) {
+
+      filterable_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * deprecated in favor of `filterableInScopes`
+     * </pre>
+     *
+     * <code>bool filterable = 2 [deprecated = true];</code>
+     * @deprecated
+     * @return This builder for chaining.
+     */
+    @java.lang.Deprecated public Builder clearFilterable() {
+
+      filterable_ = false;
+      onChanged();
+      return this;
+    }
+
+    private java.util.List<java.lang.Integer> filterableInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureFilterableInScopesIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        filterableInScopes_ = new java.util.ArrayList<java.lang.Integer>(filterableInScopes_);
+        bitField0_ |= 0x00000001;
+      }
     }
     /**
      * <pre>
@@ -626,13 +836,59 @@ private static final long serialVersionUID = 0L;
      * (memory/disk) space in the form of index.
      * </pre>
      *
-     * <code>bool filterable = 2;</code>
-     * @param value The filterable to set.
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @return A list containing the filterableInScopes.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getFilterableInScopesList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(filterableInScopes_, filterableInScopes_converter_);
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @return The count of filterableInScopes.
+     */
+    public int getFilterableInScopesCount() {
+      return filterableInScopes_.size();
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @param index The index of the element to return.
+     * @return The filterableInScopes at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getFilterableInScopes(int index) {
+      return filterableInScopes_converter_.convert(filterableInScopes_.get(index));
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @param index The index to set the value at.
+     * @param value The filterableInScopes to set.
      * @return This builder for chaining.
      */
-    public Builder setFilterable(boolean value) {
-      
-      filterable_ = value;
+    public Builder setFilterableInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureFilterableInScopesIsMutable();
+      filterableInScopes_.set(index, value.getNumber());
       onChanged();
       return this;
     }
@@ -643,12 +899,136 @@ private static final long serialVersionUID = 0L;
      * (memory/disk) space in the form of index.
      * </pre>
      *
-     * <code>bool filterable = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @param value The filterableInScopes to add.
      * @return This builder for chaining.
      */
-    public Builder clearFilterable() {
-      
-      filterable_ = false;
+    public Builder addFilterableInScopes(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureFilterableInScopesIsMutable();
+      filterableInScopes_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @param values The filterableInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllFilterableInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
+      ensureFilterableInScopesIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
+        filterableInScopes_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearFilterableInScopes() {
+      filterableInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @return A list containing the enum numeric values on the wire for filterableInScopes.
+     */
+    public java.util.List<java.lang.Integer>
+    getFilterableInScopesValueList() {
+      return java.util.Collections.unmodifiableList(filterableInScopes_);
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of filterableInScopes at the given index.
+     */
+    public int getFilterableInScopesValue(int index) {
+      return filterableInScopes_.get(index);
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of filterableInScopes at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setFilterableInScopesValue(
+        int index, int value) {
+      ensureFilterableInScopesIsMutable();
+      filterableInScopes_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @param value The enum numeric value on the wire for filterableInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addFilterableInScopesValue(int value) {
+      ensureFilterableInScopesIsMutable();
+      filterableInScopes_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+     * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+     * (memory/disk) space in the form of index.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+     * @param values The enum numeric values on the wire for filterableInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllFilterableInScopesValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureFilterableInScopesIsMutable();
+      for (int value : values) {
+        filterableInScopes_.add(value);
+      }
       onChanged();
       return this;
     }

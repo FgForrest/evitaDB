@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -85,5 +86,16 @@ public class GrpcConfig extends AbstractApiConfiguration {
 		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
 		this.exposeDocsService = ofNullable(exposeDocsService).orElse(false);
 		this.prefix = ofNullable(prefix).orElse(BASE_GRPC_PATH);
+	}
+
+	@Override
+	public boolean isKeepAlive() {
+		if (!super.isKeepAlive()) {
+			log.warn(
+				"Keep alive is disabled for gRPC API in the configuration settings. However, this setting results in " +
+					"unpredictable behavior and should be enabled. The settings from the configuration are ignored."
+			);
+		}
+		return true;
 	}
 }
