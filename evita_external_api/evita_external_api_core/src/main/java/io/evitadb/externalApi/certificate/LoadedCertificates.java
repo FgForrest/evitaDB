@@ -21,22 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.configuration;
+package io.evitadb.externalApi.certificate;
 
-import javax.annotation.Nonnull;
+import com.linecorp.armeria.common.TlsKeyPair;
+
+import javax.annotation.Nullable;
+import java.security.cert.X509Certificate;
+import java.util.List;
 
 /**
- * Interface is implemented by all APIs that support mutual TLS.
+ * A wrapper that holds references to currently loaded certificates.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public interface ApiConfigurationWithMutualTls {
-
-	/**
-	 * Returns configuration of mutual TLS.
-	 * @return configuration of mutual TLS
-	 */
-	@Nonnull
-	MtlsConfiguration getMtlsConfiguration();
+public record LoadedCertificates(@Nullable TlsKeyPair tlsKeyPair,
+                                 @Nullable List<X509Certificate> allowedClientCertificates) {
 
 }
+

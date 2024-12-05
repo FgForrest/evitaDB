@@ -23,13 +23,19 @@
 
 package io.evitadb.test;
 
+import com.linecorp.armeria.common.TlsKeyPair;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CertificateUtils;
 import org.apache.commons.io.FileUtils;
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
+import org.bouncycastle.util.io.pem.PemObject;
+import org.bouncycastle.util.io.pem.PemWriter;
 import org.junit.jupiter.params.provider.Arguments;
 
 import javax.annotation.Nonnull;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -198,4 +204,20 @@ public interface EvitaTestSupport extends TestConstants {
 		return PORT_MANAGER;
 	}
 
+	default void generateTestCertificate(@Nonnull String certificateFolderPath) {
+		try {
+			final String certificateName = CertificateUtils.getOtherCertName();
+			final TlsKeyPair tlsKeyPair = TlsKeyPair.ofSelfSigned();
+			final Path certificatePath = Path.of(certificateFolderPath);
+			try (final JcaPEMWriter pemWriterIssued = new JcaPEMWriter(new FileWriter(certificatePath.resolve(certificateName + CertificateUtils.getCertificateExtension()).toFile()))) {
+				pemWriterIssued.writeObject(tlsKeyPair.certificateChain().get(0));
+			}
+
+			try (final PemWriter privateKeyWriter = new PemWriter(new FileWriter(certificatePath.resolve(certificateName + CertificateUtils.getCertificateKeyExtension()).toFile()))) {
+				privateKeyWriter.writeObject(new PemObject("PRIVATE KEY", tlsKeyPair.privateKey().getEncoded()));
+			}
+		} catch (Exception e) {
+			throw new GenericEvitaInternalError("Failed to generate test certificate.", e);
+		}
+	}
 }

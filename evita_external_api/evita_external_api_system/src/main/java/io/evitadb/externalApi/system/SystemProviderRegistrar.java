@@ -356,8 +356,11 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				"/" + CertificateUtils.getGeneratedServerCertificateFileName(),
 				createCorsWrapper(
 					(ctx, req) -> {
-						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedServerCertificateFileName() + "\"");
-						return HttpFile.of(new File(file, CertificateUtils.getGeneratedServerCertificateFileName())).asService().serve(ctx, req);
+						return HttpFile.builder(new File(file, CertificateUtils.getGeneratedServerCertificateFileName()))
+							.addHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedServerCertificateFileName() + "\"")
+							.build()
+							.asService()
+							.serve(ctx, req);
 					}
 				)
 			);

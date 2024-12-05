@@ -30,26 +30,29 @@ import com.linecorp.armeria.common.util.EventLoopGroups;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.Server;
 import com.linecorp.armeria.server.ServerBuilder;
+import com.linecorp.armeria.server.ServerTlsConfig;
 import com.linecorp.armeria.server.encoding.DecodingService;
 import com.linecorp.armeria.server.encoding.EncodingService;
 import com.linecorp.armeria.server.logging.AccessLogWriter;
 import com.linecorp.armeria.server.logging.LoggingService;
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.core.Evita;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.system.ProbesMaintainer;
 import io.evitadb.externalApi.api.system.ProbesProvider;
+import io.evitadb.externalApi.certificate.CertificateService;
+import io.evitadb.externalApi.certificate.DynamicTlsProvider;
+import io.evitadb.externalApi.certificate.LoadedCertificates;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
-import io.evitadb.externalApi.configuration.ApiConfigurationWithMutualTls;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.HostDefinition;
-import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.http.ExternalApiProvider.HttpServiceDefinition;
 import io.evitadb.externalApi.http.ExternalApiProvider.PathHandlingMode;
@@ -63,31 +66,23 @@ import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.StringUtils;
 import io.netty.channel.EventLoopGroup;
 import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.bouncycastle.util.io.pem.PemReader;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.net.ssl.KeyManagerFactory;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
-import java.security.KeyFactory;
-import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
 import java.security.UnrecoverableKeyException;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.Duration;
 import java.util.*;
 import java.util.ServiceLoader.Provider;
@@ -118,6 +113,7 @@ public class ExternalApiServer implements AutoCloseable {
 	@Getter private final ApiOptions apiOptions;
 	private final Map<String, ExternalApiProvider<?>> registeredApiProviders;
 	private final ProbesMaintainer probesMaintainer = new ProbesMaintainer();
+	private final CertificateService certificateService = new CertificateService();
 	private CompletableFuture<Void> stopFuture;
 
 	/**
@@ -155,7 +151,6 @@ public class ExternalApiServer implements AutoCloseable {
 				.flatMap(
 					it -> switch (it) {
 						case SERVER -> Stream.of(
-							serverCertificateManager.getRootCaCertificatePath().toFile(),
 							new File(certificatePath.certificate()),
 							new File(certificatePath.privateKey())
 						);
@@ -199,9 +194,9 @@ public class ExternalApiServer implements AutoCloseable {
 				}
 			}
 
-			getRootCaCertificateFingerPrint(serverCertificateManager)
+			getServerCertificateFingerPrint(serverCertificateManager)
 				.ifPresent(it -> {
-					ConsoleWriter.write(StringUtils.rightPad("Root CA Certificate fingerprint: ", " ", PADDING_START_UP));
+					ConsoleWriter.write(StringUtils.rightPad("Server Certificate fingerprint: ", " ", PADDING_START_UP));
 					ConsoleWriter.write(it, ConsoleColor.BRIGHT_YELLOW);
 					ConsoleWriter.write("\n", ConsoleColor.WHITE);
 				});
@@ -215,13 +210,13 @@ public class ExternalApiServer implements AutoCloseable {
 	}
 
 	/**
-	 * Reads root CA certificate from the file if exists.
+	 * Reads server certificate from the file if exists and if so, return its fingerprint.
 	 */
 	@Nullable
-	private static Optional<String> getRootCaCertificateFingerPrint(
+	private static Optional<String> getServerCertificateFingerPrint(
 		@Nonnull ServerCertificateManager serverCertificateManager
 	) {
-		final File rootCaFile = serverCertificateManager.getRootCaCertificatePath().toFile();
+		final File rootCaFile = serverCertificateManager.getCertificatePath(CertificateUtils.getServerCertName()).toFile();
 		if (rootCaFile.exists()) {
 			try (InputStream in = new FileInputStream(rootCaFile)) {
 				final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
@@ -231,8 +226,8 @@ public class ExternalApiServer implements AutoCloseable {
 				return of(fingerprint);
 			} catch (IOException e) {
 				throw new GenericEvitaInternalError(
-					"Failed to read root CA certificate: " + e.getMessage(),
-					"Failed to read root CA certificate.",
+					"Failed to read server certificate: " + e.getMessage(),
+					"Failed to read server certificate.",
 					e
 				);
 			} catch (NoSuchAlgorithmException | CertificateException e) {
@@ -244,70 +239,6 @@ public class ExternalApiServer implements AutoCloseable {
 			}
 		} else {
 			return empty();
-		}
-	}
-
-	/**
-	 * Reads certificate private key.
-	 */
-	@Nonnull
-	private static PrivateKey loadPrivateKey(@Nonnull CertificatePath certificatePath) {
-		final PrivateKey privateKey;
-		final File certificatePrivateKey = Path.of(Objects.requireNonNull(certificatePath.privateKey())).toFile();
-		Assert.isTrue(certificatePrivateKey.exists(), () -> "Certificate private key file `" + certificatePath.privateKey() + "` doesn't exists!");
-		try (PemReader privateKeyReader = new PemReader(new FileReader(certificatePrivateKey))) {
-			final PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyReader.readPemObject().getContent());
-			final KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-			privateKey = keyFactory.generatePrivate(keySpec);
-		} catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
-			throw new EvitaInvalidUsageException(
-				"Error while loading stored certificates. Check the server configuration file: " + e.getMessage(),
-				"Error while loading stored certificates. Check the server configuration file.",
-				e
-			);
-		}
-		return privateKey;
-	}
-
-	/**
-	 * Creates key manager factory.
-	 */
-	@Nonnull
-	private static KeyManagerFactory createKeyManagerFactory(
-		@Nonnull CertificatePath certificatePath
-	) {
-		try {
-			final PrivateKey privateKey = loadPrivateKey(certificatePath);
-
-			final File certificateFile = Path.of(Objects.requireNonNull(certificatePath.certificate())).toFile();
-			final List<? extends Certificate> certificates;
-			Assert.isTrue(certificateFile.exists(), () -> "Certificate file `" + certificatePath.certificate() + "` doesn't exists!");
-			try (InputStream in = new FileInputStream(certificateFile)) {
-				final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-				certificates = new ArrayList<>(cf.generateCertificates(in));
-				Assert.isTrue(certificateFile.length() > 0, () -> "Certificate file `" + certificatePath.certificate() + "` contains no certificate!");
-			}
-
-			final KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-			keyStore.load(null);
-			keyStore.setCertificateEntry("cert", certificates.get(0));
-			keyStore.setKeyEntry(
-				"key",
-				privateKey,
-				ofNullable(certificatePath.privateKeyPassword()).map(String::toCharArray).orElse(null),
-				certificates.toArray(Certificate[]::new)
-			);
-
-			final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-			keyManagerFactory.init(keyStore, null);
-			return keyManagerFactory;
-		} catch (CertificateException | UnrecoverableKeyException | NoSuchAlgorithmException | KeyStoreException |
-		         IOException e) {
-			throw new GenericEvitaInternalError(
-				"Failed to create key manager factory with provided certificate and private key: " + e.getMessage(),
-				"Failed to create key manager factory with provided certificate and private key.",
-				e
-			);
 		}
 	}
 
@@ -353,51 +284,30 @@ public class ExternalApiServer implements AutoCloseable {
 	/**
 	 * Customizes TLS settings for the server. Sets up a mutual TLS verification if requested.
 	 */
-	private static void customizeTls(
-		@Nonnull ServerBuilder virtualHostBuilder,
-		@Nonnull ApiOptions apiOptions,
-		@Nullable MtlsConfiguration mtlsConfiguration
+	private void setupTls(
+		@Nonnull ServerBuilder serverBuilder,
+		boolean usingSelfSignedGeneratedCertificate,
+		@Nonnull CertificatePath certificatePath,
+		@Nonnull Scheduler serviceExecutor
 	) {
-		virtualHostBuilder.tlsCustomizer(
-			customizer -> {
-				try {
-					if (apiOptions.certificate().generateAndUseSelfSigned()) {
-						customizer.trustManager(
-							apiOptions.certificate().getFolderPath()
-								.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName())
-								.toFile()
-						);
-					}
-					if (mtlsConfiguration != null && Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
-						customizer.clientAuth(ClientAuth.REQUIRE);
-						final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-						for (String clientCert : mtlsConfiguration.allowedClientCertificatePaths()) {
-							customizer.trustManager(new FileInputStream(clientCert));
-							try (InputStream in = new FileInputStream(clientCert)) {
-								log.info("Whitelisted client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(cf.generateCertificate(in)));
-							}
-						}
-					} else {
-						customizer.clientAuth(ClientAuth.OPTIONAL);
-					}
-				} catch (Exception e) {
-					throw new GenericEvitaInternalError(
-						"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
-						"Failed to create gRPC server credentials with provided certificate and private key.",
-						e
-					);
-				}
-			});
+		final boolean shouldStartCertificateChangedWatcher = !usingSelfSignedGeneratedCertificate;
+		certificateService.initCertificateLoader(apiOptions, shouldStartCertificateChangedWatcher, certificatePath, serviceExecutor);
+		serverBuilder
+			.tlsProvider(
+			new DynamicTlsProvider(this.certificateService.getLoadedCertificates()),
+			ServerTlsConfig.builder()
+				.clientAuth(ClientAuth.OPTIONAL)
+				.tlsCustomizer(customizer -> customizer.trustManager(InsecureTrustManagerFactory.INSTANCE))
+				.build());
+
 	}
 
 	/**
 	 * Prints information about API endpoint to the server console output.
 	 *
-	 * @param apiOptions            API endpoint options
 	 * @param registeredApiProvider registered API provider
 	 */
 	private static void logStatusToConsole(
-		@Nonnull ApiOptions apiOptions,
 		@Nonnull ExternalApiProvider<?> registeredApiProvider
 	) {
 		final AbstractApiConfiguration configuration = registeredApiProvider.getConfiguration();
@@ -587,20 +497,20 @@ public class ExternalApiServer implements AutoCloseable {
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
 			.serviceWorkerGroup(workerGroup, gracefulShutdown)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
-			.verboseResponses(false)
-			.workerGroup(workerGroup, gracefulShutdown);
+			.verboseResponses(true)
+			.workerGroup(workerGroup, gracefulShutdown)
+			.unloggedExceptionsReportInterval(Duration.ofMillis(10));
 
 		if (apiOptions.accessLog()) {
 			serverBuilder
 				.accessLogWriter(AccessLogWriter.combined(), gracefulShutdown)
-				/* remote IP, remote host, remote logname, remote user, timestamp, request line, status code, length, header: Referer, header: User-Agent */
+				//* remote IP, remote host, remote logname, remote user, timestamp, request line, status code, length, header: Referer, header: User-Agent *//*
 				.accessLogFormat("%a %h %l %u %t %r %s %b %{Referer}i %{User-Agent}i");
 		}
 
 		final List<FixedPathService> fixedPathHandlingServices = new LinkedList<>();
 		// objects lazily initialized on first use
 		PathHandlingService dynamicPathHandlingService = null;
-		MtlsConfiguration mtlsConfiguration = null;
 
 		// list of proxy provider configurations
 		final AbstractApiConfiguration[] proxyConfigs = registeredApiProviders.values()
@@ -615,16 +525,6 @@ public class ExternalApiServer implements AutoCloseable {
 			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
 			// ok, only for those that are actually enabled ;)
 			if (configuration.isEnabled()) {
-				// if the API allows MTLS, retrieve its configuration
-				if (configuration instanceof ApiConfigurationWithMutualTls apiWithMutualTls) {
-					/* actually only gRPC API allows mTLS */
-					Assert.isPremiseValid(
-						mtlsConfiguration == null || mtlsConfiguration.equals(apiWithMutualTls.getMtlsConfiguration()),
-						"Multiple APIs with different mutual TLS configuration found. Only one API can have mutual TLS enabled."
-					);
-					mtlsConfiguration = apiWithMutualTls.getMtlsConfiguration();
-				}
-
 				for (HostDefinition host : configuration.getHost()) {
 					// if the host allows non-TLS interface, set it up
 					final TlsMode tlsMode = configuration.getTlsMode();
@@ -662,6 +562,7 @@ public class ExternalApiServer implements AutoCloseable {
 						// decorate the service with security decorator
 						service = service.decorate(
 							new HttpServiceSecurityDecorator(
+								apiOptions,
 								ArrayUtils.mergeArrays(
 									new AbstractApiConfiguration[]{configuration},
 									proxyConfigs
@@ -699,17 +600,14 @@ public class ExternalApiServer implements AutoCloseable {
 						}
 					}
 				}
-				logStatusToConsole(apiOptions, registeredApiProvider);
+				logStatusToConsole(registeredApiProvider);
 			}
 		}
 
 		// initialize and customize TLS settings if at least one endpoint requires / allows TLS protocol
 		if (apiOptions.atLeastOneEndpointRequiresTls()) {
-			final KeyManagerFactory keyFactory = createKeyManagerFactory(certificatePath);
-			// configure TLS
-			serverBuilder.tls(keyFactory);
 			// customize TLS settings
-			customizeTls(serverBuilder, apiOptions, mtlsConfiguration);
+			setupTls(serverBuilder, apiOptions.certificate().generateAndUseSelfSigned(), certificatePath, evita.getServiceExecutor());
 		}
 
 		// we need to process APIs with PathHandlingMode.FIXED_PATH_HANDLING first,
@@ -723,6 +621,24 @@ public class ExternalApiServer implements AutoCloseable {
 			serverBuilder.service("glob:/**", dynamicPathHandlingService)
 				.decorator(LoggingService.newDecorator());
 		}
+	}
+
+	/**
+	 * Reloads certificates if any of them was modified.
+	 *
+	 * @return true if any certificate was modified and reloaded, false otherwise
+	 */
+	public boolean reloadCertificatesIfAnyModified() {
+		return certificateService.reloadCertificatesIfAnyModified();
+	}
+
+	/**
+	 * Returns loaded certificates.
+	 * @return loaded certificates
+	 */
+	@Nullable
+	public LoadedCertificates getLoadedCertificates() {
+		return certificateService.getLoadedCertificates().get();
 	}
 
 	/**

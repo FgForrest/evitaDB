@@ -38,6 +38,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
 
+import java.nio.file.Path;
 import java.util.function.Supplier;
 
 /**
@@ -64,15 +65,18 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	@Override
 	public EvitaSessionServiceBlockingStub getSession() {
 		return getSession(() -> {
-			final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
-				.useHttp1Pipelining(true)
-				.idleTimeoutMillis(10000, true)
-				.maxNumRequestsPerConnection(1000)
-				.maxNumEventLoopsPerEndpoint(10);
+			final ClientFactoryBuilder clientFactoryBuilder = clientCertificateManager
+				.buildClientSslContext(
+					null,
+					ClientFactory.builder()
+						.useHttp1Pipelining(true)
+						.idleTimeoutMillis(10000, true)
+						.maxNumRequestsPerConnection(1000)
+						.maxNumEventLoopsPerEndpoint(10)
+				);
 
-			final ClientFactory clientFactory = clientFactoryBuilder
-				.tlsCustomizer(tlsCustomizer -> clientCertificateManager.buildClientSslContext(null, tlsCustomizer, clientFactoryBuilder))
-				.build();
+
+			final ClientFactory clientFactory = clientFactoryBuilder.build();
 
 			final GrpcClientBuilder clientBuilder = GrpcClients.builder("https://" + HOST + ":" + PORT + "/")
 				.factory(clientFactory)

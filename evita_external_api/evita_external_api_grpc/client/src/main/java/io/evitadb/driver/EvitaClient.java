@@ -221,7 +221,7 @@ public class EvitaClient implements EvitaContract {
 		if (statusCode == Code.UNAUTHENTICATED) {
 			onUnauthenticated.run();
 			return new InstanceTerminatedException("session");
-		} else if (statusCode == Code.INVALID_ARGUMENT) {
+		} else if (statusCode == Code.INVALID_ARGUMENT || statusCode == Code.PERMISSION_DENIED) {
 			final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
 			if (expectedFormat.matches()) {
 				return EvitaInvalidUsageException.createExceptionWithErrorCode(
@@ -261,37 +261,33 @@ public class EvitaClient implements EvitaContract {
 
 			final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
 				.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
-				.usingTrustedRootCaCertificate(configuration.trustCertificate())
+				.usingTrustedServerCertificate(configuration.trustCertificate())
 				.trustStorePassword(configuration.trustStorePassword())
 				.mtls(configuration.mtlsEnabled())
 				.certificateClientFolderPath(configuration.certificateFolderPath())
-				.rootCaCertificateFilePath(configuration.rootCaCertificatePath())
+				.serverCertificateFilePath(configuration.rootCaCertificatePath())
 				.clientCertificateFilePath(configuration.certificateFileName())
 				.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
 				.clientPrivateKeyPassword(configuration.certificateKeyPassword())
 				.build();
 
-			clientFactoryBuilder.tlsCustomizer(
-				tlsCustomizer -> clientCertificateManager.buildClientSslContext(
-					(certificateType, certificate) -> {
-						try {
-							switch (certificateType) {
-								case SERVER ->
-									log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
-								case CLIENT ->
-									log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
-							}
-						} catch (NoSuchAlgorithmException | CertificateEncodingException e) {
-							throw new GenericEvitaInternalError(
-								"Failed to get certificate fingerprint.",
-								"Failed to get certificate fingerprint: " + e.getMessage(),
-								e
-							);
+			clientFactoryBuilder = clientCertificateManager.buildClientSslContext((certificateType, certificate) -> {
+					try {
+						switch (certificateType) {
+							case SERVER ->
+								log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
+							case CLIENT ->
+								log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
 						}
-					},
-					tlsCustomizer,
-					clientFactoryBuilder
-				)
+					} catch (NoSuchAlgorithmException | CertificateEncodingException e) {
+						throw new GenericEvitaInternalError(
+							"Failed to get certificate fingerprint.",
+							"Failed to get certificate fingerprint: " + e.getMessage(),
+							e
+						);
+					}
+				},
+				clientFactoryBuilder
 			);
 		} else {
 			uriScheme = "http";

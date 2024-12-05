@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,6 +43,10 @@ public class CertificateUtils {
 	 */
 	private static final String SERVER_CERT_NAME = "server";
 	/**
+	 * Default name of the root certificate authority's certificate file.
+	 */
+	private static final String OTHER_CERT_NAME = "other";
+	/**
 	 * Default dame of the client certificate.
 	 */
 	private static final String CLIENT_CERT_NAME = "client";
@@ -74,6 +78,20 @@ public class CertificateUtils {
 	 */
 	public static String getGeneratedRootCaCertificateKeyFileName() {
 		return CA_CERT_NAME + CERTIFICATE_KEY_EXTENSION;
+	}
+
+	/**
+	 * Returns the name and the extension of the additional generated certificate file.
+	 */
+	public static String getGeneratedOtherCertificateFileName() {
+		return OTHER_CERT_NAME + CERTIFICATE_EXTENSION;
+	}
+
+	/**
+	 * Returns the name and the extension of the additional generated private key file.
+	 */
+	public static String getGeneratedOtherCertificateKeyFileName() {
+		return OTHER_CERT_NAME + CERTIFICATE_KEY_EXTENSION;
 	}
 
 	/**
@@ -110,6 +128,10 @@ public class CertificateUtils {
 
 	public static String getClientCertName() {
 		return CLIENT_CERT_NAME;
+	}
+
+	public static String getOtherCertName() {
+		return OTHER_CERT_NAME;
 	}
 
 	public static String getCertificateExtension() {

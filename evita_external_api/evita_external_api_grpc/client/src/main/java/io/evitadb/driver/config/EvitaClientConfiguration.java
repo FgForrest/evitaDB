@@ -167,7 +167,7 @@ public record EvitaClientConfiguration(
 		}
 
 		@Nonnull
-		public EvitaClientConfiguration.Builder rootCaCertificatePath(@Nonnull Path rootCaCertificatePath) {
+		public EvitaClientConfiguration.Builder serverCertificatePath(@Nonnull Path rootCaCertificatePath) {
 			this.rootCaCertificatePath = rootCaCertificatePath;
 			return this;
 		}

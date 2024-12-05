@@ -25,43 +25,34 @@ package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpResponseBuilder;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
-import com.linecorp.armeria.common.RpcRequest;
-import com.linecorp.armeria.common.RpcResponse;
 import com.linecorp.armeria.server.DecoratingHttpServiceFunction;
-import com.linecorp.armeria.server.DecoratingRpcServiceFunction;
 import com.linecorp.armeria.server.HttpService;
-import com.linecorp.armeria.server.RpcService;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
-import io.evitadb.externalApi.configuration.ApiConfigurationWithMutualTls;
+import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
-import io.evitadb.externalApi.exception.ClientCertificateNotAllowedException;
-import io.evitadb.externalApi.exception.ClientCertificateNotProvidedException;
-import io.evitadb.externalApi.exception.InvalidPortException;
-import io.evitadb.externalApi.exception.InvalidSchemeException;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSession;
 import java.io.FileInputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.security.Principal;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -69,32 +60,39 @@ import java.util.Set;
  * error response if the scheme is not allowed. It also checks if the port is allowed for the service.
  * Otherwise, it delegates the request to the decorated service.
  *
+ * Another part of the introduced functionality covers authentication via client certificate for all existing APIs that
+ * has mTLS enabled. This will be particulary useful in the future when implementing full-scale API authentication and
+ * authorisation mechanisms.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFunction, DecoratingRpcServiceFunction {
+public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFunction {
 	public static final String SCHEME_HTTPS = "https";
 	public static final String SCHEME_HTTP = "http";
 	private final String[] hosts;
 	private final String[] schemes;
 	private final int[] ports;
-	private final int peak;
 	private final MtlsConfiguration mtlsConfiguration;
+	private final int peak;
+	private final CertificateSettings certificateSettings;
 
-	public HttpServiceSecurityDecorator(@Nonnull AbstractApiConfiguration... configurations) {
+	private static final HttpResponseBuilder CERTIFICATE_NOT_PROVIDED_RESPONSE = HttpResponse.builder()
+		.status(HttpStatus.UNAUTHORIZED)
+		.content(MediaType.PLAIN_TEXT, "Client certificate not provided.");
+	private static final HttpResponseBuilder CERTIFICATE_NOT_ALLOWED_RESPONSE = HttpResponse.builder()
+		.status(HttpStatus.FORBIDDEN)
+		.content(MediaType.PLAIN_TEXT, "Client certificate not allowed.");
+
+	public HttpServiceSecurityDecorator(@Nonnull ApiOptions apiOptions, @Nonnull AbstractApiConfiguration... configurations) {
 		final int hostsConfigs = Arrays.stream(configurations)
 			.mapToInt(config -> config.getHost().length)
 			.sum();
 		this.hosts = new String[hostsConfigs];
 		this.schemes = new String[hostsConfigs];
 		this.ports = new int[hostsConfigs];
+		this.mtlsConfiguration = configurations[0].getMtlsConfiguration();
 		this.peak = prepareConfigurations(configurations);
-		Optional<ApiConfigurationWithMutualTls> mtlsApiConfiguration = Arrays.stream(configurations)
-			.filter(x -> x instanceof ApiConfigurationWithMutualTls)
-			.map(x -> (ApiConfigurationWithMutualTls) x)
-			.findFirst();
-		this.mtlsConfiguration = mtlsApiConfiguration
-			.map(ApiConfigurationWithMutualTls::getMtlsConfiguration)
-			.orElseGet(() -> new MtlsConfiguration(false, new ArrayList<>(0)));
+		this.certificateSettings = apiOptions.certificate();
 	}
 
 	@Nonnull
@@ -108,23 +106,23 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		for (int i = 0; i < peak; i++) {
 			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
 				if (schemes[i] == null || scheme.equals(schemes[i])) {
-					final MediaType mediaType = req.contentType();
-					if (mediaType != null && "application/grpc+proto".equals(mediaType.toString())) {
-						if (mtlsConfiguration.enabled()) {
-							final Set<X509Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration);
-							try {
-								final Certificate[] clientCerts = ctx.sslSession().getPeerCertificates();
-								if (clientCerts.length == 0) {
-									return HttpResponse.ofFailure(new ClientCertificateNotProvidedException("Client certificate not provided."));
-								}
-								final Certificate clientCert = clientCerts[0];
-								if (!isClientCertificateAllowed(clientCert, allowedCertificates)) {
-									return HttpResponse.ofFailure(new ClientCertificateNotAllowedException("Client certificate not allowed."));
-								}
-							} catch (SSLPeerUnverifiedException e) {
-								return HttpResponse.ofFailure(new ClientCertificateNotProvidedException("Client certificate not provided."));
+					if (mtlsConfiguration.enabled() && SCHEME_HTTPS.equals(scheme)) {
+						final Set<X509Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration);
+						try {
+							final SSLSession sslSession = ctx.sslSession();
+							if (sslSession == null) {
+								return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
 							}
-
+							final Certificate[] clientCerts = ctx.sslSession().getPeerCertificates();
+							if (clientCerts.length == 0) {
+								return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
+							}
+							final Certificate clientCert = clientCerts[0];
+							if (!isClientCertificateAllowed(clientCert, allowedCertificates)) {
+								return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_ALLOWED_RESPONSE);
+							}
+						} catch (SSLPeerUnverifiedException e) {
+							return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
 						}
 					}
 					return delegate.serve(ctx, req);
@@ -140,42 +138,15 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		}
 	}
 
-	@Nonnull
-	@Override
-	public RpcResponse serve(@Nonnull RpcService delegate, @Nonnull ServiceRequestContext ctx, @Nonnull RpcRequest req) throws Exception {
-		final URI uri = ctx.uri();
-		final String scheme = uri.getScheme();
-		final InetSocketAddress address = ctx.localAddress();
-		final int port = address.getPort();
-		boolean portMatching = false;
-		for (int i = 0; i < peak; i++) {
-			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
-				if (schemes[i] == null || scheme.equals(schemes[i])) {
-					if (mtlsConfiguration.enabled()) {
-						final Set<X509Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration);
-						final Certificate[] clientCerts = ctx.sslSession().getPeerCertificates();
-						if (clientCerts.length == 0) {
-							return RpcResponse.ofFailure(new InvalidSchemeException("Client certificate not provided."));
-						}
-						final Certificate clientCert = clientCerts[0];
-						if (!isClientCertificateAllowed(clientCert, allowedCertificates)) {
-							return RpcResponse.ofFailure(new InvalidSchemeException("Client certificate not allowed."));
-						}
-					}
-					return delegate.serve(ctx, req);
-				} else {
-					portMatching = true;
-				}
-			}
-		}
-		if (portMatching) {
-			return RpcResponse.ofFailure(new InvalidSchemeException(getSchemeErrorMessage(scheme)));
-		} else {
-			return RpcResponse.ofFailure(new InvalidPortException("Service not available."));
-		}
+	private static HttpResponse createAuthenticationErrorResponseAndCloseChannel(
+		@Nonnull ServiceRequestContext ctx,
+		@Nonnull HttpResponseBuilder responseBuilder
+	) {
+		ctx.initiateConnectionShutdown();
+		return responseBuilder.header("Connection", "close").build();
 	}
 
-	private static Set<X509Certificate> getAllowedClientCertificatesFromPaths(@Nonnull MtlsConfiguration mtlsConfig) {
+	private Set<X509Certificate> getAllowedClientCertificatesFromPaths(@Nonnull MtlsConfiguration mtlsConfig) {
 		final Set<X509Certificate> certificates = CollectionUtils.createHashSet(mtlsConfig.allowedClientCertificatePaths().size());
 
 		try {
@@ -183,16 +154,17 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 				.filter(Objects::nonNull)
 				.filter(path -> path.endsWith(".crt"))
 				.forEach(certPath -> {
-					try (FileInputStream fis = new FileInputStream(certPath)) {
+					final String certificatePath = certificateSettings.folderPath() + certPath;
+					try (FileInputStream fis = new FileInputStream(certificatePath)) {
 						final CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
 						final X509Certificate cert = (X509Certificate) certFactory.generateCertificate(fis);
 						certificates.add(cert);
 					} catch (Exception e) {
-						System.err.println("Failed to load certificate from " + certPath + ": " + e.getMessage());
+						throw new GenericEvitaInternalError("Failed to load certificate from " + certificatePath + ": " + e.getMessage(), e);
 					}
 				});
 		} catch (Exception e) {
-			System.err.println("Error loading certificates: " + e.getMessage());
+			throw new GenericEvitaInternalError("Error loading certificates: " + e.getMessage(), e);
 		}
 
 		return certificates;
@@ -263,7 +235,7 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 	 */
 	@Nonnull
 	private static String getSchemeErrorMessage(@Nullable String scheme) {
-        if (SCHEME_HTTPS.equals(scheme)) {
+        if (!SCHEME_HTTPS.equals(scheme)) {
 			return "This endpoint requires TLS.";
 		}
 		return "This endpoint does not support TLS.";

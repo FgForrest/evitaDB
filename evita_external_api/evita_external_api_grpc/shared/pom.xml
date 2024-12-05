@@ -188,5 +188,16 @@ $1package io.evitadb.externalApi.grpc.generated;
 			<version>${netty.version}</version>
 			<scope>provided</scope>
 		</dependency>
+		<dependency>
+			<groupId>io.netty</groupId>
+			<artifactId>netty-tcnative-boringssl-static</artifactId>
+			<version>2.0.69.Final</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.linecorp.armeria</groupId>
+			<artifactId>armeria-grpc</artifactId>
+			<version>${armeria.version}</version>
+		</dependency>
 	</dependencies>
 </project>
