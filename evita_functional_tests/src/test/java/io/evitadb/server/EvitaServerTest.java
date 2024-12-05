@@ -427,7 +427,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				List.of(
 					property("api.endpoints.rest.tlsMode", "RELAXED"),
 					property("api.endpoints.rest.mTLS.enabled", "true"),
-					property("api.endpoints.rest.mTLS.allowedClientCertificatesPaths", "[\""+CertificateUtils.getGeneratedOtherCertificateFileName()+"\"]"),
+					property("api.endpoints.rest.mTLS.allowedClientCertificatesPaths", "[\""+getGeneratedOtherCertificateFileName()+"\"]"),
 					property("api.endpoints.graphQL.tlsMode", "RELAXED"),
 					property("api.endpoints.gRPC.tlsMode", "RELAXED"),
 					property("api.endpoints.gRPC.mTLS.enabled", "true"),
@@ -476,8 +476,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				.mtls(true)
 				.certificateClientFolderPath(Path.of("evita-server-certificates"))
 				.serverCertificateFilePath(Path.of(CertificateUtils.getGeneratedServerCertificateFileName()))
-				.clientCertificateFilePath(Path.of(CertificateUtils.getGeneratedOtherCertificateFileName()))
-				.clientPrivateKeyFilePath(Path.of(CertificateUtils.getGeneratedOtherCertificateKeyFileName()))
+				.clientCertificateFilePath(Path.of(getGeneratedOtherCertificateFileName()))
+				.clientPrivateKeyFilePath(Path.of(getGeneratedOtherCertificateKeyFileName()))
 				.build();
 
 			final ClientFactory clientFactory = invalidClientCertificateWithClientCertificateManager.buildClientSslContext(
@@ -522,8 +522,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					.mtlsEnabled(true)
 					.certificateFolderPath(Path.of("evita-server-certificates"))
 					.serverCertificatePath(Path.of(CertificateUtils.getGeneratedServerCertificateFileName()))
-					.certificateFileName(Path.of(CertificateUtils.getGeneratedOtherCertificateFileName()))
-					.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedOtherCertificateKeyFileName()))
+					.certificateFileName(Path.of(getGeneratedOtherCertificateFileName()))
+					.certificateKeyFileName(Path.of(getGeneratedOtherCertificateKeyFileName()))
 					.useGeneratedCertificate(false)
 					.trustCertificate(false)
 					.build()

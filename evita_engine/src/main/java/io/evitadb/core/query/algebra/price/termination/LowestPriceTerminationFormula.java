@@ -116,7 +116,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
 	 * into an account.
 	 */
-	@Getter private Bitmap recordsFilteredOutByPredicate;
+	@Nullable @Getter private Bitmap recordsFilteredOutByPredicate;
 
 	public LowestPriceTerminationFormula(
 		@Nonnull Formula containerFormula,

@@ -327,7 +327,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				file = apiOptions.certificate()
 					.getFolderPath()
 					.toFile();
-				fileName = CertificateUtils.getGeneratedRootCaCertificateFileName();
+				fileName = CertificateUtils.getGeneratedServerCertificateFileName();
 			} else {
 				final CertificatePath certificatePath = certificateSettings.custom();
 				if (certificatePath == null || certificatePath.certificate() == null || certificatePath.privateKey() == null) {
@@ -347,20 +347,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					(ctx, req) -> {
 						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
 						return HttpFile.of(new File(file, fileName)).asService().serve(ctx, req);
-					}
-				)
-			);
-
-			router.add(
-				HttpMethod.GET,
-				"/" + CertificateUtils.getGeneratedServerCertificateFileName(),
-				createCorsWrapper(
-					(ctx, req) -> {
-						return HttpFile.builder(new File(file, CertificateUtils.getGeneratedServerCertificateFileName()))
-							.addHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedServerCertificateFileName() + "\"")
-							.build()
-							.asService()
-							.serve(ctx, req);
 					}
 				)
 			);

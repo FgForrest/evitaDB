@@ -46,6 +46,9 @@ import java.util.Random;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static io.evitadb.utils.CertificateUtils.CERTIFICATE_EXTENSION;
+import static io.evitadb.utils.CertificateUtils.CERTIFICATE_KEY_EXTENSION;
+
 /**
  * This interface allows unit tests to easily prepare test directory, test file and also clean it up.
  *
@@ -57,9 +60,27 @@ public interface EvitaTestSupport extends TestConstants {
 	 */
 	Path BASE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita" + File.separator);
 	/**
+	 * Default name of the root certificate authority's certificate file.
+	 */
+	String OTHER_CERT_NAME = "other";
+	/**
 	 * Shared instance of port manager.
 	 */
 	PortManager PORT_MANAGER = new PortManager();
+
+	/**
+	 * Returns the name and the extension of the additional generated certificate file.
+	 */
+	default String getGeneratedOtherCertificateFileName() {
+		return OTHER_CERT_NAME + CERTIFICATE_EXTENSION;
+	}
+
+	/**
+	 * Returns the name and the extension of the additional generated private key file.
+	 */
+	default String getGeneratedOtherCertificateKeyFileName() {
+		return OTHER_CERT_NAME + CERTIFICATE_KEY_EXTENSION;
+	}
 
 	/**
 	 * Method copies `evita-configuration.yaml` from the classpath to the temporary directory on the filesystem so that
@@ -204,9 +225,17 @@ public interface EvitaTestSupport extends TestConstants {
 		return PORT_MANAGER;
 	}
 
+	/**
+	 * Generates a self-signed test certificate and writes it to the specified folder.
+	 *
+	 * @param certificateFolderPath the path of the folder where the generated certificate
+	 * and its private key should be stored
+	 * @throws GenericEvitaInternalError if there is any error during the generation or
+	 * writing process
+	 */
 	default void generateTestCertificate(@Nonnull String certificateFolderPath) {
 		try {
-			final String certificateName = CertificateUtils.getOtherCertName();
+			final String certificateName = OTHER_CERT_NAME;
 			final TlsKeyPair tlsKeyPair = TlsKeyPair.ofSelfSigned();
 			final Path certificatePath = Path.of(certificateFolderPath);
 			try (final JcaPEMWriter pemWriterIssued = new JcaPEMWriter(new FileWriter(certificatePath.resolve(certificateName + CertificateUtils.getCertificateExtension()).toFile()))) {

@@ -31,17 +31,14 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import lombok.Getter;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileWriter;
 import java.nio.file.Path;
-import java.security.Security;
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -57,7 +54,6 @@ public class ServerCertificateManager {
 	 * Default path to the folder where the certificate related files will be stored.
 	 */
 	private static final String DEFAULT_SERVER_CERTIFICATE_FOLDER_PATH = System.getProperty("java.io.tmpdir") + File.separator + "evita-server-certificates" + File.separator;
-	private static final BouncyCastleProvider BOUNCY_CASTLE_PROVIDER = new BouncyCastleProvider();
 	/**
 	 * Variable that holds the path to the folder where the certificate related files will be stored.
 	 */
@@ -112,9 +108,8 @@ public class ServerCertificateManager {
 	 * Creates a new instance of {@link ServerCertificateManager} with the default path to the folder where the certificate
 	 * related files will be stored.
 	 */
-	public ServerCertificateManager(@Nullable CertificateSettings certificateSettings) {
-		certificateFolderPath = certificateSettings.getFolderPath();
-		Security.addProvider(BOUNCY_CASTLE_PROVIDER);
+	public ServerCertificateManager(@Nonnull CertificateSettings certificateSettings) {
+		this.certificateFolderPath = certificateSettings.getFolderPath();
 		final File file = this.certificateFolderPath.toFile();
 		if (!file.exists()) {
 			Assert.isTrue(file.mkdir(), "Failed to create directory: " + this.certificateFolderPath);
@@ -138,47 +133,12 @@ public class ServerCertificateManager {
 	}
 
 	/**
-	 * Get path to the server certificate private key with the default name and the default extension.
-	 */
-	@Nonnull
-	public Path getCertificatePrivateKeyPath() {
-		return certificateFolderPath.resolve(CertificateUtils.getServerCertName() + CertificateUtils.getCertificateKeyExtension());
-	}
-
-	/**
-	 * Get path to the root CA certificate with the default name and the default extension.
-	 */
-	@Nonnull
-	public Path getRootCaCertificatePath() {
-		return certificateFolderPath.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName());
-	}
-
-	/**
-	 * Get path to the root CA certificate private key with the default name and the default extension.
-	 */
-	@Nonnull
-	public Path getRootCaCertificateKeyPath() {
-		return certificateFolderPath.resolve(CertificateUtils.getGeneratedRootCaCertificateKeyFileName());
-	}
-
-	/**
-	 * Get path to the not implicitly trusted or in any other means used certificate with the default name and the default extension.
-	 */
-	@Nonnull
-	public Path getOtherCertificatePath() {
-		return certificateFolderPath.resolve(CertificateUtils.getGeneratedOtherCertificateFileName());
-	}
-
-	/**
-	 * Get path to the not implicitly trusted or in any other means used certificate's private key with the default name and the default extension.
-	 */
-	@Nonnull
-	public Path getOtherCertificateKeyPath() {
-		return certificateFolderPath.resolve(CertificateUtils.getGeneratedOtherCertificateKeyFileName());
-	}
-
-	/**
 	 * Generates a self-signed certificate using the BouncyCastle library embedded inside Armeria library.
+	 *
+	 * @param type An array of {@link CertificateType} indicating the types of certificates to generate.
+	 *             If the array contains {@link CertificateType#SERVER}, a server certificate will be generated.
+	 *             If the array contains {@link CertificateType#CLIENT}, a client certificate will be generated.
+	 * @throws Exception If there is an error during the generation of the self-signed certificates.
 	 */
 	public void generateSelfSignedCertificate(@Nonnull CertificateType... type) throws Exception {
 		if (ArrayUtils.isEmpty(type)) {
@@ -197,6 +157,13 @@ public class ServerCertificateManager {
 		}
 	}
 
+	/**
+	 * Writes the certificate and private key of a given {@link TlsKeyPair} to separate files using the specified certificate name.
+	 *
+	 * @param tlsKeyPair The {@link TlsKeyPair} object containing the certificate chain and private key to be written to files.
+	 * @param certificateName The name used to generate the file paths for the certificate and private key.
+	 * @throws Exception If an error occurs while writing the certificate or private key to file.
+	 */
 	private void writeCertificateToFile(@Nonnull TlsKeyPair tlsKeyPair, @Nonnull String certificateName) throws Exception {
 		try (final JcaPEMWriter pemWriterIssued = new JcaPEMWriter(new FileWriter(getCertificatePath(certificateName).toFile()))) {
 			pemWriterIssued.writeObject(tlsKeyPair.certificateChain().get(0));

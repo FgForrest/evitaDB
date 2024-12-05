@@ -66,6 +66,70 @@ public class CertificatesLoader {
 	private final CertificateFactory certificateFactory;
 	private final CertificatePath certificatePath;
 
+	/**
+	 * Loads a private key from the specified certificate path.
+	 *
+	 * @param certificatePath the path to the certificate files needed to load the private key, must not be null
+	 * @return the loaded PrivateKey instance
+	 * @throws IllegalArgumentException   if the specified private key file does not exist
+	 * @throws EvitaInvalidUsageException if there is an error while loading the stored certificate
+	 */
+	@Nonnull
+	private static PrivateKey loadPrivateKey(@Nonnull CertificatePath certificatePath) {
+		final PrivateKey privateKey;
+		final File certificatePrivateKey = Path.of(Objects.requireNonNull(certificatePath.privateKey())).toFile();
+		Assert.isTrue(certificatePrivateKey.exists(), () -> "Certificate private key file `" + certificatePath.privateKey() + "` doesn't exists!");
+		try (PemReader privateKeyReader = new PemReader(new FileReader(certificatePrivateKey))) {
+			final PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyReader.readPemObject().getContent());
+			final KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+			privateKey = keyFactory.generatePrivate(keySpec);
+		} catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+			throw new EvitaInvalidUsageException(
+				"Error while loading stored certificates. Check the server configuration file: " + e.getMessage(),
+				"Error while loading stored certificates. Check the server configuration file.",
+				e
+			);
+		}
+		return privateKey;
+	}
+
+	/**
+	 * Loads an X.509 certificate from the specified file path using the provided CertificateFactory.
+	 *
+	 * @param certificateFactory the CertificateFactory used to generate the X.509 certificate.
+	 * @param certificatePath    the file path of the certificate to be loaded.
+	 * @return the loaded X509Certificate.
+	 * @throws IOException              if an I/O error occurs while reading the certificate from the specified path.
+	 * @throws CertificateException     if there is a parsing error or another problem with the certificate data.
+	 * @throws NoSuchAlgorithmException if no Provider supports a CertificateFactorySpi implementation for the specified type (X.509).
+	 */
+	@Nonnull
+	private static X509Certificate loadCertificate(
+		@Nonnull CertificateFactory certificateFactory,
+		@Nonnull String certificatePath
+	) throws IOException, CertificateException, NoSuchAlgorithmException {
+		try (InputStream inputStream = new FileInputStream(certificatePath)) {
+			return (X509Certificate) certificateFactory.generateCertificate(inputStream);
+		}
+	}
+
+	/**
+	 * Reinitializes the loaded certificates by reloading them from the specified path and updating internal structures.
+	 * This method checks for the presence of a certificate file and attempts to load both the private key and
+	 * certificate from it. It also processes a list of client certificates to be added to the list of trusted certificates.
+	 *
+	 * The reinitialization involves:
+	 * - Ensuring the certificate file path is set.
+	 * - Loading the private key and certificate to create a TlsKeyPair.
+	 * - Loading additional trusted client certificates and updating their fingerprints.
+	 *
+	 * If any errors occur during the loading of private keys or certificates, a GenericEvitaInternalError is thrown.
+	 *
+	 * @return LoadedCertificates containing the TLS key pair and list of trusted certificates used for secure communications
+	 * @throws EvitaInvalidUsageException if the certificate file path is not set
+	 * @throws GenericEvitaInternalError  if an IO, CertificateException, or NoSuchAlgorithmException occurs during loading
+	 */
+	@Nonnull
 	public LoadedCertificates reinitialize() {
 		final String certificateFile = certificatePath.certificate();
 		if (certificateFile == null) {
@@ -90,38 +154,6 @@ public class CertificatesLoader {
 			return new LoadedCertificates(tlsKeyPair, trustedCertificates);
 		} catch (IOException | CertificateException | NoSuchAlgorithmException e) {
 			throw new GenericEvitaInternalError("An error occurred while loading configured certificates.", e);
-		}
-	}
-
-	/**
-	 * Reads certificate private key.
-	 */
-	@Nonnull
-	private static PrivateKey loadPrivateKey(@Nonnull CertificatePath certificatePath) {
-		final PrivateKey privateKey;
-		final File certificatePrivateKey = Path.of(Objects.requireNonNull(certificatePath.privateKey())).toFile();
-		Assert.isTrue(certificatePrivateKey.exists(), () -> "Certificate private key file `" + certificatePath.privateKey() + "` doesn't exists!");
-		try (PemReader privateKeyReader = new PemReader(new FileReader(certificatePrivateKey))) {
-			final PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyReader.readPemObject().getContent());
-			final KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-			privateKey = keyFactory.generatePrivate(keySpec);
-		} catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
-			throw new EvitaInvalidUsageException(
-				"Error while loading stored certificates. Check the server configuration file: " + e.getMessage(),
-				"Error while loading stored certificates. Check the server configuration file.",
-				e
-			);
-		}
-		return privateKey;
-	}
-
-	@Nonnull
-	private static X509Certificate loadCertificate(
-		@Nonnull CertificateFactory certificateFactory,
-		@Nonnull String certificatePath
-	) throws IOException, CertificateException, NoSuchAlgorithmException {
-		try (InputStream inputStream = new FileInputStream(certificatePath)) {
-			return  (X509Certificate) certificateFactory.generateCertificate(inputStream);
 		}
 	}
 }

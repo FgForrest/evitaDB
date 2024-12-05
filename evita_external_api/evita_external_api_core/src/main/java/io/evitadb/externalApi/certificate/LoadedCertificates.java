@@ -32,10 +32,15 @@ import java.util.List;
 /**
  * A wrapper that holds references to currently loaded certificates.
  *
+ * @param tlsKeyPair TLS key pair
+ * @param allowedClientCertificates List of allowed client certificates
+ *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public record LoadedCertificates(@Nullable TlsKeyPair tlsKeyPair,
-                                 @Nullable List<X509Certificate> allowedClientCertificates) {
+public record LoadedCertificates(
+	@Nullable TlsKeyPair tlsKeyPair,
+	@Nullable List<X509Certificate> allowedClientCertificates
+) {
 
 }
 

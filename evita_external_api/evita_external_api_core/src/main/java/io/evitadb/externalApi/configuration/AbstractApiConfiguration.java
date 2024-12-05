@@ -200,6 +200,6 @@ public abstract class AbstractApiConfiguration {
 	 * @return true if mutual TLS is enabled
 	 */
 	public boolean isMtlsEnabled() {
-		return mtlsConfiguration.enabled();
+		return this.mtlsConfiguration != null && Boolean.TRUE.equals(this.mtlsConfiguration.enabled());
 	}
 }

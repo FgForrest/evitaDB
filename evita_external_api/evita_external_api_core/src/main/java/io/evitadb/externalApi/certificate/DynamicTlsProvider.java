@@ -32,6 +32,7 @@ import javax.annotation.Nonnull;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * A class that retrieves certificates from the provided {@link AtomicReference} that refers to {@link LoadedCertificates}
@@ -42,15 +43,17 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @RequiredArgsConstructor
 public class DynamicTlsProvider implements TlsProvider {
-	private final AtomicReference<LoadedCertificates> loadedCertificates;
+	private final Supplier<TlsKeyPair> tlsKeyPairSupplier;
 
+	@Nullable
 	@Override
-	public @Nullable TlsKeyPair keyPair(@Nonnull String hostname) {
-		return loadedCertificates.get().tlsKeyPair();
+	public TlsKeyPair keyPair(@Nonnull String hostname) {
+		return this.tlsKeyPairSupplier.get();
 	}
 
+	@Nullable
 	@Override
-	public @Nullable List<X509Certificate> trustedCertificates(@Nonnull String hostname) {
+	public List<X509Certificate> trustedCertificates(@Nonnull String hostname) {
 		// we want to implicitly trust all certificates at the SSL validation stage and verify them later on the
 		// application level
 		return null;

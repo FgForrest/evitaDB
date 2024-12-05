@@ -38,6 +38,7 @@ import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
+import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -54,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * This HTTP service verifies input scheme against allowed {@link TlsMode} in configuration and returns appropriate
@@ -61,7 +63,7 @@ import java.util.Set;
  * Otherwise, it delegates the request to the decorated service.
  *
  * Another part of the introduced functionality covers authentication via client certificate for all existing APIs that
- * has mTLS enabled. This will be particulary useful in the future when implementing full-scale API authentication and
+ * has mTLS enabled. This will be particularly useful in the future when implementing full-scale API authentication and
  * authorisation mechanisms.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
@@ -69,12 +71,21 @@ import java.util.Set;
 public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFunction {
 	public static final String SCHEME_HTTPS = "https";
 	public static final String SCHEME_HTTP = "http";
+	/*
+	 * The following fields are used to store the host, scheme, and port configurations for the API endpoints in
+	 * the performance-optimized way. Arrays are big enough to store all configuration combinations from all provided
+	 * APIs, but only the first `peak` elements are actually used. We rely on the fact, that the configurations are
+	 * mostly the same or overlap in some way, so we can save some memory by reusing the same values. We expect there
+	 * will be only a very few elements in the arrays, so the performance impact should be less than using hash maps.
+	 *
+	 * NULL values in arrays represent wildcard values, which means that the configuration is valid for all hosts or
+	 * schemes - only port is mandatory and must match.
+	 */
 	private final String[] hosts;
 	private final String[] schemes;
 	private final int[] ports;
-	private final MtlsConfiguration mtlsConfiguration;
 	private final int peak;
-	private final CertificateSettings certificateSettings;
+	private final Function<ServiceRequestContext, HttpResponse> mtlsChecker;
 
 	private static final HttpResponseBuilder CERTIFICATE_NOT_PROVIDED_RESPONSE = HttpResponse.builder()
 		.status(HttpStatus.UNAUTHORIZED)
@@ -90,9 +101,35 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		this.hosts = new String[hostsConfigs];
 		this.schemes = new String[hostsConfigs];
 		this.ports = new int[hostsConfigs];
-		this.mtlsConfiguration = configurations[0].getMtlsConfiguration();
 		this.peak = prepareConfigurations(configurations);
-		this.certificateSettings = apiOptions.certificate();
+		// only first configuration is the main configuration that carries the mTLS configuration
+		final MtlsConfiguration mtlsConfiguration = configurations[0].getMtlsConfiguration();
+		if (Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
+			final CertificateSettings certificate = apiOptions.certificate();
+			final Set<X509Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration, certificate);
+			this.mtlsChecker = ctx -> {
+				try {
+					final SSLSession sslSession = ctx.sslSession();
+					if (sslSession == null) {
+						return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
+					}
+					final Certificate[] clientCerts = sslSession.getPeerCertificates();
+					if (clientCerts.length == 0) {
+						return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
+					}
+					final Certificate clientCert = clientCerts[0];
+					//noinspection SuspiciousMethodCalls
+					if (!allowedCertificates.contains(clientCert)) {
+						return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_ALLOWED_RESPONSE);
+					}
+				} catch (SSLPeerUnverifiedException e) {
+					return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
+				}
+				return null;
+			};
+		} else {
+			this.mtlsChecker = ctx -> null;
+		}
 	}
 
 	@Nonnull
@@ -103,26 +140,13 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		final InetSocketAddress address = ctx.localAddress();
 		final int port = address.getPort();
 		boolean hostAndPortMatching = false;
-		for (int i = 0; i < peak; i++) {
-			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
-				if (schemes[i] == null || scheme.equals(schemes[i])) {
-					if (Boolean.TRUE.equals(mtlsConfiguration.enabled()) && SCHEME_HTTPS.equals(scheme)) {
-						final Set<X509Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration);
-						try {
-							final SSLSession sslSession = ctx.sslSession();
-							if (sslSession == null) {
-								return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
-							}
-							final Certificate[] clientCerts = sslSession.getPeerCertificates();
-							if (clientCerts.length == 0) {
-								return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
-							}
-							final Certificate clientCert = clientCerts[0];
-							if (!isClientCertificateAllowed(clientCert, allowedCertificates)) {
-								return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_ALLOWED_RESPONSE);
-							}
-						} catch (SSLPeerUnverifiedException e) {
-							return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
+		for (int i = 0; i < this.peak; i++) {
+			if (port == this.ports[i] && (this.hosts[i] == null || address.getAddress().getHostAddress().equals(this.hosts[i]))) {
+				if (this.schemes[i] == null || scheme.equals(this.schemes[i])) {
+					if (SCHEME_HTTPS.equals(scheme)) {
+						final HttpResponse response = this.mtlsChecker.apply(ctx);
+						if (response != null) {
+							return response;
 						}
 					}
 					return delegate.serve(ctx, req);
@@ -138,6 +162,19 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		}
 	}
 
+	/**
+	 * Creates an HTTP response indicating an authentication error and initiates a connection shutdown.
+	 * This method sets the "Connection" header to "close" and triggers the shutdown process
+	 * in the provided service request context.
+	 *
+	 * @param ctx the {@link ServiceRequestContext} used to manage the service request,
+	 *            including initiating the connection shutdown.
+	 * @param responseBuilder the {@link HttpResponseBuilder} used to construct the HTTP response,
+	 *                        which will include a header to close the connection.
+	 * @return an {@link HttpResponse} representing the authentication error response
+	 *         with the connection set to close.
+	 */
+	@Nonnull
 	private static HttpResponse createAuthenticationErrorResponseAndCloseChannel(
 		@Nonnull ServiceRequestContext ctx,
 		@Nonnull HttpResponseBuilder responseBuilder
@@ -146,13 +183,27 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		return responseBuilder.header("Connection", "close").build();
 	}
 
-	private Set<X509Certificate> getAllowedClientCertificatesFromPaths(@Nonnull MtlsConfiguration mtlsConfig) {
+	/**
+	 * Retrieves a set of allowed client X509 certificates from the specified paths defined in the mTLS configuration.
+	 * This method processes each path, verifies its validity, and loads the certificate if it is in the correct format.
+	 *
+	 * @param mtlsConfig The mTLS configuration containing the list of paths to client certificates that should be allowed.
+	 * @param certificateSettings The certificate settings that provide the folder path where the certificates are stored.
+	 * @return A set of X509 certificates corresponding to the valid paths specified in the mTLS configuration.
+	 *         These certificates represent the clients that are allowed to connect to the server.
+	 * @throws GenericEvitaInternalError if there is an error loading any of the certificates from the specified paths.
+	 */
+	@Nonnull
+	private static Set<X509Certificate> getAllowedClientCertificatesFromPaths(
+		@Nonnull MtlsConfiguration mtlsConfig,
+		@Nonnull CertificateSettings certificateSettings
+	) {
 		final Set<X509Certificate> certificates = CollectionUtils.createHashSet(mtlsConfig.allowedClientCertificatePaths().size());
 
 		try {
 			mtlsConfig.allowedClientCertificatePaths().stream()
 				.filter(Objects::nonNull)
-				.filter(path -> path.endsWith(".crt"))
+				.filter(path -> path.endsWith(CertificateUtils.CERTIFICATE_EXTENSION))
 				.forEach(certPath -> {
 					final String certificatePath = certificateSettings.folderPath() + certPath;
 					try (FileInputStream fis = new FileInputStream(certificatePath)) {
@@ -160,7 +211,11 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 						final X509Certificate cert = (X509Certificate) certFactory.generateCertificate(fis);
 						certificates.add(cert);
 					} catch (Exception e) {
-						throw new GenericEvitaInternalError("Failed to load certificate from " + certificatePath + ": " + e.getMessage(), e);
+						throw new GenericEvitaInternalError(
+							"Failed to load certificate.",
+							"Failed to load certificate from " + certificatePath + ": " + e.getMessage(),
+							e
+						);
 					}
 				});
 		} catch (Exception e) {
@@ -168,11 +223,6 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		}
 
 		return certificates;
-	}
-
-	private static boolean isClientCertificateAllowed(@Nonnull Certificate clientCert, @Nonnull Set<X509Certificate> allowedCertificates) {
-		// Check if any allowed certificate matches the client certificate
-		return allowedCertificates.stream().anyMatch(allowedCert -> allowedCert.equals(clientCert));
 	}
 
 	/**
@@ -262,12 +312,9 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		 * @return true if the current host triple is superior or equal to the other host triple, false otherwise
 		 */
 		public boolean isSuperiorOrEqual(@Nonnull HostTriple another) {
-			if (port == another.port) {
-				if (host == null || host.equals(another.host)) {
-					if (scheme == null || scheme.equals(another.scheme)) {
-						return true;
-					}
-					return false;
+			if (this.port == another.port) {
+				if (this.host == null || this.host.equals(another.host)) {
+					return this.scheme == null || this.scheme.equals(another.scheme);
 				} else {
 					return false;
 				}

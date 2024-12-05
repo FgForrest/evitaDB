@@ -109,7 +109,7 @@ public record EvitaClientConfiguration(
 		private boolean trustCertificate = false;
 		private boolean tlsEnabled = true;
 		private boolean mtlsEnabled = false;
-		private Path rootCaCertificatePath = null;
+		private Path serverCertificatePath = null;
 		private Path certificatePath = null;
 		private Path certificateKeyPath = null;
 		private String certificateKeyPassword = null;
@@ -166,9 +166,23 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
+		/**
+		 * This setting was renamed to {@link #serverCertificatePath(Path)}.
+		 *
+		 * @deprecated Use {@link #serverCertificatePath(Path)} instead.
+		 * @param rootCaCertificatePath
+		 * @return
+		 */
+		@Deprecated
+		@Nonnull
+		public EvitaClientConfiguration.Builder rootCaCertificatePath(@Nonnull Path rootCaCertificatePath) {
+			this.serverCertificatePath = rootCaCertificatePath;
+			return this;
+		}
+
 		@Nonnull
 		public EvitaClientConfiguration.Builder serverCertificatePath(@Nonnull Path rootCaCertificatePath) {
-			this.rootCaCertificatePath = rootCaCertificatePath;
+			this.serverCertificatePath = rootCaCertificatePath;
 			return this;
 		}
 
@@ -259,7 +273,7 @@ public record EvitaClientConfiguration(
 				trustCertificate,
 				tlsEnabled,
 				mtlsEnabled,
-				rootCaCertificatePath,
+				serverCertificatePath,
 				certificatePath,
 				certificateKeyPath,
 				certificateKeyPassword,

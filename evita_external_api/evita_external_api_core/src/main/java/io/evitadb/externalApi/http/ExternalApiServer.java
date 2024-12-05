@@ -113,7 +113,7 @@ public class ExternalApiServer implements AutoCloseable {
 	@Getter private final ApiOptions apiOptions;
 	private final Map<String, ExternalApiProvider<?>> registeredApiProviders;
 	private final ProbesMaintainer probesMaintainer = new ProbesMaintainer();
-	private final CertificateService certificateService = new CertificateService();
+	private CertificateService certificateService;
 	private CompletableFuture<Void> stopFuture;
 
 	/**
@@ -150,11 +150,25 @@ public class ExternalApiServer implements AutoCloseable {
 			final List<File> necessaryFiles = Arrays.stream(certificateTypes)
 				.flatMap(
 					it -> switch (it) {
-						case SERVER -> Stream.of(
-							new File(certificatePath.certificate()),
-							new File(certificatePath.privateKey())
-						);
+						case SERVER -> {
+							Assert.notNull(
+								certificatePath.certificate(),
+								"Certificate settings must be set when at least one endpoint requires TLS."
+							);
+							Assert.notNull(
+								certificatePath.privateKey(),
+								"Private key settings must be set when at least one endpoint requires TLS."
+							);
+							yield Stream.of(
+								new File(certificatePath.certificate()),
+								new File(certificatePath.privateKey())
+							);
+						}
 						case CLIENT -> {
+							Assert.notNull(
+								apiOptions.certificate().folderPath(),
+								"Certificate folder path must be set when at least one endpoint requires mTLS."
+							);
 							final Path certificateFolder = Path.of(apiOptions.certificate().folderPath());
 							yield Stream.of(
 								certificateFolder.resolve(CertificateUtils.getGeneratedClientCertificateFileName()).toFile(),
@@ -202,7 +216,8 @@ public class ExternalApiServer implements AutoCloseable {
 				});
 
 		} else {
-			if (!new File(certificatePath.certificate()).exists() || !new File(certificatePath.privateKey()).exists()) {
+			if ((certificatePath.certificate() == null || !new File(certificatePath.certificate()).exists())
+				|| (certificatePath.privateKey() == null || !new File(certificatePath.privateKey()).exists())) {
 				throw new GenericEvitaInternalError("Certificate or its private key file does not exist");
 			}
 		}
@@ -212,7 +227,7 @@ public class ExternalApiServer implements AutoCloseable {
 	/**
 	 * Reads server certificate from the file if exists and if so, return its fingerprint.
 	 */
-	@Nullable
+	@Nonnull
 	private static Optional<String> getServerCertificateFingerPrint(
 		@Nonnull ServerCertificateManager serverCertificateManager
 	) {
@@ -291,10 +306,16 @@ public class ExternalApiServer implements AutoCloseable {
 		@Nonnull Scheduler serviceExecutor
 	) {
 		final boolean shouldStartCertificateChangedWatcher = !usingSelfSignedGeneratedCertificate;
-		certificateService.initCertificateLoader(apiOptions, shouldStartCertificateChangedWatcher, certificatePath, serviceExecutor);
+		this.certificateService = new CertificateService(
+			this.apiOptions,
+			shouldStartCertificateChangedWatcher,
+			certificatePath,
+			serviceExecutor
+		);
+
 		serverBuilder
 			.tlsProvider(
-			new DynamicTlsProvider(this.certificateService.getLoadedCertificates()),
+			new DynamicTlsProvider(this.certificateService::getTlsKeyPair),
 			ServerTlsConfig.builder()
 				.clientAuth(ClientAuth.OPTIONAL)
 				.tlsCustomizer(customizer -> customizer.trustManager(InsecureTrustManagerFactory.INSTANCE))
@@ -359,6 +380,7 @@ public class ExternalApiServer implements AutoCloseable {
 			final CertificatePath certificatePath = certificateSettings.generateAndUseSelfSigned() ?
 				initCertificate(apiOptions, serverCertificateManager) :
 				(
+					certificateSettings.custom() != null &&
 					certificateSettings.custom().certificate() != null && !certificateSettings.custom().certificate().isBlank() &&
 						certificateSettings.custom().privateKey() != null && !certificateSettings.custom().privateKey().isBlank() ?
 						new CertificatePath(
@@ -468,7 +490,7 @@ public class ExternalApiServer implements AutoCloseable {
 	private void configureArmeria(
 		@Nonnull Evita evita,
 		@Nonnull ServerBuilder serverBuilder,
-		@Nonnull CertificatePath certificatePath,
+		@Nullable CertificatePath certificatePath,
 		@Nonnull ApiOptions apiOptions
 	) throws CertificateException, UnrecoverableKeyException, KeyStoreException, IOException, NoSuchAlgorithmException {
 		// in tests we don't wait for shutdowns
@@ -547,6 +569,10 @@ public class ExternalApiServer implements AutoCloseable {
 					// now provide implementation for the host services
 					boolean defaultServiceConfigured = false;
 					for (HttpServiceDefinition httpServiceDefinition : registeredApiProvider.getHttpServiceDefinitions()) {
+						Assert.isPremiseValid(
+							httpServiceDefinition != null,
+							"HTTP service definition must be set for API provider: " + registeredApiProvider.getCode()
+						);
 						final String basePath = configuration instanceof ApiWithSpecificPrefix apiWithSpecificPrefix ?
 							apiWithSpecificPrefix.getPrefix() : "";
 
@@ -606,6 +632,10 @@ public class ExternalApiServer implements AutoCloseable {
 
 		// initialize and customize TLS settings if at least one endpoint requires / allows TLS protocol
 		if (apiOptions.atLeastOneEndpointRequiresTls()) {
+			Assert.isTrue(
+				certificatePath != null,
+				"Certificate path must be set when at least one endpoint requires TLS."
+			);
 			// customize TLS settings
 			setupTls(serverBuilder, apiOptions.certificate().generateAndUseSelfSigned(), certificatePath, evita.getServiceExecutor());
 		}
@@ -629,7 +659,11 @@ public class ExternalApiServer implements AutoCloseable {
 	 * @return true if any certificate was modified and reloaded, false otherwise
 	 */
 	public boolean reloadCertificatesIfAnyModified() {
-		return certificateService.reloadCertificatesIfAnyModified();
+		if (this.certificateService != null) {
+			return certificateService.reloadCertificatesIfAnyModified();
+		} else {
+			return false;
+		}
 	}
 
 	/**
@@ -638,7 +672,8 @@ public class ExternalApiServer implements AutoCloseable {
 	 */
 	@Nullable
 	public LoadedCertificates getLoadedCertificates() {
-		return certificateService.getLoadedCertificates().get();
+		return this.certificateService == null ?
+			null : this.certificateService.getLoadedCertificates();
 	}
 
 	/**
