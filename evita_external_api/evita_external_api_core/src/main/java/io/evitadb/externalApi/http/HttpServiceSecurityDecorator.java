@@ -106,7 +106,7 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		final MtlsConfiguration mtlsConfiguration = configurations[0].getMtlsConfiguration();
 		if (Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
 			final CertificateSettings certificate = apiOptions.certificate();
-			final Set<X509Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration, certificate);
+			final Set<Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration, certificate);
 			this.mtlsChecker = ctx -> {
 				try {
 					final SSLSession sslSession = ctx.sslSession();
@@ -118,7 +118,6 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 						return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
 					}
 					final Certificate clientCert = clientCerts[0];
-					//noinspection SuspiciousMethodCalls
 					if (!allowedCertificates.contains(clientCert)) {
 						return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_ALLOWED_RESPONSE);
 					}
@@ -194,11 +193,11 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 	 * @throws GenericEvitaInternalError if there is an error loading any of the certificates from the specified paths.
 	 */
 	@Nonnull
-	private static Set<X509Certificate> getAllowedClientCertificatesFromPaths(
+	private static Set<Certificate> getAllowedClientCertificatesFromPaths(
 		@Nonnull MtlsConfiguration mtlsConfig,
 		@Nonnull CertificateSettings certificateSettings
 	) {
-		final Set<X509Certificate> certificates = CollectionUtils.createHashSet(mtlsConfig.allowedClientCertificatePaths().size());
+		final Set<Certificate> certificates = CollectionUtils.createHashSet(mtlsConfig.allowedClientCertificatePaths().size());
 
 		try {
 			mtlsConfig.allowedClientCertificatePaths().stream()
