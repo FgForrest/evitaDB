@@ -47,10 +47,16 @@ import javax.annotation.Nonnull;
  * @param closeSessionsAfterSecondsOfInactivity Sets the timeout in seconds after which the session is automatically
  *                                              closed if no activity is observed on it.
  * @param trafficRecording                      If true, the server records all traffic to the database (all catalogs)
- *                                              in a single shared memory buffer that could be optionally persisted to file.
+ *                                              in a single shared memory and disk buffer that could be optionally
+ *                                              persisted to file.
  * @param trafficSamplingPercentage			    Sets the percentage of traffic that should be recorded. The value is
  *                                              between 0 and 100.
  * @param trafficMemoryBufferSizeInBytes        Sets the size of the memory buffer used for traffic recording in Bytes.
+ *                                              Even if `trafficRecording` is disabled this property is used when on
+ *                                              demand traffic recording is requested.
+ * @param trafficDiskBufferSizeInBytes          Sets the size of the disk buffer used for traffic recording in Bytes.
+ *                                              Even if `trafficRecording` is disabled this property is used when on
+ *                                              demand traffic recording is requested.
  * @param readOnly                              starts the database in full read-only mode, prohibiting write operations
  *                                              on {@link EntityContract} level and open read-write {@link EvitaSessionContract}.
  * @param quiet                                 If true, all output to the system console is suppressed.
@@ -65,6 +71,7 @@ public record ServerOptions(
 	int closeSessionsAfterSecondsOfInactivity,
 	boolean trafficRecording,
 	long trafficMemoryBufferSizeInBytes,
+	long trafficDiskBufferSizeInBytes,
 	int trafficSamplingPercentage,
 	boolean readOnly,
 	boolean quiet
@@ -73,6 +80,7 @@ public record ServerOptions(
 	public static final long DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS = 300 * 1000L;
 	public static final int DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY = 60 * 20;
 	public static final long DEFAULT_TRAFFIC_MEMORY_BUFFER = 4_194_304L;
+	public static final long DEFAULT_TRAFFIC_DISK_BUFFER = 26_214_400L;
 	public static final int DEFAULT_TRAFFIC_SAMPLING_PERCENTAGE = 100;
 	public static final boolean DEFAULT_TRAFFIC_RECORDING = false;
 	public static final boolean DEFAULT_READ_ONLY = false;
@@ -102,6 +110,7 @@ public record ServerOptions(
 			DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
 			DEFAULT_TRAFFIC_RECORDING,
 			DEFAULT_TRAFFIC_MEMORY_BUFFER,
+			DEFAULT_TRAFFIC_DISK_BUFFER,
 			DEFAULT_TRAFFIC_SAMPLING_PERCENTAGE,
 			DEFAULT_READ_ONLY,
 			DEFAULT_QUIET
@@ -121,6 +130,7 @@ public record ServerOptions(
 		private int closeSessionsAfterSecondsOfInactivity = DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY;
 		private boolean trafficRecording = DEFAULT_TRAFFIC_RECORDING;
 		private long trafficMemoryBufferSizeInBytes = DEFAULT_TRAFFIC_MEMORY_BUFFER;
+		private long trafficDiskBufferSizeInBytes = DEFAULT_TRAFFIC_DISK_BUFFER;
 		private int trafficSamplingPercentage = DEFAULT_TRAFFIC_SAMPLING_PERCENTAGE;
 		private boolean readOnly = DEFAULT_READ_ONLY;
 		private boolean quiet = DEFAULT_QUIET;
@@ -137,6 +147,7 @@ public record ServerOptions(
 			this.closeSessionsAfterSecondsOfInactivity = serverOptions.closeSessionsAfterSecondsOfInactivity();
 			this.trafficRecording = serverOptions.trafficRecording();
 			this.trafficMemoryBufferSizeInBytes = serverOptions.trafficMemoryBufferSizeInBytes();
+			this.trafficDiskBufferSizeInBytes = serverOptions.trafficDiskBufferSizeInBytes();
 			this.trafficSamplingPercentage = serverOptions.trafficSamplingPercentage();
 			this.readOnly = serverOptions.readOnly();
 			this.quiet = serverOptions.quiet();
@@ -191,6 +202,12 @@ public record ServerOptions(
 		}
 
 		@Nonnull
+		public ServerOptions.Builder trafficDiskBufferSizeInBytes(long trafficDiskBufferSizeInBytes) {
+			this.trafficDiskBufferSizeInBytes = trafficDiskBufferSizeInBytes;
+			return this;
+		}
+
+		@Nonnull
 		public ServerOptions.Builder trafficSamplingPercentage(int trafficSamplingPercentage) {
 			this.trafficSamplingPercentage = trafficSamplingPercentage;
 			return this;
@@ -219,6 +236,7 @@ public record ServerOptions(
 				closeSessionsAfterSecondsOfInactivity,
 				trafficRecording,
 				trafficMemoryBufferSizeInBytes,
+				trafficDiskBufferSizeInBytes,
 				trafficSamplingPercentage,
 				readOnly,
 				quiet

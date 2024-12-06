@@ -21,36 +21,36 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.traffic.data;
+package io.evitadb.store.traffic.serializer;
 
-import io.evitadb.api.query.Query;
-import io.evitadb.core.traffic.TrafficRecording;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
-import javax.annotation.Nonnull;
-import java.time.OffsetDateTime;
-import java.util.UUID;
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.Serializer;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.store.traffic.data.SessionStartContainer;
 
 /**
- * Container for a query and its metadata.
+ * This {@link Serializer} implementation reads/writes {@link SessionStartContainer} type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record QueryContainer(
-	@Nonnull UUID sessionId,
-	@Nonnull Query query,
-	@Nonnull OffsetDateTime created,
-	int durationInMilliseconds,
-	int totalRecordCount,
-	int ioFetchCount,
-	int ioFetchedSizeBytes,
-	@Nonnull int[] primaryKeys
-) implements TrafficRecording {
+public class SessionStartContainerSerializer extends Serializer<SessionStartContainer> {
 
-	@Nonnull
 	@Override
-	public TrafficRecordingType type() {
-		return TrafficRecordingType.QUERY;
+	public void write(Kryo kryo, Output output, SessionStartContainer object) {
+		kryo.writeObject(output, object.sessionId());
+		output.writeLong(object.catalogVersion());
+		kryo.writeObject(output, object.created());
+	}
+
+	@Override
+	public SessionStartContainer read(Kryo kryo, Input input, Class<? extends SessionStartContainer> type) {
+		return new SessionStartContainer(
+			kryo.readObject(input, java.util.UUID.class),
+			input.readLong(),
+			kryo.readObject(input, java.time.OffsetDateTime.class)
+		);
 	}
 
 }

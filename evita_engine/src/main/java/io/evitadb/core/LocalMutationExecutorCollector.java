@@ -76,6 +76,10 @@ import static io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation.
 @RequiredArgsConstructor
 class LocalMutationExecutorCollector {
 	/**
+	 * The timestamp when the collector was created.
+	 */
+	private final OffsetDateTime created = OffsetDateTime.now();
+	/**
 	 * The catalog instance used to fetch collections for entities.
 	 */
 	private final Catalog catalog;
@@ -191,7 +195,12 @@ class LocalMutationExecutorCollector {
 			changeCollector.setTrapChanges(false);
 			// record mutation to the traffic recorder
 			record = session == null ?
-				null : this.catalog.getTrafficRecorder().recordMutation(session.getId(), entityMutation);
+				null :
+				this.catalog.getTrafficRecorder().recordMutation(
+					session.getId(),
+					this.created,
+					entityMutation
+			);
 		} else {
 			// while implicit mutations are trapped in memory and stored on next flush
 			changeCollector.setTrapChanges(true);

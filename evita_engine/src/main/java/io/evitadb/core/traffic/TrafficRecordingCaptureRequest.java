@@ -21,36 +21,35 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.traffic.data;
+package io.evitadb.core.traffic;
 
-import io.evitadb.api.query.Query;
-import io.evitadb.core.traffic.TrafficRecording;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Container for a query and its metadata.
+ * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record QueryContainer(
-	@Nonnull UUID sessionId,
-	@Nonnull Query query,
-	@Nonnull OffsetDateTime created,
-	int durationInMilliseconds,
-	int totalRecordCount,
-	int ioFetchCount,
-	int ioFetchedSizeBytes,
-	@Nonnull int[] primaryKeys
-) implements TrafficRecording {
+public record TrafficRecordingCaptureRequest(
+	@Nullable OffsetDateTime since,
+	@Nullable Long sinceSessionSequenceId,
+	@Nullable TrafficRecordingType[] type,
+	@Nullable UUID sessionId,
+	@Nullable Duration longerThan,
+	@Nullable Integer fetchingMoreBytesThan
+) {
 
-	@Nonnull
-	@Override
-	public TrafficRecordingType type() {
-		return TrafficRecordingType.QUERY;
+	public enum TrafficRecordingType {
+		SESSION_START,
+		SESSION_FINISH,
+		QUERY,
+		FETCH,
+		ENRICHMENT,
+		MUTATION
 	}
 
 }

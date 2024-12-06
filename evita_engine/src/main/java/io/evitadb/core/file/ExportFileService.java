@@ -87,6 +87,10 @@ public class ExportFileService {
 	 * Cached list of files to fetch.
 	 */
 	private final CopyOnWriteArrayList<FileForFetch> files;
+	/**
+	 * List of reserved temporary files that won't be purged automatically.
+	 */
+	private final CopyOnWriteArrayList<Path> reservedFiles = new CopyOnWriteArrayList<>();
 
 	/**
 	 * Parses metadata file and creates {@link FileForFetch} instance.
@@ -338,6 +342,30 @@ public class ExportFileService {
 	}
 
 	/**
+	 * Creates temporary file using {@link #createTempFile(String)} and adds it to reserved files that won't be purged
+	 * automatically - unless explicitly removed by the owner.
+	 *
+	 * @param fileName the name of the file to be created
+	 * @return the Path of the created temporary file
+	 */
+	@Nonnull
+	public Path createManagedTempFile(@Nonnull String fileName) {
+		final Path reservedFile = createTempFile(fileName);
+		this.reservedFiles.add(reservedFile.normalize());
+		return reservedFile;
+	}
+
+	/**
+	 * Removes the specified temporary file from the managed files list and deletes it from the file system if it exists.
+	 *
+	 * @param file the path to the temporary file to be purged; must not be null
+	 */
+	public void purgeManagedTempFile(@Nonnull Path file) {
+		this.reservedFiles.remove(file.normalize());
+		FileUtils.deleteFileIfExists(file);
+	}
+
+	/**
 	 * Returns path to an existing temporary file with the given file name in the export storage directory.
 	 *
 	 * @param fileName the name of the file to be created
@@ -409,7 +437,9 @@ public class ExportFileService {
 		// then go through the directory files, that does not have metadata file and delete all that were created before the threshold
 		try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
 			fileStream
+				.map(Path::normalize)
 				.filter(it -> !getUuidFromPath(it).map(knownFiles::contains).orElse(false))
+				.filter(it -> !this.reservedFiles.contains(it))
 				.filter(it -> FileUtils.getFileLastModifiedTime(it).map(lastModifiedDate -> lastModifiedDate.isBefore(thresholdDate)).orElse(true))
 				.forEach(it -> {
 					log.info("Purging temporary file, because it has been last modified before {}: {}", thresholdDate, it);
@@ -421,14 +451,14 @@ public class ExportFileService {
 
 		// then check the size of the directory and delete oldest files until the directory size is below the limit
 		final long directorySize = FileUtils.getDirectorySize(this.storageOptions.exportDirectory());
-		// delete oldest files until the directory size is below the limit
+		// delete the oldest files until the directory size is below the limit
 		if (directorySize > this.storageOptions.exportDirectorySizeLimitBytes()) {
 			final List<FileForFetch> filesByCreationDate = this.files.stream()
 				.sorted(Comparator.comparing(FileForFetch::created))
 				.toList();
 			long savedSize = 0L;
 			for (FileForFetch it : filesByCreationDate) {
-				log.info("Purging oldest file, because the export directory grew too big: {}", it);
+				log.info("Purging the oldest file, because the export directory grew too big: {}", it);
 				final long metadataFileSize = it.metadataPath(this.storageOptions.exportDirectory()).toFile().length();
 				deleteFile(it.fileId());
 				savedSize += it.totalSizeInBytes() + metadataFileSize;

@@ -24,8 +24,11 @@
 package io.evitadb.core.traffic;
 
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.file.ExportFileService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -44,7 +47,13 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 	public static final NoOpTrafficRecorder INSTANCE = new NoOpTrafficRecorder();
 
 	@Override
-	public void init(@Nonnull ServerOptions serverOptions) {
+	public void init(
+		@Nonnull String catalogName,
+		@Nonnull ExportFileService exportFileService,
+		@Nonnull Scheduler scheduler,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull ServerOptions serverOptions
+	) {
 		// no-op
 	}
 
@@ -60,7 +69,7 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 
 	@Override
 	public void recordQuery(
-		@Nonnull UUID sessionId, @Nonnull Query query,
+		@Nonnull UUID sessionId, @Nonnull Query query, @Nonnull OffsetDateTime now,
 		int totalRecordCount, int ioFetchCount, int ioFetchedSizeBytes,
 		@Nonnull int[] primaryKeys
 	) {
@@ -69,20 +78,22 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 
 	@Override
 	public void recordFetch(
-		@Nonnull UUID sessionId, @Nonnull Query query, int ioFetchCount, int ioFetchedSizeBytes, int primaryKey
+		@Nonnull UUID sessionId, @Nonnull Query query, @Nonnull OffsetDateTime now,
+		int ioFetchCount, int ioFetchedSizeBytes, int primaryKey
 	) {
 		// no-op
 	}
 
 	@Override
 	public void recordEnrichment(
-		@Nonnull UUID sessionId, @Nonnull Query query, int ioFetchCount, int ioFetchedSizeBytes, int primaryKey
+		@Nonnull UUID sessionId, @Nonnull Query query, @Nonnull OffsetDateTime now,
+		int ioFetchCount, int ioFetchedSizeBytes, int primaryKey
 	) {
 		// no-op
 	}
 
 	@Override
-	public void recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation mutation) {
+	public void recordMutation(@Nonnull UUID sessionId, @Nonnull OffsetDateTime now, @Nonnull Mutation mutation) {
 		// no-op
 	}
 

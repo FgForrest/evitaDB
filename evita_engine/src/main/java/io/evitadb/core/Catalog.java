@@ -33,7 +33,6 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
@@ -307,18 +306,28 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	/**
 	 * Method initializes traffic recorder instance based on the server options.
 	 *
-	 * @param serverOptions options containing the configuration for the traffic recorder
+	 * @param exportFileService export file service
+	 * @param scheduler         scheduler
+	 * @param configuration     configuration
 	 * @return traffic recorder instance
 	 */
 	@Nonnull
-	private static TrafficRecorder getTrafficRecorder(@Nonnull ServerOptions serverOptions) {
-		if (serverOptions.trafficRecording()) {
+	private static TrafficRecorder getTrafficRecorder(
+		@Nonnull String catalogName,
+		@Nonnull ExportFileService exportFileService,
+		@Nonnull Scheduler scheduler,
+		@Nonnull EvitaConfiguration configuration
+	) {
+		if (configuration.server().trafficRecording()) {
 			final TrafficRecorder trafficRecorderInstance = ServiceLoader.load(TrafficRecorder.class)
 				.stream()
 				.findFirst()
 				.orElseThrow(() -> new EvitaInvalidUsageException("Traffic recorder implementation is not available!"))
 				.get();
-			trafficRecorderInstance.init(serverOptions);
+			trafficRecorderInstance.init(
+				catalogName, exportFileService, scheduler,
+				configuration.storage(), configuration.server()
+			);
 			return trafficRecorderInstance;
 		} else {
 			return NoOpTrafficRecorder.INSTANCE;
@@ -384,7 +393,15 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.transactionManager = new TransactionManager(
 			this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
 		);
-		this.trafficRecorder = new TrafficRecordingEngine(tracingContext, Catalog.getTrafficRecorder(evitaConfiguration.server()));
+		this.trafficRecorder = new TrafficRecordingEngine(
+			tracingContext,
+			Catalog.getTrafficRecorder(
+				internalCatalogSchema.getName(),
+				exportFileService,
+				scheduler,
+				evitaConfiguration
+			)
+		);
 
 		this.persistenceService.storeHeader(
 			this.catalogId, CatalogState.WARMING_UP, catalogVersion, 0, null,
@@ -443,7 +460,15 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			this.archiveCatalogIndex.attachToCatalog(null, this);
 		}
 		this.cacheSupervisor = cacheSupervisor;
-		this.trafficRecorder = new TrafficRecordingEngine(tracingContext, Catalog.getTrafficRecorder(evitaConfiguration.server()));
+		this.trafficRecorder = new TrafficRecordingEngine(
+			tracingContext,
+			Catalog.getTrafficRecorder(
+				catalogSchema.getName(),
+				exportFileService,
+				scheduler,
+				evitaConfiguration
+			)
+		);
 		this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
 			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
 			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
@@ -1419,6 +1444,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nullable EvitaSessionContract session,
 		@Nonnull LocalCatalogSchemaMutation... schemaMutation
 	) {
+		final OffsetDateTime start = OffsetDateTime.now();
 		// internal schema is expected to be produced on the server side
 		final CatalogSchema originalSchema = getInternalSchema();
 		final AtomicReference<MutationApplicationRecord> record = new AtomicReference<>();
@@ -1434,7 +1460,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				// record the mutation
 				if (session != null) {
 					record.set(
-						this.trafficRecorder.recordMutation(session.getId(), theMutation)
+						this.trafficRecorder.recordMutation(session.getId(), start, theMutation)
 					);
 				}
 

@@ -21,36 +21,53 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.traffic.data;
+package io.evitadb.store.traffic;
 
-import io.evitadb.api.query.Query;
+
 import io.evitadb.core.traffic.TrafficRecording;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.core.traffic.TrafficRecordingCaptureRequest;
+import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.traffic.data.SessionLocation;
 
 import javax.annotation.Nonnull;
-import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 /**
- * Container for a query and its metadata.
+ * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record QueryContainer(
-	@Nonnull UUID sessionId,
-	@Nonnull Query query,
-	@Nonnull OffsetDateTime created,
-	int durationInMilliseconds,
-	int totalRecordCount,
-	int ioFetchCount,
-	int ioFetchedSizeBytes,
-	@Nonnull int[] primaryKeys
-) implements TrafficRecording {
+public class DiskRingBufferIndex {
+	/**
+	 * Map of session positions in the disk buffer file.
+	 */
+	private final Map<Long, FileLocation> sessionLocationIndex = new ConcurrentHashMap<>(1_024);
+	/**
+	 * TODO JNO - document me
+	 */
+	private final Map<UUID, Long> sessionIdIndex = new ConcurrentHashMap<>(1_024);
 
-	@Nonnull
-	@Override
-	public TrafficRecordingType type() {
-		return TrafficRecordingType.QUERY;
+	public void setupSession(@Nonnull SessionLocation sessionLocation) {
+
 	}
 
+	public void removeSession(long sessionSequenceOrder) {
+
+	}
+
+	public void indexRecording(long sessionSequenceOrder, @Nonnull TrafficRecording recording) {
+
+	}
+
+	public boolean sessionExists(long sessionSequenceOrder) {
+		return false;
+	}
+
+	@Nonnull
+	public Stream<SessionLocation> getSessionStream(@Nonnull TrafficRecordingCaptureRequest request) {
+		return null;
+	}
 }

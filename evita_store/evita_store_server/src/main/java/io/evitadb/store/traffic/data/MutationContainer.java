@@ -23,7 +23,8 @@
 
 package io.evitadb.store.traffic.data;
 
-import io.evitadb.api.query.Query;
+
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.traffic.TrafficRecording;
 import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
@@ -32,25 +33,31 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Container for a query and its metadata.
+ * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record QueryContainer(
+public record MutationContainer(
 	@Nonnull UUID sessionId,
-	@Nonnull Query query,
 	@Nonnull OffsetDateTime created,
 	int durationInMilliseconds,
-	int totalRecordCount,
-	int ioFetchCount,
-	int ioFetchedSizeBytes,
-	@Nonnull int[] primaryKeys
+	@Nonnull Mutation mutation
 ) implements TrafficRecording {
 
 	@Nonnull
 	@Override
 	public TrafficRecordingType type() {
-		return TrafficRecordingType.QUERY;
+		return TrafficRecordingType.MUTATION;
+	}
+
+	@Override
+	public int ioFetchCount() {
+		return 0;
+	}
+
+	@Override
+	public int ioFetchedSizeBytes() {
+		return 0;
 	}
 
 }

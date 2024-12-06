@@ -32,25 +32,24 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Container for a query and its metadata.
+ * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record QueryContainer(
+public record RecordFetchContainer(
 	@Nonnull UUID sessionId,
 	@Nonnull Query query,
 	@Nonnull OffsetDateTime created,
 	int durationInMilliseconds,
-	int totalRecordCount,
 	int ioFetchCount,
 	int ioFetchedSizeBytes,
-	@Nonnull int[] primaryKeys
+	int primaryKey
 ) implements TrafficRecording {
 
 	@Nonnull
 	@Override
 	public TrafficRecordingType type() {
-		return TrafficRecordingType.QUERY;
+		return TrafficRecordingType.FETCH;
 	}
 
 }

@@ -105,6 +105,7 @@ public class TrafficRecordingEngine {
 		this.trafficRecorder.recordQuery(
 			sessionId,
 			result.getSourceQuery(),
+			queryPlan.getEvitaRequest().getAlignedNow(),
 			result.getTotalRecordCount(),
 			result.getIoFetchCount(),
 			result.getIoFetchedSizeBytes(),
@@ -174,6 +175,7 @@ public class TrafficRecordingEngine {
 		this.trafficRecorder.recordEnrichment(
 			sessionId,
 			evitaRequest.getQuery(),
+			evitaRequest.getAlignedNow(),
 			ioFetchCount,
 			ioFetchedBytes,
 			entity.getPrimaryKeyOrThrowException()
@@ -193,7 +195,7 @@ public class TrafficRecordingEngine {
 	 * @return a MutationApplicationRecord object that tracks the lifecycle of the mutation, including its execution tracing and logging
 	 */
 	@Nonnull
-	public MutationApplicationRecord recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation mutation) {
+	public MutationApplicationRecord recordMutation(@Nonnull UUID sessionId, @Nonnull OffsetDateTime now, @Nonnull Mutation mutation) {
 		return new MutationApplicationRecord(
 			this.tracingContext.createAndActivateBlock(
 				"mutation - " + mutation,
@@ -201,6 +203,7 @@ public class TrafficRecordingEngine {
 			),
 			this.trafficRecorder,
 			sessionId,
+			now,
 			mutation
 		);
 	}
@@ -227,6 +230,7 @@ public class TrafficRecordingEngine {
 		this.trafficRecorder.recordFetch(
 			sessionId,
 			evitaRequest.getQuery(),
+			evitaRequest.getAlignedNow(),
 			ioFetchCount,
 			ioFetchedBytes,
 			entity.getPrimaryKeyOrThrowException()
@@ -243,6 +247,7 @@ public class TrafficRecordingEngine {
 		private final TracingBlockReference ref;
 		private final TrafficRecorder trafficRecorder;
 		private final UUID sessionId;
+		private final OffsetDateTime now;
 		private final Mutation mutation;
 
 		/**
@@ -251,7 +256,7 @@ public class TrafficRecordingEngine {
 		 */
 		public void finish() {
 			this.ref.close();
-			this.trafficRecorder.recordMutation(this.sessionId, this.mutation);
+			this.trafficRecorder.recordMutation(this.sessionId, this.now, this.mutation);
 		}
 
 		/**
@@ -263,7 +268,7 @@ public class TrafficRecordingEngine {
 		public void finishWithException(@Nonnull Exception ex) {
 			this.ref.setError(ex);
 			this.ref.close();
-			this.trafficRecorder.recordMutation(this.sessionId, this.mutation);
+			this.trafficRecorder.recordMutation(this.sessionId, this.now, this.mutation);
 		}
 
 	}

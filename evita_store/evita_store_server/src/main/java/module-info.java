@@ -21,13 +21,6 @@
  *   limitations under the License.
  */
 
-import io.evitadb.core.traffic.TrafficRecorder;
-import io.evitadb.store.catalog.DefaultCatalogPersistenceServiceFactory;
-import io.evitadb.store.index.service.IndexStoragePartRegistry;
-import io.evitadb.store.service.StoragePartRegistry;
-import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
-import io.evitadb.store.traffic.OffHeapTrafficRecorder;
-
 /**
  * Module contains persistence logic for evitaDB server data structures.
  */
@@ -40,10 +33,11 @@ module evita.store.server {
 	exports io.evitadb.store.query;
 	exports io.evitadb.store.schema;
 	exports io.evitadb.store.catalog.service;
+	exports io.evitadb.store.traffic.event;
 
-	provides CatalogPersistenceServiceFactory with DefaultCatalogPersistenceServiceFactory;
-	provides StoragePartRegistry with IndexStoragePartRegistry;
-	provides TrafficRecorder with OffHeapTrafficRecorder;
+	provides io.evitadb.store.spi.CatalogPersistenceServiceFactory with io.evitadb.store.catalog.DefaultCatalogPersistenceServiceFactory;
+	provides io.evitadb.store.service.StoragePartRegistry with io.evitadb.store.index.service.IndexStoragePartRegistry;
+	provides io.evitadb.core.traffic.TrafficRecorder with io.evitadb.store.traffic.OffHeapTrafficRecorder;
 
 	requires static lombok;
 	requires static jsr305;
@@ -59,5 +53,6 @@ module evita.store.server {
 	requires evita.store.entity;
 	requires evita.store.key.value;
 	requires com.carrotsearch.hppc;
+	requires jdk.jfr;
 
 }

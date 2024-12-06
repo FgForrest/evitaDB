@@ -23,34 +23,18 @@
 
 package io.evitadb.store.traffic.data;
 
-import io.evitadb.api.query.Query;
-import io.evitadb.core.traffic.TrafficRecording;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
+
+import io.evitadb.store.model.FileLocation;
 
 import javax.annotation.Nonnull;
-import java.time.OffsetDateTime;
-import java.util.UUID;
 
 /**
- * Container for a query and its metadata.
+ * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record QueryContainer(
-	@Nonnull UUID sessionId,
-	@Nonnull Query query,
-	@Nonnull OffsetDateTime created,
-	int durationInMilliseconds,
-	int totalRecordCount,
-	int ioFetchCount,
-	int ioFetchedSizeBytes,
-	@Nonnull int[] primaryKeys
-) implements TrafficRecording {
-
-	@Nonnull
-	@Override
-	public TrafficRecordingType type() {
-		return TrafficRecordingType.QUERY;
-	}
-
+public record SessionLocation(
+	long sequenceOrder,
+	@Nonnull FileLocation fileLocation
+) {
 }

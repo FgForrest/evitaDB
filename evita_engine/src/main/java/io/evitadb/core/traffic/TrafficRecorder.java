@@ -24,8 +24,11 @@
 package io.evitadb.core.traffic;
 
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.file.ExportFileService;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
@@ -43,9 +46,16 @@ public interface TrafficRecorder {
 	/**
 	 * Initializes traffic recorder with server options. Method is guaranteed to be called before any other method.
 	 *
+	 * TODO JNO - document parameters
 	 * @param serverOptions server options
 	 */
-	void init(@Nonnull ServerOptions serverOptions);
+	void init(
+		@Nonnull String catalogName,
+		@Nonnull ExportFileService exportFileService,
+		@Nonnull Scheduler scheduler,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull ServerOptions serverOptions
+	);
 
 	/**
 	 * Function is called when a new session is created.
@@ -54,14 +64,19 @@ public interface TrafficRecorder {
 	 * @param catalogVersion snapshot version of the catalog this session is working with
 	 * @param created        timestamp when the session was created
 	 */
-	void createSession(@Nonnull UUID sessionId, long catalogVersion, @Nonnull OffsetDateTime created);
+	void createSession(
+		@Nonnull UUID sessionId,
+		long catalogVersion,
+		@Nonnull OffsetDateTime created);
 
 	/**
 	 * Function is called when a session is closed.
 	 *
 	 * @param sessionId unique identifier of the session
 	 */
-	void closeSession(@Nonnull UUID sessionId);
+	void closeSession(
+		@Nonnull UUID sessionId
+	);
 
 	/**
 	 * Function is called when a query is executed.
@@ -77,6 +92,7 @@ public interface TrafficRecorder {
 	void recordQuery(
 		@Nonnull UUID sessionId,
 		@Nonnull Query query,
+		@Nonnull OffsetDateTime now,
 		int totalRecordCount,
 		int ioFetchCount,
 		int ioFetchedSizeBytes,
@@ -95,6 +111,7 @@ public interface TrafficRecorder {
 	void recordFetch(
 		@Nonnull UUID sessionId,
 		@Nonnull Query query,
+		@Nonnull OffsetDateTime now,
 		int ioFetchCount,
 		int ioFetchedSizeBytes,
 		int primaryKey
@@ -112,6 +129,7 @@ public interface TrafficRecorder {
 	void recordEnrichment(
 		@Nonnull UUID sessionId,
 		@Nonnull Query query,
+		@Nonnull OffsetDateTime now,
 		int ioFetchCount,
 		int ioFetchedSizeBytes,
 		int primaryKey
@@ -123,5 +141,10 @@ public interface TrafficRecorder {
 	 * @param sessionId unique identifier of the session the mutation belongs to
 	 * @param mutation  mutation that was executed
 	 */
-	void recordMutation(@Nonnull UUID sessionId, @Nonnull Mutation mutation);
+	void recordMutation(
+		@Nonnull UUID sessionId,
+		@Nonnull OffsetDateTime now,
+		@Nonnull Mutation mutation
+	);
+
 }
