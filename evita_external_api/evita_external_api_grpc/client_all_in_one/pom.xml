@@ -91,10 +91,6 @@
 							<shadedPattern>io.evitadb.dependencies.io.perfmark</shadedPattern>
 						</relocation>
 						<relocation>
-							<pattern>javax</pattern>
-							<shadedPattern>io.evitadb.dependencies.javax</shadedPattern>
-						</relocation>
-						<relocation>
 							<pattern>net</pattern>
 							<shadedPattern>io.evitadb.dependencies.net</shadedPattern>
 						</relocation>
