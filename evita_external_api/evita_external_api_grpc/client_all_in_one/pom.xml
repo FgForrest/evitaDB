@@ -69,6 +69,7 @@
 				</executions>
 				<configuration>
 					<!--<minimizeJar>true</minimizeJar>-->
+					<createSourcesJar>true</createSourcesJar>
 					<relocations>
 						<relocation>
 							<pattern>io.grpc</pattern>
