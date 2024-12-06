@@ -75,8 +75,20 @@
 							<shadedPattern>io.evitadb.dependencies.io.grpc</shadedPattern>
 						</relocation>
 						<relocation>
-							<pattern>grpc</pattern>
-							<shadedPattern>io.evitadb.dependencies.grpc</shadedPattern>
+							<pattern>grpc.binlog</pattern>
+							<shadedPattern>io.evitadb.dependencies.grpc.binlog</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>grpc.channelz</pattern>
+							<shadedPattern>io.evitadb.dependencies.grpc.channelz</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>grpc.health</pattern>
+							<shadedPattern>io.evitadb.dependencies.grpc.health</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>grpc.reflection</pattern>
+							<shadedPattern>io.evitadb.dependencies.grpc.reflection</shadedPattern>
 						</relocation>
 						<relocation>
 							<pattern>io.micrometer</pattern>
