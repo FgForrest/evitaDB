@@ -39,7 +39,6 @@ module evita.external.api.grpc.shared {
 	requires io.grpc.protobuf;
 	requires com.google.protobuf;
 	requires io.netty.handler;
-	requires org.checkerframework.checker.qual;
 	requires com.linecorp.armeria;
 
 }
