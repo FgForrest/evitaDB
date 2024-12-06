@@ -69,7 +69,6 @@
 				</executions>
 				<configuration>
 					<!--<minimizeJar>true</minimizeJar>-->
-					<finalName>evita-client-all-in-one</finalName>
 					<relocations>
 						<relocation>
 							<pattern>io.grpc</pattern>
