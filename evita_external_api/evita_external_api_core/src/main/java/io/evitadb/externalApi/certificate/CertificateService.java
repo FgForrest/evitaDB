@@ -31,6 +31,7 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.utils.Assert;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -52,6 +53,7 @@ import java.util.stream.Collectors;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
+@Slf4j
 public class CertificateService {
 	private final AtomicReference<LoadedCertificates> loadedCertificates = new AtomicReference<>();
 	private final CertificatesLoader certificatesLoader;
@@ -117,6 +119,7 @@ public class CertificateService {
 		try {
 			long millisOfCertDirectoryLatestUpdate = Files.getLastModifiedTime(pathToWatch).toMillis();
 			if (isAnyCertificateFileChanged(pathToWatch)) {
+				log.info("Reinitializing modified certificates.");
 				this.loadedCertificates.set(this.certificatesLoader.reinitialize());
 				this.lastModifiedTime = millisOfCertDirectoryLatestUpdate;
 				wasModified = true;

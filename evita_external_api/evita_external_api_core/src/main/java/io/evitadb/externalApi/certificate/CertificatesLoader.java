@@ -135,7 +135,6 @@ public class CertificatesLoader {
 		if (certificateFile == null) {
 			throw new EvitaInvalidUsageException("Certificate file path is not set.");
 		}
-		log.info("Reinitializing certificates.");
 		try {
 			final TlsKeyPair tlsKeyPair = TlsKeyPair.of(
 				loadPrivateKey(certificatePath),
