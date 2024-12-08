@@ -25,7 +25,9 @@ package io.evitadb.externalApi.configuration;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * This DTO record encapsulates mTLS configuration that will be used to hold information about clients.
@@ -38,7 +40,13 @@ import java.util.List;
  */
 public record MtlsConfiguration(
 	@Nullable Boolean enabled,
-	@Nonnull List<String> allowedClientCertificatePaths
+	@Nullable List<String> allowedClientCertificatePaths
 ) {
 
+	@Override
+	@Nonnull
+	public List<String> allowedClientCertificatePaths() {
+		return Optional.ofNullable(this.allowedClientCertificatePaths)
+			.orElse(Collections.emptyList());
+	}
 }

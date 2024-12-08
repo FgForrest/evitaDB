@@ -210,7 +210,7 @@ public class ExternalApiServer implements AutoCloseable {
 
 			getServerCertificateFingerPrint(serverCertificateManager)
 				.ifPresent(it -> {
-					ConsoleWriter.write(StringUtils.rightPad("Server Certificate fingerprint: ", " ", PADDING_START_UP));
+					ConsoleWriter.write(StringUtils.rightPad("Server certificate fingerprint: ", " ", PADDING_START_UP));
 					ConsoleWriter.write(it, ConsoleColor.BRIGHT_YELLOW);
 					ConsoleWriter.write("\n", ConsoleColor.WHITE);
 				});

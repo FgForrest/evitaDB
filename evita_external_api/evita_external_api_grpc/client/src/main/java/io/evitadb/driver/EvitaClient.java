@@ -275,7 +275,7 @@ public class EvitaClient implements EvitaContract {
 					try {
 						switch (certificateType) {
 							case SERVER ->
-								log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
+								log.info("Server's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
 							case CLIENT ->
 								log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
 						}

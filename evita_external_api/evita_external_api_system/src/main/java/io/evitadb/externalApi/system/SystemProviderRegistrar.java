@@ -384,14 +384,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				.map(it -> it + ENDPOINT_SERVER_NAME)
 				.toArray(String[]::new)
 		);
-		if (fileName != null) {
-			endpoints.put(
-				SystemProvider.ROOT_CERTIFICATE_URL,
-				Arrays.stream(systemConfig.getBaseUrls())
-					.map(it -> it + fileName)
-					.toArray(String[]::new)
-			);
-		}
 		if (certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresTls) {
 			endpoints.put(
 				SystemProvider.SERVER_CERTIFICATE_URL,
