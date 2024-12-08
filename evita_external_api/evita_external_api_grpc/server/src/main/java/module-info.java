@@ -43,7 +43,7 @@ module evita.external.api.grpc {
 	requires static org.slf4j;
 	requires static lombok;
 	requires com.fasterxml.jackson.annotation;
-	requires protobuf.java;
+	requires com.google.protobuf;
 	requires proto.google.common.protos;
 	requires com.fasterxml.jackson.databind;
 
@@ -63,7 +63,6 @@ module evita.external.api.grpc {
 	requires com.linecorp.armeria;
 	requires com.linecorp.armeria.grpc;
 	requires com.linecorp.armeria.grpc.protocol;
-	requires com.linecorp.armeria.protobuf;
 	requires jdk.jfr;
 	requires org.checkerframework.checker.qual;
 	requires net.bytebuddy;

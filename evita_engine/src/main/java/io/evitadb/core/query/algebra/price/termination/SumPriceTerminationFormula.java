@@ -26,7 +26,6 @@ package io.evitadb.core.query.algebra.price.termination;
 import com.carrotsearch.hppc.IntCollection;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
-import com.carrotsearch.hppc.IntObjectWormMap;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.api.query.require.QueryPriceMode;
@@ -345,7 +344,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 				.map(FilteredPriceRecords::getPriceRecordsLookup)
 				.toArray(PriceRecordLookup[]::new);
 			// create helper associative index for looking up index of the appropriate price by entity id in the priceRecordsFunnel
-			final IntObjectMap<PriceRecordContract> entityInnerRecordPrice = new IntObjectWormMap<>();
+			final IntObjectMap<PriceRecordContract> entityInnerRecordPrice = new IntObjectHashMap<>();
 			// create new roaring bitmap builder
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			// create new roaring bitmap builder for records excluded by predicate

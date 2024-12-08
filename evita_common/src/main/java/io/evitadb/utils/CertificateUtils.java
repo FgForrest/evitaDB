@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,10 +35,6 @@ import java.util.Locale;
  */
 public class CertificateUtils {
 	/**
-	 * Default name of the root certificate authority's certificate file.
-	 */
-	private static final String CA_CERT_NAME = "evitaDB-CA-selfSigned";
-	/**
 	 * Default name of the server certificate file.
 	 */
 	private static final String SERVER_CERT_NAME = "server";
@@ -49,32 +45,11 @@ public class CertificateUtils {
 	/**
 	 * Default extension of the certificate file.
 	 */
-	private static final String CERTIFICATE_EXTENSION = ".crt";
+	public static final String CERTIFICATE_EXTENSION = ".crt";
 	/**
 	 * Default extension of the private key file.
 	 */
-	private static final String CERTIFICATE_KEY_EXTENSION = ".key";
-
-	/**
-	 * Returns the name of the root CA certificate file.
-	 */
-	public static String getGeneratedRootCaCertificateName() {
-		return CA_CERT_NAME;
-	}
-
-	/**
-	 * Returns the name and the extension of the root CA certificate file.
-	 */
-	public static String getGeneratedRootCaCertificateFileName() {
-		return CA_CERT_NAME + CERTIFICATE_EXTENSION;
-	}
-
-	/**
-	 * Returns the name and the extension of the root CA certificate private key file.
-	 */
-	public static String getGeneratedRootCaCertificateKeyFileName() {
-		return CA_CERT_NAME + CERTIFICATE_KEY_EXTENSION;
-	}
+	public static final String CERTIFICATE_KEY_EXTENSION = ".key";
 
 	/**
 	 * Returns the name and the extension of the server certificate file.
