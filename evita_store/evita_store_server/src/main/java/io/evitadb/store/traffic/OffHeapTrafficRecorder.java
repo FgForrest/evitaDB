@@ -85,6 +85,10 @@ import java.util.stream.Stream;
 @Slf4j
 public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecordingReader, Closeable {
 	/**
+	 * Constant that defines the duration of inactivity after which the disk buffer index is released.
+	 */
+	private static final long INDEX_INACTIVITY_DURATION = 600_000L;
+	/**
 	 * Size of a single memory slot used for storing queries and mutations.
 	 */
 	private final int blockSizeBytes;
@@ -160,6 +164,10 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * them to disk buffer.
 	 */
 	private DelayedAsyncTask freeMemoryTask;
+	/**
+	 * Last time when the data from the {@link #diskBuffer} was read.
+	 */
+	private long lastRead = -1;
 
 	public OffHeapTrafficRecorder() {
 		this(16_384);
@@ -351,6 +359,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	@Nonnull
 	@Override
 	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
+		this.lastRead = System.currentTimeMillis();
 		return this.diskBuffer.getSessionRecordsStream(
 			request,
 			this::readTrafficRecord
@@ -496,6 +505,11 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			this.createdSessions.get(),
 			this.finishedSessions.get()
 		).commit();
+
+		// if the disk buffer wasn't read for a long time, we can purge it
+		if (this.lastRead > 0 && System.currentTimeMillis() - this.lastRead > INDEX_INACTIVITY_DURATION) {
+			this.diskBuffer.releaseIndex();
+		}
 
 		return -1L;
 	}

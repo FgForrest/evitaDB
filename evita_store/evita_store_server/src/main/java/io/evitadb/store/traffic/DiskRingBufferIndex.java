@@ -101,10 +101,14 @@ public class DiskRingBufferIndex {
 		@Nonnull Set<TrafficRecordingType> recordingTypes
 	) {
 		/* TODO JNO - IMPLEMENT ME */
-		this.sessionLocationIndex.put(
+		final FileLocation previousLocation = this.sessionLocationIndex.putIfAbsent(
 			sessionLocation.sequenceOrder(),
 			sessionLocation.fileLocation()
 		);
+		// the file reader should not be ever faster, but this a safety check, for avoiding double indexing
+		if (previousLocation == null) {
+			// index
+		}
 	}
 
 	/**

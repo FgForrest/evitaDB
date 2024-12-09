@@ -377,6 +377,13 @@ public class DiskRingBuffer {
 	}
 
 	/**
+	 * Method to release the memory index if it is no longer needed.
+	 */
+	public void releaseIndex() {
+		this.sessionIndex.set(null);
+	}
+
+	/**
 	 * Closes the file channel and the disk buffer file associated with the DiskRingBuffer.
 	 * After successfully closing these resources, it executes the provided file clean-up logic
 	 * on the disk buffer file path to perform additional resource management or clean-up tasks.
@@ -391,6 +398,7 @@ public class DiskRingBuffer {
 		try {
 			this.fileChannel.close();
 			this.diskBufferFile.close();
+			this.sessionIndex.set(null);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Failed to close traffic recording buffer file: " + e.getMessage(),
