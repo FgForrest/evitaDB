@@ -475,7 +475,7 @@ public final class Evita implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		final CreatedSession createdSession = this.createSessionInternal(traits);
 		try {
@@ -515,7 +515,7 @@ public final class Evita implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 
 		final CreatedSession createdSession = this.createSessionInternal(traits);

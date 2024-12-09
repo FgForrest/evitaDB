@@ -612,7 +612,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 			}
 		} else {
 			// there is no existing record, add it on the target place
-			final T[] newInsertedValues = ArrayUtils.insertRecordIntoArray(recordId, insertedValuesBefore, innerPosition.position());
+			final T[] newInsertedValues = ArrayUtils.insertRecordIntoArrayOnIndex(recordId, insertedValuesBefore, innerPosition.position());
 			insertedValues[index] = newInsertedValues;
 		}
 		return innerPosition.position();

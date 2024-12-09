@@ -613,7 +613,7 @@ public class EvitaClient implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		try (final EvitaSessionContract session = this.createSession(traits)) {
 			return updater.apply(session);
@@ -634,7 +634,7 @@ public class EvitaClient implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		final EvitaSessionContract session = this.createSession(traits);
 		final CompletableFuture<Long> closeFuture;
@@ -665,7 +665,7 @@ public class EvitaClient implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		try (final EvitaSessionContract session = this.createSession(traits)) {
 			updater.accept(session);
@@ -686,7 +686,7 @@ public class EvitaClient implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		final EvitaSessionContract session = this.createSession(traits);
 		final CompletableFuture<Long> closeFuture;

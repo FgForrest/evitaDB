@@ -170,7 +170,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				return new CombinedFacetFormula(andFormula, orFormula);
 			} else {
 				return orFormula.getCloneWithInnerFormulas(
-					ArrayUtils.insertRecordIntoArray(andFormula, orFormula.getInnerFormulas(), orFormula.getInnerFormulas().length)
+					ArrayUtils.insertRecordIntoArrayOnIndex(andFormula, orFormula.getInnerFormulas(), orFormula.getInnerFormulas().length)
 				);
 			}
 		} else {
