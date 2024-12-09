@@ -32,7 +32,15 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * This container holds information about the session closing (finalization).
+ *
+ * @param sessionId              the session id which the mutation belongs to
+ * @param catalogVersion         the version of the catalog
+ * @param created                the time when the mutation was created
+ * @param durationInMilliseconds the overall duration of the session in milliseconds
+ * @param ioFetchCount           the overall number of IO fetches performed in this session
+ * @param ioFetchedSizeBytes     the overall total size of the data fetched in this session in bytes
+ * @param recordsMissedOut       the number of records missed out in this session due to memory shortage or sampling
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -42,7 +50,8 @@ public record SessionCloseContainer(
 	@Nonnull OffsetDateTime created,
 	int durationInMilliseconds,
 	int ioFetchCount,
-	int ioFetchedSizeBytes
+	int ioFetchedSizeBytes,
+	int recordsMissedOut
 ) implements TrafficRecording {
 
 	@Nonnull

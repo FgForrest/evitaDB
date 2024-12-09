@@ -34,6 +34,15 @@ import java.util.UUID;
 /**
  * Container for a query and its metadata.
  *
+ * @param sessionId              the session id which the mutation belongs to
+ * @param query                  the query itself
+ * @param created                the time when the query was issued
+ * @param durationInMilliseconds the duration of the query execution within the session in milliseconds
+ * @param totalRecordCount       the total number of records returned by the query
+ * @param ioFetchCount           the number of IO fetches performed by the query
+ * @param ioFetchedSizeBytes     the total size of the data fetched by the query in bytes
+ * @param primaryKeys            the primary keys of the records returned by the query (in returned data chunk)
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record QueryContainer(

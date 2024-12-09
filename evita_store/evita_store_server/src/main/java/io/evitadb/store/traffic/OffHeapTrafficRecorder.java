@@ -47,6 +47,7 @@ import io.evitadb.store.traffic.data.MutationContainer;
 import io.evitadb.store.traffic.data.QueryContainer;
 import io.evitadb.store.traffic.data.RecordEnrichmentContainer;
 import io.evitadb.store.traffic.data.RecordFetchContainer;
+import io.evitadb.store.traffic.data.SessionCloseContainer;
 import io.evitadb.store.traffic.data.SessionLocation;
 import io.evitadb.store.traffic.data.SessionStartContainer;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
@@ -75,7 +76,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
- * TODO JNO - document me
+ * Implementation of the {@link TrafficRecorder} that stores traffic data in off-heap memory in different memory blocks
+ * assigned to each session according to their sizes. When the session is finished, all the memory blocks are written to
+ * the disk buffer and the memory is freed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -99,9 +102,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		}
 	};
 	/**
-	 * Pool of byte arrays used for storing output data.
+	 * Pool of byte arrays used for storing output data and reading input data.
 	 */
-	private Pool<byte[]> outputBufferPool;
+	private Pool<byte[]> copyBufferPool;
 	/**
 	 * Private final variable to store a reference to a ByteBuffer object.
 	 * The AtomicReference class is used to provide thread-safe access to the memoryBlock.
@@ -186,7 +189,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		// align the buffer size to be divisible by 16KB page size
 		final int capacity = (int) (trafficMemoryBufferSizeInBytes - (trafficMemoryBufferSizeInBytes % this.blockSizeBytes));
 		this.memoryBlock.set(ByteBuffer.allocateDirect(capacity));
-		final int blockCount = capacity / blockSizeBytes;
+		final int blockCount = capacity / this.blockSizeBytes;
 		// initialize free blocks queue, all blocks are free at the beginning
 		this.freeBlocks = new ArrayBlockingQueue<>(blockCount, true);
 		// initialize observable outputs for each memory block
@@ -204,7 +207,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			this::freeMemory, 60, TimeUnit.SECONDS, 10
 		);
 
-		this.outputBufferPool = new Pool<>(true, true) {
+		this.copyBufferPool = new Pool<>(true, true) {
 			@Override
 			protected byte[] create() {
 				return new byte[storageOptions.outputBufferSize()];
@@ -218,22 +221,22 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			sessionId,
 			catalogVersion,
 			created,
-			outputBufferPool.obtain(),
+			this.copyBufferPool.obtain(),
 			this::prepareStorageBlock
 		);
 		try {
-			final StorageRecord<SessionStartContainer> queryContainerStorageRecord = new StorageRecord<>(
-				offHeapTrafficRecorderKryoPool.obtain(),
+			final StorageRecord<SessionStartContainer> sessionStartRecord = new StorageRecord<>(
+				this.offHeapTrafficRecorderKryoPool.obtain(),
 				sessionTraffic.getObservableOutput(),
 				0L,
 				false,
 				new SessionStartContainer(sessionId, catalogVersion, created)
 			);
-			Assert.isPremiseValid(queryContainerStorageRecord.fileLocation() != null, "Location must not be null.");
+			Assert.isPremiseValid(sessionStartRecord.fileLocation() != null, "Location must not be null.");
 			this.createdSessions.incrementAndGet();
 			this.trackedSessionsIndex.put(sessionId, sessionTraffic);
 		} catch (MemoryNotAvailableException ex) {
-			outputBufferPool.free(ex.getWriteBuffer());
+			this.copyBufferPool.free(ex.getWriteBuffer());
 			this.droppedSessions.incrementAndGet();
 			this.missedRecords.incrementAndGet();
 		}
@@ -243,10 +246,34 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	public void closeSession(@Nonnull UUID sessionId) {
 		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.remove(sessionId);
 		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
-			outputBufferPool.free(sessionTraffic.finish());
-			this.finishedSessions.incrementAndGet();
-			this.finalizedSessions.offer(sessionTraffic);
-			this.freeMemoryTask.schedule();
+			final byte[] bufferToReturn = sessionTraffic.finish();
+
+			try {
+				final StorageRecord<SessionCloseContainer> sessionCloseRecord = new StorageRecord<>(
+					this.offHeapTrafficRecorderKryoPool.obtain(),
+					sessionTraffic.getObservableOutput(),
+					0L,
+					true,
+					new SessionCloseContainer(
+						sessionId,
+						sessionTraffic.getCatalogVersion(),
+						sessionTraffic.getCreated(),
+						sessionTraffic.getDurationInMillis(),
+						sessionTraffic.getFetchCount(),
+						sessionTraffic.getBytesFetchedTotal(),
+						sessionTraffic.getRecordsMissedOut()
+					)
+				);
+				Assert.isPremiseValid(sessionCloseRecord.fileLocation() != null, "Location must not be null.");
+			} catch (MemoryNotAvailableException ex) {
+				this.droppedSessions.incrementAndGet();
+				this.missedRecords.incrementAndGet();
+			} finally {
+				this.copyBufferPool.free(bufferToReturn);
+				this.finishedSessions.incrementAndGet();
+				this.finalizedSessions.offer(sessionTraffic);
+				this.freeMemoryTask.schedule();
+			}
 		} else {
 			this.missedRecords.incrementAndGet();
 		}
@@ -332,7 +359,10 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 	@Nonnull
 	private StorageRecord<TrafficRecording> readTrafficRecord(long filePosition) {
-		final ObservableInput<RandomAccessFileInputStream> input = null;
+		final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
+			new RandomAccessFileInputStream(this.diskBuffer.getDiskBufferFile()),
+			this.copyBufferPool.obtain()
+		);
 		input.resetToPosition(filePosition);
 		return StorageRecord.read(
 			this.offHeapTrafficRecorderKryoPool.obtain(),
@@ -348,6 +378,17 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		this.diskBuffer.close(filePath -> this.exportFileService.purgeManagedTempFile(filePath));
 	}
 
+	/**
+	 * Records traffic data for a specific session. The method tracks traffic statistics for an
+	 * active session and stores records if the sampling conditions are met and if resources are
+	 * available. If the session is not found, finished, or sampling conditions are not met,
+	 * a missed record is counted. In cases where memory is not available, the write buffer is
+	 * released and a missed record is incremented.
+	 *
+	 * @param sessionId the unique identifier for the session whose traffic data is to be recorded
+	 * @param container the traffic recording container object containing the data to be recorded
+	 *                  and its associated metadata
+	 */
 	private <T extends TrafficRecording> void record(@Nonnull UUID sessionId, @Nonnull T container) {
 		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		if (sessionTraffic != null && !sessionTraffic.isFinished() &&
@@ -361,16 +402,30 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					container
 				);
 				Assert.isPremiseValid(storageRecord.fileLocation() != null, "Location must not be null.");
-				sessionTraffic.registerRecording(container.type(), container.ioFetchedSizeBytes());
+				sessionTraffic.registerRecording(container.type(), container.ioFetchCount(), container.ioFetchedSizeBytes());
 			} catch (MemoryNotAvailableException ex) {
-				this.outputBufferPool.free(ex.getWriteBuffer());
+				this.copyBufferPool.free(ex.getWriteBuffer());
 				this.missedRecords.incrementAndGet();
 			}
 		} else {
+			if (sessionTraffic != null) {
+				sessionTraffic.registerRecordMissedOut();
+			}
 			this.missedRecords.incrementAndGet();
 		}
 	}
 
+	/**
+	 * Prepares and returns a storage block for use. This method retrieves a free block ID
+	 * from the pool of available blocks. If a free block ID is found, it creates a
+	 * NumberedByteBuffer corresponding to that block ID, adjusting the memory slice
+	 * accordingly to fit the block size. If no free block ID is available,
+	 * a MemoryNotAvailableException is thrown to indicate that no storage slots are free.
+	 *
+	 * @return a NumberedByteBuffer corresponding to the allocated storage block, including
+	 * its ID and a ByteBuffer slice adjusted to the block's size.
+	 * @throws MemoryNotAvailableException if no storage slots are available.
+	 */
 	@Nonnull
 	private NumberedByteBuffer prepareStorageBlock() {
 		final Integer freeBlockId = this.freeBlocks.poll();
@@ -386,8 +441,12 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	}
 
 	/**
-	 * Drops finished session from the memory to free up space and returns next free block ID. Method tries to release
-	 * 30% of the allocated memory.
+	 * Frees up memory blocks that have been allocated to finalized sessions. It processes each
+	 * session to calculate the total size of blocks used, appends the session data to a disk buffer,
+	 * and then marks those blocks as free for future use. The method also publishes statistical
+	 * information about traffic sessions.
+	 *
+	 * @return Always returns -1 as a placeholder for future implementations or changes.
 	 */
 	private long freeMemory() {
 		final ByteBuffer memoryByteBuffer = this.memoryBlock.get();
@@ -419,7 +478,12 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				}
 				this.diskBuffer.sessionWritten(
 					sessionLocation,
-					this::readTrafficRecord
+					finalizedSession.getSessionId(),
+					finalizedSession.getCreated(),
+					finalizedSession.getDurationInMillis(),
+					finalizedSession.getRecordingTypes(),
+					finalizedSession.getFetchCount(),
+					finalizedSession.getBytesFetchedTotal()
 				);
 			}
 		} while (!this.finalizedSessions.isEmpty());
@@ -437,7 +501,11 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * A record representing a numbered byte buffer. This record pairs a unique
+	 * integer identifier with a non-null ByteBuffer instance.
+	 *
+	 * @param number an integer representing the unique identifier for the buffer
+	 * @param buffer a non-null ByteBuffer instance containing the data
 	 */
 	public record NumberedByteBuffer(
 		int number,
@@ -446,11 +514,24 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Exception thrown when there is insufficient memory available or no free slot
+	 * in the memory buffer for processing a request or operation.
+	 *
+	 * This exception is a specific type of internal error encountered within the
+	 * Evita system and is used to indicate that memory allocation or data insertion
+	 * within a buffer was not successful due to constraints.
+	 *
+	 * The exception provides two static instances:
+	 * - NO_SLOT_FREE: indicates no free slot is available in the memory buffer.
+	 * - DATA_TOO_LARGE: indicates the data is too large to fit into any available slot in the memory buffer.
+	 *
+	 * The exception can be constructed with a specific message or can carry the
+	 * context of a failed operation with an associated buffer state.
 	 */
 	public static class MemoryNotAvailableException extends EvitaInternalError {
 		public static final MemoryNotAvailableException NO_SLOT_FREE = new MemoryNotAvailableException("No free slot in memory buffer!");
 		public static final MemoryNotAvailableException DATA_TOO_LARGE = new MemoryNotAvailableException("No free slot in memory buffer!");
+
 		@Serial private static final long serialVersionUID = 567086221625997669L;
 		@Getter private final byte[] writeBuffer;
 

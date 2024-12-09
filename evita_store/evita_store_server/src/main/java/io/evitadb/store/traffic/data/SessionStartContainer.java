@@ -32,7 +32,11 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * This container holds information about the session start.
+ *
+ * @param sessionId              the session id which the mutation belongs to
+ * @param catalogVersion         the version of the catalog
+ * @param created                the time when the mutation was created
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

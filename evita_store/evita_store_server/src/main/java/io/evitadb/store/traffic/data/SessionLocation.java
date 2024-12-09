@@ -24,12 +24,18 @@
 package io.evitadb.store.traffic.data;
 
 
+import io.evitadb.core.traffic.TrafficRecorder;
 import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.traffic.DiskRingBuffer;
 
 import javax.annotation.Nonnull;
 
 /**
- * TODO JNO - document me
+ * This record contains information about the single session to evitaDB. Sessions are assigned a sequence order as
+ * they are registered in {@link TrafficRecorder} and are stored to a particular file location.
+ *
+ * @param sequenceOrder the sequence order of the session
+ * @param fileLocation  the file location of the session in the {@link DiskRingBuffer} file
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

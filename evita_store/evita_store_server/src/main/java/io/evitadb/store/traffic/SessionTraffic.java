@@ -64,18 +64,6 @@ public class SessionTraffic {
 	 */
 	@Getter private final Set<TrafficRecordingType> recordingTypes = EnumSet.noneOf(TrafficRecordingType.class);
 	/**
-	 * Duration of the session in milliseconds.
-	 */
-	@Getter private long durationInMillis;
-	/**
-	 * Total number of bytes fetched in this session.
-	 */
-	@Getter private int bytesFetchedTotal;
-	/**
-	 * Flag indicating whether the session is finished.
-	 */
-	@Getter private FinishReason finished;
-	/**
 	 * Indexes of memory blocks where the queries and mutations involved in this session are stored.
 	 */
 	private final CompositeIntArray blockIds;
@@ -83,6 +71,26 @@ public class SessionTraffic {
 	 * Contains current byte buffer where the queries and mutations are stored.
 	 */
 	@Getter private final ObservableOutput<RecoverableOutputStream> observableOutput;
+	/**
+	 * Duration of the session in milliseconds.
+	 */
+	@Getter private int durationInMillis;
+	/**
+	 * Total number of fetch operations in this session.
+	 */
+	@Getter private int fetchCount;
+	/**
+	 * Total number of bytes fetched in this session.
+	 */
+	@Getter private int bytesFetchedTotal;
+	/**
+	 * Number of records missed out in this session (due to sampling or memory shortage).
+	 */
+	@Getter private int recordsMissedOut;
+	/**
+	 * Flag indicating whether the session is finished.
+	 */
+	@Getter private FinishReason finished;
 
 	public SessionTraffic(
 		@Nonnull UUID sessionId,
@@ -102,7 +110,7 @@ public class SessionTraffic {
 						final NumberedByteBuffer numberedByteBuffer = bufferSupplier.get();
 						this.blockIds.add(numberedByteBuffer.number());
 						return numberedByteBuffer.buffer();
-					} catch (MemoryNotAvailableException ex) {;
+					} catch (MemoryNotAvailableException ex) {
 						throw new MemoryNotAvailableException(
 							finishDueToMemoryShortage(), ex
 						);
@@ -115,17 +123,28 @@ public class SessionTraffic {
 
 	/**
 	 * Registers a new traffic recording in this session.
-	 * @param type Type of the traffic recording.
+	 *
+	 * @param type         Type of the traffic recording.
+	 * @param fetchCount   Number of fetch operations in this recording.
 	 * @param bytesFetched Number of bytes fetched in this recording.
 	 */
-	public void registerRecording(@Nonnull TrafficRecordingType type, int bytesFetched) {
+	public void registerRecording(@Nonnull TrafficRecordingType type, int fetchCount, int bytesFetched) {
 		this.recordingTypes.add(type);
+		this.fetchCount += fetchCount;
 		this.bytesFetchedTotal += bytesFetched;
+	}
+
+	/**
+	 * Registers a new record missed out in this session.
+	 */
+	public void registerRecordMissedOut() {
+		this.recordsMissedOut++;
 	}
 
 	/**
 	 * Returns iterator over all registered memory block ids containing queries and mutations of this session in correct
 	 * order.
+	 *
 	 * @return Iterator over memory block ids.
 	 */
 	@Nonnull
@@ -149,7 +168,7 @@ public class SessionTraffic {
 	 */
 	@Nonnull
 	public byte[] finish() {
-		this.durationInMillis = System.currentTimeMillis() - this.created.toInstant().toEpochMilli();
+		this.durationInMillis = (int) (System.currentTimeMillis() - this.created.toInstant().toEpochMilli());
 		this.finished = FinishReason.REGULAR_FINISH;
 		return this.observableOutput.getBuffer();
 	}
@@ -161,13 +180,14 @@ public class SessionTraffic {
 	 */
 	@Nonnull
 	public byte[] finishDueToMemoryShortage() {
-		this.durationInMillis = System.currentTimeMillis() - this.created.toInstant().toEpochMilli();
+		this.durationInMillis = (int) (System.currentTimeMillis() - this.created.toInstant().toEpochMilli());
 		this.finished = FinishReason.MEMORY_SHORTAGE;
 		return this.observableOutput.getBuffer();
 	}
 
 	/**
 	 * Returns whether the session is finished - no matter the reason.
+	 *
 	 * @return true if the session is finished, false otherwise
 	 */
 	public boolean isFinished() {
@@ -186,7 +206,7 @@ public class SessionTraffic {
 		/**
 		 * The session was prematurely abandoned due to memory shortage.
 		 */
-		MEMORY_SHORTAGE;
+		MEMORY_SHORTAGE
 
 	}
 

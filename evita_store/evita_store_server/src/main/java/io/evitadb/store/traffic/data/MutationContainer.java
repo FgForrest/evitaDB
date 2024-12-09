@@ -33,8 +33,12 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * This container holds a mutation and its metadata.
  *
+ * @param sessionId              the session id which the mutation belongs to
+ * @param created                the time when the mutation was created
+ * @param durationInMilliseconds the duration of the mutation execution within the session in milliseconds
+ * @param mutation               the mutation itself
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record MutationContainer(
@@ -51,12 +55,12 @@ public record MutationContainer(
 	}
 
 	@Override
-	public int ioFetchCount() {
+	public int ioFetchedSizeBytes() {
 		return 0;
 	}
 
 	@Override
-	public int ioFetchedSizeBytes() {
+	public int ioFetchCount() {
 		return 0;
 	}
 

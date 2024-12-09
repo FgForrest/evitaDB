@@ -31,24 +31,48 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * Shared contract for all objects that represent a traffic recording.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface TrafficRecording {
 
+	/**
+	 * The session id which the recording belongs to.
+	 * @return the session id
+	 */
 	@Nonnull
 	UUID sessionId();
 
+	/**
+	 * The type of the recording.
+	 * @return the recording type
+	 */
 	@Nonnull
 	TrafficRecordingType type();
 
+	/**
+	 * The time when the recording was created.
+	 * @return the creation time
+	 */
 	@Nonnull OffsetDateTime created();
 
+	/**
+	 * The duration of the operation in milliseconds.
+	 * @return the duration in milliseconds
+	 */
 	int durationInMilliseconds();
 
+	/**
+	 * The size of the data fetched from the permanent storage in bytes.
+	 * @return the size in bytes fetched
+	 */
 	int ioFetchedSizeBytes();
 
+	/**
+	 * The number of objects fetched from the permanent storage.
+	 * @return the number of objects fetched
+	 */
 	int ioFetchCount();
 
 }

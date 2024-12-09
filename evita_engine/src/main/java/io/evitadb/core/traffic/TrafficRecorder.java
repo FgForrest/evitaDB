@@ -46,8 +46,11 @@ public interface TrafficRecorder {
 	/**
 	 * Initializes traffic recorder with server options. Method is guaranteed to be called before any other method.
 	 *
-	 * TODO JNO - document parameters
-	 * @param serverOptions server options
+	 * @param catalogName       name of the catalog
+	 * @param exportFileService export file service
+	 * @param scheduler         scheduler
+	 * @param storageOptions    storage options
+	 * @param serverOptions     server options
 	 */
 	void init(
 		@Nonnull String catalogName,
@@ -102,11 +105,11 @@ public interface TrafficRecorder {
 	/**
 	 * Function is called when existing entity if being enriched of newly fetched data.
 	 *
-	 * @param sessionId  unique identifier of the session the query belongs to
-	 * @param query      the query that was enriched
+	 * @param sessionId          unique identifier of the session the query belongs to
+	 * @param query              the query that was enriched
 	 * @param ioFetchCount       number of IO fetches that were needed to fetch all records
 	 * @param ioFetchedSizeBytes number of bytes fetched from the disk
-	 * @param primaryKey the primary key of the record that was enriched
+	 * @param primaryKey         the primary key of the record that was enriched
 	 */
 	void recordFetch(
 		@Nonnull UUID sessionId,
@@ -120,11 +123,11 @@ public interface TrafficRecorder {
 	/**
 	 * Function is called when existing entity if being enriched of newly fetched data.
 	 *
-	 * @param sessionId  unique identifier of the session the query belongs to
-	 * @param query      the query that was enriched
+	 * @param sessionId          unique identifier of the session the query belongs to
+	 * @param query              the query that was enriched
 	 * @param ioFetchCount       number of IO fetches that were needed to fetch all records
 	 * @param ioFetchedSizeBytes number of bytes fetched from the disk
-	 * @param primaryKey the primary key of the record that was enriched
+	 * @param primaryKey         the primary key of the record that was enriched
 	 */
 	void recordEnrichment(
 		@Nonnull UUID sessionId,

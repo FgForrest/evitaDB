@@ -32,7 +32,15 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * This container holds information about single entity fetch.
+ *
+ * @param sessionId              the session id which the mutation belongs to
+ * @param query                  the query accompanying the fetch
+ * @param created                the time when the fetch was executed
+ * @param durationInMilliseconds the duration of the fetch execution within the session in milliseconds
+ * @param ioFetchCount           the number of IO fetches performed by the fetch
+ * @param ioFetchedSizeBytes     the total size of the data fetched by the fetch in bytes
+ * @param primaryKey             the primary key of the record being fetched
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

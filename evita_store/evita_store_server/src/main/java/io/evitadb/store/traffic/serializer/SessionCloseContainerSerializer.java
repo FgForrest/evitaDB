@@ -45,6 +45,7 @@ public class SessionCloseContainerSerializer extends Serializer<SessionCloseCont
 		output.writeVarInt(object.durationInMilliseconds(), true);
 		output.writeVarInt(object.ioFetchCount(), true);
 		output.writeVarInt(object.ioFetchedSizeBytes(), true);
+		output.writeVarInt(object.recordsMissedOut(), true);
 	}
 
 	@Override
@@ -53,6 +54,7 @@ public class SessionCloseContainerSerializer extends Serializer<SessionCloseCont
 			kryo.readObject(input, java.util.UUID.class),
 			input.readLong(),
 			kryo.readObject(input, java.time.OffsetDateTime.class),
+			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true)

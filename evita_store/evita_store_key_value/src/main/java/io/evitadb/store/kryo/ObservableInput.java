@@ -132,12 +132,17 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 *
 	 * @implNote <a href="https://codecapsule.com/2014/02/12/coding-for-ssds-part-6-a-summary-what-every-programmer-should-know-about-solid-state-drives/">Source</a>
 	 */
-	public ObservableInput(T inputStream) {
+	public ObservableInput(@Nonnull T inputStream) {
 		this(inputStream, 16_384);
 	}
 
-	public ObservableInput(T inputStream, int bufferSize) {
+	public ObservableInput(@Nonnull T inputStream, int bufferSize) {
 		super(inputStream, bufferSize);
+	}
+
+	public ObservableInput(@Nonnull T inputStream, @Nonnull byte[] buffer) {
+		super(buffer);
+		setInputStream(inputStream);
 	}
 
 	@Override

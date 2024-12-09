@@ -23,6 +23,7 @@
 
 package io.evitadb.store.traffic;
 
+import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.store.traffic.data.SessionLocation;
 import io.evitadb.utils.FileUtils;
@@ -34,12 +35,18 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.BiConsumer;
 
 import static io.evitadb.store.traffic.DiskRingBuffer.LEAD_DESCRIPTOR_BYTE_SIZE;
+import static io.evitadb.store.traffic.DiskRingBuffer.segmentsOverlap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies {@link DiskRingBuffer} functionality.
@@ -57,7 +64,26 @@ class DiskRingBufferTest {
 	}
 
 	@Test
-	void testAppendSimpleCase() throws IOException {
+	void shouldOverlappingHandleAllPossibleScenarios() {
+		assertTrue(segmentsOverlap(new FileLocation(0, 1000), new FileLocation(100, 900)));
+		assertTrue(segmentsOverlap(new FileLocation(100, 900), new FileLocation(0, 1000)));
+		assertTrue(segmentsOverlap(new FileLocation(0, 100), new FileLocation(100, 200)));
+		assertTrue(segmentsOverlap(new FileLocation(0, 100), new FileLocation(90, 200)));
+		assertTrue(segmentsOverlap(new FileLocation(100, 200), new FileLocation(0, 100)));
+		assertTrue(segmentsOverlap(new FileLocation(90, 200), new FileLocation(0, 100)));
+		assertTrue(segmentsOverlap(new FileLocation(100, 200), new FileLocation(0, 100)));
+		assertTrue(segmentsOverlap(new FileLocation(100, 200), new FileLocation(0, 110)));
+		assertTrue(segmentsOverlap(new FileLocation(0, 100), new FileLocation(100, 200)));
+		assertTrue(segmentsOverlap(new FileLocation(0, 110), new FileLocation(100, 200)));
+
+		assertFalse(segmentsOverlap(new FileLocation(0, 100), new FileLocation(101, 200)));
+		assertFalse(segmentsOverlap(new FileLocation(101, 200), new FileLocation(0, 100)));
+		assertFalse(segmentsOverlap(new FileLocation(900, 1000), new FileLocation(0, 200)));
+		assertFalse(segmentsOverlap(new FileLocation(0, 200), new FileLocation(900, 1000)));
+	}
+
+	@Test
+	void shouldAppendSimpleCase() throws IOException {
 		final int theFilledSize = 512;
 		ByteBuffer buffer = ByteBuffer.allocate(theFilledSize);
 		for (int i = 0; i < theFilledSize; i++) {
@@ -66,7 +92,7 @@ class DiskRingBufferTest {
 		buffer.flip(); // Reset buffer position to 0 before writing
 		final SessionLocation sessionLocation = diskRingBuffer.appendSession(theFilledSize);
 		diskRingBuffer.append(sessionLocation, buffer);
-		diskRingBuffer.sessionWritten(sessionLocation, value -> null);
+		diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0L, Set.of(), 0, 0);
 		assertEquals(theFilledSize + LEAD_DESCRIPTOR_BYTE_SIZE, diskRingBuffer.getRingBufferTail());
 
 		final int totalSpace = (int) tempFile.toFile().length();
@@ -84,7 +110,7 @@ class DiskRingBufferTest {
 	}
 
 	@Test
-	void testAppendWithWrappingDataTooLarge() {
+	void shouldFailToAppendWhenDataIsTooLarge() {
 		assertThrows(
 			MemoryNotAvailableException.class,
 			() -> {
@@ -101,7 +127,7 @@ class DiskRingBufferTest {
 	}
 
 	@Test
-	void testAppendWithWrapping() throws IOException {
+	void shouldAppendBigDataWithWrappingAroundTheEndOfFile() throws IOException {
 		final int theFilledSize = 1500;
 		ByteBuffer buffer = ByteBuffer.allocate(theFilledSize);
 		for (int i = 0; i < theFilledSize; i++) {
@@ -114,7 +140,7 @@ class DiskRingBufferTest {
 		BiConsumer<Integer, Integer> writer = (index, length) -> {
 			final SessionLocation sessionLocation = diskRingBuffer.appendSession(length);
 			diskRingBuffer.append(sessionLocation, buffer.slice(index, length));
-			diskRingBuffer.sessionWritten(sessionLocation, value -> null);
+			diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0L, Set.of(), 0, 0);
 
 			bufferWithDescriptors.putLong(sessionLocation.sequenceOrder());
 			bufferWithDescriptors.putInt(length);

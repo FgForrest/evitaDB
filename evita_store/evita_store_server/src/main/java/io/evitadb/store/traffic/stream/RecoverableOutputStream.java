@@ -32,13 +32,21 @@ import java.nio.ByteBuffer;
 import java.util.function.Supplier;
 
 /**
- * TODO JNO - document me
+ * This implementation of the {@link OutputStream} allows to recover from the buffer overflow by acquiring a new buffer
+ * from the provided {@link Supplier} of {@link ByteBuffer} when the current buffer is full.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
 public class RecoverableOutputStream extends OutputStream {
+	/**
+	 * The buffer to write to. If the buffer is full, a new buffer is acquired from the {@link Supplier}
+	 * of {@link ByteBuffer}.
+	 */
 	private ByteBuffer buffer;
+	/**
+	 * The supplier of {@link ByteBuffer} to acquire a new buffer from when the current buffer is full.
+	 */
 	private final Supplier<ByteBuffer> ofBufferFull;
 
 	public int getBufferPosition() {
@@ -55,7 +63,7 @@ public class RecoverableOutputStream extends OutputStream {
 	}
 
 	@Override
-	public synchronized void write (@Nonnull byte[] bytes, int offset, int length) {
+	public synchronized void write(@Nonnull byte[] bytes, int offset, int length) {
 		if (this.buffer == null) {
 			// acquire new buffer
 			this.buffer = this.ofBufferFull.get();
