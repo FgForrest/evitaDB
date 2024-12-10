@@ -35,7 +35,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.lang.reflect.Array;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.PrimitiveIterator.OfInt;
 
 /**
  * Represents a B+ Tree data structure specifically designed for integer keys and generic values.
@@ -120,6 +123,42 @@ public class IntBPlusTree<V> {
 		return findLeaf(key).search(key);
 	}
 
+	/**
+	 * Returns an iterator that traverses the B+ tree keys from left to right.
+	 * @return an iterator that traverses the B+ tree keys from left to right
+	 */
+	@Nonnull
+	public OfInt keyIterator() {
+		return new ForwardKeyIterator(findLeaf(Integer.MIN_VALUE));
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree keys from right to left.
+	 * @return an iterator that traverses the B+ tree keys from right to left
+	 */
+	@Nonnull
+	public OfInt keyReverseIterator() {
+		return new ReverseKeyIterator(findLeaf(Integer.MAX_VALUE));
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree values from left to right.
+	 * @return an iterator that traverses the B+ tree values from left to right
+	 */
+	@Nonnull
+	public Iterator<V> valueIterator() {
+		return new ForwardValueIterator<>(findLeaf(Integer.MIN_VALUE));
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree values from right to left.
+	 * @return an iterator that traverses the B+ tree values from right to left
+	 */
+	@Nonnull
+	public Iterator<V> valueReverseIterator() {
+		return new ReverseValueIterator<>(findLeaf(Integer.MAX_VALUE));
+	}
+
 	@Override
 	public String toString() {
 		final StringBuilder sb = new StringBuilder(1_024);
@@ -152,7 +191,7 @@ public class IntBPlusTree<V> {
 	 * @param leaf The leaf node to be split
 	 */
 	private void splitLeafNode(@Nonnull BPlusLeafTreeNode<V> leaf) {
-		final int mid = (this.order + 1) / 2;
+		final int mid = this.order / 2;
 		final int[] originKeys = leaf.getKeys();
 		final V[] originValues = leaf.getValues();
 
@@ -177,10 +216,19 @@ public class IntBPlusTree<V> {
 			leftLeaf.getKeys().length
 		);
 
-		leftLeaf.setPreviousNode(leaf.getPreviousNode());
+		// rewire the leaf node pointers
+		final BPlusLeafTreeNode<V> previousNode = leaf.getPreviousNode();
+		if (previousNode != null) {
+			previousNode.setNextNode(leftLeaf);
+		}
+		leftLeaf.setPreviousNode(previousNode);
 		leftLeaf.setNextNode(rightLeaf);
 		rightLeaf.setPreviousNode(leftLeaf);
-		rightLeaf.setNextNode(leaf.getNextNode());
+		final BPlusLeafTreeNode<V> nextNode = leaf.getNextNode();
+		if (nextNode != null) {
+			nextNode.setPreviousNode(rightLeaf);
+		}
+		rightLeaf.setNextNode(nextNode);
 
 		// If the root splits, create a new root
 		if (leaf == this.root) {
@@ -241,7 +289,7 @@ public class IntBPlusTree<V> {
 	 *                 that necessitate splitting to maintain the B+ tree properties.
 	 */
 	private void splitInternalNode(@Nonnull BPlusInternalTreeNode internal) {
-		final int mid = (this.order + 1) / 2;
+		final int mid = this.order / 2;
 		final int[] originKeys = internal.getKeys();
 		final BPlusTreeNode[] originChildren = internal.getChildren();
 
@@ -250,7 +298,7 @@ public class IntBPlusTree<V> {
 			originKeys,
 			originChildren,
 			new int[this.order],
-			new BPlusTreeNode[this.order],
+			new BPlusTreeNode[this.order + 1],
 			0,
 			mid
 		);
@@ -261,7 +309,7 @@ public class IntBPlusTree<V> {
 			originChildren,
 			originKeys,
 			originChildren,
-			mid,
+			mid + 1,
 			leftLeaf.getKeys().length
 		);
 
@@ -269,7 +317,7 @@ public class IntBPlusTree<V> {
 		if (internal == this.root) {
 			this.root = new BPlusInternalTreeNode(
 				this.order,
-				rightLeaf.getKeys()[0],
+				rightLeaf.getLeftBoundaryKey(),
 				leftLeaf, rightLeaf
 			);
 		} else {
@@ -277,7 +325,7 @@ public class IntBPlusTree<V> {
 				internal,
 				leftLeaf,
 				rightLeaf,
-				rightLeaf.getKeys()[0]
+				rightLeaf.getLeftBoundaryKey()
 			);
 		}
 	}
@@ -347,7 +395,7 @@ public class IntBPlusTree<V> {
 		}
 
 		public BPlusInternalTreeNode(
-			int[] originKeys, BPlusTreeNode[] originValues,
+			int[] originKeys, BPlusTreeNode[] originChildren,
 			int[] keys, BPlusTreeNode[] values,
 			int start, int end
 		) {
@@ -355,10 +403,11 @@ public class IntBPlusTree<V> {
 			this.children = values;
 			// Copy the keys and children from the origin arrays
 			for (int i = start; i < end; i++) {
-				keys[i - start] = originKeys[i];
-				values[i - start] = originValues[i];
+				this.keys[i - start] = originKeys[i];
+				this.children[i - start] = originChildren[i];
 			}
-			this.peek = end - start - 1;
+			this.children[end - start] = originChildren[end];
+			this.peek = end - start;
 		}
 
 		/**
@@ -437,6 +486,11 @@ public class IntBPlusTree<V> {
 			return this.peek == this.children.length - 1;
 		}
 
+		public int getLeftBoundaryKey() {
+			return this.children[0] instanceof BPlusInternalTreeNode leftInternalNode ?
+				leftInternalNode.getLeftBoundaryKey() : this.children[0].getKeys()[0];
+		}
+
 		@Override
 		public void toVerboseString(@Nonnull StringBuilder sb, int level, int indentSpaces) {
 			sb.append(" ".repeat(level * indentSpaces)).append("< ").append(this.keys[0]).append(":\n");
@@ -447,10 +501,18 @@ public class IntBPlusTree<V> {
 				final BPlusTreeNode child = this.children[i];
 				sb.append(" ".repeat(level * indentSpaces)).append(">=").append(key).append(":\n");
 				child.toVerboseString(sb, level + 1, indentSpaces);
-				sb.append("\n");
+				if (i < this.peek) {
+					sb.append("\n");
+				}
 			}
 		}
 
+		@Override
+		public String toString() {
+			final StringBuilder sb = new StringBuilder(64);
+			toVerboseString(sb, 0, 3);
+			return sb.toString();
+		}
 	}
 
 	/**
@@ -482,7 +544,7 @@ public class IntBPlusTree<V> {
 		/**
 		 * Index of the last occupied position in the keys array.
 		 */
-		private int peek;
+		@Getter private int peek;
 
 		public BPlusLeafTreeNode(
 			int order,
@@ -527,6 +589,13 @@ public class IntBPlusTree<V> {
 					sb.append(", ");
 				}
 			}
+		}
+
+		@Override
+		public String toString() {
+			final StringBuilder sb = new StringBuilder(64);
+			toVerboseString(sb, 0, 3);
+			return sb.toString();
 		}
 
 		/**
@@ -574,6 +643,186 @@ public class IntBPlusTree<V> {
 			}
 		}
 
+	}
+
+	/**
+	 * Iterator that traverses the B+ Tree from left to right.
+	 */
+	private static class ForwardKeyIterator implements OfInt {
+		/**
+		 * The current leaf node being traversed.
+		 */
+		@Nullable private BPlusLeafTreeNode<?> currentLeaf;
+		/**
+		 * The index of the current key within the current leaf node.
+		 */
+		private int currentKeyIndex;
+		/**
+		 * Flag indicating whether there are more elements to traverse.
+		 */
+		private boolean hasNext;
+
+		public ForwardKeyIterator(@Nonnull BPlusLeafTreeNode<?> leaf) {
+			this.currentLeaf = leaf;
+			this.currentKeyIndex = 0;
+			this.hasNext = this.currentLeaf.getPeek() >= 0;
+		}
+
+		@Override
+		public int nextInt() {
+			if (!this.hasNext || this.currentLeaf == null || this.currentKeyIndex > this.currentLeaf.getPeek()) {
+				throw new NoSuchElementException("No more elements available");
+			}
+			final int key = this.currentLeaf.getKeys()[this.currentKeyIndex];
+			if (this.currentKeyIndex < this.currentLeaf.getPeek()) {
+				this.currentKeyIndex++;
+			} else {
+				this.currentLeaf = this.currentLeaf.getNextNode();
+				this.currentKeyIndex = 0;
+				this.hasNext = this.currentLeaf != null && this.currentLeaf.getPeek() >= 0;
+			}
+			return key;
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.hasNext;
+		}
+	}
+
+	/**
+	 * Iterator that traverses the B+ Tree from right to left.
+	 */
+	private static class ReverseKeyIterator implements OfInt {
+		/**
+		 * The current leaf node being traversed.
+		 */
+		@Nullable private BPlusLeafTreeNode<?> currentLeaf;
+		/**
+		 * The index of the current key within the current leaf node.
+		 */
+		private int currentKeyIndex;
+		/**
+		 * Flag indicating whether there are more elements to traverse.
+		 */
+		private boolean hasNext;
+
+		public ReverseKeyIterator(@Nonnull BPlusLeafTreeNode<?> leaf) {
+			this.currentLeaf = leaf;
+			this.currentKeyIndex = this.currentLeaf.getPeek();
+			this.hasNext = this.currentLeaf.getPeek() >= 0;
+		}
+
+		@Override
+		public int nextInt() {
+			if (!this.hasNext || this.currentLeaf == null || this.currentKeyIndex < 0) {
+				throw new NoSuchElementException("No more elements available");
+			}
+			final int key = this.currentLeaf.getKeys()[this.currentKeyIndex];
+			if (this.currentKeyIndex > 0) {
+				this.currentKeyIndex--;
+			} else {
+				this.currentLeaf = this.currentLeaf.getPreviousNode();
+				this.currentKeyIndex = this.currentLeaf == null ? -1 : this.currentLeaf.getPeek();
+				this.hasNext = this.currentLeaf != null && this.currentLeaf.getPeek() >= 0;
+			}
+			return key;
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.hasNext;
+		}
+	}
+
+	/**
+	 * Iterator that traverses the B+ Tree from left to right.
+	 */
+	private static class ForwardValueIterator<V> implements Iterator<V> {
+		/**
+		 * The current leaf node being traversed.
+		 */
+		@Nullable private BPlusLeafTreeNode<V> currentLeaf;
+		/**
+		 * The index of the current value within the current leaf node.
+		 */
+		private int currentValueIndex;
+		/**
+		 * Flag indicating whether there are more elements to traverse.
+		 */
+		private boolean hasNext;
+
+		public ForwardValueIterator(@Nonnull BPlusLeafTreeNode<V> leaf) {
+			this.currentLeaf = leaf;
+			this.currentValueIndex = 0;
+			this.hasNext = this.currentLeaf.getPeek() >= 0;
+		}
+
+		@Override
+		public V next() {
+			if (!this.hasNext || this.currentLeaf == null || this.currentValueIndex > this.currentLeaf.getPeek()) {
+				throw new NoSuchElementException("No more elements available");
+			}
+			final V value = this.currentLeaf.getValues()[this.currentValueIndex];
+			if (this.currentValueIndex < this.currentLeaf.getPeek()) {
+				this.currentValueIndex++;
+			} else {
+				this.currentLeaf = this.currentLeaf.getNextNode();
+				this.currentValueIndex = 0;
+				this.hasNext = this.currentLeaf != null && this.currentLeaf.getPeek() >= 0;
+			}
+			return value;
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.hasNext;
+		}
+	}
+
+	/**
+	 * Iterator that traverses the B+ Tree from right to left.
+	 */
+	private static class ReverseValueIterator<V> implements Iterator<V> {
+		/**
+		 * The current leaf node being traversed.
+		 */
+		@Nullable private BPlusLeafTreeNode<V> currentLeaf;
+		/**
+		 * The index of the current value within the current leaf node.
+		 */
+		private int currentValueIndex;
+		/**
+		 * Flag indicating whether there are more elements to traverse.
+		 */
+		private boolean hasNext;
+
+		public ReverseValueIterator(@Nonnull BPlusLeafTreeNode<V> leaf) {
+			this.currentLeaf = leaf;
+			this.currentValueIndex = this.currentLeaf.getPeek();
+			this.hasNext = this.currentLeaf.getPeek() >= 0;
+		}
+
+		@Override
+		public V next() {
+			if (!this.hasNext || this.currentLeaf == null || this.currentValueIndex < 0) {
+				throw new NoSuchElementException("No more elements available");
+			}
+			final V value = this.currentLeaf.getValues()[this.currentValueIndex];
+			if (this.currentValueIndex > 0) {
+				this.currentValueIndex--;
+			} else {
+				this.currentLeaf = this.currentLeaf.getPreviousNode();
+				this.currentValueIndex = this.currentLeaf == null ? -1 : this.currentLeaf.getPeek();
+				this.hasNext = this.currentLeaf != null && this.currentLeaf.getPeek() >= 0;
+			}
+			return value;
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.hasNext;
+		}
 	}
 
 }
