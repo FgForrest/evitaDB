@@ -440,6 +440,14 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Removes integer from array on specified index. The array size is not changed and the last element value becomes
+	 * "undefined". The caller is responsible for shrinking the array if needed or maintain a peek on the array size.
+	 */
+	public static void removeIntFromSameArrayOnIndex(@Nonnull int[] recordIds, int position) {
+		System.arraycopy(recordIds, position + 1, recordIds, position, recordIds.length - position - 1);
+	}
+
+	/**
 	 * Removes integer from ordered array and shrinks it.
 	 */
 	@Nonnull
@@ -612,6 +620,15 @@ public class ArrayUtils {
 	public static <T> void insertRecordIntoSameArrayOnIndex(@Nonnull T recId, @Nonnull T[] recordIds, int position) {
 		System.arraycopy(recordIds, position, recordIds, position + 1, recordIds.length - position - 1);
 		recordIds[position] = recId;
+	}
+
+	/**
+	 * Removes arbitrary record from the array on specified index. The array size is not changed and the last element
+	 * value becomes "undefined". The caller is responsible for shrinking the array if needed or maintain a peek on
+	 * the array size.
+	 */
+	public static <T> void removeRecordFromSameArrayOnIndex(@Nonnull T[] recordIds, int position) {
+		System.arraycopy(recordIds, position + 1, recordIds, position, recordIds.length - position - 1);
 	}
 
 	/**

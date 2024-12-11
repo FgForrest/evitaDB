@@ -23,7 +23,6 @@
 
 package io.evitadb.utils;
 
-import io.evitadb.utils.ArrayUtils.*;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
@@ -498,6 +497,74 @@ class ArrayUtilsTest {
 		assertArrayEquals(new int[]{8, 2, 9, 7, 1, 3}, removeRangeFromArray(someArray, 1, 3));
 		assertArrayEquals(new int[]{8, 5, 6, 2, 7, 1, 3}, removeRangeFromArray(someArray, 4, 5));
 		assertArrayEquals(new int[]{8, 5, 6, 2, 9, 7}, removeRangeFromArray(someArray, 6, 8));
+	}
+
+	@Test
+	void shouldRemoveIntFromBeginning() {
+		int[] numbers = {10, 20, 30, 40, 50};
+		ArrayUtils.removeIntFromSameArrayOnIndex(numbers, 0);
+		assertArrayEquals(new int[]{20, 30, 40, 50, 50}, numbers);
+	}
+
+	@Test
+	void shouldRemoveIntFromMiddle() {
+		int[] numbers = {10, 20, 30, 40, 50};
+		ArrayUtils.removeIntFromSameArrayOnIndex(numbers, 2);
+		assertArrayEquals(new int[]{10, 20, 40, 50, 50}, numbers);
+	}
+
+	@Test
+	void shouldRemoveIntFromEnd() {
+		int[] numbers = {10, 20, 30, 40, 50};
+		ArrayUtils.removeIntFromSameArrayOnIndex(numbers, 4);
+		assertArrayEquals(new int[]{10, 20, 30, 40, 50}, numbers); // no change as it's the last int
+	}
+
+	@Test
+	void shouldHandleSingleIntArray() {
+		int[] numbers = {10};
+		ArrayUtils.removeIntFromSameArrayOnIndex(numbers, 0);
+		assertArrayEquals(new int[]{10}, numbers); // no valid replacement, last int stays "undefined" as before
+	}
+
+	@Test
+	void shouldFailToRemoveIntFromEmptyArray() {
+		int[] numbers = {};
+		assertThrows(ArrayIndexOutOfBoundsException.class, () -> ArrayUtils.removeIntFromSameArrayOnIndex(numbers, 0));
+	}
+
+	@Test
+	void shouldRemoveElementFromBeginning() {
+		Integer[] numbers = {10, 20, 30, 40, 50};
+		ArrayUtils.removeRecordFromSameArrayOnIndex(numbers, 0);
+		assertArrayEquals(new Integer[]{20, 30, 40, 50, 50}, numbers);
+	}
+
+	@Test
+	void shouldRemoveElementFromMiddle() {
+		Integer[] numbers = {10, 20, 30, 40, 50};
+		ArrayUtils.removeRecordFromSameArrayOnIndex(numbers, 2);
+		assertArrayEquals(new Integer[]{10, 20, 40, 50, 50}, numbers);
+	}
+
+	@Test
+	void shouldRemoveElementFromEnd() {
+		Integer[] numbers = {10, 20, 30, 40, 50};
+		ArrayUtils.removeRecordFromSameArrayOnIndex(numbers, 4);
+		assertArrayEquals(new Integer[]{10, 20, 30, 40, 50}, numbers); // no change as it's the last element
+	}
+
+	@Test
+	void shouldHandleSingleElementArray() {
+		Integer[] numbers = {10};
+		ArrayUtils.removeRecordFromSameArrayOnIndex(numbers, 0);
+		assertArrayEquals(new Integer[]{10}, numbers); // no valid replacement, last element stays "undefined" as before
+	}
+
+	@Test
+	void shouldFailToRemoveElementFromEmptyArray() {
+		Integer[] numbers = {};
+		assertThrows(ArrayIndexOutOfBoundsException.class, () -> ArrayUtils.removeRecordFromSameArrayOnIndex(numbers, 0));
 	}
 
 	private enum TestEnum {
