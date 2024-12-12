@@ -576,7 +576,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.state = catalogState;
 		this.catalogIndex = catalogIndex;
 		this.archiveCatalogIndex = archiveCatalogIndex;
-		this.persistenceService = previousCatalogVersion.persistenceService;
+		this.persistenceService = persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
 		this.trafficRecorder = previousCatalogVersion.trafficRecorder;
 		this.entityTypeSequence = previousCatalogVersion.entityTypeSequence;

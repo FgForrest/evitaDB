@@ -113,6 +113,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitConstraint(EvitaQLParser.ConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code headContainerConstraint}
+	 * labeled alternative in {@link EvitaQLParser#headConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterHeadContainerConstraint(EvitaQLParser.HeadContainerConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code headContainerConstraint}
+	 * labeled alternative in {@link EvitaQLParser#headConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitHeadContainerConstraint(EvitaQLParser.HeadContainerConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code collectionConstraint}
 	 * labeled alternative in {@link EvitaQLParser#headConstraint}.
 	 * @param ctx the parse tree
@@ -124,6 +136,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitCollectionConstraint(EvitaQLParser.CollectionConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code labelConstraint}
+	 * labeled alternative in {@link EvitaQLParser#headConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterLabelConstraint(EvitaQLParser.LabelConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code labelConstraint}
+	 * labeled alternative in {@link EvitaQLParser#headConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitLabelConstraint(EvitaQLParser.LabelConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code filterByConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
@@ -1872,6 +1896,16 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitEmptyArgs(EvitaQLParser.EmptyArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#headConstraintListArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterHeadConstraintListArgs(EvitaQLParser.HeadConstraintListArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#headConstraintListArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitHeadConstraintListArgs(EvitaQLParser.HeadConstraintListArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#filterConstraintListArgs}.
 	 * @param ctx the parse tree

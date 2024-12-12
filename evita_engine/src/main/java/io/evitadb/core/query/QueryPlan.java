@@ -52,6 +52,7 @@ import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -399,12 +400,13 @@ public class QueryPlan {
 	 */
 	@Nonnull
 	public SpanAttribute[] getSpanAttributes() {
-		final Query query = this.getEvitaRequest().getQuery();
+		final EvitaRequest evitaRequest = this.getEvitaRequest();
+		final Query query = evitaRequest.getQuery();
 		final FinishedEvent queryFinishedEvent = queryContext.getQueryFinishedEvent();
 		if (queryFinishedEvent == null) {
 			return SpanAttribute.EMPTY_ARRAY;
 		} else {
-			return new SpanAttribute[]{
+			final SpanAttribute[] systemAttributes = {
 				new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
 				new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
 				new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
@@ -418,6 +420,16 @@ public class QueryPlan {
 				new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
 				new SpanAttribute("complexity", queryFinishedEvent.getRealComplexity())
 			};
+			if (evitaRequest.getLabels().length > 0) {
+				return ArrayUtils.mergeArrays(
+					systemAttributes,
+					Arrays.stream(evitaRequest.getLabels())
+						.map(label -> new SpanAttribute(label.getLabelName(), label.getLabelValue()))
+						.toArray(SpanAttribute[]::new)
+				);
+			} else {
+				return systemAttributes;
+			}
 		}
 	}
 

@@ -26,6 +26,7 @@ package io.evitadb.core.traffic;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
@@ -69,7 +70,10 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 
 	@Override
 	public void recordQuery(
-		@Nonnull UUID sessionId, @Nonnull Query query, @Nonnull OffsetDateTime now,
+		@Nonnull UUID sessionId,
+		@Nonnull Query query,
+		@Nonnull Label[] labels,
+		@Nonnull OffsetDateTime now,
 		int totalRecordCount, int ioFetchCount, int ioFetchedSizeBytes,
 		@Nonnull int[] primaryKeys
 	) {

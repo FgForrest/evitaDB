@@ -28,12 +28,16 @@ import com.esotericsoftware.kryo.serializers.DefaultSerializers.EnumSerializer;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.head.Head;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.Scope;
-import io.evitadb.store.query.serializer.CollectionSerializer;
 import io.evitadb.store.query.serializer.QuerySerializer;
 import io.evitadb.store.query.serializer.filter.*;
+import io.evitadb.store.query.serializer.head.CollectionSerializer;
+import io.evitadb.store.query.serializer.head.HeadSerializer;
+import io.evitadb.store.query.serializer.head.LabelSerializer;
 import io.evitadb.store.query.serializer.orderBy.*;
 import io.evitadb.store.query.serializer.require.*;
 import io.evitadb.utils.Assert;
@@ -51,6 +55,7 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 	@Override
 	public void accept(Kryo kryo) {
 		int index = QUERY_BASE;
+
 		kryo.register(Query.class, new QuerySerializer(), index++);
 
 		kryo.register(AttributeSpecialValue.class, new EnumSerializer(AttributeSpecialValue.class), index++);
@@ -66,7 +71,9 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(Scope.class, new EnumSerializer(Scope.class), index++);
 
 		index = QUERY_BASE + 100;
+		kryo.register(Head.class, new HeadSerializer(), index++);
 		kryo.register(Collection.class, new CollectionSerializer(), index++);
+		kryo.register(Label.class, new LabelSerializer(), index++);
 
 		index = QUERY_BASE + 200;
 		kryo.register(And.class, new AndSerializer(), index++);

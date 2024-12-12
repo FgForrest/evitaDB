@@ -38,8 +38,10 @@ import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
+import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
@@ -77,6 +79,7 @@ public class EvitaRequest {
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
 	private final String entityType;
+	@Nullable private Label[] labels;
 	private final Locale implicitLocale;
 	@Getter private final Class<?> expectedType;
 	@Nullable private int[] primaryKeys;
@@ -155,6 +158,7 @@ public class EvitaRequest {
 	public EvitaRequest(@Nonnull EvitaRequest evitaRequest, @Nonnull Locale implicitLocale) {
 		this.entityType = evitaRequest.entityType;
 		this.query = evitaRequest.query;
+		this.labels = evitaRequest.labels;
 		this.alignedNow = evitaRequest.alignedNow;
 		this.implicitLocale = implicitLocale;
 		this.primaryKeys = evitaRequest.primaryKeys;
@@ -209,16 +213,28 @@ public class EvitaRequest {
 		this.entityType = entityType;
 		this.query = entityType == null ?
 			Query.query(
+				evitaRequest.query.getHead() == null ?
+					null :
+					ConstraintCloneVisitor.clone(
+						evitaRequest.query.getHead(),
+						(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? null : constraint
+					),
 				evitaRequest.query.getFilterBy(),
 				evitaRequest.query.getOrderBy(),
 				require(this.entityRequirement)
 			) :
 			Query.query(
-				collection(entityType),
+				evitaRequest.query.getHead() == null ?
+					null :
+					ConstraintCloneVisitor.clone(
+						evitaRequest.query.getHead(),
+						(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? collection(entityType) : constraint
+					),
 				evitaRequest.query.getFilterBy(),
 				evitaRequest.query.getOrderBy(),
 				require(this.entityRequirement)
 			);
+		this.labels = evitaRequest.labels;
 		this.alignedNow = evitaRequest.alignedNow;
 		this.implicitLocale = evitaRequest.implicitLocale;
 		this.primaryKeys = evitaRequest.primaryKeys;
@@ -277,7 +293,12 @@ public class EvitaRequest {
 		this.entityRequirement = evitaRequest.entityRequirement;
 		this.entityType = entityType;
 		this.query = Query.query(
-			collection(entityType),
+			evitaRequest.query.getHead() == null ?
+				null :
+				ConstraintCloneVisitor.clone(
+					evitaRequest.query.getHead(),
+					(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? collection(entityType) : constraint
+				),
 			filterBy,
 			orderBy,
 			require(this.entityRequirement)
@@ -285,6 +306,7 @@ public class EvitaRequest {
 		this.alignedNow = evitaRequest.getAlignedNow();
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.primaryKeys = null;
+		this.labels = null;
 		this.queryPriceMode = evitaRequest.getQueryPriceMode();
 		this.priceValidInTimeSet = true;
 		this.priceValidInTime = evitaRequest.getRequiresPriceValidIn();
@@ -327,7 +349,7 @@ public class EvitaRequest {
 	 * Returns true if query targets specific entity type.
 	 */
 	public boolean isEntityTypeRequested() {
-		return entityType != null;
+		return this.entityType != null;
 	}
 
 	/**
@@ -335,7 +357,20 @@ public class EvitaRequest {
 	 */
 	@Nullable
 	public String getEntityType() {
-		return entityType;
+		return this.entityType;
+	}
+
+	/**
+	 * Returns array of labels associated with the query.
+	 */
+	@Nonnull
+	public Label[] getLabels() {
+		if (this.labels == null) {
+			this.labels = ofNullable(this.query.getHead())
+				.map(it -> QueryUtils.findConstraints(it, Label.class).toArray(Label[]::new))
+				.orElse(Label.EMPTY_ARRAY);
+		}
+		return this.labels;
 	}
 
 	/**

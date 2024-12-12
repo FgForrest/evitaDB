@@ -29,6 +29,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.Scheduler;
@@ -62,6 +63,7 @@ import java.io.IOException;
 import java.io.Serial;
 import java.nio.ByteBuffer;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Queue;
@@ -291,6 +293,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	public void recordQuery(
 		@Nonnull UUID sessionId,
 		@Nonnull Query query,
+		@Nonnull Label[] labels,
 		@Nonnull OffsetDateTime now,
 		int totalRecordCount,
 		int ioFetchCount,
@@ -300,7 +303,13 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		record(
 			sessionId,
 			new QueryContainer(
-				sessionId, query, now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
+				sessionId, query,
+				labels.length == 0 ?
+					QueryContainer.Label.EMPTY_LABELS :
+					Arrays.stream(labels)
+						.map(label -> new QueryContainer.Label(label.getLabelName(), label.getLabelValue()))
+						.toArray(QueryContainer.Label[]::new),
+				now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
 				totalRecordCount, ioFetchCount, ioFetchedSizeBytes, primaryKeys
 			)
 		);

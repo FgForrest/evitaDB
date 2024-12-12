@@ -105,6 +105,7 @@ public class TrafficRecordingEngine {
 		this.trafficRecorder.recordQuery(
 			sessionId,
 			result.getSourceQuery(),
+			queryPlan.getEvitaRequest().getLabels(),
 			queryPlan.getEvitaRequest().getAlignedNow(),
 			result.getTotalRecordCount(),
 			result.getIoFetchCount(),

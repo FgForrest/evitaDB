@@ -26,6 +26,7 @@ package io.evitadb.store.traffic;
 
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -101,6 +102,10 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
 				require(entityFetchAll())
 			),
+			new Label[]{
+				new Label("a", "b"),
+				new Label("c", "d")
+			},
 			OffsetDateTime.now(),
 			15,
 			456,

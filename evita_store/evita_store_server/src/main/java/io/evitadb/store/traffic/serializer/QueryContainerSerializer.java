@@ -30,7 +30,9 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.Query;
 import io.evitadb.store.traffic.data.QueryContainer;
+import io.evitadb.store.traffic.data.QueryContainer.Label;
 
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -45,6 +47,11 @@ public class QueryContainerSerializer extends Serializer<QueryContainer> {
 	public void write(Kryo kryo, Output output, QueryContainer object) {
 		kryo.writeObject(output, object.sessionId());
 		kryo.writeObject(output, object.query());
+		output.writeVarInt(object.labels().length, true);
+		for (int i = 0; i < object.labels().length; i++) {
+			output.writeString(object.labels()[i].name());
+			kryo.writeClassAndObject(output, object.labels()[i].value());
+		}
 		kryo.writeObject(output, object.created());
 		output.writeVarInt(object.durationInMilliseconds(), true);
 		output.writeVarInt(object.totalRecordCount(), true);
@@ -56,9 +63,20 @@ public class QueryContainerSerializer extends Serializer<QueryContainer> {
 
 	@Override
 	public QueryContainer read(Kryo kryo, Input input, Class<? extends QueryContainer> type) {
+		final UUID sessionId = kryo.readObject(input, UUID.class);
+		final Query query = kryo.readObject(input, Query.class);
+		final int labelCount = input.readVarInt(true);
+		final QueryContainer.Label[] labels = labelCount == 0 ? Label.EMPTY_LABELS : new QueryContainer.Label[labelCount];
+		for (int i = 0; i < labelCount; i++) {
+			labels[i] = new QueryContainer.Label(
+				input.readString(),
+				(Serializable) kryo.readClassAndObject(input)
+			);
+		}
 		return new QueryContainer(
-			kryo.readObject(input, UUID.class),
-			kryo.readObject(input, Query.class),
+			sessionId,
+			query,
+			labels,
 			kryo.readObject(input, OffsetDateTime.class),
 			input.readVarInt(true),
 			input.readVarInt(true),

@@ -28,6 +28,7 @@ import io.evitadb.core.traffic.TrafficRecording;
 import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -48,6 +49,7 @@ import java.util.UUID;
 public record QueryContainer(
 	@Nonnull UUID sessionId,
 	@Nonnull Query query,
+	@Nonnull Label[] labels,
 	@Nonnull OffsetDateTime created,
 	int durationInMilliseconds,
 	int totalRecordCount,
@@ -60,6 +62,15 @@ public record QueryContainer(
 	@Override
 	public TrafficRecordingType type() {
 		return TrafficRecordingType.QUERY;
+	}
+
+	public record Label(
+		@Nonnull String name,
+		@Nonnull Serializable value
+	) {
+
+		public static final Label[] EMPTY_LABELS = new Label[0];
+
 	}
 
 }
