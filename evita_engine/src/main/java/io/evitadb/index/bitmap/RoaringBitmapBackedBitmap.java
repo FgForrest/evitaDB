@@ -54,7 +54,6 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapWriter
 				.writer()
 				.constantMemory()
-				.expectedRange(array[0], array[array.length - 1])
 				.runCompress(false)
 				.get();
 			writer.addMany(array);
