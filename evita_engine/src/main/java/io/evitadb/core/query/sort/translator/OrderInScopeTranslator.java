@@ -28,6 +28,7 @@ import io.evitadb.api.query.order.OrderInScope;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.sort.OrderByVisitor;
+import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
@@ -41,7 +42,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class OrderInScopeTranslator implements OrderingConstraintTranslator<OrderInScope>, SelfTraversingTranslator {
+public class OrderInScopeTranslator implements OrderingConstraintTranslator<OrderInScope>, ReferenceOrderingConstraintTranslator<OrderInScope>, SelfTraversingTranslator {
 
 	@Nonnull
 	@Override
@@ -63,6 +64,11 @@ public class OrderInScopeTranslator implements OrderingConstraintTranslator<Orde
 					return Stream.empty();
 				}
 			);
+	}
+
+	@Override
+	public void createComparator(@Nonnull OrderInScope inScope, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
+		// do nothing
 	}
 
 }

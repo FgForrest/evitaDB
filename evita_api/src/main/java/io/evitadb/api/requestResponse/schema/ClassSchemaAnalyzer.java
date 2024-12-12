@@ -405,7 +405,7 @@ public class ClassSchemaAnalyzer {
 		final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
 		if (attributeAnnotation.global() ||
 			attributeAnnotation.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE ||
-			Arrays.stream(attributeAnnotation.scope()).anyMatch(it -> it.uniqueGlobally() == GlobalAttributeUniquenessType.NOT_UNIQUE) ||
+			Arrays.stream(attributeAnnotation.scope()).anyMatch(it -> it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE) ||
 			(!ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition) && Arrays.stream(scopedDefinition).anyMatch(it -> it.unique() != AttributeUniquenessType.NOT_UNIQUE || it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE))
 		) {
 			Assert.notNull(
