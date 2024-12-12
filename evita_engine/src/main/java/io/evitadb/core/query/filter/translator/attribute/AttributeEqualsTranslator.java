@@ -159,7 +159,7 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
-			final Set<Scope> scopes = filterByVisitor.getScopes();
+			final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));

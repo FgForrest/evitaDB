@@ -35,6 +35,7 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.OrderByVisitor;
+import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
@@ -119,7 +120,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final Set<Scope> allowedScopes = orderByVisitor.getScopes();
+		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
 		Comparator<EntityIndex> comparator = null;
 		for (Scope scope : Scope.values()) {
 			if (allowedScopes.contains(scope)) {
@@ -182,7 +183,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		final String referenceName = orderConstraint.getReferenceName();
 		final EntitySchemaContract entitySchema = orderByVisitor.getSchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-		for (Scope scope : orderByVisitor.getScopes()) {
+		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
+		for (Scope scope : processingScope.getScopes()) {
 			if (!referenceSchema.isIndexedInScope(scope)) {
 				throw new ReferenceNotIndexedException(referenceName, entitySchema, scope);
 			}
@@ -199,7 +201,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			referenceIndexes,
 			referenceSchema,
 			null,
-			orderByVisitor.getProcessingScope().withReferenceSchemaAccessor(referenceName),
+			processingScope.withReferenceSchemaAccessor(referenceName),
 			new EntityReferenceAttributeExtractor(referenceName),
 			() -> {
 				for (OrderConstraint innerConstraint : orderConstraint.getChildren()) {

@@ -172,7 +172,7 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 			if (evitaRequest.getRequiredLocales() == null && evitaRequest.getImplicitLocale() == null) {
 				verifyAttributesKnownAndNotLocalized(
 					attributeNames, schema, referenceSchema, entitySchema,
-					extraResultPlanningVisitor.getScopes()
+					extraResultPlanningVisitor.getProcessingScope().getScopes()
 				);
 			} else {
 				verifyAttributesKnown(attributeNames, schema, referenceSchema, entitySchema);

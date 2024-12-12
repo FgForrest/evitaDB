@@ -871,6 +871,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			 return Stream.empty();
 		} else if (allowedScopes.size() == 1) {
 			return processingScope.getIndexStream()
+				.filter(ix -> ix.getIndexKey().scope() == allowedScopes.iterator().next())
 				.filter(EntityIndex.class::isInstance)
 				.map(EntityIndex.class::cast);
 		} else {

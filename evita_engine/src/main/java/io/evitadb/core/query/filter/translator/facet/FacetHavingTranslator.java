@@ -43,8 +43,10 @@ import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 
@@ -71,10 +73,11 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull FacetHaving facetHaving, @Nonnull FilterByVisitor filterByVisitor) {
-		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchemaOrThrowException();
+		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+		final EntitySchemaContract entitySchema = processingScope.getEntitySchemaOrThrowException();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(facetHaving.getReferenceName());
 		isTrue(
-			filterByVisitor.getScopes().stream().anyMatch(referenceSchema::isFacetedInScope),
+			processingScope.getScopes().stream().anyMatch(referenceSchema::isFacetedInScope),
 			() -> new ReferenceNotFacetedException(facetHaving.getReferenceName(), entitySchema)
 		);
 
